@@ -6,6 +6,9 @@ generated/
 *.tsbuildinfo
 .env
 .env.local
+# Relevés bruts du capteur de webhook : contiennent des charges utiles réelles
+# et, le cas échéant, des en-têtes de signature.
+campay-webhooks.log
 coverage/
 playwright-report/
 test-results/
