@@ -8,11 +8,26 @@
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
-    "test": "echo no tests",
-    "typecheck": "echo ok",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "echo ok"
   },
   "peerDependencies": {
-    "tailwindcss": "^4.3.0"
+    "tailwindcss": "^4.3.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.6.0",
+    "@catalog/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "4.1.10",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "typescript": "6.0.3",
+    "@types/node": "26.1.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   }
 }

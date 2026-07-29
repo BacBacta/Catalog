@@ -53,5 +53,17 @@ jobs:
       # c'est la seule facon d'empecher la derive vers une application qui ne
       # marche bien que chez ceux qui l'ecrivent.
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm exec playwright test
-        continue-on-error: true # a passer en bloquant des le lot 4
+      # Le serveur de previsualisation sert le build : il faut donc construire.
+      - run: pnpm --filter @catalog/seller build
+      # Bloquant depuis le lot 2. AGENTS.md exige zero violation axe-core
+      # bloquante, et la page de demonstration du design system en est la
+      # premiere cible reelle. Ce job verifie aussi les cibles tactiles de
+      # 44px sur la geometrie RENDUE, ce qu'aucun test unitaire ne peut faire.
+      - run: pnpm --filter @catalog/seller e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: captures-design-system
+          path: apps/seller/test-results/**/*.png
+          if-no-files-found: ignore
+          retention-days: 7

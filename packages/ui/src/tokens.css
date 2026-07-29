@@ -3,9 +3,20 @@
 
    Parti pris : ici, « premium » veut dire rapide, lisible en plein soleil et
    clair sur les montants. Aucune police n'est telechargee sur la boutique
-   publique — la pile systeme coute zero octet avant le premier rendu du texte. */
+   publique — la pile systeme coute zero octet avant le premier rendu du texte.
+
+   Les valeurs de couleur ne sont pas choisies a l'oeil : chaque paire
+   texte/fond de ce fichier est verifiee par `tokens.test.ts`, qui calcule les
+   ratios de contraste WCAG 2.2 AA sur LES DEUX themes et echoue en CI si une
+   retouche les casse. Trois d'entre elles ont du etre assombries au lot 2 :
+   `muted`, `good` et `warn` echouaient en mode clair. */
 
 @import "tailwindcss";
+
+/* Les classes utilitaires des composants de ce paquet doivent etre vues par
+   Tailwind. Sans cette ligne, `packages/ui` est un node_modules symlinke pour
+   l'application hote et son balayage l'ignore : les composants arrivent nus. */
+@source ".";
 
 @theme {
   /* ── marque : une seule teinte, du clair au fonce ── */
@@ -16,18 +27,40 @@
   --color-brand-500: #0e7a5f;
   --color-brand-700: #0a5c48;
 
+  /* Fond d'un bouton plein, et l'encre qui va DESSUS. Les deux vont par paire :
+     en mode sombre la marque s'eclaircit, donc l'encre passe au fonce. Garder
+     --color-brand-500 en fond avec du blanc dessus tombe a 3,19:1 en sombre. */
+  --color-brand-fill: #0e7a5f;
+  --color-brand-on-fill: #ffffff;
+
   /* ── statuts : reserves, jamais reutilises comme couleur de serie ── */
-  --color-good: #0ca30c;
-  --color-warn: #b5761a;
-  --color-danger: #d03b3b;
+  --color-good: #077a07;
+  --color-warn: #8f5c13;
+  --color-danger: #c93636;
+
+  /* Fonds teintes des pastilles. Le texte pose dessus est la couleur de statut
+     ci-dessus, et le couple est verifie a 4,5:1. */
+  --color-good-soft: #eaf7ea;
+  --color-warn-soft: #fdf4e4;
+  --color-danger-soft: #fdecec;
+  --color-brand-soft: #e6f4f0;
 
   /* ── surfaces & encre, mode clair ── */
   --color-surface: #ffffff;
   --color-plane: #f4f6f5;
+  /* Surface surelevee : boite de dialogue, panneau, infobulle. */
+  --color-raised: #ffffff;
   --color-ink: #14201c;
   --color-ink-2: #5a6b65;
-  --color-muted: #94a39d;
+  --color-muted: #646e6a;
+  /* Filet decoratif : separateur, bord de carte. Exempte du 3:1 (WCAG 1.4.11
+     ne couvre pas la decoration), et volontairement discret. */
   --color-line: #e4e9e7;
+  /* Bord d'un CONTROLE — champ, case, bouton a contour. Celui-la porte
+     l'information « ceci est interactif » : il tient le 3:1. */
+  --color-control-line: #8d918f;
+  --color-focus: #0e7a5f;
+  --color-backdrop: rgb(20 32 28 / 0.42);
 
   /* ── typographie : pile systeme, zero octet ── */
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -38,6 +71,7 @@
   --text-caption: 0.78125rem;
 
   --radius-card: 14px;
+  --radius-field: 12px;
   --radius-pill: 999px;
 
   /* ── mouvement : court, sortie douce ── */
@@ -51,32 +85,53 @@
 
 /* Mode sombre CHOISI, pas obtenu par inversion : chaque valeur est
    selectionnee pour sa surface. La preference explicite l'emporte
-   dans les deux sens. */
+   dans les deux sens — d'ou le :where(:not(...)) sur la requete media, qui
+   laisse `data-theme="light"` reprendre la main sans guerre de specificite. */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     --color-surface: #1a1a19;
     --color-plane: #0d0d0d;
+    --color-raised: #232322;
     --color-ink: #ffffff;
     --color-ink-2: #c3c2b7;
-    --color-muted: #898781;
+    --color-muted: #989691;
     --color-line: #2c2c2a;
+    --color-control-line: #6b6b69;
     --color-brand-500: #17a37f;
-    --color-good: #0ca30c;
+    --color-brand-fill: #17a37f;
+    --color-brand-on-fill: #0d1a16;
+    --color-focus: #3fcaa6;
+    --color-backdrop: rgb(0 0 0 / 0.62);
+    --color-good: #3ec93e;
     --color-warn: #eda100;
-    --color-danger: #e66767;
+    --color-danger: #f08c8c;
+    --color-good-soft: #14261a;
+    --color-warn-soft: #2a2110;
+    --color-danger-soft: #2d1a1a;
+    --color-brand-soft: #10241f;
   }
 }
 :root[data-theme="dark"] {
   --color-surface: #1a1a19;
   --color-plane: #0d0d0d;
+  --color-raised: #232322;
   --color-ink: #ffffff;
   --color-ink-2: #c3c2b7;
-  --color-muted: #898781;
+  --color-muted: #989691;
   --color-line: #2c2c2a;
+  --color-control-line: #6b6b69;
   --color-brand-500: #17a37f;
-  --color-good: #0ca30c;
+  --color-brand-fill: #17a37f;
+  --color-brand-on-fill: #0d1a16;
+  --color-focus: #3fcaa6;
+  --color-backdrop: rgb(0 0 0 / 0.62);
+  --color-good: #3ec93e;
   --color-warn: #eda100;
-  --color-danger: #e66767;
+  --color-danger: #f08c8c;
+  --color-good-soft: #14261a;
+  --color-warn-soft: #2a2110;
+  --color-danger-soft: #2d1a1a;
+  --color-brand-soft: #10241f;
 }
 
 /* Le mouvement est une amelioration, jamais une dependance.
@@ -94,14 +149,32 @@
   }
 }
 
-/* Toute cible interactive respecte le seuil de confort a une main. */
 @layer base {
+  /* Toute cible interactive respecte le seuil de confort a une main.
+     Les champs de saisie en font partie : un champ de 32px de haut se rate
+     au pouce autant qu'un bouton. */
+  button,
+  a[role="button"],
+  [role="tab"],
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-block-size: var(--size-touch);
+  }
   button,
   a[role="button"],
   [role="tab"],
   input[type="checkbox"],
   input[type="radio"] {
-    min-block-size: var(--size-touch);
     min-inline-size: var(--size-touch);
+  }
+
+  /* Un anneau de focus visible, identique partout, et jamais retire.
+     `:focus-visible` seulement : la souris ne le declenche pas. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
   }
 }
