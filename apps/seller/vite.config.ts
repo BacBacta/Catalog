@@ -14,8 +14,8 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Swap — espace vendeuse",
-        short_name: "Swap",
+        name: "Catalog — espace vendeuse",
+        short_name: "Catalog",
         lang: "fr",
         start_url: "/",
         display: "standalone",

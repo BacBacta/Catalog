@@ -34,7 +34,7 @@ const kb = (n) => `${(n / 1024).toFixed(1)} Ko`;
 try {
   statSync(DIST);
 } catch {
-  console.error("dist/ introuvable — lancer `pnpm --filter @swap/shop build` avant.");
+  console.error("dist/ introuvable — lancer `pnpm --filter @catalog/shop build` avant.");
   process.exit(1);
 }
 

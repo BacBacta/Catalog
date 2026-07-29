@@ -1,4 +1,4 @@
-import { CODE_ALPHABET, formatVerificationCode } from "@swap/contracts";
+import { CODE_ALPHABET, formatVerificationCode } from "@catalog/contracts";
 
 /**
  * Genere un code de verification imprevisible.

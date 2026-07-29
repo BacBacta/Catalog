@@ -1,4 +1,4 @@
-// Swap — schema de donnees
+// Catalog — schema de donnees
 // Regles non negociables (voir AGENTS.md) :
 //  - tous les montants sont des Int en XAF, suffixes _xaf ;
 //  - il n'existe PAS de champ « adresse » : delivery est un Json
@@ -6,7 +6,7 @@
 //  - l'idempotence des webhooks vit dans la contrainte UNIQUE de PaymentEvent,
 //    pas dans le code applicatif.
 // Les CHECK et les triggers que Prisma ne sait pas exprimer sont dans
-// sql/0001_constraints.sql et appliques par `pnpm --filter @swap/db constraints`.
+// sql/0001_constraints.sql et appliques par `pnpm --filter @catalog/db constraints`.
 
 generator client {
   provider = "prisma-client"

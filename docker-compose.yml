@@ -2,13 +2,13 @@ services:
   postgres:
     image: postgres:18-alpine
     environment:
-      POSTGRES_USER: swap
-      POSTGRES_PASSWORD: swap
-      POSTGRES_DB: swap
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog
+      POSTGRES_DB: catalog
     ports: ["5432:5432"]
-    volumes: ["swap_pg:/var/lib/postgresql/data"]
+    volumes: ["catalog_pg:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U swap"]
+      test: ["CMD-SHELL", "pg_isready -U catalog"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -20,8 +20,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports: ["9000:9000", "9001:9001"]
-    volumes: ["swap_minio:/data"]
+    volumes: ["catalog_minio:/data"]
 
 volumes:
-  swap_pg:
-  swap_minio:
+  catalog_pg:
+  catalog_minio:

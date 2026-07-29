@@ -180,7 +180,7 @@ if (!msisdn) {
     amount,
     currency: "XAF",
     from: msisdn,
-    description: "Sonde Swap",
+    description: "Sonde Catalog",
     external_reference: `PROBE-${Date.now()}`,
   });
   log(`  HTTP ${col.status}`);

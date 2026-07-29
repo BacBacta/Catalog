@@ -1,5 +1,5 @@
 {
-  "name": "swap",
+  "name": "catalog",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.17.0",
@@ -13,9 +13,9 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "db:generate": "pnpm --filter @swap/db generate",
-    "db:validate": "pnpm --filter @swap/db validate",
-    "size": "pnpm --filter @swap/shop size"
+    "db:generate": "pnpm --filter @catalog/db generate",
+    "db:validate": "pnpm --filter @catalog/db validate",
+    "size": "pnpm --filter @catalog/shop size"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.6",

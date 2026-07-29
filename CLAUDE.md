@@ -16,9 +16,19 @@ Les plus structurants :
 
 - `0004` — les montants sont des entiers XAF, jamais de flottant
 - `0005` — il n'existe pas d'adresse au Cameroun, jamais de champ `address`
-- `0006` — Swap n'encaisse jamais, les fonds ne touchent aucun compte à nous
-- `0007` — le paiement passe par un agrégateur agréé, vendeuse bénéficiaire
-- `0008` — évaluation CamPay, et les six questions encore ouvertes
+- `0006` — Catalog n'encaisse jamais, les fonds ne touchent aucun compte à nous
+- `0009` — **la v1 se passe d'agrégateur** : dépôt direct, preuve par SMS.
+  Il remplace l'orientation du `0007` et s'appuie sur les mesures du `0008`.
+  C'est celui à lire en premier.
+- `0010` — le produit s'appelle **Catalog** ; `catalogue` reste le nom commun
+
+Les ADR `0007` et `0008` restent utiles pour comprendre pourquoi la voie
+agrégateur a été abandonnée, mais ils sont dépassés pour la v1.
+
+Le format des SMS opérateurs est une **spécification**, pas de la
+documentation : `docs/formats-sms-operateurs.md` se lit en entier avant tout
+travail sur la preuve, et ses expressions régulières se copient sans être
+réécrites.
 
 ## Secrets
 
@@ -43,5 +53,10 @@ manquante, arrête-toi et demande plutôt que d'inventer une valeur plausible.
 
 ## Tâche en cours
 
-Sonder l'API CamPay sur son environnement de démonstration et corriger
-l'adaptateur sur les champs réels — voir `apps/api/scripts/README.md`.
+La séquence d'implémentation vit dans `PROMPTS.md` : un lot par session, dans
+l'ordre. Le lot 0 — bascule v1 sans agrégateur et renommage — est fait.
+
+L'investigation CamPay est close : l'adaptateur `apps/api/src/adapters/campay.ts`
+est **en dormance** derrière `PAYMENT_AGGREGATOR_ENABLED`, absent par défaut.
+Aucune route, aucun job, aucun écran ne l'appelle, et un test de garde le
+vérifie. On ne l'étend pas sans un nouvel ADR qui rouvre la décision.

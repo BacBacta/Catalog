@@ -1,4 +1,4 @@
-import { formatXaf } from "@swap/contracts";
+import { formatXaf } from "@catalog/contracts";
 
 // Squelette de la phase 1. Les quatre etats obligatoires de chaque ecran —
 // chargement, vide, erreur, HORS LIGNE — seront cables au lot 5 ; le mode hors

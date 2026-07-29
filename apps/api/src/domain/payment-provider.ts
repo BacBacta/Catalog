@@ -1,6 +1,15 @@
-import type { PaymentStatus } from "@swap/contracts";
+import type { PaymentStatus } from "@catalog/contracts";
 
 /**
+ * INTERFACE EN DORMANCE — voir ADR 0009.
+ *
+ * C'est le contrat que l'adaptateur CamPay implemente. La v1 se passe
+ * d'agregateur : aucune route, aucun job et aucun ecran ne depend de ce
+ * fichier, et il n'a pas d'autre implementation. Il reste la, avec
+ * l'adaptateur, pour que l'ensemble soit encore compilable le jour ou l'on
+ * rouvrira la decision. Les mots « webhook » et « notification » qu'il
+ * contient decrivent ce monde-la, pas la v1.
+ *
  * Le domaine ne connait aucun agregateur. On doit pouvoir changer de
  * prestataire sans toucher au metier — c'est aussi ce qui rend le domaine
  * testable sans reseau.

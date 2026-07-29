@@ -1,5 +1,6 @@
 # 0007 — Le paiement passe par un agrégateur agréé, en modèle sous-marchand
 
+- Superseded pour la v1 par l'ADR 0009.
 - Statut : accepté
 - Date : 2026-07-29
 - Complète l'ADR 0006 (Swap n'encaisse jamais)

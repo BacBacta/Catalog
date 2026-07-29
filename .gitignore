@@ -5,10 +5,12 @@ dist/
 generated/
 *.tsbuildinfo
 .env
-.env.local
-# Relevés bruts du capteur de webhook : contiennent des charges utiles réelles
-# et, le cas échéant, des en-têtes de signature.
-campay-webhooks.log
+.env.*
+!.env.example
+# Aucun journal ne rentre dans le dépôt. Le relevé du capteur de webhook
+# (campay-webhooks.log) contient des charges utiles réelles et, le cas
+# échéant, des en-têtes de signature — mais la règle vaut pour tous.
+*.log
 coverage/
 playwright-report/
 test-results/

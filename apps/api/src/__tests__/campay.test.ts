@@ -56,10 +56,11 @@ const b64url = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64ur
 /**
  * Fabrique un jeton de la MEME forme que celui observe : en-tete
  * {"alg":"HS256","app":"…","typ":"JWT"} et charge utile ne contenant que
- * iat / nbf / exp / source.
+ * iat / nbf / exp / source. La revendication `app` porte le nom de
+ * l'application chez le prestataire ; elle n'entre pas dans la verification.
  */
 function makeToken(secret: string, { iat = 1785342145, ttl = 3600, alg = "HS256" as string } = {}) {
-  const h = b64url({ alg, app: "Swap", typ: "JWT" });
+  const h = b64url({ alg, app: "Catalog", typ: "JWT" });
   const p = b64url({ iat, nbf: iat, exp: iat + ttl, source: "CamPay" });
   const s = createHmac("sha256", secret).update(`${h}.${p}`).digest("base64url");
   return `${h}.${p}.${s}`;
@@ -191,7 +192,7 @@ describe("initiate", () => {
     const p = new CampayProvider(cfg(fn));
     const r = await p.initiate({
       amountXaf: 17000,
-      orderRef: "SW-1043",
+      orderRef: "CT-1043",
       payerPhone: "+237677123456",
       description: "2x Robe wax",
     });
@@ -205,7 +206,7 @@ describe("initiate", () => {
     expect(sent.amount).toBe("17000"); // chaine, jamais de decimale
     expect(sent.currency).toBe("XAF");
     expect(sent.from).toBe("237677123456");
-    expect(sent.external_reference).toBe("SW-1043");
+    expect(sent.external_reference).toBe("CT-1043");
     expect(c0.url).toContain("demo.campay.net/api/collect/");
     expect((c0.init.headers as Record<string, string>).Authorization).toBe("Token tok_test");
   });
@@ -217,7 +218,7 @@ describe("initiate", () => {
     const p = new CampayProvider(cfg(fn));
     const r = await p.initiate({
       amountXaf: 10,
-      orderRef: "SW-2",
+      orderRef: "CT-2",
       payerPhone: "+237690000000",
       description: "d",
     });
@@ -412,7 +413,7 @@ describe("codes d'erreur", () => {
     await expect(
       p.initiate({
         amountXaf: 5,
-        orderRef: "SW-1",
+        orderRef: "CT-1",
         payerPhone: "+237677123456",
         description: "d",
       }),
@@ -435,7 +436,7 @@ describe("codes d'erreur", () => {
     await expect(
       p.initiate({
         amountXaf: 5,
-        orderRef: "SW-1",
+        orderRef: "CT-1",
         payerPhone: "+237690000000",
         description: "d",
       }),
@@ -452,7 +453,7 @@ describe("codes d'erreur", () => {
     ]);
     const p = new CampayProvider(cfg(fn));
     await expect(
-      p.disburse({ amountXaf: 5000, toPhone: "+237677123456", orderRef: "SW-1", description: "d" }),
+      p.disburse({ amountXaf: 5000, toPhone: "+237677123456", orderRef: "CT-1", description: "d" }),
     ).rejects.toMatchObject({ code: "ER301", retryable: true });
   });
 
@@ -462,7 +463,7 @@ describe("codes d'erreur", () => {
     await expect(
       p.initiate({
         amountXaf: 5000,
-        orderRef: "SW-1",
+        orderRef: "CT-1",
         payerPhone: "+237677123456",
         description: "d",
       }),

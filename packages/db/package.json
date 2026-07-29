@@ -1,5 +1,5 @@
 {
-  "name": "@swap/db",
+  "name": "@catalog/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",

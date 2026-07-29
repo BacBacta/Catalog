@@ -1,5 +1,5 @@
 -- Invariants que Prisma ne sait pas exprimer.
--- A appliquer apres chaque `prisma migrate` : pnpm --filter @swap/db constraints
+-- A appliquer apres chaque `prisma migrate` : pnpm --filter @catalog/db constraints
 
 -- 1. Coherence de la comptabilite d'une commande.
 ALTER TABLE "Order" DROP CONSTRAINT IF EXISTS order_amounts_balance;

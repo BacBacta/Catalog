@@ -1,4 +1,4 @@
-*                       @swap/core
-/packages/db/           @swap/core
-/apps/api/src/domain/   @swap/core
-/docs/adr/              @swap/core
+*                       @catalog/core
+/packages/db/           @catalog/core
+/apps/api/src/domain/   @catalog/core
+/docs/adr/              @catalog/core

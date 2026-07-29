@@ -1,5 +1,5 @@
 {
-  "name": "@swap/shop",
+  "name": "@catalog/shop",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,8 @@
     "size": "node scripts/budget.mjs"
   },
   "dependencies": {
-    "@swap/contracts": "workspace:*",
-    "@swap/ui": "workspace:*",
+    "@catalog/contracts": "workspace:*",
+    "@catalog/ui": "workspace:*",
     "astro": "7.1.5",
     "tailwindcss": "4.3.3",
     "@tailwindcss/vite": "4.3.3"

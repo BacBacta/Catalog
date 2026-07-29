@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { PaymentStatus } from "@swap/contracts";
+import type { PaymentStatus } from "@catalog/contracts";
 import type {
   InitiateInput,
   InitiateResult,
@@ -9,6 +9,23 @@ import type {
 } from "../domain/payment-provider.ts";
 
 /**
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │  CODE EN DORMANCE — NE PAS APPELER DEPUIS UN CHEMIN v1.                   │
+ * │                                                                          │
+ * │  La v1 de Catalog se passe d'agregateur (ADR 0009) : le paiement est un   │
+ * │  depot direct et la preuve vient du SMS de l'operateur, parce que la      │
+ * │  signature de l'agregateur n'atteste rien — son jeton ne lie aucune       │
+ * │  donnee de transaction (voir verifySignature plus bas).                   │
+ * │                                                                          │
+ * │  Ce fichier reste dans le depot, et ses tests continuent de tourner en    │
+ * │  CI, pour qu'il soit encore compilable le jour ou un agregateur           │
+ * │  garantira A LA FOIS le modele sous-marchand ET le renseignement de la    │
+ * │  reference operateur sur les transactions abouties. Il est garde derriere │
+ * │  PAYMENT_AGGREGATOR_ENABLED, absent par defaut et illisible en            │
+ * │  production. On ne l'ETEND PAS : toute evolution exige un nouvel ADR qui  │
+ * │  rouvre la decision.                                                     │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ *
  * Adaptateur CamPay.
  *
  * Surface RELEVEE EN BAC A SABLE le 29/07/2026 sur `demo.campay.net`, avec une

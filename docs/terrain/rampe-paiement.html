@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Catalog — rampe de paiement</title>
+<style>
+  :root{--g50:#e6f4f0;--g100:#cfe9e1;--g200:#a9d8cb;--g500:#0e7a5f;--g700:#0a5c48;
+    --ink:#14201c;--ink2:#5a6b65;--muted:#94a39d;--bg:#f4f6f5;--card:#fff;--line:#e4e9e7;
+    --momo:#ffcb05;--om:#ff7900;--warn:#8a6400;--warn-soft:#fff4d6;--danger:#d03b3b;--danger-soft:#fdecec}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#1c2422;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;min-height:100vh;line-height:1.6}
+  .meta{color:#b9c6c1;font-size:12.5px;padding:14px 16px 10px;text-align:center;max-width:430px}
+  .meta b{color:#fff}
+  .phone{width:100%;max-width:400px;background:var(--bg);border-radius:28px;overflow:hidden;
+    box-shadow:0 24px 60px rgba(0,0,0,.5);margin-bottom:26px;display:flex;flex-direction:column}
+  @media(max-width:440px){.phone{border-radius:0;box-shadow:none;margin-bottom:0;min-height:100vh}}
+  .topbar{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+  .topbar .t{font-weight:700;font-size:16px}
+  .topbar .s{font-size:12px;color:var(--muted)}
+  .pad{padding:16px}
+  .amt-head{text-align:center;padding:20px 16px 4px;background:var(--card)}
+  .amt-head .a{font-size:32px;font-weight:800;letter-spacing:-.01em}
+  .amt-head .to{font-size:13px;color:var(--ink2);margin-top:2px}
+
+  .tabs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+  .tab{border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:13px 10px;cursor:pointer;
+    font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .tab.on{border-color:var(--g500);background:var(--g50)}
+  .tab .logo{width:44px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:11px;color:#111}
+  .tab .n{font-size:13px;font-weight:700;color:var(--ink)}
+
+  label{font-size:12.5px;font-weight:600;color:var(--ink2);display:block;margin:14px 0 6px}
+  input{width:100%;padding:12px 14px;font-size:15px;font-family:inherit;border:1.5px solid var(--line);
+    border-radius:12px;background:var(--card);color:var(--ink)}
+  input:focus{outline:none;border-color:var(--g500)}
+
+  .ussd-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+  .ussd-card .lbl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .ussd-str{font-family:ui-monospace,monospace;font-size:15px;font-weight:700;color:var(--ink);
+    background:var(--bg);border-radius:9px;padding:10px 12px;word-break:break-all;margin-bottom:10px;letter-spacing:.02em}
+  .btn{display:block;width:100%;border:0;cursor:pointer;font-family:inherit;background:var(--g500);color:#fff;
+    font-size:15px;font-weight:700;padding:13px;border-radius:12px;text-align:center;text-decoration:none}
+  .btn:active{background:var(--g700)}
+  .btn.ghost{background:var(--g50);color:var(--g500)}
+  .btn.small{font-size:13px;padding:10px}
+  .btn-row{display:grid;grid-template-columns:2fr 1fr;gap:8px}
+
+  .steps{list-style:none;padding:0;margin:10px 0 0;counter-reset:s}
+  .steps li{counter-increment:s;position:relative;padding:0 0 12px 34px;font-size:13.5px;color:var(--ink2)}
+  .steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:22px;height:22px;border-radius:50%;
+    background:var(--g50);color:var(--g500);font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center}
+  .steps li:not(:last-child)::after{content:"";position:absolute;left:10.5px;top:25px;bottom:2px;width:1px;background:var(--line)}
+  .steps b{color:var(--ink)}
+
+  .box{border-radius:12px;padding:12px 14px;margin:12px 0;font-size:13px;line-height:1.55}
+  .box.warn{background:var(--warn-soft);color:var(--ink2)}
+  .box.sec{background:var(--g50);color:var(--ink2)}
+  .box .bl{font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;display:block;margin-bottom:4px}
+  .box.warn .bl{color:var(--warn)}
+  .box.sec .bl{color:var(--g500)}
+  .box b{color:var(--ink)}
+
+  .test{background:var(--card);border:1.5px dashed var(--g200);border-radius:14px;padding:14px;margin-top:16px}
+  .test .h{font-weight:800;font-size:13.5px;color:var(--g500);margin-bottom:6px}
+  .test p{font-size:12.5px;color:var(--ink2);margin:0 0 10px}
+  .verdicts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .verdicts button{border:1.5px solid var(--line);background:var(--card);border-radius:9px;padding:8px 4px;
+    font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;color:var(--ink2)}
+  .verdicts button.picked{border-color:var(--g500);background:var(--g50);color:var(--g500)}
+  .log{margin-top:10px;font-size:12px;color:var(--ink2);background:var(--bg);border-radius:9px;padding:10px 12px;display:none}
+  .log.on{display:block}
+  .log .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid var(--line)}
+  .log .row:last-child{border-bottom:0}
+  .log .ok{color:var(--g500);font-weight:700}
+  .log .ko{color:var(--danger);font-weight:700}
+  .log .mid{color:var(--warn);font-weight:700}
+  .hint{font-size:11.5px;color:var(--muted);text-align:center;padding:10px 16px 18px;line-height:1.5}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--ink);
+    color:#fff;font-size:12.5px;font-weight:600;padding:10px 16px;border-radius:999px;opacity:0;transition:all .25s;z-index:99}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<div class="meta"><b>Rampe de paiement</b> — Catalog compose, l'opérateur exécute.<br>Ouvrez cette page sur un vrai téléphone camerounais : elle est aussi l'instrument de test.</div>
+
+<div class="phone">
+  <div class="topbar">
+    <div><div class="t">Payer Maman Jeanne</div><div class="s">Commande CT-1043</div></div>
+  </div>
+
+  <div class="amt-head">
+    <div class="a" id="amt-display">7 500 FCFA</div>
+    <div class="to">vers le <span id="dest-display">677 12 34 56</span></div>
+  </div>
+
+  <div class="pad">
+    <div class="tabs">
+      <button class="tab on" id="tab-mtn" onclick="setOp('mtn')">
+        <span class="logo" style="background:var(--momo)">MoMo</span>
+        <span class="n">MTN Mobile Money</span>
+      </button>
+      <button class="tab" id="tab-om" onclick="setOp('om')">
+        <span class="logo" style="background:var(--om);color:#fff">OM</span>
+        <span class="n">Orange Money</span>
+      </button>
+    </div>
+
+    <div id="ramps"></div>
+
+    <div class="box warn" id="min-note" style="display:none">
+      <span class="bl">Minimum Orange Money</span>
+      Orange refuse les montants sous <b>10 FCFA</b> (erreur ER201, relevée sur l'API le 29/07/2026), là où MTN accepte 5. À contrôler côté formulaire, pas seulement côté serveur.
+    </div>
+
+    <div class="box sec">
+      <span class="bl">Ce que Catalog ne voit jamais</span>
+      Votre <b>code secret</b> ne se tape pas ici. Il se saisit dans la session de l'opérateur, après l'appel — Catalog est hors circuit dès que vous appuyez sur composer. L'argent va de votre portefeuille au sien, directement.
+    </div>
+
+    <div style="font-weight:800;font-size:13.5px;margin:18px 0 2px">Comment ça se passe</div>
+    <ol class="steps">
+      <li>Vous touchez <b>Composer</b> — le clavier de votre téléphone s'ouvre, <b>déjà rempli</b> : bon numéro, bon montant.</li>
+      <li>Vous appuyez sur appeler. La session <b>MTN</b> ou <b>Orange</b> prend le relais.</li>
+      <li>Vous confirmez et saisissez votre code secret <b>chez l'opérateur</b>.</li>
+      <li>La vendeuse reçoit le SMS de l'opérateur et le colle dans Catalog. Le reçu apparaît, avec l'identifiant de transaction.</li>
+    </ol>
+
+    <div class="box warn">
+      <span class="bl">Le point à établir sur le terrain</span>
+      Les <b>codes d'entrée</b> sont désormais confirmés : <code>*126#</code> chez MTN et <code>#150*50#</code> chez Orange — relevés le 29/07/2026 dans la réponse de l'API CamPay, qui les renvoie par transaction. <b>Leçon d'implémentation : le code doit venir de la réponse de l'opérateur, jamais d'une constante en dur.</b><br><br>Ce qui reste à établir, ce sont les <b>raccourcis paramétrés</b> ci-dessous : sautent-ils vraiment les niveaux de menu ? Essayez-les dans l'ordre et notez celui qui va le plus loin.
+    </div>
+
+    <div class="test">
+      <div class="h">🧪 Cette page est le test</div>
+      <p>Pour chaque candidate, touchez Composer, regardez où le menu s'arrête, puis notez le résultat. Trois minutes, et la question est tranchée.</p>
+      <div class="log on" id="log"></div>
+      <button class="btn ghost small" style="margin-top:10px" onclick="exportLog()">📋 Copier le compte rendu</button>
+    </div>
+  </div>
+
+  <div class="hint">
+    Sur iPhone, les liens contenant un code USSD sont bloqués par le système : ce parcours est prévu pour Android, qui représente l'essentiel du parc camerounais.
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const state = {
+  op: "mtn",
+  dest: "677123456",
+  amount: 7500,
+  results: {},
+};
+
+/* Chaînes candidates. À valider sur le terrain — voir l'avertissement.
+   Le motif habituel chez MTN est *126# pour le menu MoMo, chez Orange #150#.
+   On teste des raccourcis qui sautent les niveaux de menu. */
+const CANDIDATES = {
+  mtn: [
+    { id: "mtn-a", s: (n, a) => `*126*1*1*${n}*${a}#`, why: "Raccourci : Transfert → Vers un abonné MoMo" },
+    { id: "mtn-b", s: (n, a) => `*126*1*${n}*${a}#`,   why: "Variante à un niveau de moins" },
+    { id: "mtn-c", s: (n, a) => `*126*${n}*${a}#`,     why: "Variante la plus courte" },
+    { id: "mtn-d", s: () => `*126#`,                    why: "Code d'entrée confirmé par l'API CamPay — saisie manuelle" },
+  ],
+  om: [
+    // Corrigé le 29/07/2026 : l'API CamPay renvoie #150*50# comme code
+    // d'entrée Orange, et non #150# comme je l'avais supposé.
+    { id: "om-a", s: (n, a) => `#150*50*${n}*${a}#`, why: "Raccourci bâti sur le vrai code d'entrée" },
+    { id: "om-b", s: (n, a) => `#150*50*1*${n}*${a}#`, why: "Variante avec un niveau de plus" },
+    { id: "om-c", s: (n, a) => `#150*${n}*${a}#`,     why: "Variante sans le 50" },
+    { id: "om-d", s: () => `#150*50#`,                 why: "Code d'entrée confirmé par l'API CamPay — saisie manuelle" },
+  ],
+};
+
+const VERDICTS = [
+  { k: "ok",  l: "✅ Va au bout", cls: "ok" },
+  { k: "mid", l: "🟡 S'arrête en route", cls: "mid" },
+  { k: "ko",  l: "❌ Erreur", cls: "ko" },
+];
+
+const fmtAmount = n => n.toLocaleString("fr-FR").replace(/\s/g, " ") + " FCFA";
+const fmtPhone = n => n.replace(/(\d)(\d{2})(\d{2})(\d{2})(\d{2})/, "$1 $2 $3 $4 $5");
+
+/* Encodage pour un lien tel: — le dièse DOIT être encodé en %23,
+   sinon le navigateur le traite comme une ancre et tronque la chaîne. */
+const telHref = ussd => "tel:" + ussd.replace(/#/g, "%23");
+
+function setOp(op) {
+  state.op = op;
+  document.getElementById("min-note").style.display = op === "om" ? "block" : "none";
+  document.getElementById("tab-mtn").classList.toggle("on", op === "mtn");
+  document.getElementById("tab-om").classList.toggle("on", op === "om");
+  render();
+}
+
+function render() {
+  document.getElementById("amt-display").textContent = fmtAmount(state.amount);
+  document.getElementById("dest-display").textContent = fmtPhone(state.dest);
+
+  const list = CANDIDATES[state.op];
+  document.getElementById("ramps").innerHTML = list.map((c, i) => {
+    const ussd = c.s(state.dest, state.amount);
+    const picked = state.results[c.id];
+    return `
+      <div class="ussd-card">
+        <div class="lbl">Candidate ${i + 1} · ${c.why}</div>
+        <div class="ussd-str">${ussd}</div>
+        <div class="btn-row">
+          <a class="btn" href="${telHref(ussd)}">📞 Composer</a>
+          <button class="btn ghost" onclick="copyStr('${ussd}')">Copier</button>
+        </div>
+        <div class="verdicts" style="margin-top:8px">
+          ${VERDICTS.map(v => `<button class="${picked === v.k ? "picked" : ""}"
+            onclick="mark('${c.id}','${v.k}')">${v.l}</button>`).join("")}
+        </div>
+      </div>`;
+  }).join("");
+
+  renderLog();
+}
+
+function mark(id, verdict) {
+  state.results[id] = verdict;
+  render();
+  toast("Noté — merci");
+}
+
+function renderLog() {
+  const log = document.getElementById("log");
+  const all = [...CANDIDATES.mtn, ...CANDIDATES.om];
+  const done = all.filter(c => state.results[c.id]);
+  if (!done.length) {
+    log.innerHTML = `<span style="color:var(--muted)">Aucun résultat noté pour l'instant. Touchez « Composer », puis dites ce qui s'est passé.</span>`;
+    return;
+  }
+  log.innerHTML = done.map(c => {
+    const v = VERDICTS.find(x => x.k === state.results[c.id]);
+    const ussd = c.s(state.dest, state.amount);
+    return `<div class="row"><span style="font-family:ui-monospace,monospace">${ussd}</span>
+      <span class="${v.cls}">${v.l}</span></div>`;
+  }).join("");
+}
+
+function copyStr(s) {
+  navigator.clipboard?.writeText(s).then(() => toast("Chaîne copiée")).catch(() => toast("Copie impossible"));
+}
+
+function exportLog() {
+  const all = [...CANDIDATES.mtn, ...CANDIDATES.om];
+  const lines = all.filter(c => state.results[c.id]).map(c => {
+    const v = VERDICTS.find(x => x.k === state.results[c.id]);
+    return `${c.s(state.dest, state.amount)}  →  ${v.l}   (${c.why})`;
+  });
+  if (!lines.length) { toast("Rien à copier pour l'instant"); return; }
+  const txt = `Test des chaînes USSD — Catalog
+Destinataire : ${state.dest}   Montant : ${state.amount} FCFA
+Téléphone : ${navigator.userAgent}
+
+${lines.join("\n")}`;
+  navigator.clipboard?.writeText(txt).then(() => toast("Compte rendu copié ✓")).catch(() => toast("Copie impossible"));
+}
+
+function toast(m) {
+  const t = document.getElementById("toast");
+  t.textContent = m; t.classList.add("show");
+  clearTimeout(window._tt); window._tt = setTimeout(() => t.classList.remove("show"), 2000);
+}
+
+render();
+</script>
+</body>
+</html>

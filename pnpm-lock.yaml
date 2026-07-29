@@ -20,12 +20,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@catalog/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@hono/node-server':
         specifier: 2.0.12
         version: 2.0.12(hono@4.12.32)
-      '@swap/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
       hono:
         specifier: 4.12.32
         version: 4.12.32
@@ -45,10 +45,10 @@ importers:
 
   apps/seller:
     dependencies:
-      '@swap/contracts':
+      '@catalog/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@swap/ui':
+      '@catalog/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       react:
@@ -88,10 +88,10 @@ importers:
 
   apps/shop:
     dependencies:
-      '@swap/contracts':
+      '@catalog/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
-      '@swap/ui':
+      '@catalog/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@tailwindcss/vite':

@@ -1,4 +1,4 @@
-import { CODE_ALPHABET, verificationCodeSchema } from "@swap/contracts";
+import { CODE_ALPHABET, verificationCodeSchema } from "@catalog/contracts";
 import { describe, expect, it } from "vitest";
 import { generateVerificationCode } from "../domain/verification-code.ts";
 

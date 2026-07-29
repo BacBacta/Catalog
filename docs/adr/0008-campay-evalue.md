@@ -1,5 +1,6 @@
 # 0008 — CamPay : évaluation de l'API et adaptateur écrit
 
+- Superseded pour la v1 par l'ADR 0009.
 - Statut : **évalué, non retenu en l'état** — adaptateur écrit et testé
 - Date : 2026-07-29
 - Révisé le 2026-07-29 : voir « Troisième passe » en fin de document. Les

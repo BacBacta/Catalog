@@ -30,7 +30,7 @@ déploiement raté devient une perte de données.
 Après chaque migration, réappliquer les contraintes SQL :
 
 ```bash
-pnpm --filter @swap/db constraints
+pnpm --filter @catalog/db constraints
 ```
 
 ## Revue — la liste courte

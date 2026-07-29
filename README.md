@@ -1,4 +1,4 @@
-# Swap
+# Catalog
 
 Outil de vente WhatsApp-first pour les commerçantes camerounaises. On ne déplace
 pas la transaction hors de WhatsApp : on ajoute par-dessus la conversation un

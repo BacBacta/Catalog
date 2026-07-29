@@ -6,12 +6,11 @@ export const app = new Hono();
 app.route("/health", health);
 
 /**
- * L'URL de notification de paiement vivra ici (phase 2). Elle ne fait QUE
- * recevoir : pas de redirection, pas de HTML, et elle repond au GET pour les
- * tests de disponibilite des agregateurs. Elle est volontairement servie par
- * un point d'entree minimal, capable de survivre a une panne du reste de
- * l'application.
+ * Il n'y a PAS d'URL de notification de paiement, et il ne doit pas y en
+ * avoir : la v1 se passe d'agregateur (ADR 0009). Catalog n'observe aucun
+ * paiement en direct — il le constate ensuite, par le SMS que la vendeuse
+ * colle. Un point d'entree qui reapparaitrait ici serait le premier signe
+ * que l'architecture derive.
  */
-app.get("/webhooks/payment", (c) => c.text("ok"));
 
 export default app;

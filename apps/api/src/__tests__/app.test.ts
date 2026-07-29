@@ -9,8 +9,11 @@ describe("api", () => {
     expect(body.status).toBe("ok");
   });
 
-  it("l'URL de notification repond au GET (test de disponibilite agregateur)", async () => {
-    const res = await app.request("/webhooks/payment");
-    expect(res.status).toBe(200);
+  /** ADR 0009 : la v1 n'a aucun point d'entree de notification de paiement. */
+  it("n'expose AUCUNE URL de notification de paiement", async () => {
+    for (const url of ["/webhooks/payment", "/webhooks", "/webhook"]) {
+      const res = await app.request(url);
+      expect(res.status).toBe(404);
+    }
   });
 });
