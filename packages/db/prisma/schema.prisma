@@ -51,14 +51,21 @@ model Seller {
   payoutOperator        OperatorKey? @map("payout_operator")
   payoutPhoneVerifiedAt DateTime?    @map("payout_phone_verified_at")
 
+  /// Identite d'authentification (Better Auth). La vendeuse est le PROFIL
+  /// metier ; `AuthUser` est le compte. Deux tables parce que Better Auth
+  /// possede la sienne et qu'on ne la lui prend pas.
+  userId String? @unique @map("user_id")
+
   status             SellerStatus       @default(active)
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   createdAt          DateTime           @default(now()) @map("created_at")
 
+  user        AuthUser?    @relation(fields: [userId], references: [id])
   products    Product[]
   orders      Order[]
   reviews     Review[]
   orderEvents OrderEvent[]
+  auditEvents SellerAuditEvent[]
 
   @@index([status])
   @@index([payoutPhone])
@@ -334,4 +341,107 @@ model Review {
 
   @@index([sellerId, verified])
   @@map("review")
+}
+
+/* ════════════════════════ authentification ════════════════════════ */
+
+/// Tables de Better Auth 1.6. Les champs et leurs noms viennent de
+/// `getSchema()` de la bibliotheque, pas d'une documentation recopiee : ils sont
+/// releves sur la version installee avec le plugin `phoneNumber` actif.
+///
+/// Il n'y a PAS d'authentification par e-mail dans ce produit — les
+/// commercantes camerounaises s'identifient par numero de telephone. Le champ
+/// `email` existe parce que le noyau de Better Auth l'exige ; il recoit une
+/// valeur technique derivee du numero, et aucun ecran ne le demande.
+model AuthUser {
+  id            String  @id @default(uuid(7))
+  name          String
+  email         String  @unique
+  emailVerified Boolean @default(false) @map("email_verified")
+  image         String?
+
+  /// Le numero de CONNEXION. Distinct du numero de reversement du profil.
+  phoneNumber         String?  @unique @map("phone_number")
+  phoneNumberVerified Boolean? @map("phone_number_verified")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  sessions AuthSession[]
+  accounts AuthAccount[]
+  seller   Seller?
+
+  @@map("user")
+}
+
+model AuthSession {
+  id        String   @id @default(uuid(7))
+  expiresAt DateTime @map("expires_at")
+  token     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  userId    String   @map("user_id")
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model AuthAccount {
+  id                    String    @id @default(uuid(7))
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("account")
+}
+
+model AuthVerification {
+  id         String   @id @default(uuid(7))
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+/// Journal d'audit au niveau de la vendeuse, EN AJOUT SEUL.
+///
+/// Il porte notamment les changements de numero de reversement — le champ qu'un
+/// attaquant chercherait a detourner. Chaque tentative y figure, **refusee comme
+/// acceptee** : une tentative refusee qui ne laisse pas de trace est une attaque
+/// invisible.
+///
+/// Ne contient JAMAIS de code OTP.
+model SellerAuditEvent {
+  id       String   @id @default(uuid(7))
+  sellerId String   @map("seller_id")
+  kind     String
+  actor    String
+  payload  Json?
+  at       DateTime @default(now())
+
+  seller Seller @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId, at])
+  @@index([kind, at])
+  @@map("seller_audit_event")
 }

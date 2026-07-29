@@ -90,6 +90,18 @@ DROP TRIGGER IF EXISTS order_event_no_delete ON "order_event";
 CREATE TRIGGER order_event_no_delete BEFORE DELETE ON "order_event"
   FOR EACH ROW EXECUTE FUNCTION append_only_guard();
 
+-- Le journal d'audit de la vendeuse aussi. Il porte les changements de numero
+-- de reversement — le champ qu'un attaquant chercherait a detourner — et chaque
+-- tentative y figure, refusee comme acceptee. Un journal reecrivable ne prouve
+-- rien : c'est precisement la trace d'une attaque qu'on voudrait effacer.
+DROP TRIGGER IF EXISTS seller_audit_no_update ON "seller_audit_event";
+CREATE TRIGGER seller_audit_no_update BEFORE UPDATE ON "seller_audit_event"
+  FOR EACH ROW EXECUTE FUNCTION append_only_guard();
+
+DROP TRIGGER IF EXISTS seller_audit_no_delete ON "seller_audit_event";
+CREATE TRIGGER seller_audit_no_delete BEFORE DELETE ON "seller_audit_event"
+  FOR EACH ROW EXECUTE FUNCTION append_only_guard();
+
 /* ═══════════════ 5. Reputation ═══════════════ */
 
 ALTER TABLE "review" DROP CONSTRAINT IF EXISTS review_rating_range;
