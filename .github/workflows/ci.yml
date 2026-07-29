@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Schema de base valide
+        run: pnpm db:validate && pnpm --filter @swap/db check:offline
+      - name: Types
+        run: pnpm typecheck
+      - name: Lint et format
+        run: pnpm lint
+      - name: Tests unitaires
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Budget de poids — la boutique doit rester sous 30 Ko de JS
+        run: pnpm size
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Les tests de bout en bout tournent sur un profil mobile bas de gamme
+      # bride (Moto G Power, Slow 4G) et non sur un poste de developpement :
+      # c'est la seule facon d'empecher la derive vers une application qui ne
+      # marche bien que chez ceux qui l'ecrivent.
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test
+        continue-on-error: true # a passer en bloquant des le lot 4

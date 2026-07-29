@@ -1,0 +1,15 @@
+{
+  "name": "@swap/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "tsconfig.lib.json",
+    "tsconfig.app.json"
+  ],
+  "scripts": {
+    "test": "echo no tests",
+    "typecheck": "echo ok",
+    "build": "echo ok"
+  }
+}

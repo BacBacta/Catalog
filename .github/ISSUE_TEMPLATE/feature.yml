@@ -1,0 +1,19 @@
+name: Evolution
+description: Une fonctionnalite ou une amelioration
+labels: ["enhancement"]
+body:
+  - type: textarea
+    attributes: { label: Le probleme utilisateur }
+    validations: { required: true }
+  - type: dropdown
+    attributes:
+      label: Phase concernee
+      options: ["0 conformite", "1 catalogue", "2 paiement", "3 commandes", "4 pilote", "5 production", "reporte"]
+    validations: { required: true }
+  - type: checkboxes
+    attributes:
+      label: Verifications
+      options:
+        - label: Ne necessite pas de champ « adresse »
+        - label: Tient dans le budget de 30 Ko de JS si cela touche la boutique
+        - label: Les montants restent des entiers XAF

@@ -1,0 +1,25 @@
+{
+  "name": "swap",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "db:generate": "pnpm --filter @swap/db generate",
+    "db:validate": "pnpm --filter @swap/db validate",
+    "size": "pnpm --filter @swap/shop size"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.6",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

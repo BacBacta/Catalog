@@ -1,0 +1,200 @@
+// Swap — schema de donnees
+// Regles non negociables (voir AGENTS.md) :
+//  - tous les montants sont des Int en XAF, suffixes _xaf ;
+//  - il n'existe PAS de champ « adresse » : delivery est un Json
+//    { mode, city, quartier, landmark, phone, geo? } ;
+//  - l'idempotence des webhooks vit dans la contrainte UNIQUE de PaymentEvent,
+//    pas dans le code applicatif.
+// Les CHECK et les triggers que Prisma ne sait pas exprimer sont dans
+// sql/0001_constraints.sql et appliques par `pnpm --filter @swap/db constraints`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Seller {
+  id                 String   @id @default(uuid(7))
+  phone              String   @unique
+  businessName       String
+  slug               String   @unique
+  city               String
+  quartier           String?
+  pickupPoint        String?
+  status             SellerStatus       @default(active)
+  subscriptionStatus SubscriptionStatus @default(trial)
+  createdAt          DateTime @default(now())
+
+  products Product[]
+  orders   Order[]
+  reviews  Review[]
+
+  @@index([status])
+}
+
+enum SellerStatus {
+  active
+  suspended
+  closed
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  past_due
+  cancelled
+}
+
+model Product {
+  id         String   @id @default(uuid(7))
+  sellerId   String
+  name       String
+  priceXaf   Int
+  stock      Int      @default(0)
+  variants   Json?
+  imageKey   String?
+  position   Int      @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  seller Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  views  ProductView[]
+
+  @@index([sellerId, position])
+  @@index([sellerId, archivedAt])
+}
+
+model ProductView {
+  id        String   @id @default(uuid(7))
+  productId String
+  day       DateTime @db.Date
+  count     Int      @default(1)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, day])
+  @@index([day])
+}
+
+model Order {
+  id            String   @id @default(uuid(7))
+  ref           String   @unique
+  sellerId      String
+  buyerPhone    String
+  buyerName     String?
+  items         Json
+  totalXaf      Int
+  payMode       PayMode
+  amountPaidXaf Int      @default(0)
+  balanceXaf    Int
+  /// { mode, city, quartier, landmark, phone, geo? } — jamais de champ address
+  delivery      Json
+  status        OrderStatus @default(received)
+  createdAt     DateTime @default(now())
+  deliveredAt   DateTime?
+
+  seller   Seller    @relation(fields: [sellerId], references: [id])
+  payments Payment[]
+  review   Review?
+
+  @@index([sellerId, createdAt])
+  @@index([sellerId, status])
+  @@index([buyerPhone])
+}
+
+enum PayMode {
+  full
+  deposit
+  cod
+}
+
+enum OrderStatus {
+  received
+  prepared
+  handed_to_courier
+  delivered
+  cancelled
+}
+
+model Payment {
+  id               String        @id @default(uuid(7))
+  orderId          String
+  provider         String
+  providerTxId     String        @unique
+  amountXaf        Int
+  status           PaymentStatus @default(initiated)
+  verificationCode String?       @unique
+  /// true si declare a la main par la vendeuse (depot MoMo direct hors systeme)
+  manuallyDeclared Boolean       @default(false)
+  raw              Json?
+  createdAt        DateTime      @default(now())
+  confirmedAt      DateTime?
+
+  order  Order          @relation(fields: [orderId], references: [id])
+  events PaymentEvent[]
+
+  @@index([orderId])
+  @@index([status, createdAt])
+}
+
+enum PaymentStatus {
+  initiated
+  waiting_customer
+  paid
+  partial
+  failed
+  expired
+  disputed
+}
+
+/// Table d'idempotence des webhooks.
+/// UNIQUE(providerTxId, status) : un webhook rejoue trois fois ne credite qu'une fois.
+model PaymentEvent {
+  id           String        @id @default(uuid(7))
+  paymentId    String?
+  providerTxId String
+  status       PaymentStatus
+  raw          Json
+  receivedAt   DateTime      @default(now())
+
+  payment Payment? @relation(fields: [paymentId], references: [id])
+
+  @@unique([providerTxId, status])
+  @@index([receivedAt])
+}
+
+model Review {
+  id        String   @id @default(uuid(7))
+  orderId   String   @unique
+  sellerId  String
+  rating    Int
+  body      String?
+  /// false si le paiement n'a pas ete trace : publie, mais hors calcul de la note
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  order  Order  @relation(fields: [orderId], references: [id])
+  seller Seller @relation(fields: [sellerId], references: [id])
+
+  @@index([sellerId, verified])
+}
+
+/// Journal comptable en ajout seul. UPDATE et DELETE interdits par trigger.
+model LedgerEntry {
+  id           String   @id @default(uuid(7))
+  orderId      String?
+  paymentId    String?
+  direction    String
+  amountXaf    Int
+  reason       String
+  metadata     Json?
+  recordedAt   DateTime @default(now())
+
+  @@index([orderId])
+  @@index([recordedAt])
+}

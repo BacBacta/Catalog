@@ -1,0 +1,20 @@
+name: Bug
+description: Un comportement incorrect en developpement ou en production
+labels: ["bug"]
+body:
+  - type: textarea
+    attributes: { label: Ce qui se passe }
+    validations: { required: true }
+  - type: textarea
+    attributes: { label: Ce qui devrait se passer }
+    validations: { required: true }
+  - type: input
+    attributes:
+      label: Appareil et reseau
+      description: Modele, operateur, type de reseau — determinant sur ce produit
+      placeholder: "Tecno Spark 8, MTN, 3G, Douala"
+  - type: dropdown
+    attributes:
+      label: Argent implique ?
+      options: ["Non", "Oui — paiement, acompte ou solde"]
+    validations: { required: true }

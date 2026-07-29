@@ -1,0 +1,107 @@
+/* Swap — jetons de design.
+   Tailwind 4 : configuration CSS-first. Il n'y a PAS de tailwind.config.js.
+
+   Parti pris : ici, « premium » veut dire rapide, lisible en plein soleil et
+   clair sur les montants. Aucune police n'est telechargee sur la boutique
+   publique — la pile systeme coute zero octet avant le premier rendu du texte. */
+
+@import "tailwindcss";
+
+@theme {
+  /* ── marque : une seule teinte, du clair au fonce ── */
+  --color-brand-50: #e6f4f0;
+  --color-brand-100: #cfe9e1;
+  --color-brand-200: #a9d8cb;
+  --color-brand-300: #7cc2b0;
+  --color-brand-500: #0e7a5f;
+  --color-brand-700: #0a5c48;
+
+  /* ── statuts : reserves, jamais reutilises comme couleur de serie ── */
+  --color-good: #0ca30c;
+  --color-warn: #b5761a;
+  --color-danger: #d03b3b;
+
+  /* ── surfaces & encre, mode clair ── */
+  --color-surface: #ffffff;
+  --color-plane: #f4f6f5;
+  --color-ink: #14201c;
+  --color-ink-2: #5a6b65;
+  --color-muted: #94a39d;
+  --color-line: #e4e9e7;
+
+  /* ── typographie : pile systeme, zero octet ── */
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-hero: 2.125rem; /* montants mis en avant */
+  --text-title: 1.1875rem;
+  --text-body: 1rem; /* jamais sous 15px sur mobile */
+  --text-caption: 0.78125rem;
+
+  --radius-card: 14px;
+  --radius-pill: 999px;
+
+  /* ── mouvement : court, sortie douce ── */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+
+  /* ── cible tactile : 44px, au-dela des 24px exiges par WCAG 2.2 ── */
+  --size-touch: 44px;
+}
+
+/* Mode sombre CHOISI, pas obtenu par inversion : chaque valeur est
+   selectionnee pour sa surface. La preference explicite l'emporte
+   dans les deux sens. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --color-surface: #1a1a19;
+    --color-plane: #0d0d0d;
+    --color-ink: #ffffff;
+    --color-ink-2: #c3c2b7;
+    --color-muted: #898781;
+    --color-line: #2c2c2a;
+    --color-brand-500: #17a37f;
+    --color-good: #0ca30c;
+    --color-warn: #eda100;
+    --color-danger: #e66767;
+  }
+}
+:root[data-theme="dark"] {
+  --color-surface: #1a1a19;
+  --color-plane: #0d0d0d;
+  --color-ink: #ffffff;
+  --color-ink-2: #c3c2b7;
+  --color-muted: #898781;
+  --color-line: #2c2c2a;
+  --color-brand-500: #17a37f;
+  --color-good: #0ca30c;
+  --color-warn: #eda100;
+  --color-danger: #e66767;
+}
+
+/* Le mouvement est une amelioration, jamais une dependance.
+   Les !important sont ici deliberes et neutralises dans biome.json : c'est le
+   seul moyen de garantir qu'aucune animation d'un composant tiers ne survive
+   a la preference systeme de l'utilisateur. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Toute cible interactive respecte le seuil de confort a une main. */
+@layer base {
+  button,
+  a[role="button"],
+  [role="tab"],
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-block-size: var(--size-touch);
+    min-inline-size: var(--size-touch);
+  }
+}

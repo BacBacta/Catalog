@@ -1,0 +1,27 @@
+---
+import { formatXaf } from "@swap/contracts";
+import Base from "../layouts/Base.astro";
+
+// Squelette de la phase 1. Les donnees viendront de l'API ; ici on prouve
+// surtout que la chaine compile et que la page ne transporte aucun JS.
+const demo = { name: "Robe wax premiere qualite", priceXaf: 7500 };
+---
+<Base title="Swap — boutique">
+  <main style="max-width:34rem;margin:0 auto;padding:2rem 1.25rem">
+    <p style="font-size:var(--text-caption);color:var(--color-muted);letter-spacing:.08em;text-transform:uppercase">
+      Squelette phase 1
+    </p>
+    <h1 style="font-size:var(--text-title);margin:.4rem 0 1rem">Boutique publique</h1>
+    <p style="color:var(--color-ink-2)">
+      Cette page ne charge aucun JavaScript et aucune police. C'est la contrainte
+      qui gouverne tout le reste : elle doit etre servie depuis le point de
+      presence CDN le plus proche, jamais depuis l'origine europeenne.
+    </p>
+    <div style="background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-card);padding:1rem;margin-top:1rem">
+      <div style="font-weight:600">{demo.name}</div>
+      <div style="color:var(--color-brand-500);font-weight:800;font-size:1.25rem">
+        {formatXaf(demo.priceXaf)}
+      </div>
+    </div>
+  </main>
+</Base>
