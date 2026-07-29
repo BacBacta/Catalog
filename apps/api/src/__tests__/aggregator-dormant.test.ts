@@ -100,21 +100,27 @@ describe(PAYMENT_AGGREGATOR_FLAG, () => {
 /**
  * La tolerance de l'ADR 0011, rendue opposable.
  *
- * La definition de terminee du lot 0 voulait zero occurrence de « webhook »
- * dans apps/ et packages/. Quatre subsistent dans packages/db : elles
- * decrivent le bloc de paiement herite de l'agregateur, dont le lot 3 est
- * proprietaire (il le remplace par payment_proof). L'ADR 0011 acte ce report.
+ * DETTE PAYEE AU LOT 3. Les deux lignes `packages/db` ont disparu de la liste
+ * ci-dessous : `Payment` et `PaymentEvent` ont ete remplaces par
+ * `payment_proof`, et `check-schema.mjs` asserte desormais la contrainte
+ * UNIQUE(operator, operator_tx_id) — le controle n° 5 — au lieu de
+ * l'idempotence d'un webhook qui n'existe plus.
+ *
+ * Ce qui reste est la surface agregateur DORMANTE, qui doit rester compilable
+ * (AGENTS.md §5), plus les deux gardes qui nomment « webhook » pour l'interdire.
  *
  * Un ADR qui documente une tolerance sans la faire respecter se perime en
- * silence : la liste ci-dessous fige donc l'etat connu. Toute occurrence
- * NOUVELLE fait echouer la CI, et le retrait d'un fichier de la liste au
- * lot 3 fait echouer ce test aussi — ce qui force a le mettre a jour au
- * moment ou la dette est payee, pas six mois plus tard.
+ * silence : la liste fige donc l'etat connu. Toute occurrence NOUVELLE fait
+ * echouer la CI, et le retrait d'un fichier la fait echouer aussi — ce qui
+ * force a la mettre a jour au moment exact ou une dette est payee.
  */
 const REPO = join(HERE, "..", "..", "..", "..");
 const WEBHOOK_MENTION = /WAITING_FOR_CUSTOMER|webhook/i;
 
-/** Etat connu au 29/07/2026. Voir ADR 0011 pour la raison de chaque ligne. */
+/**
+ * Etat connu au 29/07/2026, apres paiement de la dette au lot 3.
+ * Voir ADR 0011 pour la raison de chaque ligne.
+ */
 const MENTIONS_TOLEREES = [
   // Surface agregateur dormante — reste compilable, inatteignable en v1 (ADR 0009).
   "apps/api/src/adapters/campay.ts",
@@ -124,10 +130,12 @@ const MENTIONS_TOLEREES = [
   "apps/api/scripts/README.md",
   "apps/api/scripts/campay-probe.mjs",
   "apps/api/scripts/webhook-capture.mjs",
-  // Gardes : celui-ci interdit la route, celui-la la nomme pour l'interdire.
+  // Gardes : ces fichiers nomment « webhook » pour l'INTERDIRE. C'est le
+  // contraire d'une derive, et c'est aussi ce qui reste dans packages/db une
+  // fois la dette du lot 3 payee — le modele de donnees n'en porte plus trace,
+  // seules les interdictions le nomment.
   "apps/api/src/__tests__/app.test.ts",
   "apps/api/src/__tests__/aggregator-dormant.test.ts",
-  // DETTE DU LOT 3 — a supprimer avec Payment/PaymentEvent (ADR 0011).
   "packages/db/prisma/schema.prisma",
   "packages/db/scripts/check-schema.mjs",
 ].sort();

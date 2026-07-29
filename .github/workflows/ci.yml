@@ -10,10 +10,31 @@ concurrency:
 
 env:
   NODE_VERSION: "24"
+  # Le fuseau du Cameroun, UTC+1 sans heure d'ete (AGENTS.md). Sans ce reglage,
+  # les dates lues dans les SMS derivent d'une heure et la fenetre de 48 h du
+  # controle d'horodatage passe en local pour echouer en CI.
+  TZ: "Africa/Douala"
 
 jobs:
   quality:
     runs-on: ubuntu-latest
+    # PostgreSQL 18, la version de la stack. Les invariants d'argent et de
+    # preuve vivent en base : sans base reelle, `pnpm test` ne les verifie pas.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: catalog
+          POSTGRES_PASSWORD: catalog
+          POSTGRES_DB: catalog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U catalog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -25,6 +46,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Schema de base valide
         run: pnpm db:validate && pnpm --filter @catalog/db check:offline
+      - name: Client Prisma
+        run: pnpm db:generate
+      # Migration + contraintes SQL, puis seed. Le seed n'est pas decoratif :
+      # il prouve que le schema accepte les douze cas metier du lot 3, dont les
+      # trois modes de paiement et les cinq etats de preuve.
+      - name: Migration, contraintes et seed
+        run: pnpm db:migrate && pnpm db:seed
       - name: Types
         run: pnpm typecheck
       - name: Lint et format

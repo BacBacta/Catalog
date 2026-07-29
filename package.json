@@ -15,7 +15,11 @@
     "format": "biome check --write .",
     "db:generate": "pnpm --filter @catalog/db generate",
     "db:validate": "pnpm --filter @catalog/db validate",
-    "size": "pnpm --filter @catalog/shop size"
+    "size": "pnpm --filter @catalog/shop size",
+    "db:migrate": "pnpm --filter @catalog/db migrate:deploy",
+    "db:seed": "pnpm --filter @catalog/db seed",
+    "db:constraints": "pnpm --filter @catalog/db constraints",
+    "db:reset": "pnpm --filter @catalog/db db:reset"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.6",

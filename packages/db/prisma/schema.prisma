@@ -1,12 +1,22 @@
-// Catalog — schema de donnees
+// Catalog — schema de donnees (lot 3)
+//
 // Regles non negociables (voir AGENTS.md) :
-//  - tous les montants sont des Int en XAF, suffixes _xaf ;
-//  - il n'existe PAS de champ « adresse » : delivery est un Json
-//    { mode, city, quartier, landmark, phone, geo? } ;
-//  - l'idempotence des webhooks vit dans la contrainte UNIQUE de PaymentEvent,
-//    pas dans le code applicatif.
-// Les CHECK et les triggers que Prisma ne sait pas exprimer sont dans
-// sql/0001_constraints.sql et appliques par `pnpm --filter @catalog/db constraints`.
+//  - tous les montants sont des Int, en colonne suffixee `_xaf` ;
+//  - il n'existe PAS de champ « adresse » : `delivery` est un jsonb
+//    { mode, city, quartier, landmark, phone, geo? } — ADR 0005 ;
+//  - il n'y a NI table d'evenements de paiement, NI reference de prestataire :
+//    Catalog n'encaisse pas et ne recoit aucun webhook (ADR 0009). Ce que le
+//    systeme enregistre est une PREUVE apportee par la vendeuse, pas une
+//    transaction qu'il aurait operee ;
+//  - `payment_proof` n'a AUCUNE colonne de solde. Le SMS porte le solde du
+//    compte de la vendeuse : il ne se persiste pas, ne se journalise pas.
+//
+// Les noms de colonnes de `payment_proof` viennent de
+// docs/formats-sms-operateurs.md §4 et sont figes : toute divergence casse la
+// transposition du lot 8.
+//
+// Les CHECK et les triggers que Prisma ne sait pas exprimer vivent dans
+// sql/0001_constraints.sql, appliques par `pnpm --filter @catalog/db constraints`.
 
 generator client {
   provider = "prisma-client"
@@ -15,32 +25,52 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-model Seller {
-  id                 String   @id @default(uuid(7))
-  phone              String   @unique
-  businessName       String
-  slug               String   @unique
-  city               String
-  quartier           String?
-  pickupPoint        String?
-  status             SellerStatus       @default(active)
-  subscriptionStatus SubscriptionStatus @default(trial)
-  createdAt          DateTime @default(now())
+// Prisma 7 : l'URL de connexion ne vit plus ici mais dans `prisma.config.ts`.
+// Le client la recoit via un adaptateur de pilote. Voir ADR 0014.
 
-  products Product[]
-  orders   Order[]
-  reviews  Review[]
+/* ════════════════════════════ vendeuse ════════════════════════════ */
+
+model Seller {
+  id           String  @id @default(uuid(7))
+  /// Numero de CONNEXION. Distinct du numero de reversement — voir ci-dessous.
+  phone        String  @unique
+  businessName String  @map("business_name")
+  slug         String  @unique
+  city         String
+  quartier     String?
+  pickupPoint  String? @map("pickup_point")
+
+  /// Numero de REVERSEMENT : c'est la que l'argent arrive. Champ distinct du
+  /// numero de connexion parce que la double SIM est la norme — une vendeuse se
+  /// connecte avec sa puce MTN et veut etre payee sur son Orange Money. Toute
+  /// modification exige un nouvel OTP (lot 4) : c'est le champ qu'un attaquant
+  /// chercherait a detourner, et chaque changement est journalise.
+  payoutPhone           String?      @map("payout_phone")
+  payoutOperator        OperatorKey? @map("payout_operator")
+  payoutPhoneVerifiedAt DateTime?    @map("payout_phone_verified_at")
+
+  status             SellerStatus       @default(active)
+  subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  products    Product[]
+  orders      Order[]
+  reviews     Review[]
+  orderEvents OrderEvent[]
 
   @@index([status])
+  @@index([payoutPhone])
+  @@map("seller")
 }
 
 enum SellerStatus {
   active
   suspended
   closed
+
+  @@map("seller_status")
 }
 
 enum SubscriptionStatus {
@@ -48,30 +78,35 @@ enum SubscriptionStatus {
   active
   past_due
   cancelled
+
+  @@map("subscription_status")
 }
 
+/* ════════════════════════════ catalogue ════════════════════════════ */
+
 model Product {
-  id         String   @id @default(uuid(7))
-  sellerId   String
+  id         String    @id @default(uuid(7))
+  sellerId   String    @map("seller_id")
   name       String
-  priceXaf   Int
-  stock      Int      @default(0)
+  priceXaf   Int       @map("price_xaf")
+  stock      Int       @default(0)
   variants   Json?
-  imageKey   String?
-  position   Int      @default(0)
-  archivedAt DateTime?
-  createdAt  DateTime @default(now())
+  imageKey   String?   @map("image_key")
+  position   Int       @default(0)
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   seller Seller        @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   views  ProductView[]
 
   @@index([sellerId, position])
   @@index([sellerId, archivedAt])
+  @@map("product")
 }
 
 model ProductView {
   id        String   @id @default(uuid(7))
-  productId String
+  productId String   @map("product_id")
   day       DateTime @db.Date
   count     Int      @default(1)
 
@@ -79,122 +114,224 @@ model ProductView {
 
   @@unique([productId, day])
   @@index([day])
+  @@map("product_view")
 }
 
-model Order {
-  id            String   @id @default(uuid(7))
-  ref           String   @unique
-  sellerId      String
-  buyerPhone    String
-  buyerName     String?
-  items         Json
-  totalXaf      Int
-  payMode       PayMode
-  amountPaidXaf Int      @default(0)
-  balanceXaf    Int
-  /// { mode, city, quartier, landmark, phone, geo? } — jamais de champ address
-  delivery      Json
-  status        OrderStatus @default(received)
-  createdAt     DateTime @default(now())
-  deliveredAt   DateTime?
+/* ════════════════════════════ commande ════════════════════════════ */
 
-  seller   Seller    @relation(fields: [sellerId], references: [id])
-  payments Payment[]
-  review   Review?
+model Order {
+  id         String  @id @default(uuid(7))
+  /// Prefixe CT- depuis l'ADR 0010. Voyage dans le message WhatsApp.
+  ref        String  @unique
+  sellerId   String  @map("seller_id")
+  buyerPhone String  @map("buyer_phone")
+  buyerName  String? @map("buyer_name")
+
+  /// Lignes FIGEES a la commande : nom et prix unitaire recopies. Sans cela,
+  /// une vendeuse qui change son prix reecrit l'historique de ses ventes.
+  items Json
+
+  totalXaf      Int @map("total_xaf")
+  amountPaidXaf Int @default(0) @map("amount_paid_xaf")
+  balanceXaf    Int @map("balance_xaf")
+
+  payMode    PayMode    @map("pay_mode")
+  step       OrderStep  @default(recue)
+  proofState ProofState @default(attendu) @map("proof_state")
+
+  /// { mode, city, quartier, landmark, phone, geo? } — jamais de champ address.
+  delivery Json
+
+  /// Code dictable au telephone, format XXXX-XXXX sur un alphabet non ambigu.
+  /// C'est la cle de la page publique de verification du recu.
+  verificationCode String @unique @map("verification_code")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  /// 48 h apres la creation. Le job d'expiration du lot 7 s'appuie dessus.
+  expiresAt DateTime @map("expires_at")
+  /// Sorties de parcours. Ce ne sont PAS des etapes de livraison : le
+  /// vocabulaire `OrderStep` en compte quatre, et il est fige au lot 3.
+  cancelledAt DateTime? @map("cancelled_at")
+  deliveredAt DateTime? @map("delivered_at")
+
+  seller Seller         @relation(fields: [sellerId], references: [id])
+  proofs PaymentProof[]
+  events OrderEvent[]
+  review Review?
 
   @@index([sellerId, createdAt])
-  @@index([sellerId, status])
+  @@index([sellerId, step])
+  @@index([sellerId, proofState])
   @@index([buyerPhone])
+  @@index([expiresAt])
+  @@map("order")
 }
 
 enum PayMode {
-  full
-  deposit
-  cod
+  integral
+  acompte
+  sans_prepaiement
+
+  @@map("pay_mode")
 }
 
-enum OrderStatus {
-  received
-  prepared
-  handed_to_courier
-  delivered
-  cancelled
+/// Quatre etapes, pas cinq. Voir `packages/contracts/src/order.ts`.
+enum OrderStep {
+  recue
+  preparee
+  chez_le_livreur
+  livree
+
+  @@map("order_step")
 }
 
-model Payment {
-  id               String        @id @default(uuid(7))
-  orderId          String
-  provider         String
-  providerTxId     String        @unique
-  amountXaf        Int
-  status           PaymentStatus @default(initiated)
-  verificationCode String?       @unique
-  /// true si declare a la main par la vendeuse (depot MoMo direct hors systeme)
-  manuallyDeclared Boolean       @default(false)
-  raw              Json?
-  createdAt        DateTime      @default(now())
-  confirmedAt      DateTime?
+/* ════════════════════════════ preuve ════════════════════════════ */
 
-  order  Order          @relation(fields: [orderId], references: [id])
-  events PaymentEvent[]
+/// Cle d'operateur PERSISTEE : c'est `operatorKey` du motif de SMS, jamais le
+/// libelle d'affichage « MTN MoMo ». Cette valeur compose la contrainte du
+/// controle n° 5 ; un libelle qui change la casserait en silence.
+enum OperatorKey {
+  mtn
+  orange
+
+  @@map("operator_key")
+}
+
+enum ProofState {
+  attendu
+  declare_non_trace
+  prouve
+  contresigne
+  conteste
+
+  @@map("proof_state")
+}
+
+enum Verdict {
+  accepte
+  accepte_sous_reserve
+  refuse
+
+  @@map("verdict")
+}
+
+/// Une preuve de paiement apportee par la vendeuse.
+///
+/// EN AJOUT SEUL : un trigger interdit UPDATE et DELETE. Une preuve ne se
+/// corrige pas, elle se remplace par une autre — sinon ce n'en est plus une,
+/// puisqu'on pourrait la reecrire apres coup.
+///
+/// AUCUNE colonne de solde, et aucune reference de prestataire. Les deux
+/// absences sont voulues.
+model PaymentProof {
+  id      String @id @default(uuid(7))
+  orderId String @map("order_id")
+
+  operator OperatorKey
+  /// Identifiant de l'operateur, celui du SMS. Stocke en MAJUSCULES — une
+  /// contrainte CHECK le garantit, sinon `mp260729…` et `MP260729…`
+  /// cohabiteraient dans la colonne UNIQUE et le controle n° 5 se
+  /// contournerait d'une touche majuscule.
+  operatorTxId String @map("operator_tx_id")
+
+  amountXaf Int @map("amount_xaf")
+
+  /// 9 chiffres normalises, ou NULL. Un numero qui ne correspond pas est un
+  /// AVERTISSEMENT, jamais un rejet : double SIM et paiement par un proche sont
+  /// la norme.
+  counterpartyPhone String? @map("counterparty_phone")
+  counterpartyName  String? @map("counterparty_name")
+
+  /// NULL quand un identifiant Orange s'auto-invalide : pas de date exploitable.
+  occurredAt DateTime? @map("occurred_at")
+
+  patternId String @map("pattern_id")
+  /// MEME NOM et MEME POLARITE que le drapeau `aConfirmer` du motif.
+  /// Ne jamais l'inverser en « confirmed » : c'est le piege, et un motif
+  /// reconstitue passerait alors pour valide.
+  patternAConfirmer Boolean @map("pattern_a_confirmer")
+
+  /// Chiffre au repos (lot 8). Contient le solde de la vendeuse : il ne doit
+  /// apparaitre ni dans un log, ni dans une trace, ni dans un message d'erreur.
+  rawSms String @map("raw_sms")
+
+  /// Resultat des sept controles, dans l'ordre canonique de l'ADR 0009.
+  checks Json
+
+  verdict         Verdict
+  countersignedAt DateTime? @map("countersigned_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  /// LE CONTROLE N° 5, et il est RESEAU-LARGE : un identifiant d'operateur ne
+  /// vaut qu'une fois chez TOUTES les vendeuses, pas une fois par commande.
+  /// Cette contrainte vit ici, en base, pas dans un `if` applicatif — deux
+  /// vendeuses qui collent le meme identifiant a la meme seconde passeraient
+  /// toutes les deux un SELECT.
+  @@unique([operator, operatorTxId])
+  @@index([orderId])
+  @@index([verdict, createdAt])
+  @@map("payment_proof")
+}
+
+/* ════════════════════════════ journaux ════════════════════════════ */
+
+/// Journal d'audit de la commande, en ajout seul (AGENTS.md §6). Tout ce qui
+/// touche a l'argent ou au statut d'une commande y ecrit.
+model OrderEvent {
+  id       String   @id @default(uuid(7))
+  orderId  String   @map("order_id")
+  sellerId String?  @map("seller_id")
+  /// Nom de l'evenement, ex. « preuve_soumise », « etape_avancee ».
+  kind     String
+  /// Ce qui a change. Ne doit JAMAIS contenir le SMS brut ni un solde.
+  payload  Json?
+  /// Qui a agi : 'vendeuse' | 'acheteuse' | 'systeme'.
+  actor    String
+  at       DateTime @default(now())
+
+  order  Order   @relation(fields: [orderId], references: [id])
+  seller Seller? @relation(fields: [sellerId], references: [id])
+
+  @@index([orderId, at])
+  @@index([kind, at])
+  @@map("order_event")
+}
+
+/// Journal comptable en ajout seul. UPDATE et DELETE interdits par trigger.
+model LedgerEntry {
+  id         String   @id @default(uuid(7))
+  orderId    String?  @map("order_id")
+  proofId    String?  @map("proof_id")
+  direction  String
+  amountXaf  Int      @map("amount_xaf")
+  reason     String
+  metadata   Json?
+  recordedAt DateTime @default(now()) @map("recorded_at")
 
   @@index([orderId])
-  @@index([status, createdAt])
+  @@index([recordedAt])
+  @@map("ledger_entry")
 }
 
-enum PaymentStatus {
-  initiated
-  waiting_customer
-  paid
-  partial
-  failed
-  expired
-  disputed
-}
-
-/// Table d'idempotence des webhooks.
-/// UNIQUE(providerTxId, status) : un webhook rejoue trois fois ne credite qu'une fois.
-model PaymentEvent {
-  id           String        @id @default(uuid(7))
-  paymentId    String?
-  providerTxId String
-  status       PaymentStatus
-  raw          Json
-  receivedAt   DateTime      @default(now())
-
-  payment Payment? @relation(fields: [paymentId], references: [id])
-
-  @@unique([providerTxId, status])
-  @@index([receivedAt])
-}
+/* ════════════════════════════ reputation ════════════════════════════ */
 
 model Review {
-  id        String   @id @default(uuid(7))
-  orderId   String   @unique
-  sellerId  String
-  rating    Int
-  body      String?
-  /// false si le paiement n'a pas ete trace : publie, mais hors calcul de la note
+  id       String  @id @default(uuid(7))
+  orderId  String  @unique @map("order_id")
+  sellerId String  @map("seller_id")
+  rating   Int
+  body     String?
+  /// « achat verifie » : vrai uniquement si la preuve est `prouve` ou
+  /// `contresigne`. Un paiement declare a la main ne l'ouvre pas, et un avis
+  /// non verifie est publie mais n'entre pas dans le calcul de la note.
   verified  Boolean  @default(false)
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
 
   order  Order  @relation(fields: [orderId], references: [id])
   seller Seller @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId, verified])
-}
-
-/// Journal comptable en ajout seul. UPDATE et DELETE interdits par trigger.
-model LedgerEntry {
-  id           String   @id @default(uuid(7))
-  orderId      String?
-  paymentId    String?
-  direction    String
-  amountXaf    Int
-  reason       String
-  metadata     Json?
-  recordedAt   DateTime @default(now())
-
-  @@index([orderId])
-  @@index([recordedAt])
+  @@map("review")
 }

@@ -9,16 +9,26 @@
     "validate": "prisma validate",
     "format": "prisma format",
     "migrate": "prisma migrate dev",
-    "constraints": "psql \"$DATABASE_URL\" -f sql/0001_constraints.sql",
-    "test": "echo no tests",
-    "typecheck": "echo ok",
+    "constraints": "node scripts/apply-constraints.mjs",
+    "test": "TZ=Africa/Douala vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "echo ok",
-    "check:offline": "node scripts/check-schema.mjs"
+    "check:offline": "node scripts/check-schema.mjs",
+    "seed": "node --experimental-strip-types prisma/seed.ts",
+    "db:reset": "prisma migrate reset --force",
+    "migrate:deploy": "prisma migrate deploy && node scripts/apply-constraints.mjs"
   },
   "dependencies": {
-    "@prisma/client": "7.9.1"
+    "@catalog/contracts": "workspace:*",
+    "@prisma/adapter-pg": "7.9.1",
+    "@prisma/client": "7.9.1",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
-    "prisma": "7.9.1"
+    "@types/pg": "^8.20.0",
+    "prisma": "7.9.1",
+    "vitest": "4.1.10",
+    "typescript": "6.0.3",
+    "@types/node": "26.1.2"
   }
 }

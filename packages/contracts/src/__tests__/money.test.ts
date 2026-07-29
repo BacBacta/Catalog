@@ -1,6 +1,6 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { assertXaf, formatXaf, MoneyError, splitDeposit } from "../money.js";
+import { assertXaf, formatXaf, MoneyError, splitDeposit } from "../money.ts";
 
 describe("assertXaf", () => {
   it("rejette les flottants — le FCFA n'a pas de sous-unite", () => {

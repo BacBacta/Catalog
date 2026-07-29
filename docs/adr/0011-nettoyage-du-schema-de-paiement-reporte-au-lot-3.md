@@ -1,6 +1,7 @@
 # 0011 — Le nettoyage du schéma de paiement appartient au lot 3
 
-- Statut : accepté
+- Statut : **caduc — dette payée au lot 3 le 29/07/2026**. Voir la section
+  finale ; le corps du texte est conservé tel quel.
 - Date : 2026-07-29
 - Amende la définition de terminé du **lot 0** de `PROMPTS.md`
 - Ne modifie aucune décision d'architecture : l'ADR 0009 reste la référence
@@ -106,3 +107,34 @@ qu'aucun lot ne décrit — exactement le genre d'état où une migration
 
 Le lot 3 est livré. Cet ADR devient alors caduc : la liste `MENTIONS_TOLEREES`
 ne doit plus contenir aucune ligne `packages/db`, et le test le vérifie.
+
+---
+
+## Dette payée — lot 3, 29/07/2026
+
+Les cinq gestes énumérés plus haut ont été exécutés :
+
+1. `model PaymentEvent` et `model Payment` ont disparu du schéma, remplacés par
+   `payment_proof` ;
+2. `check-schema.mjs` n'asserte plus `@@unique([providerTxId, status])` mais
+   `@@unique([operator, operatorTxId])` — le contrôle n° 5 ;
+3. le `CHECK payment_amount_positive` porté par `Payment` a été retiré de
+   `sql/0001_constraints.sql`, remplacé par son équivalent sur `payment_proof` ;
+4. les deux lignes `packages/db` ont quitté `MENTIONS_TOLEREES` ;
+5. `enum PaymentStatus` reste dans `packages/contracts/src/payment.ts`, mais
+   **hors du modèle de données** : c'est le vocabulaire de l'adaptateur dormant,
+   et l'ADR 0009 exige qu'il reste compilable. Le vocabulaire de la v1 est
+   ailleurs — `ProofState` dans `proof.ts`, `PayMode` et `OrderStep` dans
+   `order.ts`.
+
+Deux mentions de « webhook » subsistent dans `packages/db`, et elles restent
+dans la liste tolérée pour une raison différente de l'ancienne : ce sont
+désormais des **interdictions**. Le commentaire d'en-tête du schéma dit que
+Catalog ne reçoit aucun webhook, et `check-schema.mjs` échoue si la table
+d'idempotence réapparaît. Nommer une chose pour l'interdire est le contraire
+d'une dérive — c'est la même catégorie que `app.test.ts`, qui vérifie qu'aucune
+URL de notification n'existe.
+
+Le test qui gèle la liste continue de tourner. Il a d'ailleurs fait exactement
+ce qu'on lui demandait : il a échoué au moment du retrait des deux lignes, ce
+qui a forcé la mise à jour de cet ADR dans le même commit que le nettoyage.

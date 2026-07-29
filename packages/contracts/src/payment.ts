@@ -1,12 +1,22 @@
 import { z } from "zod";
 
-export const payModeSchema = z.enum(["full", "deposit", "cod"]);
-export type PayMode = z.infer<typeof payModeSchema>;
+/**
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │  VOCABULAIRE D'AGREGATEUR — EN DORMANCE (ADR 0009).                      │
+ * │                                                                          │
+ * │  La v1 de Catalog n'a pas d'agregateur : elle constate un paiement par    │
+ * │  la preuve, pas par le statut d'un tiers. Le vocabulaire de la v1 vit     │
+ * │  dans `proof.ts` (`ProofState`) et `order.ts` (`PayMode`, `OrderStep`).   │
+ * │                                                                          │
+ * │  Ce fichier reste parce que l'adaptateur CamPay dormant en depend et      │
+ * │  doit rester COMPILABLE (AGENTS.md §5). Aucune table ni aucun schema Zod  │
+ * │  de la v1 ne l'utilise. Ne pas l'etendre.                                │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ */
 
 /**
- * Un paiement ne recule JAMAIS. Toute transition arriere est journalisee
- * puis ignoree. `waiting_customer` n'est PAS un echec : c'est l'acheteuse
- * qui n'a pas encore saisi son code secret (30 s a 3 min, parfois plus).
+ * Statut renvoye par un agregateur. `waiting_customer` n'est PAS un echec :
+ * c'est la payeuse qui n'a pas encore saisi son code secret.
  */
 export const paymentStatusSchema = z.enum([
   "initiated",
@@ -34,22 +44,3 @@ const ALLOWED: Record<PaymentStatus, readonly PaymentStatus[]> = {
 export function canTransition(from: PaymentStatus, to: PaymentStatus): boolean {
   return ALLOWED[from].includes(to);
 }
-
-/**
- * Alphabet sans caracteres ambigus : ni O/0, ni I/1/L, ni B/8, ni S/5, ni Z/2.
- * Un code se lit au telephone et se recopie a la main.
- */
-export const CODE_ALPHABET = "ACDEFGHJKMNPQRTUVWXY34679";
-
-export function formatVerificationCode(raw: string): string {
-  const clean = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (clean.length !== 8) throw new Error("un code de verification fait 8 caracteres");
-  return `${clean.slice(0, 4)}-${clean.slice(4)}`;
-}
-
-export const verificationCodeSchema = z
-  .string()
-  .transform((s) => s.toUpperCase().replace(/[^A-Z0-9]/g, ""))
-  .refine((s) => s.length === 8 && [...s].every((c) => CODE_ALPHABET.includes(c)), {
-    message: "code de verification invalide",
-  });

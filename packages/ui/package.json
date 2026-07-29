@@ -8,7 +8,7 @@
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "TZ=Africa/Douala vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build": "echo ok"
   },

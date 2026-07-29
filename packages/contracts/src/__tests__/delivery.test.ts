@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliverySchema, normalizePhone } from "../delivery.js";
+import { deliverySchema, normalizePhone } from "../delivery.ts";
 
 describe("normalizePhone", () => {
   const cases: Array<[string, string | null]> = [
