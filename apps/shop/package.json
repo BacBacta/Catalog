@@ -14,7 +14,7 @@
   "dependencies": {
     "@swap/contracts": "workspace:*",
     "@swap/ui": "workspace:*",
-    "astro": "7.1.5",
+    "astro": "7.1.6",
     "tailwindcss": "4.3.3",
     "@tailwindcss/vite": "4.3.3"
   },
