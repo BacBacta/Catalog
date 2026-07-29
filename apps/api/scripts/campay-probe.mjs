@@ -16,6 +16,13 @@
 
 const BASE = { PROD: "https://www.campay.net", DEV: "https://demo.campay.net" };
 
+const C = { d: "\x1b[2m", g: "\x1b[32m", r: "\x1b[31m", y: "\x1b[33m", b: "\x1b[1m", x: "\x1b[0m" };
+const log = (...a) => console.log(...a);
+function die(m) {
+  console.error(`${C.r}✗ ${m}${C.x}`);
+  process.exit(1);
+}
+
 const env = (process.env.CAMPAY_ENV ?? "DEV").toUpperCase();
 const token = process.env.CAMPAY_TOKEN;
 const msisdn = process.env.CAMPAY_TEST_MSISDN;
@@ -27,12 +34,6 @@ if (env === "PROD" && !process.argv.includes("--i-know")) {
 }
 const base = BASE[env];
 
-const C = { d: "\x1b[2m", g: "\x1b[32m", r: "\x1b[31m", y: "\x1b[33m", b: "\x1b[1m", x: "\x1b[0m" };
-const log = (...a) => console.log(...a);
-function die(m) {
-  console.error(`${C.r}✗ ${m}${C.x}`);
-  process.exit(1);
-}
 function title(t) {
   log(`\n${C.b}${"─".repeat(4)} ${t} ${"─".repeat(Math.max(0, 56 - t.length))}${C.x}`);
 }
@@ -48,21 +49,47 @@ function show(o) {
 }
 
 async function call(method, path, body) {
-  const res = await fetch(`${base}${path}`, {
-    method,
-    headers: {
-      Authorization: `Token ${token}`,
-      ...(body ? { "Content-Type": "application/json" } : {}),
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
+  let res;
+  try {
+    res = await fetch(`${base}${path}`, {
+      method,
+      headers: {
+        Authorization: `Token ${token}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (cause) {
+    // Coupure réseau, DNS, TLS : l'hôte n'a jamais été atteint. À ne surtout
+    // pas confondre avec un refus applicatif de CamPay.
+    return { ok: false, status: 0, transportError: String(cause?.message ?? cause), json: null };
+  }
+  const text = await res.text();
   let json = null;
   try {
-    json = await res.json();
+    json = JSON.parse(text);
   } catch {
-    /* corps non JSON */
+    /* corps non JSON : conservé tel quel dans rawBody */
   }
-  return { ok: res.ok, status: res.status, json, headers: Object.fromEntries(res.headers) };
+  return {
+    ok: res.ok,
+    status: res.status,
+    json,
+    rawBody: text,
+    headers: Object.fromEntries(res.headers),
+  };
+}
+
+/**
+ * Un 4xx peut venir d'un intermédiaire (proxy d'entreprise, passerelle) plutôt
+ * que de CamPay. Sans cette distinction on régénère un jeton parfaitement bon.
+ */
+function looksLikeUpstreamBlock(r) {
+  if (r.status === 0) return true;
+  const viaProxy =
+    r.headers && Object.keys(r.headers).some((h) => /^(via|x-proxy|proxy-)/i.test(h));
+  const notJson = r.json === null && typeof r.rawBody === "string";
+  return (r.status === 403 || r.status === 407) && (viaProxy || notJson);
 }
 
 /* ── LA question : une référence d'opérateur se cache-t-elle quelque part ? ── */
@@ -100,7 +127,21 @@ const report = { env, base, findings: [] };
 /* ═══ 1. Authentification et solde ═══ */
 title("1. Authentification et solde");
 const bal = await call("GET", "/api/balance/");
-if (!bal.ok) die(`Le jeton est refusé (HTTP ${bal.status}). Vérifiez CAMPAY_TOKEN et CAMPAY_ENV.`);
+if (!bal.ok) {
+  if (looksLikeUpstreamBlock(bal)) {
+    log(`${C.y}  Réponse inattendue :${C.x}`);
+    log(`${C.d}    statut    : ${bal.status || "(aucune réponse)"}`);
+    log(`    transport : ${bal.transportError ?? "—"}`);
+    log(`    corps     : ${(bal.rawBody ?? "").slice(0, 200) || "(vide)"}${C.x}`);
+    die(
+      `${base} est injoignable — la requête n'a pas atteint CamPay.\n` +
+        `  Ce n'est probablement PAS un problème de jeton : vérifiez la sortie\n` +
+        `  réseau (proxy, pare-feu, liste d'autorisation) avant de le régénérer.`,
+    );
+  }
+  log(`${C.d}  corps : ${(bal.rawBody ?? "").slice(0, 300)}${C.x}`);
+  die(`Le jeton est refusé (HTTP ${bal.status}). Vérifiez CAMPAY_TOKEN et CAMPAY_ENV.`);
+}
 log(`${C.g}✓${C.x} jeton valide sur ${env}`);
 show(bal.json);
 log(
