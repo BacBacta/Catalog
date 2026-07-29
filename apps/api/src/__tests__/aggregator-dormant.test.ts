@@ -25,7 +25,7 @@ const V1_CODE_PATHS = ["routes", "jobs"];
 /** Ce qui trahit un import de l'adaptateur, quelle que soit la forme. */
 const FORBIDDEN = /(from|import|require)\s*\(?\s*["'][^"']*adapters\/campay(\.ts)?["']/;
 
-function walk(dir: string): string[] {
+function walk(dir: string, keep = /\.(ts|tsx|mts|js|mjs)$/): string[] {
   let out: string[] = [];
   let entries: string[];
   try {
@@ -34,9 +34,10 @@ function walk(dir: string): string[] {
     return out; // le repertoire n'existe pas encore (src/jobs viendra plus tard)
   }
   for (const e of entries) {
+    if (e === "node_modules" || e === "dist" || e === "generated" || e === ".astro") continue;
     const p = join(dir, e);
-    if (statSync(p).isDirectory()) out = out.concat(walk(p));
-    else if (/\.(ts|tsx|mts|js|mjs)$/.test(p)) out.push(p);
+    if (statSync(p).isDirectory()) out = out.concat(walk(p, keep));
+    else if (keep.test(p)) out.push(p);
   }
   return out;
 }
@@ -93,5 +94,62 @@ describe(PAYMENT_AGGREGATOR_FLAG, () => {
     expect(() =>
       isPaymentAggregatorEnabled({ NODE_ENV: "production", PAYMENT_AGGREGATOR_ENABLED: "true" }),
     ).toThrow(/ADR 0009/);
+  });
+});
+
+/**
+ * La tolerance de l'ADR 0011, rendue opposable.
+ *
+ * La definition de terminee du lot 0 voulait zero occurrence de « webhook »
+ * dans apps/ et packages/. Quatre subsistent dans packages/db : elles
+ * decrivent le bloc de paiement herite de l'agregateur, dont le lot 3 est
+ * proprietaire (il le remplace par payment_proof). L'ADR 0011 acte ce report.
+ *
+ * Un ADR qui documente une tolerance sans la faire respecter se perime en
+ * silence : la liste ci-dessous fige donc l'etat connu. Toute occurrence
+ * NOUVELLE fait echouer la CI, et le retrait d'un fichier de la liste au
+ * lot 3 fait echouer ce test aussi — ce qui force a le mettre a jour au
+ * moment ou la dette est payee, pas six mois plus tard.
+ */
+const REPO = join(HERE, "..", "..", "..", "..");
+const WEBHOOK_MENTION = /WAITING_FOR_CUSTOMER|webhook/i;
+
+/** Etat connu au 29/07/2026. Voir ADR 0011 pour la raison de chaque ligne. */
+const MENTIONS_TOLEREES = [
+  // Surface agregateur dormante — reste compilable, inatteignable en v1 (ADR 0009).
+  "apps/api/src/adapters/campay.ts",
+  "apps/api/src/domain/payment-provider.ts",
+  "apps/api/src/__tests__/campay.test.ts",
+  // Outillage du bac a sable, dormant lui aussi.
+  "apps/api/scripts/README.md",
+  "apps/api/scripts/campay-probe.mjs",
+  "apps/api/scripts/webhook-capture.mjs",
+  // Gardes : celui-ci interdit la route, celui-la la nomme pour l'interdire.
+  "apps/api/src/__tests__/app.test.ts",
+  "apps/api/src/__tests__/aggregator-dormant.test.ts",
+  // DETTE DU LOT 3 — a supprimer avec Payment/PaymentEvent (ADR 0011).
+  "packages/db/prisma/schema.prisma",
+  "packages/db/scripts/check-schema.mjs",
+].sort();
+
+describe("ADR 0011 — les mentions de webhook restantes sont celles, et rien de plus", () => {
+  it("aucune mention nouvelle dans apps/ ni packages/", () => {
+    const trouves = ["apps", "packages"]
+      .flatMap((d) => walk(join(REPO, d), /\.(ts|tsx|mts|js|mjs|md|prisma|sql|astro|json|css)$/))
+      .filter((f) => WEBHOOK_MENTION.test(readFileSync(f, "utf8")))
+      .map((f) => relative(REPO, f).split("\\").join("/"))
+      .sort();
+
+    const nouvelles = trouves.filter((f) => !MENTIONS_TOLEREES.includes(f));
+    expect(
+      nouvelles,
+      "mention de webhook hors du perimetre tolere par l'ADR 0011 — la v1 n'a pas de webhook de paiement",
+    ).toEqual([]);
+
+    const disparues = MENTIONS_TOLEREES.filter((f) => !trouves.includes(f));
+    expect(
+      disparues,
+      "dette payee : retirer ces fichiers de MENTIONS_TOLEREES et mettre a jour l'ADR 0011",
+    ).toEqual([]);
   });
 });

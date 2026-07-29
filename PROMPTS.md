@@ -123,6 +123,10 @@ Définition de terminé :
   que des occurrences situées dans l'adaptateur dormant et ses tests. La commande
   est volontairement restreinte à `apps` et `packages` : la documentation, elle,
   DOIT continuer à mentionner ces mots pour signaler qu'ils sont périmés ;
+  **AMENDÉ par l'ADR 0011** — quatre occurrences subsistent dans `packages/db`,
+  qui décrivent le modèle de données dont le **lot 3** est propriétaire. La
+  liste exacte est gelée dans un test (`MENTIONS_TOLEREES`) qui échoue sur
+  toute mention nouvelle ;
 - un commit unique couvrant les documents déposés et ta bascule, message :
   « refactor: bascule v1 sans agrégateur (ADR 0009) ».
 ```
@@ -227,6 +231,18 @@ ledger_entry, product_view.
 Il n'y a PAS de table payment_event ni de champ provider_tx_id : Catalog n'encaisse
 pas et ne reçoit aucun webhook. Ce que le système enregistre, c'est une PREUVE
 apportée par la vendeuse, pas une transaction qu'il aurait opérée.
+
+DETTE HÉRITÉE DU LOT 0 — lis l'ADR 0011, il te concerne directement. Le schéma
+actuel porte encore le bloc de paiement de l'architecture à agrégateur, que le
+lot 0 a délibérément laissé en place parce que c'est TOI qui le remplaces. En
+plus de ce qui suit, tu dois : supprimer les modèles Payment et PaymentEvent ;
+remplacer dans check-schema.mjs l'assertion sur @@unique([providerTxId, status])
+par celle sur UNIQUE(operator, operator_tx_id) ; retirer de
+sql/0001_constraints.sql le CHECK payment_amount_positive porté par Payment ;
+et retirer les deux lignes packages/db de MENTIONS_TOLEREES dans
+apps/api/src/__tests__/aggregator-dormant.test.ts. Ce dernier test ÉCHOUE tant
+que tu ne l'as pas fait — c'est voulu, c'est ce qui rend la dette impossible à
+oublier.
 
 Points sur lesquels tu ne peux pas dévier :
 - tous les montants en Int, suffixés _xaf ;
