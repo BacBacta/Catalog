@@ -21,4 +21,7 @@ minimumReleaseAgeExclude:
   - astro@7.1.5
   - size-limit@13.0.2
 
-onlyBuiltDependencies: '@prisma/engines,esbuild,prisma'
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - esbuild
+  - prisma
