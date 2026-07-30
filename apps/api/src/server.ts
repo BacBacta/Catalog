@@ -2,6 +2,7 @@ import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
 import { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
+import { resolveChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
 import app from "./app.ts";
@@ -11,6 +12,7 @@ import { authRoutes } from "./routes/auth.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
 import { mediaRoutes } from "./routes/media.ts";
 import { payoutRoutes } from "./routes/payout.ts";
+import { preuveRoutes } from "./routes/preuve.ts";
 import { productRoutes } from "./routes/products.ts";
 import { sellerRoutes } from "./routes/seller.ts";
 
@@ -44,6 +46,7 @@ app.route(
 );
 
 app.route("/api/articles", productRoutes({ prisma, session, storage }));
+app.route("/api/commandes", preuveRoutes({ prisma, session, chiffreur: resolveChiffreurSms() }));
 
 // Uniquement quand le fournisseur factice est actif — donc jamais en production,
 // ou `ConsoleSmsSender` refuse de se construire.

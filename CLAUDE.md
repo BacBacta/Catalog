@@ -58,7 +58,14 @@ l'ordre. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
 (jetons de design et primitives), lot 3 (schéma de preuve et contraintes SQL),
 lot 4 (authentification par téléphone, numéro de reversement, limitation de
 débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutique
-publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau).
+publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau),
+lot 8 (analyseurs de SMS, sept contrôles, écran de collage).
+
+Le lot 8 a **amendé `docs/formats-sms-operateurs.md`** sur un point, et c'est le
+seul écart autorisé à la règle « on ne réécrit pas les motifs » : `Number("")`
+vaut zéro, pas NaN, donc un montant fait uniquement de séparateurs produisait un
+paiement de **zéro franc** parfaitement formé. Voir l'ADR 0019. La spec reste la
+source : elle a été mise à jour d'abord.
 
 Le lot 7 ajoute une porte : **`pnpm test:coverage` exige 90 % sur `src/domain`**,
 et un test refuse `from "@prisma`, `from "hono`, `fetch(`, `Date.now(`,

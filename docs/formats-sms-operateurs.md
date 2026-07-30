@@ -6,7 +6,7 @@
 > mémoire : un motif écrit au jugé se casse sur l'espace avant la parenthèse
 > fermante, sur le numéro à douze chiffres, ou sur l'anglais.
 >
-> Dernière mise à jour : 29/07/2026.
+> Dernière mise à jour : 30/07/2026 — amendement de `xafInt` (ADR 0019).
 
 ---
 
@@ -233,8 +233,15 @@ export const local9 = (s: string | null | undefined): string => {
  * Un montant illisible LÈVE : mieux vaut un refus qu'un NaN dans une colonne Int.
  */
 export const xafInt = (s: string): number => {
+  // AMENDÉ le 30/07/2026 — voir ADR 0019. `Number("")` vaut ZÉRO, pas NaN : un
+  // montant fait uniquement de séparateurs passait, et `om.entrant` produisait un
+  // paiement de zéro franc avec un identifiant valide et une contrepartie
+  // correcte. Un montant doit contenir au moins un chiffre.
+  if (!/\d/.test(String(s))) throw new Error("montant illisible");
   const n = Number(String(s).replace(/[\s\u00a0\u202f,]/g, ""));
-  if (!Number.isFinite(n)) throw new Error(`montant illisible: ${s}`);
+  // Le message d'erreur ne porte PAS le montant : il remonterait dans une trace,
+  // et un fragment de SMS y entraînerait le solde du compte de la vendeuse.
+  if (!Number.isFinite(n)) throw new Error("montant illisible");
   return Math.round(n);
 };
 
