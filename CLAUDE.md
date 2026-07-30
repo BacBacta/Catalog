@@ -58,7 +58,15 @@ l'ordre. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
 (jetons de design et primitives), lot 3 (schéma de preuve et contraintes SQL),
 lot 4 (authentification par téléphone, numéro de reversement, limitation de
 débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutique
-publique Astro et Lighthouse CI).
+publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau).
+
+Le lot 7 ajoute une porte : **`pnpm test:coverage` exige 90 % sur `src/domain`**,
+et un test refuse `from "@prisma`, `from "hono`, `fetch(`, `Date.now(`,
+`new Date()`, `Math.random()`, `node:fs` et `process.env` dans ce répertoire.
+Le temps et l'aléa arrivent toujours en paramètre. Voir l'ADR 0018 — il documente
+notamment la transition `declare_non_trace → prouve`, absente de la liste
+littérale du blueprint : sans elle, une vendeuse qui déclare à la main puis
+retrouve son SMS n'aurait jamais de reçu.
 
 Le lot 5 ajoute une règle de compilation de plus : **l'objet image stocké tient
 sous 100 Ko**, garanti par un ré-encodage à qualité dégressive et non par une

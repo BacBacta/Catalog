@@ -17,3 +17,4 @@ test-results/
 .DS_Store
 apps/shop/src/data/
 apps/shop/.lighthouseci/
+apps/api/coverage/

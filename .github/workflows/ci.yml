@@ -65,6 +65,12 @@ jobs:
         run: pnpm lint
       - name: Tests unitaires
         run: pnpm test
+      # Couverture du DOMAINE, pas du paquet : `src/adapters` parle a la base et
+      # au reseau, et un seuil global pousserait a simuler ces frontieres pour
+      # faire monter un chiffre. Le domaine est pur — s'il n'est pas couvert,
+      # c'est qu'une regle metier n'est pas verifiee. Seuil dur a 90 %.
+      - name: Couverture de src/domain
+        run: pnpm test:coverage
       - name: Build
         run: pnpm build
       - name: Budget de poids — la boutique doit rester sous 30 Ko de JS
