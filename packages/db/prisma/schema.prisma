@@ -445,3 +445,29 @@ model SellerAuditEvent {
   @@index([kind, at])
   @@map("seller_audit_event")
 }
+
+/// Journal des demandes d'OTP, support de la limitation de debit.
+///
+/// **Pourquoi une table et pas un compteur en memoire** : un compteur en
+/// memoire se remet a zero a chaque redeploiement, et un attaquant qui le sait
+/// attend un deploiement. Un SMS coute de l'argent — la limite doit survivre au
+/// processus, sinon elle ne protege ni le numero ni la facture.
+///
+/// Cette table n'est PAS en ajout seul, contrairement aux journaux d'audit :
+/// c'est de la donnee operationnelle avec une duree de conservation. Les lignes
+/// anciennes se purgent, et il FAUT pouvoir les supprimer. La confondre avec un
+/// journal d'audit ferait grossir la base sans fin.
+model OtpAttempt {
+  id String @id @default(uuid(7))
+  /// Numero destinataire, E.164.
+  phone String
+  ip    String
+  /// A quoi servait l'OTP : connexion, ou verification du reversement.
+  kind  String
+  at    DateTime @default(now())
+
+  @@index([phone, at])
+  @@index([ip, at])
+  @@index([at])
+  @@map("otp_attempt")
+}
