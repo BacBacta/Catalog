@@ -145,6 +145,31 @@ export interface ReponsePhoto {
   };
 }
 
+/* ────────────────────────── commandes (lot 11) ────────────────────────── */
+
+export type EtapeCommande = "recue" | "preparee" | "chez_le_livreur" | "livree";
+
+export interface Commande {
+  id: string;
+  reference: string;
+  acheteuse: { nom: string | null; telephone: string };
+  totalXaf: number;
+  dejaPayeXaf: number;
+  resteXaf: number;
+  modePaiement: string;
+  etape: EtapeCommande;
+  etatPreuve: string;
+  modeLivraison: "livraison" | "retrait";
+  livraison: unknown;
+  codeVerification: string;
+  annuleeA: string | null;
+  creeA: string;
+  /** Les etapes visables MAINTENANT. Calculees par le serveur, pas ici. */
+  etapesPossibles: EtapeCommande[];
+  soldeAEncaisserXaf: number;
+  avisVerifiePossible: boolean;
+}
+
 export const api = {
   envoyerCodeConnexion: (phoneNumber: string) =>
     appeler("/api/auth/phone-number/send-otp", { corps: { phoneNumber } }),
@@ -198,4 +223,23 @@ export const api = {
     fd.set("photo", fichier);
     return appeler<ReponsePhoto>(`/api/articles/${id}/image`, { corpsBrut: fd });
   },
+
+  /* ────────────────────────── commandes ────────────────────────── */
+
+  commandes: () =>
+    appeler<{ commandes: Commande[]; soldesAEncaisserXaf: number }>("/api/commandes"),
+
+  avancerEtape: (id: string, vers: EtapeCommande) =>
+    appeler<Commande>(`/api/commandes/${id}/etape`, { corps: { vers } }),
+
+  /**
+   * Le depot direct NON TRACE. Il fait avancer la commande et reste marque non
+   * trace : pas de recu, pas d'avis verifie. L'ecran propose « j'ai le SMS » a
+   * cote, qui mene au collage.
+   */
+  declarerPaiement: (id: string, montantXaf: number) =>
+    appeler<Commande & { trace: boolean; aRendreXaf: number }>(
+      `/api/commandes/${id}/paiement-declare`,
+      { corps: { montantXaf } },
+    ),
 };

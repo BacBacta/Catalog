@@ -1,5 +1,16 @@
-import { Badge, Button, Card, CardNote, CardTitle, Field, Input, Separator } from "@catalog/ui";
-import { useState } from "react";
+import {
+  Badge,
+  Button,
+  Card,
+  CardNote,
+  CardTitle,
+  Field,
+  Input,
+  MoneyDisplay,
+  Separator,
+  StatTile,
+} from "@catalog/ui";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { Protege } from "../components/Protege.tsx";
@@ -25,6 +36,7 @@ export function Dashboard() {
 function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
   const { deconnecter } = useSession();
   const seller = vendeuse.seller as NonNullable<Vendeuse["seller"]>;
+  const soldes = useSoldesAEncaisser();
 
   return (
     <Ecran
@@ -36,6 +48,21 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
         </Button>
       }
     >
+      {/*
+        La tuile des soldes ouvre le tableau de bord : c'est le chiffre qu'une
+        vendeuse vient chercher en premier. Elle reste MUETTE tant que le total
+        n'est pas connu — afficher zero pendant le chargement ferait croire qu'il
+        n'y a rien a encaisser.
+      */}
+      {soldes === null ? null : (
+        <StatTile
+          label="Soldes a encaisser"
+          value={<MoneyDisplay amountXaf={soldes} size="hero" />}
+          note="Ce que vos clientes vous doivent encore, sur les commandes en cours."
+          data-testid="tuile-soldes"
+        />
+      )}
+
       <Card>
         <CardTitle>Votre connexion</CardTitle>
         <CardNote>
@@ -70,6 +97,16 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
       </Card>
 
       <Card>
+        <CardTitle>Vos commandes</CardTitle>
+        <CardNote>
+          Suivez chaque commande jusqu'a la remise, et encaissez les soldes d'acompte.
+        </CardNote>
+        <Button render={<Link to="/commandes" />} tone="outline" size="lg">
+          Voir mes commandes
+        </Button>
+      </Card>
+
+      <Card>
         <CardTitle>Votre catalogue</CardTitle>
         <CardNote>
           Une photo, un nom, un prix. C'est ce que vos clientes verront et partageront.
@@ -98,6 +135,32 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
       </Card>
     </Ecran>
   );
+}
+
+/**
+ * Le total des soldes a encaisser, ou `null` tant qu'il n'est pas connu.
+ *
+ * Un echec ne casse pas le tableau de bord : la tuile disparait, le reste de
+ * l'ecran vit. C'est un chiffre de confort, pas la raison d'etre de la page —
+ * et une vendeuse hors ligne doit quand meme pouvoir regler son reversement.
+ */
+function useSoldesAEncaisser(): number | null {
+  const [soldes, setSoldes] = useState<number | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    void (async () => {
+      try {
+        const r = await api.commandes();
+        if (vivant && r.ok && r.donnees) setSoldes(r.donnees.soldesAEncaisserXaf);
+      } catch {
+        /* hors ligne : la tuile ne s'affiche pas, le reste de l'ecran tient. */
+      }
+    })();
+    return () => {
+      vivant = false;
+    };
+  }, []);
+  return soldes;
 }
 
 /** Deux questions, une fois. Rien d'autre n'est obligatoire pour commencer. */
