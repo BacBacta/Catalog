@@ -10,6 +10,7 @@ import { createAuth, smsSenderDepuisEnv } from "./auth.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
 import { authRoutes } from "./routes/auth.ts";
+import { commandeRoutes } from "./routes/commandes.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
 import { mediaRoutes } from "./routes/media.ts";
 import { payoutRoutes } from "./routes/payout.ts";
@@ -50,6 +51,11 @@ app.route(
 
 app.route("/api/articles", productRoutes({ prisma, session, storage }));
 app.route("/api/commandes", preuveRoutes({ prisma, session, chiffreur: resolveChiffreurSms() }));
+// Le cycle de vie, sur le MEME prefixe. Les deux routeurs se partagent
+// `/api/commandes` sans se recouvrir : `preuveRoutes` tient `GET /:id` et
+// `POST /:id/preuve`, celui-ci tient la liste, l'avancement d'etape et la
+// declaration de paiement.
+app.route("/api/commandes", commandeRoutes({ prisma, session }));
 
 // La rampe : publique, sans session. C'est une acheteuse qui la lit, depuis la
 // boutique statique, et c'est ce qui permet de changer un code d'operateur sans
