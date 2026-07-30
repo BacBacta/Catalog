@@ -379,9 +379,39 @@ async function main() {
   `);
 
   for (const [i, s] of SELLERS.entries()) {
+    /**
+     * Le COMPTE d'authentification, et pas seulement le profil.
+     *
+     * Better Auth possede `auth_user`, Catalog possede `seller` ; sans le
+     * premier, une vendeuse du seed n'a aucun moyen de se connecter. Ses
+     * commandes existent alors en base mais sont INATTEIGNABLES par un parcours
+     * reel — c'est ce qui empechait les tests de bout en bout des lots 10 et 11
+     * de partir d'une commande veritable.
+     *
+     * Le compte est marque verifie : le seed represente une vendeuse deja
+     * installee, pas une inscription en cours. Le domaine `.invalid` est
+     * reserve par la RFC 2606 — aucun courriel ne peut y partir par accident.
+     *
+     * Les tables d'authentification ne sont pas videes par le TRUNCATE
+     * ci-dessus (elles appartiennent a Better Auth), d'ou le `upsert` : le seed
+     * doit pouvoir se rejouer.
+     */
+    const compte = await prisma.authUser.upsert({
+      where: { phoneNumber: s.phone },
+      update: { name: s.businessName },
+      create: {
+        name: s.businessName,
+        email: `${s.slug}@seed.catalog.invalid`,
+        phoneNumber: s.phone,
+        phoneNumberVerified: true,
+        createdAt: h(i),
+      },
+    });
+
     await prisma.seller.create({
       data: {
         id: s.id,
+        userId: compte.id,
         phone: s.phone,
         businessName: s.businessName,
         slug: s.slug,
