@@ -5,7 +5,10 @@
   "type": "module",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./money": "./src/money.ts",
+    "./phone": "./src/phone.ts",
+    "./whatsapp": "./src/whatsapp.ts"
   },
   "scripts": {
     "test": "TZ=Africa/Douala vitest run",

@@ -1,27 +1,40 @@
 ---
-import { formatXaf } from "@catalog/contracts";
 import Base from "../layouts/Base.astro";
+import { chargerBoutiques } from "../lib/catalogue.ts";
 
-// Squelette de la phase 1. Les donnees viendront de l'API ; ici on prouve
-// surtout que la chaine compile et que la page ne transporte aucun JS.
-const demo = { name: "Robe wax premiere qualite", priceXaf: 7500 };
+/**
+ * La racine du domaine public.
+ *
+ * Ce n'est PAS un annuaire de boutiques et ce n'en sera pas un : une acheteuse
+ * arrive toujours par un lien que la vendeuse lui a envoye sur WhatsApp, jamais
+ * par une recherche ici. Publier la liste des vendeuses ferait de Catalog une
+ * place de marche, ce qu'il n'est pas — et exposerait qui vend quoi, ce que
+ * personne n'a demande.
+ *
+ * La page dit donc ce qu'est Catalog, en texte, sans JavaScript.
+ */
+const nombre = chargerBoutiques().length;
 ---
-<Base title="Catalog — boutique">
-  <main style="max-width:34rem;margin:0 auto;padding:2rem 1.25rem">
-    <p style="font-size:var(--text-caption);color:var(--color-muted);letter-spacing:.08em;text-transform:uppercase">
-      Squelette phase 1
+<Base
+  title="Catalog — le catalogue et la preuve de paiement"
+  description="Catalog outille les vendeuses camerounaises qui vendent déjà sur WhatsApp : un catalogue partageable, et un reçu de paiement vérifiable."
+>
+  <main class="mx-auto flex w-full max-w-[34rem] flex-col gap-4 px-4 py-10">
+    <h1 class="text-hero font-extrabold leading-tight text-ink">Catalog</h1>
+    <p class="text-body text-ink-2">
+      Catalog outille les vendeuses camerounaises qui vendent déjà sur WhatsApp.
+      La conversation ne bouge pas : on ajoute par-dessus un catalogue
+      partageable, une rampe de paiement mobile money, et un reçu que l'acheteuse
+      peut vérifier.
     </p>
-    <h1 style="font-size:var(--text-title);margin:.4rem 0 1rem">Boutique publique</h1>
-    <p style="color:var(--color-ink-2)">
-      Cette page ne charge aucun JavaScript et aucune police. C'est la contrainte
-      qui gouverne tout le reste : elle doit etre servie depuis le point de
-      presence CDN le plus proche, jamais depuis l'origine europeenne.
+    <p class="text-body text-ink-2">
+      Les fonds ne passent jamais par un compte de Catalog. Ils vont du
+      portefeuille de l'acheteuse à celui de la vendeuse, directement.
     </p>
-    <div style="background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-card);padding:1rem;margin-top:1rem">
-      <div style="font-weight:600">{demo.name}</div>
-      <div style="color:var(--color-brand-500);font-weight:800;font-size:1.25rem">
-        {formatXaf(demo.priceXaf)}
-      </div>
-    </div>
+    <p class="text-caption text-muted">
+      Chaque boutique a son propre lien, que la vendeuse partage elle-même. Il n'y
+      a pas d'annuaire ici : ce n'est pas une place de marché.
+      {nombre > 0 ? ` (${nombre} boutique${nombre > 1 ? "s" : ""} en ligne.)` : ""}
+    </p>
   </main>
 </Base>

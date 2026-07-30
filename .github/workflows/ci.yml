@@ -53,6 +53,12 @@ jobs:
       # trois modes de paiement et les cinq etats de preuve.
       - name: Migration, contraintes et seed
         run: pnpm db:migrate && pnpm db:seed
+      # Instantane du catalogue public. La boutique est un site statique : elle
+      # ne parle pas a la base, elle lit cette photo prise a la construction.
+      # Sans elle, `pnpm size` mesurerait un site d'une seule page et le budget
+      # ne prouverait rien.
+      - name: Instantane du catalogue
+        run: pnpm shop:snapshot
       - name: Types
         run: pnpm typecheck
       - name: Lint et format
@@ -95,8 +101,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Client Prisma, migration et contraintes
-        run: pnpm db:generate && pnpm db:migrate
+      - name: Client Prisma, migration, contraintes et seed
+        run: pnpm db:generate && pnpm db:migrate && pnpm db:seed
+      - name: Instantane du catalogue
+        run: pnpm shop:snapshot
       # Les tests de bout en bout tournent sur un profil mobile bas de gamme
       # bride (Moto G Power, Slow 4G) et non sur un poste de developpement :
       # c'est la seule facon d'empecher la derive vers une application qui ne
@@ -104,6 +112,27 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       # Le serveur de previsualisation sert le build : il faut donc construire.
       - run: pnpm --filter @catalog/seller build
+      - name: Construction de la boutique publique
+        run: pnpm --filter @catalog/shop build
+      # Le budget est deja verifie dans `quality` ; ici il garde la sortie que
+      # Lighthouse va mesurer, pour qu'un ecart entre les deux se voie.
+      - name: Budget de poids de la boutique
+        run: pnpm size
+      # Seuils DURS sur profil mobile bride : performance >= 95, accessibilite =
+      # 100, LCP < 2,5 s, decalage visuel < 0,1. Mesurer sur un poste de
+      # developpement donnerait 100 partout et ne prouverait rien.
+      - name: Lighthouse — boutique publique
+        env:
+          LHCI_URLS: >-
+            http://localhost/index.html,http://localhost/chez-maman-jeanne/index.html,http://localhost/chez-maman-jeanne/robe-wax-grande-taille-000000/index.html
+        run: pnpm shop:lighthouse
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rapports-lighthouse
+          path: apps/shop/.lighthouseci/*.html
+          if-no-files-found: ignore
+          retention-days: 7
       # Bloquant depuis le lot 2. AGENTS.md exige zero violation axe-core
       # bloquante, et la page de demonstration du design system en est la
       # premiere cible reelle. Ce job verifie aussi les cibles tactiles de

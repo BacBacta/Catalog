@@ -1,0 +1,86 @@
+---
+import BadgeVerifie from "../../components/BadgeVerifie.astro";
+import PhotoArticle from "../../components/PhotoArticle.astro";
+import Prix from "../../components/Prix.astro";
+import Base from "../../layouts/Base.astro";
+import { type BoutiquePublique, chargerBoutiques } from "../../lib/catalogue.ts";
+
+/**
+ * La page d'une boutique.
+ *
+ * **Zero JavaScript.** La grille est du HTML et du CSS : il n'y a rien
+ * d'interactif ici, donc rien a hydrater. C'est la page que l'acheteuse ouvre
+ * depuis un lien WhatsApp, souvent sur un reseau sature ; chaque kilooctet qu'on
+ * n'envoie pas est du temps qu'elle ne passe pas a attendre.
+ */
+export function getStaticPaths() {
+  const boutiques = chargerBoutiques();
+  return boutiques.map((b) => ({ params: { slug: b.slug }, props: { boutique: b } }));
+}
+
+interface Props {
+  boutique: BoutiquePublique;
+}
+const { boutique } = Astro.props;
+const lieu = [boutique.quartier, boutique.ville].filter(Boolean).join(", ");
+---
+<Base
+  title={`${boutique.nom} — Catalog`}
+  description={`Le catalogue de ${boutique.nom}, ${boutique.ville}. Commandez sur WhatsApp.`}
+>
+  <main class="mx-auto flex w-full max-w-[42rem] flex-col gap-5 px-4 py-6">
+    <header class="flex flex-col gap-2">
+      <h1 class="text-hero font-extrabold leading-tight text-ink">{boutique.nom}</h1>
+      <p class="text-body text-ink-2">{lieu}</p>
+      <div class="flex flex-wrap items-center gap-2">
+        <BadgeVerifie verifiee={boutique.verifiee} />
+        {
+          boutique.note ? (
+            <span class="text-caption text-ink-2">
+              {boutique.note.moyenne} sur 5 — {boutique.note.nombre} avis vérifié{
+                boutique.note.nombre > 1 ? "s" : ""
+              }
+            </span>
+          ) : (
+            /* Pas de « 0 étoile » ni d'étoiles vides : une boutique sans avis
+               n'est pas une boutique mal notée. */
+            <span class="text-caption text-muted">Pas encore d'avis vérifié</span>
+          )
+        }
+      </div>
+      {
+        boutique.pointDeRetrait ? (
+          <p class="text-caption text-ink-2">
+            Point de retrait convenu : {boutique.pointDeRetrait}
+          </p>
+        ) : null
+      }
+    </header>
+
+    {
+      boutique.articles.length === 0 ? (
+        <p class="rounded-card border border-line bg-surface p-4 text-body text-ink-2">
+          Cette boutique n'a pas encore d'article en ligne.
+        </p>
+      ) : (
+        <ul class="grid list-none grid-cols-2 gap-3 p-0">
+          {boutique.articles.map((a, i) => (
+            <li class="overflow-hidden rounded-card border border-line bg-surface">
+              <a href={`/${boutique.slug}/${a.slug}`} class="flex flex-col gap-2 no-underline">
+                <PhotoArticle image={a.image} alt={a.nom} prioritaire={i < 2} />
+                <div class="flex flex-col gap-1 p-3">
+                  <span class="text-body text-ink">{a.nom}</span>
+                  <Prix xaf={a.prixXaf} />
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+
+    <footer class="pt-2 text-caption text-muted">
+      Catalogue tenu sur Catalog. La commande se conclut sur WhatsApp, avec la vendeuse.
+    </footer>
+  </main>
+</Base>

@@ -46,3 +46,10 @@ onlyBuiltDependencies:
   - '@prisma/engines'
   - esbuild
   - prisma
+
+# `tslib` 1.x n'a pas `__spreadArray`, que Lighthouse appelle : sans cette
+# resolution, tous les audits de performance sortent en erreur
+# « tslib_1.__spreadArray is not a function » et le score de la categorie devient
+# nul. C'est une collision de dependance transitive, pas un choix de stack.
+overrides:
+  tslib: ^2.8.1

@@ -19,7 +19,9 @@
     "db:migrate": "pnpm --filter @catalog/db migrate:deploy",
     "db:seed": "pnpm --filter @catalog/db seed",
     "db:constraints": "pnpm --filter @catalog/db constraints",
-    "db:reset": "pnpm --filter @catalog/db db:reset"
+    "db:reset": "pnpm --filter @catalog/db db:reset",
+    "shop:snapshot": "node apps/api/scripts/exporter-catalogue.mjs",
+    "shop:lighthouse": "pnpm --filter @catalog/shop lighthouse"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.6",

@@ -1,0 +1,48 @@
+---
+import type { ImagePublique } from "../lib/catalogue.ts";
+
+/**
+ * La photo d'un article.
+ *
+ * **Les dimensions sont TOUJOURS posees.** Sans elles, le navigateur ne connait
+ * pas la place a reserver et la page saute quand l'image arrive : c'est le
+ * decalage visuel que le budget de 0,1 interdit. Un article sans dimensions
+ * connues affiche un cadre vide, ce qui est preferable a une page qui bouge.
+ *
+ * `AVIF` d'abord, `WebP` en repli. L'AVIF pese environ trente pour cent de moins
+ * a qualite egale — trente pour cent du forfait de l'acheteuse — mais il n'est pas
+ * universel, et le parc camerounais compte beaucoup de telephones un peu anciens.
+ */
+interface Props {
+  image: ImagePublique | null;
+  alt: string;
+  /** La premiere image de la grille est le LCP : elle ne doit pas etre differee. */
+  prioritaire?: boolean;
+  class?: string;
+}
+const { image, alt, prioritaire = false, class: classe = "" } = Astro.props;
+---
+{
+  image ? (
+    <picture>
+      <source srcset={image.avif} type="image/avif" />
+      <img
+        src={image.webp}
+        alt={alt}
+        width={image.largeur}
+        height={image.hauteur}
+        loading={prioritaire ? "eager" : "lazy"}
+        fetchpriority={prioritaire ? "high" : "auto"}
+        decoding={prioritaire ? "sync" : "async"}
+        class={`h-auto w-full bg-plane object-cover ${classe}`}
+      />
+    </picture>
+  ) : (
+    /* Rapport 4/3 reserve d'avance : le cadre vide n'a pas le droit de faire
+       sauter la page plus qu'une vraie photo. */
+    <div
+      aria-hidden="true"
+      class={`aspect-[4/3] w-full border border-dashed border-control-line bg-plane ${classe}`}
+    />
+  )
+}

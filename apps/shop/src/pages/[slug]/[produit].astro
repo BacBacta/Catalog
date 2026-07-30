@@ -1,0 +1,85 @@
+---
+import BadgeVerifie from "../../components/BadgeVerifie.astro";
+import PhotoArticle from "../../components/PhotoArticle.astro";
+import Prix from "../../components/Prix.astro";
+import Commander from "../../islands/Commander.tsx";
+import Base from "../../layouts/Base.astro";
+import {
+  type ArticlePublic,
+  type BoutiquePublique,
+  chargerBoutiques,
+} from "../../lib/catalogue.ts";
+
+/**
+ * La fiche article.
+ *
+ * C'est la seule page de la boutique qui porte du JavaScript, et seulement pour
+ * le compteur de quantite et le selecteur de variante — l'ilot `Commander`, monte
+ * en `client:visible`.
+ *
+ * **Un lien WhatsApp complet est rendu en HTML avant toute hydratation.** Si le
+ * JavaScript n'arrive jamais, l'acheteuse commande quand meme, pour une quantite
+ * de un. L'ilot le remplace quand il se monte. C'est ce qui distingue un confort
+ * d'une dependance.
+ */
+export function getStaticPaths() {
+  const boutiques = chargerBoutiques();
+  return boutiques.flatMap((b) =>
+    b.articles.map((a) => ({
+      params: { slug: b.slug, produit: a.slug },
+      props: { boutique: b, article: a },
+    })),
+  );
+}
+
+interface Props {
+  boutique: BoutiquePublique;
+  article: ArticlePublic;
+}
+const { boutique, article } = Astro.props;
+---
+<Base
+  title={`${article.nom} — ${boutique.nom}`}
+  description={`${article.nom} chez ${boutique.nom}, ${boutique.ville}.`}
+>
+  <main class="mx-auto flex w-full max-w-[34rem] flex-col gap-4 px-4 py-6">
+    <nav class="text-caption">
+      <a href={`/${boutique.slug}`} class="text-brand-500">← {boutique.nom}</a>
+    </nav>
+
+    <PhotoArticle image={article.image} alt={article.nom} prioritaire class="rounded-card" />
+
+    <h1 class="text-title font-bold leading-tight text-ink">{article.nom}</h1>
+    <Prix xaf={article.prixXaf} taille="grand" />
+
+    <section class="rounded-card border border-line bg-surface p-4">
+      {/* Pas de bloc `<noscript>` ici, et c'est volontaire : Astro rend l'ilot
+          COTE SERVEUR avant de l'hydrater, donc le HTML livre contient deja un
+          lien WhatsApp complet pour une quantite de un. Un `<noscript>` en
+          doublerait le bouton. C'est ce qui rend le compteur un confort et non le
+          porteur de la fonction — une acheteuse dont le JavaScript n'arrive
+          jamais commande quand meme. */}
+      <Commander
+        client:visible
+        boutique={boutique.nom}
+        whatsapp={boutique.whatsapp}
+        nom={article.nom}
+        prixXaf={article.prixXaf}
+        stock={article.stock}
+        variantes={article.variantes}
+      />
+    </section>
+
+    <section class="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">
+      <h2 class="text-body font-semibold text-ink">{boutique.nom}</h2>
+      <BadgeVerifie verifiee={boutique.verifiee} />
+      <p class="text-caption text-ink-2">
+        {[boutique.quartier, boutique.ville].filter(Boolean).join(", ")}
+      </p>
+      <p class="text-caption text-muted">
+        Le message WhatsApp est déjà rempli : article, quantité, prix unitaire,
+        total et nom de la boutique. Vous pouvez le relire avant de l'envoyer.
+      </p>
+    </section>
+  </main>
+</Base>

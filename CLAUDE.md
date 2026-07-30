@@ -57,12 +57,32 @@ La séquence d'implémentation vit dans `PROMPTS.md` : un lot par session, dans
 l'ordre. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
 (jetons de design et primitives), lot 3 (schéma de preuve et contraintes SQL),
 lot 4 (authentification par téléphone, numéro de reversement, limitation de
-débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images).
+débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutique
+publique Astro et Lighthouse CI).
 
 Le lot 5 ajoute une règle de compilation de plus : **l'objet image stocké tient
 sous 100 Ko**, garanti par un ré-encodage à qualité dégressive et non par une
 valeur de qualité choisie au doigt mouillé. Voir `CIBLE_OCTETS` dans
 `apps/api/src/adapters/image-pipeline.ts` et l'ADR 0016.
+
+Trois règles du lot 6, à connaître avant de toucher à `apps/shop` :
+
+- **On n'importe jamais depuis le baril `@catalog/contracts` côté navigateur.**
+  Il réexporte les schémas Zod, dont les déclarations ont des effets de bord au
+  niveau du module : l'élagage ne les retire pas. Mesuré, l'îlot pesait 20,6 Ko
+  compressés au lieu de 1,8. Les sous-chemins existent pour cela (`./money`,
+  `./phone`, `./whatsapp`), et une fonction destinée au navigateur ne partage pas
+  son module avec un schéma.
+- **La boutique ne parle pas à la base.** Elle lit un instantané JSON produit par
+  `pnpm shop:snapshot`. Y importer `@catalog/db` inverserait la règle de
+  dépendance — et sans instantané, aucune page de boutique n'est construite,
+  volontairement.
+- **`budget.mjs` mesure PAR PAGE**, pas la somme de `dist/`. Le total du site
+  n'est pas ce qu'une acheteuse télécharge. Les images en sont exclues : elles
+  sont bornées ailleurs, à 100 Ko par objet.
+
+L'ADR 0017 **révise l'ADR 0016** : les photos de catalogue sont du contenu
+public. Les clés restent opaques.
 
 Deux points de vigilance issus du lot 4 :
 

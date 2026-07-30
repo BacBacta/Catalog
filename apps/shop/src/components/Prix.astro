@@ -1,0 +1,17 @@
+---
+import { formatXaf } from "@catalog/contracts/money";
+
+interface Props {
+  xaf: number;
+  taille?: "normal" | "grand";
+}
+const { xaf, taille = "normal" } = Astro.props;
+---
+<span
+  class:list={[
+    "font-bold tabular-nums text-brand-500",
+    taille === "grand" ? "text-hero" : "text-body",
+  ]}
+>
+  {formatXaf(xaf)}
+</span>

@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 /**
+ * `normalizePhone` vit desormais dans `phone.ts`, sans Zod : la boutique publique
+ * l'importe et ne doit pas payer les schemas. Reexporte ici pour que les
+ * appelants existants ne changent pas.
+ */
+export { normalizePhone } from "./phone.ts";
+
+/**
  * Il n'existe pas de systeme d'adressage postal utilisable au Cameroun.
  * On ne collecte donc JAMAIS de champ « adresse » : quartier + point de
  * repere + telephone, et le point de retrait est un mode a part entiere.
@@ -68,11 +75,3 @@ export const deliverySchema = z.discriminatedUnion("mode", [
 ]);
 
 export type Delivery = z.infer<typeof deliverySchema>;
-
-/** Normalise les saisies courantes vers E.164. Renvoie null si non reconnaissable. */
-export function normalizePhone(input: string): string | null {
-  const digits = input.replace(/[^\d+]/g, "").replace(/^\+/, "");
-  const national = digits.startsWith("237") ? digits.slice(3) : digits;
-  if (!/^[62]\d{8}$/.test(national)) return null;
-  return `+237${national}`;
-}

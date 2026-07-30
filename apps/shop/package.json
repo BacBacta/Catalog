@@ -7,19 +7,26 @@
     "dev": "astro dev --port 4321",
     "build": "astro build",
     "preview": "astro preview",
-    "test": "echo no unit tests",
+    "test": "TZ=Africa/Douala vitest run",
     "typecheck": "astro check --minimumFailingSeverity error",
-    "size": "node scripts/budget.mjs"
+    "size": "node scripts/budget.mjs",
+    "snapshot": "node ../api/scripts/exporter-catalogue.mjs src/data/catalogue.json",
+    "lighthouse": "CHROME_PATH=./scripts/chrome-lighthouse.sh lhci autorun"
   },
   "dependencies": {
+    "@astrojs/preact": "6.0.2",
     "@catalog/contracts": "workspace:*",
     "@catalog/ui": "workspace:*",
+    "@tailwindcss/vite": "4.3.3",
     "astro": "7.1.5",
-    "tailwindcss": "4.3.3",
-    "@tailwindcss/vite": "4.3.3"
+    "preact": "10.29.7",
+    "tailwindcss": "4.3.3"
   },
   "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@lhci/cli": "0.15.1",
+    "@types/node": "26.1.2",
     "typescript": "6.0.3",
-    "@astrojs/check": "0.9.10"
+    "vitest": "4.1.10"
   }
 }

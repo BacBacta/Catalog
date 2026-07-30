@@ -1,0 +1,26 @@
+---
+/**
+ * Le badge « verifie ».
+ *
+ * **Il dit un fait controlable, pas une opinion.** Il ne signifie pas « vendeuse
+ * de confiance » — nous n'avons aucun moyen de l'attester — mais « le numero sur
+ * lequel cette boutique encaisse a ete verifie par un code recu sur ce numero ».
+ * La nuance n'est pas juridique, elle est le produit : la valeur numero un de
+ * Catalog est la preuve opposable, et un badge qui affirmerait plus que ce qui est
+ * verifie serait la premiere fissure.
+ *
+ * L'etat est dit EN TEXTE, pas seulement par la couleur ni par un pictogramme.
+ */
+interface Props {
+  verifiee: boolean;
+}
+const { verifiee } = Astro.props;
+---
+<span
+  class:list={[
+    "inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-caption font-semibold",
+    verifiee ? "bg-good-soft text-good" : "bg-plane text-ink-2",
+  ]}
+>
+  {verifiee ? "Numéro de paiement vérifié" : "Numéro de paiement non vérifié"}
+</span>
