@@ -30,7 +30,9 @@ datasource db {
 // Prisma 7 : l'URL de connexion ne vit plus ici mais dans `prisma.config.ts`.
 // Le client la recoit via un adaptateur de pilote. Voir ADR 0014.
 
-/* ════════════════════════════ vendeuse ════════════════════════════ */
+/**
+ * ════════════════════════════ vendeuse ════════════════════════════
+ */
 
 model Seller {
   id           String  @id @default(uuid(7))
@@ -60,7 +62,7 @@ model Seller {
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   createdAt          DateTime           @default(now()) @map("created_at")
 
-  user        AuthUser?    @relation(fields: [userId], references: [id])
+  user        AuthUser?          @relation(fields: [userId], references: [id])
   products    Product[]
   orders      Order[]
   reviews     Review[]
@@ -90,16 +92,30 @@ enum SubscriptionStatus {
   @@map("subscription_status")
 }
 
-/* ════════════════════════════ catalogue ════════════════════════════ */
+/**
+ * ════════════════════════════ catalogue ════════════════════════════
+ */
 
 model Product {
-  id         String    @id @default(uuid(7))
-  sellerId   String    @map("seller_id")
-  name       String
-  priceXaf   Int       @map("price_xaf")
-  stock      Int       @default(0)
-  variants   Json?
-  imageKey   String?   @map("image_key")
+  id       String @id @default(uuid(7))
+  sellerId String @map("seller_id")
+  name     String
+  priceXaf Int    @map("price_xaf")
+  stock    Int    @default(0)
+  variants Json?
+
+  /// Cle de BASE de l'image, sans extension. Les deux declinaisons stockees en
+  /// derivent : `<cle>.avif` et `<cle>.webp`. La cle est opaque — ni identifiant
+  /// de vendeuse, ni nom de fichier d'origine — et les objets ne sont jamais
+  /// publics : ils se lisent par URL signee.
+  imageKey    String? @map("image_key")
+  /// Dimensions de l'objet stocke, APRES rotation EXIF. La boutique publique les
+  /// pose sur `<img width height>` : sans elles, la page saute au chargement.
+  imageWidth  Int?    @map("image_width")
+  imageHeight Int?    @map("image_height")
+  /// Poids de la declinaison AVIF. Sert a montrer le gain a la vendeuse.
+  imageBytes  Int?    @map("image_bytes")
+
   position   Int       @default(0)
   archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
@@ -125,7 +141,9 @@ model ProductView {
   @@map("product_view")
 }
 
-/* ════════════════════════════ commande ════════════════════════════ */
+/**
+ * ════════════════════════════ commande ════════════════════════════
+ */
 
 model Order {
   id         String  @id @default(uuid(7))
@@ -154,9 +172,9 @@ model Order {
   /// C'est la cle de la page publique de verification du recu.
   verificationCode String @unique @map("verification_code")
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
   /// 48 h apres la creation. Le job d'expiration du lot 7 s'appuie dessus.
-  expiresAt DateTime @map("expires_at")
+  expiresAt   DateTime  @map("expires_at")
   /// Sorties de parcours. Ce ne sont PAS des etapes de livraison : le
   /// vocabulaire `OrderStep` en compte quatre, et il est fige au lot 3.
   cancelledAt DateTime? @map("cancelled_at")
@@ -193,7 +211,9 @@ enum OrderStep {
   @@map("order_step")
 }
 
-/* ════════════════════════════ preuve ════════════════════════════ */
+/**
+ * ════════════════════════════ preuve ════════════════════════════
+ */
 
 /// Cle d'operateur PERSISTEE : c'est `operatorKey` du motif de SMS, jamais le
 /// libelle d'affichage « MTN MoMo ». Cette valeur compose la contrainte du
@@ -235,12 +255,12 @@ model PaymentProof {
   id      String @id @default(uuid(7))
   orderId String @map("order_id")
 
-  operator OperatorKey
+  operator     OperatorKey
   /// Identifiant de l'operateur, celui du SMS. Stocke en MAJUSCULES — une
   /// contrainte CHECK le garantit, sinon `mp260729…` et `MP260729…`
   /// cohabiteraient dans la colonne UNIQUE et le controle n° 5 se
   /// contournerait d'une touche majuscule.
-  operatorTxId String @map("operator_tx_id")
+  operatorTxId String      @map("operator_tx_id")
 
   amountXaf Int @map("amount_xaf")
 
@@ -253,7 +273,7 @@ model PaymentProof {
   /// NULL quand un identifiant Orange s'auto-invalide : pas de date exploitable.
   occurredAt DateTime? @map("occurred_at")
 
-  patternId String @map("pattern_id")
+  patternId         String  @map("pattern_id")
   /// MEME NOM et MEME POLARITE que le drapeau `aConfirmer` du motif.
   /// Ne jamais l'inverser en « confirmed » : c'est le piege, et un motif
   /// reconstitue passerait alors pour valide.
@@ -283,7 +303,9 @@ model PaymentProof {
   @@map("payment_proof")
 }
 
-/* ════════════════════════════ journaux ════════════════════════════ */
+/**
+ * ════════════════════════════ journaux ════════════════════════════
+ */
 
 /// Journal d'audit de la commande, en ajout seul (AGENTS.md §6). Tout ce qui
 /// touche a l'argent ou au statut d'une commande y ecrit.
@@ -323,14 +345,16 @@ model LedgerEntry {
   @@map("ledger_entry")
 }
 
-/* ════════════════════════════ reputation ════════════════════════════ */
+/**
+ * ════════════════════════════ reputation ════════════════════════════
+ */
 
 model Review {
-  id       String  @id @default(uuid(7))
-  orderId  String  @unique @map("order_id")
-  sellerId String  @map("seller_id")
-  rating   Int
-  body     String?
+  id        String   @id @default(uuid(7))
+  orderId   String   @unique @map("order_id")
+  sellerId  String   @map("seller_id")
+  rating    Int
+  body      String?
   /// « achat verifie » : vrai uniquement si la preuve est `prouve` ou
   /// `contresigne`. Un paiement declare a la main ne l'ouvre pas, et un avis
   /// non verifie est publie mais n'entre pas dans le calcul de la note.
@@ -344,7 +368,9 @@ model Review {
   @@map("review")
 }
 
-/* ════════════════════════ authentification ════════════════════════ */
+/**
+ * ════════════════════════ authentification ════════════════════════
+ */
 
 /// Tables de Better Auth 1.6. Les champs et leurs noms viennent de
 /// `getSchema()` de la bibliotheque, pas d'une documentation recopiee : ils sont
@@ -459,7 +485,7 @@ model SellerAuditEvent {
 /// anciennes se purgent, et il FAUT pouvoir les supprimer. La confondre avec un
 /// journal d'audit ferait grossir la base sans fin.
 model OtpAttempt {
-  id String @id @default(uuid(7))
+  id    String   @id @default(uuid(7))
   /// Numero destinataire, E.164.
   phone String
   ip    String

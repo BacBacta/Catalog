@@ -11,12 +11,15 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1098.0",
+    "@aws-sdk/s3-request-presigner": "3.1098.0",
     "@catalog/contracts": "workspace:*",
+    "@catalog/db": "workspace:*",
     "@hono/node-server": "2.0.12",
     "better-auth": "1.6.25",
     "hono": "4.12.32",
-    "zod": "4.4.3",
-    "@catalog/db": "workspace:*"
+    "sharp": "0.35.3",
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "26.1.2",

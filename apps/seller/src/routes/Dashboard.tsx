@@ -70,6 +70,16 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
       </Card>
 
       <Card>
+        <CardTitle>Votre catalogue</CardTitle>
+        <CardNote>
+          Une photo, un nom, un prix. C'est ce que vos clientes verront et partageront.
+        </CardNote>
+        <Button render={<Link to="/articles" />} tone="outline" size="lg">
+          Gerer mes articles
+        </Button>
+      </Card>
+
+      <Card>
         <CardTitle>Votre boutique</CardTitle>
         <CardNote>
           {seller.city} · lien public <span className="font-mono text-ink">/{seller.slug}</span>

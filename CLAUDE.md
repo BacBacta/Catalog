@@ -57,7 +57,12 @@ La séquence d'implémentation vit dans `PROMPTS.md` : un lot par session, dans
 l'ordre. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
 (jetons de design et primitives), lot 3 (schéma de preuve et contraintes SQL),
 lot 4 (authentification par téléphone, numéro de reversement, limitation de
-débit, écrans vendeuse).
+débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images).
+
+Le lot 5 ajoute une règle de compilation de plus : **l'objet image stocké tient
+sous 100 Ko**, garanti par un ré-encodage à qualité dégressive et non par une
+valeur de qualité choisie au doigt mouillé. Voir `CIBLE_OCTETS` dans
+`apps/api/src/adapters/image-pipeline.ts` et l'ADR 0016.
 
 Deux points de vigilance issus du lot 4 :
 

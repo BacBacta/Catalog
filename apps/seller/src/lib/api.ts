@@ -33,20 +33,32 @@ export class PanneReseau extends Error {
 
 export async function appeler<T = unknown>(
   chemin: string,
-  options: { methode?: "GET" | "POST"; corps?: unknown } = {},
+  options: {
+    methode?: "GET" | "POST" | "PATCH";
+    corps?: unknown;
+    /**
+     * Corps envoye tel quel — `FormData` pour un televersement. On ne pose
+     * SURTOUT pas `Content-Type` dessus : le navigateur y ajoute la frontiere
+     * multipart, et l'ecrire a la main casse le decoupage cote serveur.
+     */
+    corpsBrut?: BodyInit;
+  } = {},
 ): Promise<ReponseApi<T>> {
   let r: Response;
   try {
     r = await fetch(chemin, {
-      method: options.methode ?? (options.corps ? "POST" : "GET"),
+      method:
+        options.methode ?? (options.corps !== undefined || options.corpsBrut ? "POST" : "GET"),
       // Le cookie de session doit accompagner chaque appel.
       credentials: "same-origin",
-      ...(options.corps
-        ? {
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(options.corps),
-          }
-        : {}),
+      ...(options.corpsBrut
+        ? { body: options.corpsBrut }
+        : options.corps !== undefined
+          ? {
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(options.corps),
+            }
+          : {}),
     });
   } catch (cause) {
     throw new PanneReseau(cause);
@@ -103,6 +115,36 @@ export interface Vendeuse {
   } | null;
 }
 
+export interface ImageArticle {
+  avif: string;
+  webp: string;
+  largeur: number | null;
+  hauteur: number | null;
+  octets: number | null;
+}
+
+export interface Article {
+  id: string;
+  name: string;
+  priceXaf: number;
+  stock: number;
+  position: number;
+  archive: boolean;
+  image: ImageArticle | null;
+}
+
+export interface ReponsePhoto {
+  article: Article;
+  image: {
+    cle: string;
+    largeur: number;
+    hauteur: number;
+    octets: number;
+    octetsWebp: number;
+    octetsRecus: number;
+  };
+}
+
 export const api = {
   envoyerCodeConnexion: (phoneNumber: string) =>
     appeler("/api/auth/phone-number/send-otp", { corps: { phoneNumber } }),
@@ -126,4 +168,34 @@ export const api = {
     }),
 
   deconnexion: () => appeler("/api/auth/sign-out", { corps: {} }),
+
+  /* ────────────────────────── catalogue ────────────────────────── */
+
+  articles: (avecArchives = false) =>
+    appeler<{ articles: Article[] }>(`/api/articles${avecArchives ? "?archives=1" : ""}`),
+
+  creerArticle: (name: string, priceXaf: number) =>
+    appeler<Article>("/api/articles", { corps: { name, priceXaf } }),
+
+  modifierArticle: (id: string, champs: { name?: string; priceXaf?: number; stock?: number }) =>
+    appeler<Article>(`/api/articles/${id}`, { methode: "PATCH", corps: champs }),
+
+  archiverArticle: (id: string) => appeler<Article>(`/api/articles/${id}/archiver`, { corps: {} }),
+  restaurerArticle: (id: string) =>
+    appeler<Article>(`/api/articles/${id}/restaurer`, { corps: {} }),
+
+  ordonnerArticles: (ids: string[]) =>
+    appeler<{ articles: Article[] }>("/api/articles/ordre", { corps: { ids } }),
+
+  /**
+   * Televersement de la photo.
+   *
+   * Le corps est un `FormData` : on ne pose PAS `Content-Type` a la main, sinon
+   * la frontiere multipart manque et le serveur ne peut pas decouper le corps.
+   */
+  envoyerPhoto: (id: string, fichier: File) => {
+    const fd = new FormData();
+    fd.set("photo", fichier);
+    return appeler<ReponsePhoto>(`/api/articles/${id}/image`, { corpsBrut: fd });
+  },
 };

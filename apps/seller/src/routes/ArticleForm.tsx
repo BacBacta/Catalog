@@ -1,0 +1,296 @@
+import { formatOctets, formatXaf } from "@catalog/contracts";
+import {
+  Button,
+  Card,
+  CardNote,
+  CardTitle,
+  Field,
+  Input,
+  LoadingState,
+  OfflineState,
+} from "@catalog/ui";
+import { useEffect, useId, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+import { Ecran } from "../components/Ecran.tsx";
+import { Protege } from "../components/Protege.tsx";
+import { type Article, api, messageDErreur, PanneReseau } from "../lib/api.ts";
+import {
+  MESSAGE_REFUS_PHOTO,
+  type PhotoPreparee,
+  PhotoRefusee,
+  preparerPhoto,
+} from "../lib/image.ts";
+
+/**
+ * Creation et modification d'un article.
+ *
+ * **Trois champs, et pas un de plus : photo, nom, prix.** Chaque champ
+ * supplementaire est une vendeuse perdue — elle remplit ce formulaire debout,
+ * entre deux clientes. Le stock existe en base mais n'est pas demande ici :
+ * beaucoup de vendeuses ne le tiennent pas.
+ *
+ * Le gain de poids de la photo est **affiche**. Ce n'est pas un gadget de
+ * developpeur : c'est son forfait data, et le voir la rassure sur le fait
+ * qu'envoyer une photo ne va pas lui couter sa journee.
+ */
+export function ArticleForm() {
+  return <Protege>{() => <Formulaire />}</Protege>;
+}
+
+function Formulaire() {
+  const { id } = useParams();
+  const nouveau = id === undefined;
+  const naviguer = useNavigate();
+  const champPhoto = useRef<HTMLInputElement>(null);
+  const idPhoto = useId();
+
+  const [chargement, setChargement] = useState(!nouveau);
+  const [article, setArticle] = useState<Article | null>(null);
+  const [nom, setNom] = useState("");
+  const [prix, setPrix] = useState("");
+  const [photo, setPhoto] = useState<PhotoPreparee | null>(null);
+  const [apercu, setApercu] = useState<string | null>(null);
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [horsLigne, setHorsLigne] = useState(false);
+  const [enCours, setEnCours] = useState(false);
+
+  useEffect(() => {
+    if (nouveau) return;
+    let vivant = true;
+    (async () => {
+      const r = await api.articles(true);
+      if (!vivant) return;
+      const a = r.donnees?.articles.find((x) => x.id === id) ?? null;
+      if (a) {
+        setArticle(a);
+        setNom(a.name);
+        setPrix(String(a.priceXaf));
+      } else {
+        setErreur("Cet article n'existe plus.");
+      }
+      setChargement(false);
+    })().catch(() => {
+      if (vivant) {
+        setHorsLigne(true);
+        setChargement(false);
+      }
+    });
+    return () => {
+      vivant = false;
+    };
+  }, [id, nouveau]);
+
+  // L'URL d'apercu est revoquee quand elle change : sans cela, chaque photo
+  // choisie retient sa memoire jusqu'a la fermeture de l'onglet.
+  useEffect(() => {
+    if (!photo) return;
+    const url = URL.createObjectURL(photo.fichier);
+    setApercu(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+
+  async function choisirPhoto(fichier: File | undefined) {
+    if (!fichier) return;
+    setErreur(null);
+    try {
+      setPhoto(await preparerPhoto(fichier));
+    } catch (cause) {
+      setPhoto(null);
+      setErreur(
+        cause instanceof PhotoRefusee
+          ? MESSAGE_REFUS_PHOTO[cause.raison]
+          : "Cette photo n'a pas pu etre preparee.",
+      );
+    }
+  }
+
+  async function soumettre(e: React.FormEvent) {
+    e.preventDefault();
+    setErreur(null);
+
+    const priceXaf = Number(prix.replace(/[^\d]/g, ""));
+    if (!nom.trim() || !Number.isInteger(priceXaf) || priceXaf <= 0) {
+      setErreur("Il faut un nom et un prix en francs entiers.");
+      return;
+    }
+
+    setEnCours(true);
+    try {
+      let cible = article;
+      if (!cible) {
+        const r = await api.creerArticle(nom.trim(), priceXaf);
+        if (!r.ok || !r.donnees) {
+          setErreur(messageDErreur(r, "L'article n'a pas pu etre cree."));
+          return;
+        }
+        cible = r.donnees;
+      } else if (cible.name !== nom.trim() || cible.priceXaf !== priceXaf) {
+        const r = await api.modifierArticle(cible.id, { name: nom.trim(), priceXaf });
+        if (!r.ok || !r.donnees) {
+          setErreur(messageDErreur(r, "La modification n'a pas abouti."));
+          return;
+        }
+        cible = r.donnees;
+      }
+
+      if (photo) {
+        const r = await api.envoyerPhoto(cible.id, photo.fichier);
+        if (!r.ok) {
+          // L'article existe deja : on le dit, plutot que de laisser croire que
+          // rien n'a ete enregistre.
+          setArticle(cible);
+          setErreur(
+            messageDErreur(r, "La photo n'a pas pu etre envoyee. L'article est enregistre."),
+          );
+          return;
+        }
+      }
+
+      naviguer("/articles", { replace: true });
+    } catch (cause) {
+      if (cause instanceof PanneReseau) setHorsLigne(true);
+      else setErreur("L'enregistrement n'a pas abouti.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  const titre = nouveau ? "Nouvel article" : "Modifier l'article";
+
+  if (horsLigne) {
+    return (
+      <Ecran titre={titre} surtitre="Catalogue">
+        <OfflineState
+          action={
+            <Button tone="outline" onClick={() => setHorsLigne(false)}>
+              Reessayer
+            </Button>
+          }
+        >
+          Rien n'a ete perdu. Ce que vous avez tape est toujours a l'ecran, et repartira des que le
+          reseau revient.
+        </OfflineState>
+      </Ecran>
+    );
+  }
+
+  if (chargement) {
+    return (
+      <Ecran titre={titre} surtitre="Catalogue">
+        <LoadingState label="Lecture de l'article…" />
+      </Ecran>
+    );
+  }
+
+  const dejaEnLigne = article?.image ?? null;
+
+  return (
+    <Ecran
+      titre={titre}
+      surtitre="Catalogue"
+      actions={
+        <Button tone="ghost" render={<Link to="/articles" />}>
+          Retour
+        </Button>
+      }
+    >
+      <Card>
+        <CardTitle>Photo, nom, prix</CardTitle>
+        <CardNote>C'est tout. Rien d'autre n'est obligatoire.</CardNote>
+
+        <form onSubmit={soumettre} noValidate className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <label htmlFor={idPhoto} className="block text-caption font-semibold text-ink-2">
+              Photo
+            </label>
+            <input
+              id={idPhoto}
+              ref={champPhoto}
+              type="file"
+              // `accept` filtre le selecteur ; `capture` propose l'appareil photo
+              // en premier, ce qui est le geste reel : la vendeuse photographie
+              // l'article qu'elle a en main.
+              accept="image/jpeg,image/png,image/webp,image/avif"
+              capture="environment"
+              onChange={(e) => void choisirPhoto(e.target.files?.[0])}
+              className="min-h-[var(--size-touch)] w-full rounded-field border border-control-line bg-surface p-2 text-body text-ink"
+            />
+
+            {apercu ? (
+              <img
+                src={apercu}
+                alt="Apercu de l'article tel qu'il sera vu"
+                width={photo?.largeur ?? 160}
+                height={photo?.hauteur ?? 160}
+                className="max-h-48 w-auto rounded-field object-contain"
+              />
+            ) : dejaEnLigne ? (
+              <picture>
+                <source srcSet={dejaEnLigne.avif} type="image/avif" />
+                <img
+                  src={dejaEnLigne.webp}
+                  alt="L'article tel qu'il est en ligne"
+                  width={dejaEnLigne.largeur ?? 160}
+                  height={dejaEnLigne.hauteur ?? 160}
+                  className="max-h-48 w-auto rounded-field object-contain"
+                />
+              </picture>
+            ) : null}
+
+            {/* Le gain de poids : c'est son forfait data, pas une statistique. */}
+            <p data-testid="gain-photo" role="status" aria-live="polite" className="text-caption">
+              {photo
+                ? photo.brut
+                  ? `Photo de ${formatOctets(photo.octetsAvant)}. Votre telephone n'a pas pu la reduire ici — l'envoi sera plus long, mais elle sera reduite a l'arrivee.`
+                  : `${formatOctets(photo.octetsAvant)} → ${formatOctets(photo.octetsApres)} avant l'envoi. C'est autant de forfait economise.`
+                : ""}
+            </p>
+          </div>
+
+          <Field
+            label="Nom de l'article"
+            htmlFor="nom-article"
+            hint="Comme vous le dites a vos clientes."
+          >
+            <Input
+              id="nom-article"
+              name="nom"
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              aria-describedby="nom-article-hint"
+            />
+          </Field>
+
+          <Field
+            label="Prix en francs"
+            htmlFor="prix-article"
+            hint={
+              Number(prix.replace(/[^\d]/g, "")) > 0
+                ? `Soit ${formatXaf(Number(prix.replace(/[^\d]/g, "")))}.`
+                : "Un nombre entier de francs. Pas de virgule."
+            }
+          >
+            <Input
+              id="prix-article"
+              name="prix"
+              type="text"
+              inputMode="numeric"
+              value={prix}
+              onChange={(e) => setPrix(e.target.value.replace(/[^\d\s]/g, ""))}
+              aria-describedby="prix-article-hint"
+              placeholder="15000"
+            />
+          </Field>
+
+          <p role="status" aria-live="polite" className="text-caption text-danger">
+            {erreur}
+          </p>
+
+          <Button type="submit" size="lg" disabled={enCours}>
+            {enCours ? "Enregistrement…" : nouveau ? "Publier l'article" : "Enregistrer"}
+          </Button>
+        </form>
+      </Card>
+    </Ecran>
+  );
+}

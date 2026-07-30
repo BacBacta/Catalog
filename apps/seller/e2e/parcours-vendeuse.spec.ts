@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { adressePropre, demanderCode, dernierCode, numeros } from "./aide.ts";
 
 /**
  * Le parcours vendeuse complet, contre un VRAI serveur.
@@ -22,51 +23,6 @@ import { expect, type Page, test } from "@playwright/test";
  */
 
 const AVEC_BASE = !!process.env.DATABASE_URL;
-const API = "http://127.0.0.1:8787";
-
-/**
- * Numeros uniques par execution. Les tables d'audit sont en ajout seul : on ne
- * nettoie pas, donc on ne reutilise pas. Le decalage par indice de test evite
- * aussi que deux navigateurs paralleles se disputent le meme numero.
- */
-function numeros(graine: number) {
-  // National a NEUF chiffres : `+237` puis un prefixe a deux chiffres et sept
-  // chiffres. Les prefixes ne sont pas quelconques — 67 est MTN, 69 est Orange
-  // (voir `operateurDuNumero`) — et le reversement en prend un DIFFERENT de
-  // celui de la connexion : la double SIM est le cas normal, pas l'exception.
-  const n = (prefixe: string, decalage: number) =>
-    `+237${prefixe}${((graine + decalage) % 10000000).toString().padStart(7, "0")}`;
-  return { connexion: n("67", 0), reversement: n("69", 4242) };
-}
-
-/**
- * Chaque test se declare sa propre adresse.
- *
- * Sans cela, tous les tests partagent l'adresse de la boucle locale et la limite
- * PAR ADRESSE — douze demandes par heure — les fait echouer les uns apres les
- * autres, dans un ordre qui depend du parallelisme. Ce n'est pas un defaut du
- * limiteur : c'est le limiteur qui fonctionne. Donner une adresse par test isole
- * les comptages, et rend au passage la dimension « par adresse » observable.
- */
-async function adressePropre(page: Page, graine: number) {
-  const o = (d: number) => (((graine >> d) % 250) + 1).toString();
-  await page.setExtraHTTPHeaders({ "x-forwarded-for": `41.202.${o(8)}.${o(0)}` });
-}
-
-/** Le fournisseur factice garde les messages ; l'API les relit ici. */
-async function dernierCode(page: Page, numero: string): Promise<string> {
-  const r = await page.request.get(`${API}/api/dev/dernier-code`, { params: { numero } });
-  expect(r.ok(), `aucun code retrouve pour ${numero}`).toBe(true);
-  const { code } = (await r.json()) as { code: string };
-  expect(code).toMatch(/^\d{6}$/);
-  return code;
-}
-
-async function demanderCode(page: Page, numero: string) {
-  await page.goto("/connexion");
-  await page.getByLabel("Numero de telephone").fill(numero);
-  await page.getByRole("button", { name: "Recevoir le code" }).click();
-}
 
 test.describe("parcours vendeuse", () => {
   test.skip(!AVEC_BASE, "DATABASE_URL absente : l'API n'est pas lancee");
