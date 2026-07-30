@@ -147,3 +147,59 @@ export function soldeAEncaisser(commande: CommandePourCycle): number {
 export function peutDeposerAvisVerifie(commande: CommandePourCycle): boolean {
   return commande.etape === "livree" && compteCommeAchatVerifie(commande.etatPreuve);
 }
+
+/* ────────────────────────── le suivi, cote acheteuse ────────────────────────── */
+
+export interface EtapeSuivi {
+  cle: OrderStep;
+  libelle: string;
+  /** Deja franchie. */
+  faite: boolean;
+  /** L'etape ou en est la commande MAINTENANT. */
+  courante: boolean;
+}
+
+/**
+ * Les libelles que l'ACHETEUSE lit.
+ *
+ * Ils vivent ici, pas dans la boutique : le serveur les calcule, l'ilot les
+ * affiche. C'est ce qui evite d'ajouter un dictionnaire de textes au chemin
+ * critique d'une page bornee a 30 Ko de JS.
+ *
+ * **« Le livreur vous appellera en arrivant dans votre quartier. »** Ce n'est pas
+ * une formule de politesse, c'est la realite du terrain : il n'existe pas
+ * d'adresse postale au Cameroun (ADR 0005), le livreur telephone en arrivant et
+ * se fait guider au point de repere. Ecrire « en cours de livraison a votre
+ * adresse » ferait attendre l'acheteuse devant sa porte pendant qu'on l'appelle.
+ */
+const LIBELLES: Record<ModeLivraison, Record<OrderStep, string>> = {
+  livraison: {
+    recue: "Commande recue par la vendeuse",
+    preparee: "Preparee, prete a partir",
+    chez_le_livreur: "Confiee au livreur — il vous appellera en arrivant dans votre quartier",
+    livree: "Livree",
+  },
+  retrait: {
+    recue: "Commande recue par la vendeuse",
+    preparee: "Preparee, prete a retirer",
+    chez_le_livreur: "Confiee au livreur",
+    livree: "Retiree au point convenu",
+  },
+};
+
+/**
+ * Les etapes a montrer, dans l'ordre, avec ce qui est fait et ou on en est.
+ *
+ * La liste depend du mode : un retrait n'affiche pas une etape « chez le
+ * livreur » qui n'aura jamais lieu — elle resterait grise pour toujours, et une
+ * acheteuse en conclurait que sa commande est bloquee.
+ */
+export function etapesDuSuivi(commande: CommandePourCycle): EtapeSuivi[] {
+  const rangCourant = stepRank(commande.etape);
+  return etapesPour(commande.modeLivraison).map((cle) => ({
+    cle,
+    libelle: LIBELLES[commande.modeLivraison][cle],
+    faite: stepRank(cle) <= rangCourant,
+    courante: cle === commande.etape,
+  }));
+}

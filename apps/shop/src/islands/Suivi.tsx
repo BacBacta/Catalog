@@ -6,9 +6,13 @@ import { CarteRecu, CarteRefus } from "./recu/CarteRecu.tsx";
 /**
  * Le suivi de l'acheteuse — `/suivi/<jeton>`.
  *
- * **Version MINIMALE, comme le lot le demande** : reference, montant, recu,
- * contre-signature. Les etapes de livraison appartiennent au lot 11 et ne
- * s'anticipent pas ici.
+ * Reference, montant, ETAPES DE LIVRAISON (lot 11), recu, contre-signature.
+ *
+ * Les libelles des etapes viennent du SERVEUR, ils ne sont pas ecrits ici : la
+ * page est bornee a 30 Ko de JS, et un dictionnaire de textes embarque dans
+ * l'ilot le consommerait pour rien. C'est aussi ce qui garantit qu'une regle
+ * de vocabulaire — « le livreur appelle, il ne trouve pas une adresse » — ne
+ * soit ecrite qu'a UN endroit.
  *
  * ── Pourquoi un jeton et pas la reference ────────────────────────────────
  *
@@ -39,8 +43,16 @@ export function jetonDuChemin(chemin: string, requete = ""): string | null {
   return t ? t.trim() || null : null;
 }
 
+interface EtapeSuivi {
+  cle: string;
+  libelle: string;
+  faite: boolean;
+  courante: boolean;
+}
+
 interface Suivi {
   reference: string;
+  etapes?: EtapeSuivi[];
   boutique: string;
   totalXaf: number;
   dejaPayeXaf: number;
@@ -167,6 +179,35 @@ export default function SuiviAcheteuse() {
           <p class="text-caption text-warn">Reste à payer : {formatXaf(s.resteXaf)}</p>
         ) : null}
       </section>
+
+      {s.etapes && s.etapes.length > 0 ? (
+        <section class="flex flex-col gap-2" data-testid="etapes-livraison">
+          <h3 class="text-body font-semibold text-ink">Ou en est votre commande</h3>
+          {/* Une LISTE ORDONNEE, pas une frise decorative : un lecteur d'ecran
+              doit pouvoir annoncer le rang, et l'etat de chaque etape est ecrit
+              en toutes lettres plutot que porte par la seule couleur. */}
+          <ol class="flex flex-col gap-2">
+            {s.etapes.map((e) => (
+              <li
+                key={e.cle}
+                data-testid={`etape-${e.cle}`}
+                data-faite={e.faite ? "oui" : "non"}
+                aria-current={e.courante ? "step" : undefined}
+                class={`flex items-baseline gap-2 text-body ${e.faite ? "text-ink" : "text-ink-2"}`}
+              >
+                <span aria-hidden="true">{e.faite ? "\u2713" : "\u25CB"}</span>
+                <span>
+                  {e.libelle}
+                  {e.courante ? (
+                    <span class="text-caption text-brand-500"> — etape en cours</span>
+                  ) : null}
+                  <span class="sr-only">{e.faite ? " (fait)" : " (a venir)"}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {s.recu ? (
         <CarteRecu recu={s.recu} portee={s.portee ?? ""} />

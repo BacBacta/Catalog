@@ -1,8 +1,14 @@
-import { CODE_ALPHABET, formatVerificationCode } from "@catalog/contracts";
+import {
+  CODE_ALPHABET,
+  formatVerificationCode,
+  type OrderStep,
+  type ProofState,
+} from "@catalog/contracts";
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import { operateurParId } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
 import { type Context, Hono } from "hono";
+import { etapesDuSuivi } from "../domain/order/cycle.ts";
 import { appliquerEvenement, type EvenementPreuve } from "../domain/proof/machine.ts";
 import { jetonBienForme } from "../domain/receipt/jeton.ts";
 import { emettreRecu, porteeDuRecu } from "../domain/receipt/recu.ts";
@@ -46,6 +52,9 @@ const CHAMPS_COMMANDE = {
   amountPaidXaf: true,
   proofState: true,
   balanceXaf: true,
+  /** Lot 11 : l'etape et le mode de livraison alimentent le suivi. */
+  step: true,
+  delivery: true,
   seller: { select: { id: true, businessName: true, payoutPhone: true } },
   proofs: {
     where: { verdict: { in: VERDICTS_RECEVABLES } },
@@ -63,13 +72,16 @@ const CHAMPS_COMMANDE = {
 } as const;
 
 type CommandeLue = {
+  step: OrderStep;
+  delivery: unknown;
+  /** Typee au lieu de `string` : `etapesDuSuivi` attend le vocabulaire ferme. */
   id: string;
   ref: string;
   verificationCode: string;
   totalXaf: number;
   amountPaidXaf: number;
   balanceXaf: number;
-  proofState: string;
+  proofState: ProofState;
   seller: { id: string; businessName: string; payoutPhone: string | null };
   proofs: Array<{
     operator: string;
@@ -257,6 +269,23 @@ export function suiviRoutes(deps: RecuDeps) {
       dejaPayeXaf: commande.amountPaidXaf,
       resteXaf: commande.balanceXaf,
       etatPreuve: commande.proofState,
+      /**
+       * Les etapes de livraison (lot 11). Calculees par le SERVEUR, libelles
+       * compris : la page de suivi est bornee a 30 Ko de JS, et un dictionnaire
+       * de textes embarque dans l'ilot les consommerait pour rien.
+       */
+      etapes: etapesDuSuivi({
+        etape: commande.step,
+        modeLivraison:
+          (commande.delivery as { mode?: string } | null)?.mode === "retrait"
+            ? "retrait"
+            : "livraison",
+        totalXaf: commande.totalXaf,
+        amountPaidXaf: commande.amountPaidXaf,
+        balanceXaf: commande.balanceXaf,
+        etatPreuve: commande.proofState,
+        annuleeA: null,
+      }),
       /** Le numero de reversement : l'acheteuse en a besoin pour payer. */
       numeroDeVersement: commande.seller.payoutPhone,
       ...corps,

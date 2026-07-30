@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   avancerEtape,
   type CommandePourCycle,
+  etapesDuSuivi,
   etapesPour,
   peutDeposerAvisVerifie,
   soldeAEncaisser,
@@ -171,5 +172,38 @@ describe("avis verifie", () => {
 
   it("une commande contestee n'y donne pas droit", () => {
     expect(peutDeposerAvisVerifie({ ...livree, etatPreuve: "conteste" })).toBe(false);
+  });
+});
+
+describe("etapes du suivi de l'acheteuse", () => {
+  it("marque ce qui est fait et ou on en est", () => {
+    const etapes = etapesDuSuivi({ ...BASE, etape: "preparee" });
+    expect(etapes.map((e) => e.cle)).toEqual(["recue", "preparee", "chez_le_livreur", "livree"]);
+    expect(etapes.filter((e) => e.faite).map((e) => e.cle)).toEqual(["recue", "preparee"]);
+    expect(etapes.find((e) => e.courante)?.cle).toBe("preparee");
+  });
+
+  /**
+   * La realite du terrain, et c'est le lot qui l'exige : il n'y a pas d'adresse,
+   * le livreur telephone en arrivant. Un libelle qui dit le contraire fait
+   * attendre l'acheteuse devant sa porte.
+   */
+  it("dit que le livreur APPELLE, et ne parle jamais d'adresse", () => {
+    const chezLeLivreur = etapesDuSuivi({ ...BASE, etape: "chez_le_livreur" }).find(
+      (e) => e.cle === "chez_le_livreur",
+    );
+    expect(chezLeLivreur?.libelle).toMatch(/appellera/i);
+    expect(chezLeLivreur?.libelle).toMatch(/quartier/i);
+    for (const mode of ["livraison", "retrait"] as const) {
+      for (const e of etapesDuSuivi({ ...BASE, modeLivraison: mode })) {
+        expect(e.libelle.toLowerCase()).not.toContain("adresse");
+      }
+    }
+  });
+
+  it("un retrait n'affiche pas une etape qui n'aura jamais lieu", () => {
+    const etapes = etapesDuSuivi({ ...BASE, modeLivraison: "retrait" });
+    expect(etapes.map((e) => e.cle)).not.toContain("chez_le_livreur");
+    expect(etapes.at(-1)?.libelle).toMatch(/retiree/i);
   });
 });
