@@ -22,6 +22,24 @@ export default defineConfig({
     ...(process.env.CHROMIUM_PATH
       ? { launchOptions: { executablePath: process.env.CHROMIUM_PATH } }
       : {}),
+    /**
+     * Le presse-papiers, accorde une fois pour TOUS les contextes.
+     *
+     * Le collage n'est pas un detail de confort ici : `AGENTS.md` en fait une
+     * regle d'accessibilite (WCAG 2.2 §3.3.8), et le champ de SMS operateur est
+     * un champ dont l'usage ENTIER est le collage. Les tests le verifient en
+     * ecrivant dans le presse-papiers avec `navigator.clipboard.writeText`.
+     *
+     * Sans cette permission, Chromium repond « NotAllowedError: Write
+     * permission denied ». Le defaut ne s'est jamais vu parce que le job e2e
+     * n'avait jamais atteint les tests, et il ne se voit pas non plus sur un
+     * Chromium plus ancien que celui que `playwright install` telecharge.
+     *
+     * `ui-demo.spec.ts` appelait deja `grantPermissions` a la main, fichier par
+     * fichier ; les quatre autres sites d'appel ne le faisaient pas. Le poser
+     * sur le contexte evite d'avoir a y penser au prochain test qui colle.
+     */
+    permissions: ["clipboard-read", "clipboard-write"],
   },
   projects: [
     { name: "clair", use: { colorScheme: "light" } },
