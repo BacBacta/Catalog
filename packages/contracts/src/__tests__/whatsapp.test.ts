@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { orderRefSchema } from "../order.ts";
 import { lienCommande, lienWhatsApp, messageCommande, totalCommandeXaf } from "../whatsapp.ts";
 
 /**
@@ -231,5 +232,101 @@ describe("bloc de paiement", () => {
     expect(messageCommande(commande).toLowerCase()).not.toMatch(
       /\b(pin|code[_ -]?secret|secret[_ -]?code|mot de passe)\b/,
     );
+  });
+});
+
+/**
+ * Le bloc de suivi — ce que le lot 11 ajoute au message du lot 6.
+ *
+ * La reference et le code n'existaient pas au moment de la commande ; ils
+ * existent des qu'elle est creee. Le message doit alors les porter, parce qu'il
+ * reste le seul support sur lequel on peut compter.
+ */
+describe("messageCommande avec le suivi", () => {
+  const avecSuivi = messageCommande({
+    boutique: BOUTIQUE,
+    lignes: [{ nom: "Savon noir", quantite: 1, prixUnitaireXaf: 1500 }],
+    suivi: { reference: "CT-1043", codeVerification: "ACDE-4679" },
+  });
+
+  it("porte la reference et le code de verification", () => {
+    expect(avecSuivi).toContain("Commande : CT-1043");
+    expect(avecSuivi).toContain("Code de verification : ACDE-4679");
+  });
+
+  it("garde les cinq informations canoniques", () => {
+    expect(avecSuivi).toContain("Savon noir");
+    expect(avecSuivi).toContain(`Total : ${f("1 500 FCFA")}`);
+    expect(avecSuivi).toContain(BOUTIQUE);
+  });
+
+  it("ne porte AUCUN lien : le texte reste autosuffisant", () => {
+    expect(avecSuivi).not.toContain("http");
+  });
+
+  /**
+   * Le jeton de suivi autorise la contre-signature ; le code de verification ne
+   * fait qu'identifier. Un message WhatsApp se transfere — y glisser le jeton
+   * donnerait a quiconque le recoit le pouvoir de valider le paiement d'autrui.
+   */
+  it("ne porte JAMAIS le jeton de suivi de l'acheteuse", () => {
+    expect(avecSuivi.toLowerCase()).not.toContain("suivi/");
+    expect(avecSuivi.toLowerCase()).not.toContain("jeton");
+  });
+
+  it("normalise le code en majuscules", () => {
+    const m = messageCommande({
+      boutique: BOUTIQUE,
+      lignes: [{ nom: "Savon noir", quantite: 1, prixUnitaireXaf: 1500 }],
+      suivi: { reference: "CT-1043", codeVerification: "acde-4679" },
+    });
+    expect(m).toContain("Code de verification : ACDE-4679");
+  });
+
+  it("LEVE sur une reference malformee plutot que d'en ecrire une inutilisable", () => {
+    expect(() =>
+      messageCommande({
+        boutique: BOUTIQUE,
+        lignes: [{ nom: "Savon noir", quantite: 1, prixUnitaireXaf: 1500 }],
+        suivi: { reference: "1043", codeVerification: "ACDE-4679" },
+      }),
+    ).toThrow(/reference/i);
+  });
+
+  it("LEVE sur un code hors alphabet — B, I, O, S et Z n'en sont pas", () => {
+    for (const mauvais of ["ABCD-4679", "ACDE-4670", "ACDE4679", "ACDE-467"]) {
+      expect(() =>
+        messageCommande({
+          boutique: BOUTIQUE,
+          lignes: [{ nom: "Savon noir", quantite: 1, prixUnitaireXaf: 1500 }],
+          suivi: { reference: "CT-1043", codeVerification: mauvais },
+        }),
+      ).toThrow(/code/i);
+    }
+  });
+
+  /**
+   * Garde-fou contre la divergence : `whatsapp.ts` redit ces deux formes en
+   * expressions nues pour ne pas charger Zod dans le navigateur. Ce test verifie
+   * que les deux definitions decrivent bien la meme chose.
+   */
+  it("les formes nues acceptent exactement ce que les schemas Zod acceptent", () => {
+    const echantillons = ["CT-123", "CT-12345678", "CT-12", "CT-123456789", "ct-1043", "CT-"];
+    for (const s of echantillons) {
+      const parZod = orderRefSchema.safeParse(s).success;
+      const parMessage = (() => {
+        try {
+          messageCommande({
+            boutique: BOUTIQUE,
+            lignes: [{ nom: "x", quantite: 1, prixUnitaireXaf: 1 }],
+            suivi: { reference: s, codeVerification: "ACDE-4679" },
+          });
+          return true;
+        } catch {
+          return false;
+        }
+      })();
+      expect(parMessage, `desaccord sur « ${s} »`).toBe(parZod);
+    }
   });
 });

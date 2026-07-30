@@ -45,10 +45,43 @@ export interface PaiementWhatsApp {
   montantXaf: number;
 }
 
+/**
+ * Ce qui identifie une commande DEJA CREEE (lot 11).
+ *
+ * Absent tant que la commande n'existe pas — c'est le sens du `?` sur
+ * `CommandeWhatsApp.suivi`. Avant creation, ces deux champs ne s'inventent pas :
+ * un code inconnu de la page publique de verification serait exactement la
+ * fausse preuve que le produit combat.
+ *
+ * Le code de verification IDENTIFIE, il n'autorise rien. Le mettre dans un
+ * message WhatsApp est donc sans danger, et c'est meme son usage : l'acheteuse
+ * doit pouvoir controler le recu sans compte et sans lien. Le `buyerToken` du
+ * suivi, lui, n'a RIEN a faire ici — il autorise la contre-signature, et un
+ * message WhatsApp se transfere.
+ */
+export interface SuiviWhatsApp {
+  reference: string;
+  codeVerification: string;
+}
+
+/**
+ * Formes acceptees, en expressions regulieres NUES.
+ *
+ * Volontairement non importees de `order.ts` : ce module est charge par la
+ * boutique publique via le sous-chemin `./whatsapp`, et `order.ts` declare des
+ * schemas Zod dont les effets de bord survivent a l'elagage — 20,6 Ko au lieu
+ * de 1,8 (CLAUDE.md, lot 6). Un test de `contracts` verifie que ces deux
+ * expressions acceptent exactement ce que les schemas Zod acceptent, pour que
+ * la duplication ne devienne pas une divergence.
+ */
+const FORME_REFERENCE = /^CT-\d{3,8}$/;
+const FORME_CODE = /^[ACDEFGHJKMNPQRTUVWXY34679]{4}-[ACDEFGHJKMNPQRTUVWXY34679]{4}$/;
+
 export interface CommandeWhatsApp {
   boutique: string;
   lignes: readonly LigneCommande[];
   paiement?: PaiementWhatsApp;
+  suivi?: SuiviWhatsApp;
 }
 
 /** Total, en entier de francs. Aucun flottant ne traverse ce calcul. */
@@ -95,13 +128,33 @@ export function messageCommande(commande: CommandeWhatsApp): string {
       ]
     : [];
 
+  /**
+   * Le bloc de suivi. On LEVE plutot que d'ecrire une reference malformee :
+   * une acheteuse qui recopie `CT-` suivi de rien sur la page de verification
+   * obtient un refus qu'elle ne sait pas interpreter, et croit le vendeur
+   * malhonnete. Mieux vaut que la commande ne parte pas.
+   */
+  const suivi = commande.suivi ? blocSuivi(commande.suivi) : [];
+
   return [
     "Bonjour, je voudrais commander :",
     ...lignes,
     `Total : ${formatXaf(totalCommandeXaf(commande.lignes))}`,
     `Boutique : ${commande.boutique}`,
+    ...suivi,
     ...paiement,
   ].join("\n");
+}
+
+function blocSuivi(suivi: SuiviWhatsApp): string[] {
+  if (!FORME_REFERENCE.test(suivi.reference)) {
+    throw new Error(`reference de commande malformee : ${suivi.reference}`);
+  }
+  const code = suivi.codeVerification.toUpperCase();
+  if (!FORME_CODE.test(code)) {
+    throw new Error(`code de verification malforme : ${suivi.codeVerification}`);
+  }
+  return ["", `Commande : ${suivi.reference}`, `Code de verification : ${code}`];
 }
 
 /**
