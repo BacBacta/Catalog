@@ -31,6 +31,7 @@ const code = (p: string) =>
 describe("le collage n'est jamais bloque", () => {
   const FICHIERS = [
     "sms-paste-field.tsx",
+    "otp-field.tsx",
     "primitives/basics.tsx",
     "primitives/overlays.tsx",
     "blocks.tsx",
@@ -58,6 +59,38 @@ describe("le collage n'est jamais bloque", () => {
     const src = code("sms-paste-field.tsx");
     expect(src).toMatch(/clipboard\?\.readText\(\)/);
     expect(src).toMatch(/Coller/);
+  });
+
+  /**
+   * Le champ OTP porte la meme regle, en plus fort : c'est celui que le critere
+   * 3.3.8 nomme. Trois attributs y sont fonctionnels, pas decoratifs, et leur
+   * absence ne casserait aucun rendu — d'ou un test qui les nomme.
+   */
+  it("le champ OTP n'appelle preventDefault nulle part", () => {
+    expect(code("otp-field.tsx")).not.toMatch(/preventDefault/);
+  });
+
+  it("le champ OTP declare one-time-code, un pave numerique, et reste type=text", () => {
+    const src = code("otp-field.tsx");
+    expect(src).toMatch(/autoComplete="one-time-code"/);
+    expect(src).toMatch(/inputMode="numeric"/);
+    // `type="number"` supprimerait un zero de tete : un code « 048190 » y perd
+    // son premier chiffre.
+    expect(src).toMatch(/type="text"/);
+    expect(src).not.toMatch(/type="number"/);
+  });
+
+  it("le champ OTP est UN champ, pas six cases", () => {
+    // Six cases cassent l'auto-remplissage et le collage. Un seul <input>.
+    const src = code("otp-field.tsx");
+    expect(src.match(/<input/g)?.length ?? 0).toBe(1);
+    expect(src).not.toMatch(/readOnly/);
+  });
+
+  it("le champ OTP garde les chiffres d'un message colle en entier", () => {
+    // Le nettoyage retire les non-chiffres au lieu de refuser la saisie : c'est
+    // ce qui permet de coller « votre code est 481902. » sans decouper.
+    expect(code("otp-field.tsx")).toMatch(/replace\(\/\\D\/g, ""\)/);
   });
 
   it("un refus du presse-papiers laisse le champ utilisable", () => {

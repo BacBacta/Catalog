@@ -67,6 +67,25 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     needs: quality
+    # Le parcours vendeuse du lot 4 s'execute contre un VRAI serveur : session,
+    # OTP, journal d'audit. Une API simulee ne prouverait rien de ce que ce lot
+    # doit tenir, donc ce job a besoin de la base — sans elle, le parcours se
+    # declare ignore et le critere de la definition de terminé n'est pas verifie.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: catalog
+          POSTGRES_PASSWORD: catalog
+          POSTGRES_DB: catalog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U catalog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -76,6 +95,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Client Prisma, migration et contraintes
+        run: pnpm db:generate && pnpm db:migrate
       # Les tests de bout en bout tournent sur un profil mobile bas de gamme
       # bride (Moto G Power, Slow 4G) et non sur un poste de developpement :
       # c'est la seule facon d'empecher la derive vers une application qui ne
@@ -87,6 +108,10 @@ jobs:
       # bloquante, et la page de demonstration du design system en est la
       # premiere cible reelle. Ce job verifie aussi les cibles tactiles de
       # 44px sur la geometrie RENDUE, ce qu'aucun test unitaire ne peut faire.
+      #
+      # Depuis le lot 4, il parcourt aussi toute l'authentification vendeuse et
+      # prouve que le COLLAGE fonctionne dans le champ OTP — critere WCAG 2.2
+      # §3.3.8, invisible a tout autre niveau de test.
       - run: pnpm --filter @catalog/seller e2e
       - uses: actions/upload-artifact@v4
         if: always()

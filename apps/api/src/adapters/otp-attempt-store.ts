@@ -27,10 +27,20 @@ export interface OtpAttemptStore {
 }
 
 export class PrismaOtpAttemptStore implements OtpAttemptStore {
-  constructor(private readonly prisma: PrismaClient) {}
+  readonly #prisma: PrismaClient;
+
+  /**
+   * Champ prive explicite, pas une propriete de parametre (`constructor(private
+   * x)`). Node 24 execute le TypeScript en retirant les types SANS les
+   * transformer : une propriete de parametre y est une erreur de syntaxe au
+   * demarrage, invisible au `tsc --noEmit`.
+   */
+  constructor(prisma: PrismaClient) {
+    this.#prisma = prisma;
+  }
 
   async depuis(depuis: Date): Promise<OtpAttempt[]> {
-    const lignes = await this.prisma.otpAttempt.findMany({
+    const lignes = await this.#prisma.otpAttempt.findMany({
       where: { at: { gte: depuis } },
       select: { phone: true, ip: true, at: true },
       orderBy: { at: "asc" },
@@ -39,7 +49,7 @@ export class PrismaOtpAttemptStore implements OtpAttemptStore {
   }
 
   async enregistrer(a: OtpAttempt & { kind: string }): Promise<void> {
-    await this.prisma.otpAttempt.create({
+    await this.#prisma.otpAttempt.create({
       data: { phone: a.phone, ip: a.ip, kind: a.kind, at: a.at },
     });
   }
@@ -51,7 +61,7 @@ export class PrismaOtpAttemptStore implements OtpAttemptStore {
    * pourrait pas purger. La distinction est voulue.
    */
   async purger(avant: Date): Promise<number> {
-    const { count } = await this.prisma.otpAttempt.deleteMany({
+    const { count } = await this.#prisma.otpAttempt.deleteMany({
       where: { at: { lt: avant } },
     });
     return count;

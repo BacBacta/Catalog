@@ -27,10 +27,45 @@ export default defineConfig({
     { name: "clair", use: { colorScheme: "light" } },
     { name: "sombre", use: { colorScheme: "dark" } },
   ],
-  webServer: {
-    command: "pnpm vite preview --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: "pnpm vite preview --port 4173 --strictPort",
+      url: "http://127.0.0.1:4173",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    /**
+     * L'API n'est lancee que si une base est disponible. Le parcours vendeuse
+     * s'appuie sur un VRAI serveur — session, OTP, journal — parce qu'une API
+     * simulee ne prouverait rien de ce que le lot 4 doit tenir. Sans
+     * `DATABASE_URL`, ces tests se declarent ignores plutot que rouges : c'est
+     * une dependance d'environnement, pas une regression.
+     *
+     * Le fournisseur SMS est le factice : `SMS_PROVIDER` non pose vaut
+     * « console », et c'est lui qui expose `/api/dev/dernier-code`. Il refuse de
+     * se construire si `NODE_ENV=production`.
+     */
+    ...(process.env.DATABASE_URL
+      ? [
+          {
+            command: "node ../api/src/server.ts",
+            url: "http://127.0.0.1:8787/health",
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+            env: {
+              DATABASE_URL: process.env.DATABASE_URL,
+              PORT: "8787",
+              TZ: "Africa/Douala",
+              BETTER_AUTH_URL: "http://127.0.0.1:8787",
+              // Secret de test uniquement, jamais un secret de production : il
+              // n'ouvre rien d'autre que cette base de test.
+              BETTER_AUTH_SECRET:
+                process.env.BETTER_AUTH_SECRET ?? "secret-de-test-e2e-32-caracteres-minimum",
+              // Le navigateur voit l'origine de l'app, pas celle de l'API.
+              TRUSTED_ORIGINS: "http://127.0.0.1:4173,http://localhost:4173",
+            },
+          },
+        ]
+      : []),
+  ],
 });

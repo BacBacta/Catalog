@@ -66,6 +66,7 @@ model Seller {
   reviews     Review[]
   orderEvents OrderEvent[]
   auditEvents SellerAuditEvent[]
+  payoutOtps  PayoutOtp[]
 
   @@index([status])
   @@index([payoutPhone])
@@ -470,4 +471,37 @@ model OtpAttempt {
   @@index([ip, at])
   @@index([at])
   @@map("otp_attempt")
+}
+
+/// OTP de verification du NUMERO DE REVERSEMENT.
+///
+/// Table distincte des tables de Better Auth, et distincte du plugin
+/// `phoneNumber` : celui-ci verifie le numero de CONNEXION et, s'il servait ici,
+/// il deplacerait le numero de connexion de la vendeuse. Or le reversement est
+/// un second numero, souvent sur une autre puce, et le verifier ne doit rien
+/// changer a la facon dont elle se connecte.
+///
+/// **Le code n'est jamais stocke en clair** : seule une empreinte HMAC l'est.
+/// Une base lue ne donne pas les codes en cours.
+///
+/// La ligne se consomme (`consumedAt`) : un code ne vaut qu'une fois. `attempts`
+/// borne la force brute sur les six chiffres.
+model PayoutOtp {
+  id       String @id @default(uuid(7))
+  sellerId String @map("seller_id")
+  /// Le NOUVEAU numero, E.164 — celui qui recoit le SMS.
+  phone    String
+  /// Empreinte HMAC-SHA256 du code. Jamais le code lui-meme.
+  codeHash String @map("code_hash")
+
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId, createdAt])
+  @@index([expiresAt])
+  @@map("payout_otp")
 }

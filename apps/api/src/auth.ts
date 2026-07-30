@@ -31,6 +31,8 @@ export interface AuthDeps {
   avantEnvoi?: (data: { phone: string }) => Promise<void>;
   secret?: string;
   baseURL?: string;
+  /** Origines du navigateur autorisees. Voir `origines()`. */
+  trustedOrigins?: string[];
 }
 
 /**
@@ -43,7 +45,21 @@ export function emailTechnique(phone: string): string {
   return `${n.replace(/\D/g, "")}@telephone.catalog.invalid`;
 }
 
+/**
+ * Origines acceptees, lues dans `TRUSTED_ORIGINS` (liste separee par des
+ * virgules). Rien n'est devine : une origine implicite serait soit trop large,
+ * soit fausse selon l'environnement.
+ */
+export function origines(env: NodeJS.ProcessEnv = process.env): string[] {
+  return (env.TRUSTED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export function createAuth(deps: AuthDeps) {
+  const trusted = deps.trustedOrigins ?? origines();
+
   return betterAuth({
     database: prismaAdapter(deps.prisma, { provider: "postgresql" }),
     secret: deps.secret ?? process.env.BETTER_AUTH_SECRET,
@@ -51,6 +67,29 @@ export function createAuth(deps: AuthDeps) {
 
     // Pas de mot de passe, pas d'e-mail : le telephone est le seul facteur.
     emailAndPassword: { enabled: false },
+
+    /**
+     * Better Auth appelle `prisma[modelName]`. Nos modeles s'appellent
+     * `AuthUser`, `AuthSession`, `AuthAccount`, `AuthVerification` — le prefixe
+     * dit a la lecture du schema ce qui appartient a la bibliotheque et ce qui
+     * appartient au metier, la ou un `User` nu se confondrait avec `Seller`.
+     *
+     * Ces quatre lignes sont donc la traduction, et **elles sont obligatoires** :
+     * sans elles, Better Auth cherche `prisma.verification` et echoue en 500 au
+     * premier envoi d'OTP. Les noms de TABLE, eux, ne changent pas : ils sont
+     * poses par `@@map` et restent `user`, `session`, `account`, `verification`.
+     */
+    user: { modelName: "authUser" },
+    session: { modelName: "authSession" },
+    account: { modelName: "authAccount" },
+    verification: { modelName: "authVerification" },
+
+    /**
+     * Origines acceptees. L'app vendeuse est servie par Vite, qui renvoie `/api`
+     * vers ce serveur : le navigateur envoie donc l'origine de l'app, pas celle
+     * de l'API, et Better Auth la refuserait sans cette liste.
+     */
+    ...(trusted.length ? { trustedOrigins: trusted } : {}),
 
     plugins: [
       phoneNumber({

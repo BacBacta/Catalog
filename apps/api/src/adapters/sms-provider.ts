@@ -32,10 +32,15 @@ export interface SmsProviderConfig {
 export class PendingSmsProvider implements SmsSender {
   readonly name = "provider-a-configurer";
 
-  constructor(private readonly cfg: Partial<SmsProviderConfig> = {}) {}
+  readonly #cfg: Partial<SmsProviderConfig>;
+
+  /** Champ prive explicite : voir la note de `otp-attempt-store.ts`. */
+  constructor(cfg: Partial<SmsProviderConfig> = {}) {
+    this.#cfg = cfg;
+  }
 
   async send(message: SmsMessage): Promise<void> {
-    const manquants = (["apiKey", "senderId", "baseUrl"] as const).filter((k) => !this.cfg[k]);
+    const manquants = (["apiKey", "senderId", "baseUrl"] as const).filter((k) => !this.#cfg[k]);
     throw new Error(
       "Aucun fournisseur SMS n'est configure. " +
         `Message non envoye : ${message.kind} vers ${message.to}. ` +

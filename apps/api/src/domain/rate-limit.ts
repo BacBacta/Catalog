@@ -53,6 +53,41 @@ export const DEFAULT_OTP_LIMITS: OtpLimits = {
   globalParJour: { max: 2_000 },
 };
 
+/**
+ * Les plafonds se lisent dans la configuration, avec les valeurs ci-dessus par
+ * defaut.
+ *
+ * **Ils ne sont pas des constantes de code, et c'est important pour la limite
+ * par adresse.** Au Cameroun, la traduction d'adresses des operateurs mobiles et
+ * les points d'acces partages font que plusieurs vendeuses sortent regulierement
+ * par la MEME adresse publique : douze demandes par heure y sont vite atteintes
+ * par des connexions parfaitement legitimes. La bonne valeur ne se devine pas
+ * depuis un bureau — elle se regle avec des donnees de terrain, sans
+ * redeploiement.
+ *
+ * Une valeur non numerique ou negative est **ignoree** au profit du defaut :
+ * une faute de frappe dans la configuration ne doit pas ouvrir la vanne.
+ */
+export function limitesDepuisEnv(env: Record<string, string | undefined>): OtpLimits {
+  const n = (cle: string, defaut: number): number => {
+    const v = Number(env[cle]);
+    return Number.isFinite(v) && v > 0 ? Math.floor(v) : defaut;
+  };
+  const d = DEFAULT_OTP_LIMITS;
+  return {
+    parNumero: {
+      max: n("OTP_MAX_PAR_NUMERO", d.parNumero.max),
+      fenetreMs: n("OTP_FENETRE_NUMERO_MS", d.parNumero.fenetreMs),
+    },
+    parIp: {
+      max: n("OTP_MAX_PAR_IP", d.parIp.max),
+      fenetreMs: n("OTP_FENETRE_IP_MS", d.parIp.fenetreMs),
+    },
+    parNumeroParJour: { max: n("OTP_MAX_PAR_NUMERO_PAR_JOUR", d.parNumeroParJour.max) },
+    globalParJour: { max: n("OTP_MAX_GLOBAL_PAR_JOUR", d.globalParJour.max) },
+  };
+}
+
 export type RefusReason =
   | "trop_de_demandes_pour_ce_numero"
   | "trop_de_demandes_depuis_cette_adresse"

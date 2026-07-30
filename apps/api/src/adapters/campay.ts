@@ -96,15 +96,35 @@ export type CampayErrorCode = keyof typeof CAMPAY_ERRORS;
 export const CAMPAY_OBSERVED_MINIMUM_XAF = { mtn: 5, orange: 10 } as const;
 
 export class CampayError extends Error {
+  readonly code: CampayErrorCode | "UNKNOWN";
+  readonly httpStatus?: number;
+  /** Message brut de CamPay — porte le detail utile, ex. le minimum exact. */
+  readonly providerMessage?: string;
+
+  /**
+   * Champs declares explicitement, et non en proprietes de parametre
+   * (`constructor(readonly code: …)`).
+   *
+   * Ce n'est pas une extension de l'adaptateur au sens d'AGENTS.md §5 : le
+   * comportement est identique au caractere pres. C'est ce qui rend vraie la
+   * garantie que cette section enonce — « il sera encore compilable le jour ou
+   * on le reveille ». Node 24 execute le TypeScript en RETIRANT les types sans
+   * les transformer ; une propriete de parametre y leve
+   * ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX **a l'import**. Le fichier compilait sous
+   * `tsc --noEmit` et passait ses tests sous esbuild, mais aurait fait echouer le
+   * premier `import` reel.
+   */
   constructor(
-    readonly code: CampayErrorCode | "UNKNOWN",
+    code: CampayErrorCode | "UNKNOWN",
     message: string,
-    readonly httpStatus?: number,
-    /** Message brut de CamPay — porte le detail utile, ex. le minimum exact. */
-    readonly providerMessage?: string,
+    httpStatus?: number,
+    providerMessage?: string,
   ) {
     super(message);
     this.name = "CampayError";
+    this.code = code;
+    if (httpStatus !== undefined) this.httpStatus = httpStatus;
+    if (providerMessage !== undefined) this.providerMessage = providerMessage;
   }
   /** Un flottant epuise se retente plus tard ; un numero invalide, jamais. */
   get retryable(): boolean {

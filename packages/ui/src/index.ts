@@ -22,6 +22,7 @@ export {
   type StatusBadgeProps,
 } from "./blocks.tsx";
 export { MoneyDisplay, type MoneyDisplayProps, type MoneySize } from "./money-display.tsx";
+export { OtpField, type OtpFieldProps } from "./otp-field.tsx";
 /* Primitives sur Base UI. */
 export {
   Badge,
@@ -61,7 +62,6 @@ export {
   ToastHost,
   toastManager,
 } from "./primitives/overlays.tsx";
-
 /* Les deux composants propres a ce produit. */
 export {
   type CheckState,

@@ -54,7 +54,21 @@ manquante, arrête-toi et demande plutôt que d'inventer une valeur plausible.
 ## Tâche en cours
 
 La séquence d'implémentation vit dans `PROMPTS.md` : un lot par session, dans
-l'ordre. Le lot 0 — bascule v1 sans agrégateur et renommage — est fait.
+l'ordre. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
+(jetons de design et primitives), lot 3 (schéma de preuve et contraintes SQL),
+lot 4 (authentification par téléphone, numéro de reversement, limitation de
+débit, écrans vendeuse).
+
+Deux points de vigilance issus du lot 4 :
+
+- **Node exécute le TypeScript en retirant les types, sans les transformer.**
+  Une propriété de paramètre (`constructor(private x: T)`), un `enum` ou un
+  `namespace` compilent sous `tsc --noEmit`, passent Vitest — qui utilise
+  esbuild — et font échouer le serveur **à l'import**. Un test lit les sources
+  pour l'empêcher : `apps/api/src/__tests__/node-strip-only.test.ts`.
+- **Les plafonds de la limitation de débit sont de la configuration**, pas des
+  constantes. Voir `.env.example` : la limite par adresse est celle qui risque
+  d'enfermer dehors des vendeuses légitimes derrière une même adresse publique.
 
 L'investigation CamPay est close : l'adaptateur `apps/api/src/adapters/campay.ts`
 est **en dormance** derrière `PAYMENT_AGGREGATOR_ENABLED`, absent par défaut.

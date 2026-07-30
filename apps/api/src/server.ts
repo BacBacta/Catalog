@@ -1,15 +1,48 @@
 import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
+import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
+import { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
+import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import app from "./app.ts";
+import { createAuth, smsSenderDepuisEnv } from "./auth.ts";
+import { limitesDepuisEnv } from "./domain/rate-limit.ts";
+import { authRoutes } from "./routes/auth.ts";
+import { devOtpRoutes } from "./routes/dev-otp.ts";
 import { payoutRoutes } from "./routes/payout.ts";
+import { sellerRoutes } from "./routes/seller.ts";
 
 /**
  * Point d'entree. C'est ici que les dependances concretes sont branchees :
  * `app.ts` reste constructible sans base, ce qui permet de le tester nu.
  */
 const prisma = createPrismaClient();
+const sms = smsSenderDepuisEnv();
+const otpStore = new PrismaOtpAttemptStore(prisma);
+const limits = limitesDepuisEnv(process.env);
+const auth = createAuth({ prisma, sms });
+const session = {
+  prisma,
+  session: (req: Request) => auth.api.getSession({ headers: req.headers }),
+};
 
-app.route("/api/reversement", payoutRoutes({ prisma }));
+app.route("/api/auth", authRoutes({ handler: auth.handler, otpStore, limits }));
+app.route("/api/vendeuse", sellerRoutes(session));
+app.route(
+  "/api/reversement",
+  payoutRoutes({
+    prisma,
+    session,
+    otp: new PayoutOtpStore({ prisma }),
+    sms,
+    otpStore,
+    limits,
+  }),
+);
+
+// Uniquement quand le fournisseur factice est actif — donc jamais en production,
+// ou `ConsoleSmsSender` refuse de se construire.
+const dev = devOtpRoutes({ console: sms instanceof ConsoleSmsSender ? sms : null });
+if (dev) app.route("/api/dev", dev);
 
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port });
