@@ -208,4 +208,47 @@ describeConstruit("la sortie construite", () => {
   it("dist/ n'est pas vide au point d'etre suspect", () => {
     expect(statSync(join(DIST, "index.html")).size).toBeGreaterThan(200);
   });
+
+  /**
+   * La page de rampe (lot 9), telle qu'elle est REELLEMENT livree.
+   *
+   * C'est le seul endroit ou l'on peut verifier qu'aucun code d'operateur n'a
+   * ete fige a la construction : le HTML sorti du regroupeur ne ment pas, la ou
+   * une relecture de source peut manquer une valeur inlinee par un plugin.
+   */
+  describe("la page de paiement", () => {
+    const payer = join(DIST, "payer/index.html");
+    const html = existsSync(payer) ? readFileSync(payer, "utf8") : "";
+
+    it("est construite", () => {
+      expect(html.length).toBeGreaterThan(200);
+    });
+
+    it("ne fige AUCUN code USSD dans le HTML livre", () => {
+      // Les codes viennent de `GET /api/rampe`, a l'execution. S'ils
+      // apparaissaient ici, changer un code exigerait de reconstruire le site —
+      // c'est-a-dire trop tard, le jour ou un operateur le change.
+      expect(html).not.toMatch(/[*#]\d[\d*#]*#/);
+      expect(html).not.toContain("tel:");
+    });
+
+    it("dit a une acheteuse sans JavaScript comment payer quand meme", () => {
+      expect(html).toContain("<noscript>");
+      expect(html).toMatch(/noscript[\s\S]*?WhatsApp/i);
+    });
+
+    it("n'est pas indexee — une page de paiement dans un moteur appelle l'hameconnage", () => {
+      expect(html).toMatch(/<meta name="robots" content="noindex"/);
+    });
+
+    it("n'offre aucun champ de saisie", () => {
+      // Ni ici ni ailleurs : Catalog n'a aucun endroit ou un code secret
+      // pourrait etre tape.
+      expect(html).not.toMatch(/<input/i);
+    });
+
+    it("previent que le code secret ne se tape jamais sur Catalog", () => {
+      expect(html).toMatch(/code secret/i);
+    });
+  });
 });

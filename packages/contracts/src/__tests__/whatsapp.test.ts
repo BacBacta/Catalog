@@ -181,3 +181,55 @@ describe("lienCommande", () => {
     expect(texte).toContain(BOUTIQUE);
   });
 });
+
+/**
+ * Le bloc de paiement (lot 9).
+ *
+ * « Si le lien echoue, l'acheteuse doit pouvoir payer quand meme. » Le numero de
+ * reversement et le montant sont donc dans le TEXTE, pas seulement derriere une
+ * rampe : iPhone bloque les liens USSD, un raccourci non verifie peut s'arreter
+ * en route, et un forfait « WhatsApp seul » ne suit aucun lien externe.
+ */
+describe("bloc de paiement", () => {
+  const commande = {
+    boutique: BOUTIQUE,
+    lignes: [{ nom: "Savon noir", quantite: 3, prixUnitaireXaf: 1500 }],
+    paiement: { numeroReversement: "+237677123456", montantXaf: 4500 },
+  };
+
+  it("ecrit le numero de reversement et le montant en clair", () => {
+    const texte = messageCommande(commande);
+    // Espace tous les deux chiffres : un numero de neuf chiffres colles se
+    // recopie mal sur un clavier de telephone, et un chiffre faux envoie
+    // l'argent chez quelqu'un d'autre.
+    expect(texte).toContain("Numero : 6 77 12 34 56");
+    expect(texte).toContain(`Montant : ${f("4 500 FCFA")}`);
+  });
+
+  it("n'apparait PAS quand aucun versement n'est en cours", () => {
+    // La fiche article publique ne connait pas le numero de reversement, et ne
+    // doit pas le connaitre : il n'a rien a faire sur une page en cache CDN.
+    const texte = messageCommande({ boutique: BOUTIQUE, lignes: commande.lignes });
+    expect(texte).not.toContain("Paiement mobile money");
+    expect(texte).not.toContain("Numero :");
+  });
+
+  it("laisse le contenu canonique intact et le place AVANT", () => {
+    const texte = messageCommande(commande);
+    expect(texte.indexOf("Boutique :")).toBeLessThan(texte.indexOf("Paiement mobile money"));
+    expect(texte).toContain("Savon noir : 3");
+  });
+
+  it("survit a l'encodage du lien", () => {
+    const texte = texteDuLien(lienCommande("677123456", commande));
+    expect(texte).toContain("Numero : 6 77 12 34 56");
+  });
+
+  it("ne porte NULLE PART de quoi saisir un code secret", () => {
+    // Le code secret se saisit dans la session de l'operateur. Un message qui le
+    // demanderait serait exactement l'hameconnage que le produit combat.
+    expect(messageCommande(commande).toLowerCase()).not.toMatch(
+      /\b(pin|code[_ -]?secret|secret[_ -]?code|mot de passe)\b/,
+    );
+  });
+});

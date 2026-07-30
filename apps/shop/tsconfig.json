@@ -1,5 +1,14 @@
 {
   "extends": "astro/tsconfigs/strict",
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": ["dist"],
+  "compilerOptions": {
+    // Les ilots sont en Preact, pas en React (ADR 0017). L'integration Astro
+    // pose ce reglage pour la CONSTRUCTION ; `astro check` lit le tsconfig, et
+    // sans ces deux lignes il ne trouve aucune definition de balise HTML — tout
+    // element JSX y devient `any`, ce qui eteint le controle de types la ou il
+    // sert le plus.
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
+  }
 }

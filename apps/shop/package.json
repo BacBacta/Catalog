@@ -26,6 +26,7 @@
     "@astrojs/check": "0.9.10",
     "@lhci/cli": "0.15.1",
     "@types/node": "26.1.2",
+    "preact-render-to-string": "6.7.0",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }

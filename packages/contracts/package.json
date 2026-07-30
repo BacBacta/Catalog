@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./money": "./src/money.ts",
     "./phone": "./src/phone.ts",
+    "./ussd": "./src/ussd.ts",
     "./whatsapp": "./src/whatsapp.ts"
   },
   "scripts": {

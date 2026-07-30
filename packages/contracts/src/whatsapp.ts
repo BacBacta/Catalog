@@ -1,5 +1,5 @@
 import { formatXaf } from "./money.ts";
-import { normalizePhone } from "./phone.ts";
+import { formatPhone, normalizePhone } from "./phone.ts";
 
 /**
  * Le message WhatsApp de commande.
@@ -26,9 +26,29 @@ export interface LigneCommande {
   prixUnitaireXaf: number;
 }
 
+/**
+ * Le bloc de paiement, ajoute au message quand un versement est en cours.
+ *
+ * **Il ne remplace pas la rampe, il la double.** La rampe pre-remplit le clavier
+ * par un lien `tel:` ; ce bloc ecrit le meme numero et le meme montant en TEXTE
+ * BRUT, pour que l'acheteuse puisse payer a la main si le lien echoue — iPhone
+ * bloque les liens USSD, un raccourci non verifie peut s'arreter en route, et un
+ * forfait « WhatsApp seul » ne suit aucun lien externe.
+ *
+ * Il n'apparait QUE la ou un numero de reversement est connu, c'est-a-dire sur
+ * l'ecran de paiement. La fiche article publique ne le porte pas : le numero de
+ * reversement d'une vendeuse n'a rien a faire sur une page en cache CDN.
+ */
+export interface PaiementWhatsApp {
+  /** Numero de reversement de la vendeuse — celui qui recoit les fonds. */
+  numeroReversement: string;
+  montantXaf: number;
+}
+
 export interface CommandeWhatsApp {
   boutique: string;
   lignes: readonly LigneCommande[];
+  paiement?: PaiementWhatsApp;
 }
 
 /** Total, en entier de francs. Aucun flottant ne traverse ce calcul. */
@@ -66,11 +86,21 @@ export function messageCommande(commande: CommandeWhatsApp): string {
       )}`,
   );
 
+  const paiement = commande.paiement
+    ? [
+        "",
+        "Paiement mobile money :",
+        `Numero : ${formatPhone(commande.paiement.numeroReversement)}`,
+        `Montant : ${formatXaf(commande.paiement.montantXaf)}`,
+      ]
+    : [];
+
   return [
     "Bonjour, je voudrais commander :",
     ...lignes,
     `Total : ${formatXaf(totalCommandeXaf(commande.lignes))}`,
     `Boutique : ${commande.boutique}`,
+    ...paiement,
   ].join("\n");
 }
 
@@ -96,4 +126,35 @@ export function lienWhatsApp(phone: string, message: string): string {
 /** Le lien complet pour une commande. */
 export function lienCommande(phone: string, commande: CommandeWhatsApp): string {
   return lienWhatsApp(phone, messageCommande(commande));
+}
+
+/**
+ * L'avis de versement, envoye par l'acheteuse APRES avoir compose.
+ *
+ * Ce n'est pas un message de commande et il ne s'y substitue pas : le contenu
+ * canonique — article, quantite, prix unitaire, total, boutique — appartient a
+ * `messageCommande`. Celui-ci ne porte que les deux faits dont la vendeuse a
+ * besoin pour retrouver le paiement dans ses SMS, ecrits une seule fois dans le
+ * depot pour qu'ils ne divergent pas entre l'ecran et le message.
+ *
+ * **Il n'affirme rien.** L'acheteuse dit ce qu'elle a fait ; c'est le SMS de
+ * l'operateur, colle par la vendeuse, qui prouve. Un message WhatsApp — et a
+ * plus forte raison une capture d'ecran — ne prouve aucun paiement.
+ */
+export function messageVersement(paiement: PaiementWhatsApp, reference?: string): string {
+  return [
+    "Bonjour, je viens de faire le transfert mobile money :",
+    `Numero : ${formatPhone(paiement.numeroReversement)}`,
+    `Montant : ${formatXaf(paiement.montantXaf)}`,
+    ...(reference ? [`Commande : ${reference}`] : []),
+    "Vous devriez recevoir le SMS de votre operateur.",
+  ].join("\n");
+}
+
+export function lienVersement(
+  phone: string,
+  paiement: PaiementWhatsApp,
+  reference?: string,
+): string {
+  return lienWhatsApp(phone, messageVersement(paiement, reference));
 }

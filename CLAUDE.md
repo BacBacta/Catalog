@@ -59,7 +59,23 @@ l'ordre. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
 lot 4 (authentification par téléphone, numéro de reversement, limitation de
 débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutique
 publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau),
-lot 8 (analyseurs de SMS, sept contrôles, écran de collage).
+lot 8 (analyseurs de SMS, sept contrôles, écran de collage), lot 9 (rampe de
+paiement).
+
+Trois choses à savoir du lot 9 avant de toucher au paiement, toutes dans
+l'ADR 0020 :
+
+- **`apps/api/src/domain/ramp/config.ts` est le seul fichier du dépôt où un code
+  USSD est écrit**, et un test parcourt les quatre arbres de sources pour le
+  garantir. Les valeurs y sont un défaut daté ; l'environnement les remplace à
+  chaud, sans reconstruire la boutique.
+- **Le drapeau `verifie` ne suit pas le gabarit.** Changer une chaîne ne la rend
+  pas vérifiée : seul quelqu'un qui l'a composée à Douala pose le drapeau. Tant
+  qu'il est `false`, l'écran propose le raccourci **et** le menu manuel.
+- **La page `/payer` assume son JavaScript** et lit `GET /api/rampe` à
+  l'exécution — c'est ce qui rend un changement de code applicable sans
+  redéploiement. Aucun code de repli n'est écrit côté boutique, même hors ligne :
+  ce serait la constante que le lot interdit, et elle serait périmée.
 
 Le lot 8 a **amendé `docs/formats-sms-operateurs.md`** sur un point, et c'est le
 seul écart autorisé à la règle « on ne réécrit pas les motifs » : `Number("")`

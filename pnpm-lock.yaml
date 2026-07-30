@@ -149,6 +149,9 @@ importers:
       '@types/node':
         specifier: 26.1.2
         version: 26.1.2
+      preact-render-to-string:
+        specifier: 6.7.0
+        version: 6.7.0(preact@10.29.7)
       typescript:
         specifier: 6.0.3
         version: 6.0.3

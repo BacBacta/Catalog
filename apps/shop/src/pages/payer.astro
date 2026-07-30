@@ -1,0 +1,48 @@
+---
+import Payer from "../islands/Payer.tsx";
+import Base from "../layouts/Base.astro";
+
+/**
+ * La rampe de paiement, cote acheteuse.
+ *
+ * **Catalog ne declenche aucun transfert.** Cette page pre-remplit le clavier de
+ * l'acheteuse par un lien `tel:` portant la chaine USSD, avec le diese encode
+ * `%23`. Tout ce qui suit se passe dans la session de l'operateur : la
+ * confirmation, et surtout le code secret, que Catalog ne voit jamais et n'a
+ * aucun champ pour recevoir.
+ *
+ * Elle n'est pas indexee : elle ne veut rien dire sans ses parametres, et une
+ * page de paiement dans un moteur de recherche est un appel a l'hameconnage.
+ *
+ * L'ilot est monte en `client:only` : rendu cote serveur, il afficherait l'etat
+ * de chargement d'une configuration qu'il ne peut pas lire a la construction —
+ * et c'est bien le but, cette configuration doit rester changeable sans
+ * reconstruire le site.
+ */
+---
+
+<Base title="Payer — Catalog" description="Payer une vendeuse par mobile money." noindex>
+  <main class="mx-auto flex w-full max-w-[34rem] flex-col gap-4 px-4 py-6">
+    <h1 class="text-title font-bold leading-tight text-ink">Payer par mobile money</h1>
+
+    <p class="text-caption text-ink-2">
+      L'argent va de votre portefeuille a celui de la vendeuse, directement. Catalog ne recoit rien
+      et ne prend aucune commission.
+    </p>
+
+    <Payer client:only="preact" />
+
+    <noscript>
+      <p class="rounded-card border border-line bg-surface p-4 text-caption text-ink-2">
+        Cette page a besoin de JavaScript pour preparer la chaine a composer. Vous pouvez payer sans
+        elle : ouvrez le menu mobile money de votre operateur comme d'habitude — le numero de la
+        vendeuse et le montant sont ecrits en toutes lettres dans votre conversation WhatsApp.
+      </p>
+    </noscript>
+
+    <p class="text-caption text-muted">
+      Votre code secret ne se tape jamais sur Catalog. Il se saisit dans la session de votre
+      operateur.
+    </p>
+  </main>
+</Base>

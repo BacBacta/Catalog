@@ -17,6 +17,32 @@
  */
 const CIBLES = (process.env.LHCI_URLS ?? "").split(",").filter(Boolean);
 
+const ASSERTIONS = {
+  "categories:performance": ["error", { minScore: 0.95 }],
+  "categories:accessibility": ["error", { minScore: 1 }],
+  "categories:best-practices": ["warn", { minScore: 0.9 }],
+  "categories:seo": ["warn", { minScore: 0.9 }],
+  // Les deux metriques que le blueprint nomme.
+  "largest-contentful-paint": ["error", { maxNumericValue: 2500 }],
+  "cumulative-layout-shift": ["error", { maxNumericValue: 0.1 }],
+  /**
+   * Neutralises, avec la raison :
+   *  - `uses-http2` depend du serveur de mesure de Lighthouse CI, pas du CDN
+   *    qui servira reellement la boutique ;
+   *  - `errors-in-console` et `valid-source-maps` remontent les photos
+   *    absentes de `dist/` — elles vivent sur le CDN media — ce qui ne dit
+   *    rien de la page ;
+   *  - `is-crawlable` et `canonical` supposent un site indexable : la
+   *    boutique d'une vendeuse s'ouvre par un lien WhatsApp, pas par une
+   *    recherche.
+   */
+  "uses-http2": "off",
+  "errors-in-console": "off",
+  "valid-source-maps": "off",
+  "is-crawlable": "off",
+  canonical: "off",
+};
+
 module.exports = {
   ci: {
     collect: {
@@ -63,31 +89,23 @@ module.exports = {
       },
     },
     assert: {
-      assertions: {
-        "categories:performance": ["error", { minScore: 0.95 }],
-        "categories:accessibility": ["error", { minScore: 1 }],
-        "categories:best-practices": ["warn", { minScore: 0.9 }],
-        "categories:seo": ["warn", { minScore: 0.9 }],
-        // Les deux metriques que le blueprint nomme.
-        "largest-contentful-paint": ["error", { maxNumericValue: 2500 }],
-        "cumulative-layout-shift": ["error", { maxNumericValue: 0.1 }],
-        /**
-         * Neutralises, avec la raison :
-         *  - `uses-http2` depend du serveur de mesure de Lighthouse CI, pas du CDN
-         *    qui servira reellement la boutique ;
-         *  - `errors-in-console` et `valid-source-maps` remontent les photos
-         *    absentes de `dist/` — elles vivent sur le CDN media — ce qui ne dit
-         *    rien de la page ;
-         *  - `is-crawlable` et `canonical` supposent un site indexable : la
-         *    boutique d'une vendeuse s'ouvre par un lien WhatsApp, pas par une
-         *    recherche.
-         */
-        "uses-http2": "off",
-        "errors-in-console": "off",
-        "valid-source-maps": "off",
-        "is-crawlable": "off",
-        canonical: "off",
-      },
+      /**
+       * Deux jeux d'assertions, et la difference tient a une seule page.
+       *
+       * La rampe de paiement porte `noindex` : une page de paiement dans un moteur
+       * de recherche est un appel a l'hameconnage. Lighthouse compte cela comme un
+       * defaut de referencement — a juste titre pour une page de boutique, a tort
+       * pour celle-ci. On neutralise donc la categorie SEO **sur cette page-la
+       * uniquement**, plutot que de laisser un avertissement permanent qui
+       * apprendrait a ignorer les avertissements.
+       */
+      assertMatrix: [
+        { matchingUrlPattern: "^(?!.*/payer/).*$", assertions: ASSERTIONS },
+        {
+          matchingUrlPattern: ".*/payer/.*",
+          assertions: { ...ASSERTIONS, "categories:seo": "off" },
+        },
+      ],
     },
     upload: { target: "filesystem", outputDir: "./.lighthouseci" },
   },

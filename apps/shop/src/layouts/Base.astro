@@ -4,8 +4,10 @@ import "../styles/global.css";
 interface Props {
   title: string;
   description?: string;
+  /** Pages qui n'ont aucun sens sans parametres — la rampe de paiement. */
+  noindex?: boolean;
 }
-const { title, description = "Boutique sur Catalog" } = Astro.props;
+const { title, description = "Boutique sur Catalog", noindex = false } = Astro.props;
 ---
 <!doctype html>
 <html lang="fr">
@@ -14,6 +16,7 @@ const { title, description = "Boutique sur Catalog" } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex" />}
     <!-- Aucune police telechargee : la pile systeme coute zero octet. -->
   </head>
   <body>

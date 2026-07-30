@@ -7,6 +7,7 @@ import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
 import app from "./app.ts";
 import { createAuth, smsSenderDepuisEnv } from "./auth.ts";
+import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
@@ -14,6 +15,7 @@ import { mediaRoutes } from "./routes/media.ts";
 import { payoutRoutes } from "./routes/payout.ts";
 import { preuveRoutes } from "./routes/preuve.ts";
 import { productRoutes } from "./routes/products.ts";
+import { rampeRoutes } from "./routes/rampe.ts";
 import { sellerRoutes } from "./routes/seller.ts";
 
 /**
@@ -47,6 +49,11 @@ app.route(
 
 app.route("/api/articles", productRoutes({ prisma, session, storage }));
 app.route("/api/commandes", preuveRoutes({ prisma, session, chiffreur: resolveChiffreurSms() }));
+
+// La rampe : publique, sans session. C'est une acheteuse qui la lit, depuis la
+// boutique statique, et c'est ce qui permet de changer un code d'operateur sans
+// reconstruire le site.
+app.route("/api/rampe", rampeRoutes(rampeDepuisEnv(process.env)));
 
 // Uniquement quand le fournisseur factice est actif — donc jamais en production,
 // ou `ConsoleSmsSender` refuse de se construire.

@@ -143,6 +143,11 @@ afterAll(async () => {
 
 describeDb("controle n° 5 — un identifiant d'operateur ne vaut qu'une fois", () => {
   it("REJETTE le meme operator_tx_id soumis par DEUX VENDEUSES DIFFERENTES", async () => {
+    // L'identifiant porte `suivant()` ENTIER, pas ses quatre derniers
+    // caracteres : la colonne est UNIQUE et la base n'est pas remise a zero
+    // entre deux executions. Un suffixe court finit par se repeter, et le test
+    // echoue alors sur une collision avec sa propre execution precedente.
+    //
     // C'est tout l'enjeu : l'unicite est reseau-large, pas commande-large.
     // Deux vendeuses qui n'ont aucun lien entre elles ne peuvent pas reclamer
     // le meme paiement.
@@ -151,7 +156,7 @@ describeDb("controle n° 5 — un identifiant d'operateur ne vaut qu'une fois", 
     const cmdA = await creerCommande(a.id);
     const cmdB = await creerCommande(b.id);
 
-    const txId = `1760000${suivant().slice(-4)}`;
+    const txId = `1760000${suivant()}`;
     await creerPreuve(cmdA.id, "mtn", txId);
 
     await expect(creerPreuve(cmdB.id, "mtn", txId)).rejects.toThrow();
@@ -184,7 +189,7 @@ describeDb("les journaux sont en ajout seul", () => {
   it("UPDATE sur payment_proof echoue — une preuve ne se corrige pas", async () => {
     const v = await creerVendeuse(suivant());
     const c = await creerCommande(v.id);
-    const p = await creerPreuve(c.id, "mtn", `1760001${suivant().slice(-4)}`);
+    const p = await creerPreuve(c.id, "mtn", `1760001${suivant()}`);
 
     await expect(
       prisma.paymentProof.update({ where: { id: p.id }, data: { amountXaf: 1 } }),
@@ -194,7 +199,7 @@ describeDb("les journaux sont en ajout seul", () => {
   it("DELETE sur payment_proof echoue aussi", async () => {
     const v = await creerVendeuse(suivant());
     const c = await creerCommande(v.id);
-    const p = await creerPreuve(c.id, "mtn", `1760002${suivant().slice(-4)}`);
+    const p = await creerPreuve(c.id, "mtn", `1760002${suivant()}`);
 
     await expect(prisma.paymentProof.delete({ where: { id: p.id } })).rejects.toThrow();
   });

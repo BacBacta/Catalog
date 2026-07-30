@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  type ArticleBrut,
   type BoutiqueBrute,
   imagePublique,
   noteMoyenne,
@@ -132,7 +133,7 @@ describe("versBoutiquePublique", () => {
     // « non suivi », et l'afficher comme rupture ferait perdre des ventes.
     const sans = versBoutiquePublique({
       ...BRUTE,
-      articles: [{ ...(BRUTE.articles[0] as never), stock: 0 }],
+      articles: [{ ...(BRUTE.articles[0] as ArticleBrut), stock: 0 }],
     });
     expect(sans.articles[0]?.stock).toBeNull();
     expect(b.articles[0]?.stock).toBe(3);

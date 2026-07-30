@@ -26,3 +26,22 @@ export function normalizePhone(input: string): string | null {
   if (!/^[62]\d{8}$/.test(national)) return null;
   return `+237${national}`;
 }
+
+/**
+ * Mise en forme LISIBLE, telle qu'on dicte un numero au Cameroun :
+ * `6 77 12 34 56`.
+ *
+ * Elle sert la ou un numero doit etre recopie a la main sur un clavier de
+ * telephone — le numero de reversement, dans le message WhatsApp et sur l'ecran
+ * de paiement. Neuf chiffres colles se recopient mal, et un chiffre faux envoie
+ * l'argent chez quelqu'un d'autre.
+ *
+ * Une saisie non reconnue est rendue telle quelle : mieux vaut afficher ce qu'on
+ * a recu que de le mettre en forme de travers.
+ */
+export function formatPhone(input: string): string {
+  const n = normalizePhone(input);
+  if (!n) return input;
+  const national = n.slice(-9);
+  return `${national.slice(0, 1)} ${national.slice(1, 3)} ${national.slice(3, 5)} ${national.slice(5, 7)} ${national.slice(7, 9)}`;
+}
