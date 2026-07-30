@@ -27,11 +27,23 @@ export default defineConfig({
     { name: "clair", use: { colorScheme: "light" } },
     { name: "sombre", use: { colorScheme: "dark" } },
   ],
+  /**
+   * Les trois serveurs portent un `name` et laissent passer leur `stdout`.
+   *
+   * Ce n'est pas du confort. Quand un serveur ne repond pas, Playwright dit
+   * « Timed out waiting 120000ms from config.webServer. » sans nommer LEQUEL des
+   * trois, et `stdout` vaut « ignore » par defaut : le journal de CI ne montre
+   * alors rien du tout. Une panne survenue sur le runner et non reproductible en
+   * local devient indiagnosticable. Avec le nom en prefixe, le serveur qui n'a
+   * jamais annonce son port se lit d'un coup d'oeil.
+   */
   webServer: [
     {
+      name: "vendeuse:4173",
       command: "pnpm vite preview --port 4173 --strictPort",
       url: "http://127.0.0.1:4173",
       reuseExistingServer: !process.env.CI,
+      stdout: "pipe" as const,
       timeout: 120_000,
     },
     /**
@@ -59,11 +71,19 @@ export default defineConfig({
        * le serveur est mort. `preview` reste au premier plan et sert exactement
        * ce que le CDN servira — c'est-a-dire ce qu'on veut mesurer.
        */
+      name: "boutique:4174",
       command:
         "pnpm --filter @catalog/shop build && pnpm --filter @catalog/shop exec astro preview --port 4174 --host 127.0.0.1",
       url: "http://127.0.0.1:4174/",
       reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
+      stdout: "pipe" as const,
+      /**
+       * Plus long que les deux autres, et pour une raison precise : celui-ci
+       * CONSTRUIT la boutique avant de la servir. Les trois serveurs demarrent
+       * de front, sur un runner a quatre coeurs qui vient d'enchainer neuf
+       * audits Lighthouse — la construction n'a pas la machine pour elle seule.
+       */
+      timeout: 180_000,
     },
     /**
      * L'API n'est lancee que si une base est disponible. Le parcours vendeuse
@@ -79,9 +99,11 @@ export default defineConfig({
     ...(process.env.DATABASE_URL
       ? [
           {
+            name: "api:8787",
             command: "node ../api/src/server.ts",
             url: "http://127.0.0.1:8787/health",
             reuseExistingServer: !process.env.CI,
+            stdout: "pipe" as const,
             timeout: 120_000,
             env: {
               DATABASE_URL: process.env.DATABASE_URL,
