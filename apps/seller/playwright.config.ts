@@ -40,7 +40,22 @@ export default defineConfig({
   webServer: [
     {
       name: "vendeuse:4173",
-      command: "pnpm vite preview --port 4173 --strictPort",
+      /**
+       * `--host 127.0.0.1` est OBLIGATOIRE, comme pour la boutique plus bas.
+       *
+       * Sans lui, `vite preview` se lie a `localhost` — il l'annonce lui-meme :
+       * « Network: use --host to expose ». Sur une machine ou `localhost` ne
+       * resout qu'en IPv4, c'est equivalent. Sur un runner GitHub, dont le
+       * `/etc/hosts` porte AUSSI `::1 localhost`, le serveur peut n'ecouter que
+       * sur `::1` — alors que Playwright interroge `127.0.0.1`. Le serveur
+       * tourne, repond, et reste injoignable : 120 s d'attente puis un delai
+       * depasse qui ne nomme rien.
+       *
+       * Les serveurs sont lances EN SEQUENCE. Celui-ci etant le premier, son
+       * blocage empeche les deux autres de seulement demarrer — ce qui rendait
+       * la panne illisible.
+       */
+      command: "pnpm vite preview --port 4173 --strictPort --host 127.0.0.1",
       url: "http://127.0.0.1:4173",
       reuseExistingServer: !process.env.CI,
       stdout: "pipe" as const,
@@ -77,13 +92,7 @@ export default defineConfig({
       url: "http://127.0.0.1:4174/",
       reuseExistingServer: !process.env.CI,
       stdout: "pipe" as const,
-      /**
-       * Plus long que les deux autres, et pour une raison precise : celui-ci
-       * CONSTRUIT la boutique avant de la servir. Les trois serveurs demarrent
-       * de front, sur un runner a quatre coeurs qui vient d'enchainer neuf
-       * audits Lighthouse — la construction n'a pas la machine pour elle seule.
-       */
-      timeout: 180_000,
+      timeout: 120_000,
     },
     /**
      * L'API n'est lancee que si une base est disponible. Le parcours vendeuse
