@@ -1,0 +1,47 @@
+---
+import Recu from "../../islands/Recu.tsx";
+import Base from "../../layouts/Base.astro";
+
+/**
+ * La page publique de verification d'un recu — `/v/<code>`.
+ *
+ * **Une seule page est construite**, et la reecriture de `public/_redirects`
+ * envoie tous les `/v/*` dessus. C'est ce qui permet de garder la boutique en
+ * sortie STATIQUE : un recu n'existe pas au moment de la construction du site, et
+ * il change quand l'acheteuse contresigne. Un adaptateur SSR aurait resolu le
+ * probleme en changeant de stack et en retirant la boutique du cache CDN posé par
+ * l'ADR 0003. Voir l'ADR 0021.
+ *
+ * `getStaticPaths` rend un seul chemin, sans parametre : Astro produit
+ * `dist/v/index.html`, et la route attrape-tout fait que `astro dev` se comporte
+ * comme la production.
+ */
+export function getStaticPaths() {
+  return [{ params: { code: undefined } }];
+}
+---
+
+<Base
+  title="Vérifier un reçu — Catalog"
+  description="Contrôler un paiement mobile money par son identifiant de transaction."
+  noindex
+>
+  <main class="mx-auto flex w-full max-w-[34rem] flex-col gap-4 px-4 py-6">
+    <h1 class="text-title font-bold leading-tight text-ink">Vérifier un reçu</h1>
+
+    <p class="text-caption text-ink-2">
+      Catalog n'atteste rien de lui-même. Ce reçu porte l'identifiant de transaction de
+      l'opérateur : c'est lui, et lui seul, qui peut le confirmer.
+    </p>
+
+    <Recu client:only="preact" />
+
+    <noscript>
+      <p class="rounded-card border border-line bg-surface p-4 text-caption text-ink-2">
+        Cette page a besoin de JavaScript pour lire le reçu. Vous pouvez contrôler le paiement sans
+        elle : demandez l'identifiant de transaction, puis vérifiez-le dans l'historique de votre
+        opérateur ou en agence.
+      </p>
+    </noscript>
+  </main>
+</Base>

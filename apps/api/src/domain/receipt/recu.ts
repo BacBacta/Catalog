@@ -1,4 +1,5 @@
 import { canIssueReceipt, type OperatorKey, type ProofState } from "@catalog/contracts";
+import type { MarcheAsuivre, Recu, RefusRecu } from "@catalog/contracts/recu";
 import type { OperateurRampe } from "@catalog/contracts/ussd";
 
 /**
@@ -48,60 +49,11 @@ export interface CommandePourRecu {
 /* ─────────────────────────── ce qui sort ─────────────────────────── */
 
 /**
- * Comment controler le paiement aupres de l'operateur.
- *
- * **Le code vient de la configuration de la rampe (lot 9), jamais d'ici.** Un
- * recu qui figerait `*126#` enverrait l'acheteuse sur un code faux le jour ou
- * l'operateur en change, et ce serait l'interdit « figer un code USSD en
- * constante » d'AGENTS.md sous une autre forme.
+ * La forme du recu vit dans `@catalog/contracts/recu` : la boutique publique la
+ * lit aussi, et une declaration de chaque cote de la frontiere finirait par
+ * diverger.
  */
-export interface MarcheAsuivre {
-  /** Le code d'entree de l'operateur, tel qu'il est configure. */
-  codeOperateur: string;
-  /** `false` si quelqu'un a retire le drapeau du code d'entree. On le dit. */
-  codeVerifie: boolean;
-  etapes: string[];
-  /** Les intitules de menu n'ont pas ete releves : l'interface le signale. */
-  etapesAConfirmer: boolean;
-}
-
-export interface Recu {
-  reference: string;
-  code: string;
-  boutique: string;
-  operateur: { cle: OperatorKey; nom: string };
-  operatorTxId: string;
-  montantXaf: number;
-  totalXaf: number;
-  /** Ce qui reste du : un recu partiel est un recu, pas un solde efface. */
-  resteXaf: number;
-  /** Date lue dans le SMS de l'operateur. */
-  survenuA: Date | null;
-  /** Date a laquelle Catalog a constate — jamais confondue avec la precedente. */
-  constateA: Date;
-  contresigneA: Date | null;
-  etat: ProofState;
-  /** Le motif de SMS est-il reconstitue ? Le recu le porte, sans le cacher. */
-  aConfirmer: boolean;
-  marcheAsuivre: MarcheAsuivre;
-}
-
-/**
- * Pourquoi un recu n'existe pas. Rendu plutot que leve : la page publique doit
- * pouvoir dire ce qui manque, et un refus explicite vaut mieux qu'une page vide.
- */
-export type RefusRecu =
-  /** Aucune commande ne porte ce code. */
-  | "code_inconnu"
-  /**
-   * Depot direct declare a la main. Il fait avancer la commande, il ne donne
-   * PAS de recu — c'est precisement ce qui donne sa valeur au recu.
-   */
-  | "declare_non_trace"
-  /** La preuve n'est pas encore apportee. */
-  | "preuve_absente"
-  /** Une partie dement. Le recu se retire, la preuve reste. */
-  | "conteste";
+export type { MarcheAsuivre, Recu, RefusRecu };
 
 export type ResultatRecu = { recu: Recu } | { refus: RefusRecu };
 
