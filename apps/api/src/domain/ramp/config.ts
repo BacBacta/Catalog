@@ -52,6 +52,26 @@ const ETAPES: string[] = [
   "Confirmez avec votre code secret — il se tape chez l'operateur, jamais ici.",
 ];
 
+/**
+ * Comment controler une transaction deja passee, aupres de l'operateur.
+ *
+ * Le recu du lot 10 les affiche. Le code a composer n'est PAS ecrit ici : c'est
+ * `codeEntree`, celui qui est verifie, et le recu le lit dans cette meme
+ * configuration. Un recu qui figerait un code enverrait l'acheteuse sur un code
+ * faux le jour ou l'operateur en change — c'est l'interdit « figer un code USSD
+ * en constante » d'AGENTS.md, sous une autre forme.
+ *
+ * Comme `ETAPES`, ces intitules nomment les options par leur FONCTION : ils
+ * n'ont pas ete releves sur un telephone, et `etapesAConfirmer` porte la
+ * reserve jusque dans l'interface.
+ */
+const ETAPES_VERIFICATION: string[] = [
+  "Composez le code de votre operateur ci-dessus.",
+  "Demandez l'historique ou le releve de vos transactions.",
+  "Retrouvez la ligne portant cet identifiant, ce montant et cette date.",
+  "En cas de doute, presentez l'identifiant en agence : l'operateur seul fait foi.",
+];
+
 export const RAMPE_DEFAUT: RampeConfig = {
   version: 1,
   operateurs: [
@@ -75,6 +95,7 @@ export const RAMPE_DEFAUT: RampeConfig = {
         },
       ],
       etapes: ETAPES,
+      etapesVerification: ETAPES_VERIFICATION,
       etapesAConfirmer: true,
       // Mesure le 29/07/2026 : MTN accepte 5 F.
       montantMinXaf: 5,
@@ -99,6 +120,7 @@ export const RAMPE_DEFAUT: RampeConfig = {
         },
       ],
       etapes: ETAPES,
+      etapesVerification: ETAPES_VERIFICATION,
       etapesAConfirmer: true,
       // Mesure le 29/07/2026 : Orange refuse sous 10 F (erreur ER201).
       montantMinXaf: 10,

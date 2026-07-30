@@ -32,6 +32,7 @@ const operateur = (p: Partial<OperateurRampe>): OperateurRampe => ({
   codeEntree: canal({ id: "entree", modele: "*000#", verifie: true }),
   raccourcis: [canal({ id: "raccourci" })],
   etapes: ["Ouvrez le menu.", "Suivez les options."],
+  etapesVerification: ["Composez le code.", "Demandez l'historique."],
   etapesAConfirmer: true,
   montantMinXaf: 5,
   ...p,
