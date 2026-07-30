@@ -170,7 +170,22 @@ model Order {
 
   /// Code dictable au telephone, format XXXX-XXXX sur un alphabet non ambigu.
   /// C'est la cle de la page publique de verification du recu.
+  ///
+  /// Il IDENTIFIE, il n'autorise pas : quiconque a vu le recu le connait, par
+  /// construction. C'est ce qui le distingue de `buyerToken` ci-dessous.
   verificationCode String @unique @map("verification_code")
+
+  /// Le secret du lien de SUIVI de l'acheteuse (lot 10).
+  ///
+  /// La reference `CT-1043` se devine, et le code de verification est public
+  /// des qu'un recu est montre : ni l'un ni l'autre ne peut autoriser la
+  /// contre-signature, sans quoi il suffirait d'essayer des references pour
+  /// valider les paiements d'autrui — exactement la voix independante que le
+  /// controle n° 7 cherche a etablir.
+  ///
+  /// Nullable : les commandes creees avant le lot 10 n'en ont pas, et une
+  /// migration en expand ne rend pas une colonne obligatoire d'un coup.
+  buyerToken String? @unique @map("buyer_token")
 
   createdAt   DateTime  @default(now()) @map("created_at")
   /// 48 h apres la creation. Le job d'expiration du lot 7 s'appuie dessus.

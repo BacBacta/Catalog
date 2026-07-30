@@ -44,6 +44,7 @@ const operateur = (p: Partial<OperateurRampe> = {}): OperateurRampe => ({
     "Appuyez sur appeler.",
     "Confirmez avec votre code secret — il se tape chez l'operateur, jamais ici.",
   ],
+  etapesVerification: ["Composez le code.", "Demandez l'historique."],
   etapesAConfirmer: true,
   montantMinXaf: 5,
   ...p,

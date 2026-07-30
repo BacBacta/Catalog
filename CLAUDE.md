@@ -60,7 +60,20 @@ lot 4 (authentification par téléphone, numéro de reversement, limitation de
 débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutique
 publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau),
 lot 8 (analyseurs de SMS, sept contrôles, écran de collage), lot 9 (rampe de
-paiement).
+paiement), lot 10 (reçu vérifiable et contre-signature).
+
+Trois choses à savoir du lot 10 avant de toucher au reçu, toutes dans l'ADR 0021 :
+
+- **Deux clés, deux pouvoirs.** `verification_code` identifie et devient public
+  dès qu'un reçu est montré ; `buyer_token` autorise la contre-signature, et lui
+  seul. Ne jamais faire ouvrir le suivi par la référence ou par le code : il
+  suffirait d'avoir vu un reçu pour valider le paiement d'autrui.
+- **`payment_proof` est en ajout seul**, donc `countersigned_at` est une colonne
+  MORTE : la date de contre-signature vit dans `order_event`. La colonne se
+  retire en phase *contract*, pas avant.
+- **`/v/?c=<code>` est la forme dont le produit dépend**, pas `/v/<code>`. Une
+  sortie statique ne connaît que les chemins énumérés à la construction ; la
+  jolie URL n'existe que derrière la réécriture de `public/_redirects`.
 
 Trois choses à savoir du lot 9 avant de toucher au paiement, toutes dans
 l'ADR 0020 :

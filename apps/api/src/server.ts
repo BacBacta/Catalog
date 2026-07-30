@@ -16,6 +16,7 @@ import { payoutRoutes } from "./routes/payout.ts";
 import { preuveRoutes } from "./routes/preuve.ts";
 import { productRoutes } from "./routes/products.ts";
 import { rampeRoutes } from "./routes/rampe.ts";
+import { recuRoutes, suiviRoutes } from "./routes/recu.ts";
 import { sellerRoutes } from "./routes/seller.ts";
 
 /**
@@ -53,7 +54,13 @@ app.route("/api/commandes", preuveRoutes({ prisma, session, chiffreur: resolveCh
 // La rampe : publique, sans session. C'est une acheteuse qui la lit, depuis la
 // boutique statique, et c'est ce qui permet de changer un code d'operateur sans
 // reconstruire le site.
-app.route("/api/rampe", rampeRoutes(rampeDepuisEnv(process.env)));
+const rampe = rampeDepuisEnv(process.env);
+app.route("/api/rampe", rampeRoutes(rampe));
+
+// Le recu et le suivi : publics, sans session. C'est une ACHETEUSE qui les lit,
+// et c'est le principe meme du recu — n'importe qui doit pouvoir controler.
+app.route("/api/recu", recuRoutes({ prisma, rampe, session }));
+app.route("/api/suivi", suiviRoutes({ prisma, rampe }));
 
 // Uniquement quand le fournisseur factice est actif — donc jamais en production,
 // ou `ConsoleSmsSender` refuse de se construire.

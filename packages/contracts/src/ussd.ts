@@ -60,9 +60,22 @@ export interface OperateurRampe {
   /** Les etapes ecrites en clair, affichees SOUS le bouton, toujours. */
   etapes: string[];
   /**
+   * Comment CONTROLER une transaction deja passee, aupres de l'operateur.
+   *
+   * C'est ce que le recu du lot 10 affiche, et c'est pour cela que ces phrases
+   * vivent dans la configuration et non dans un gabarit de recu : un recu qui
+   * figerait un code enverrait l'acheteuse sur un code faux le jour ou
+   * l'operateur en change. Le code a composer est `codeEntree`, celui qui est
+   * verifie.
+   */
+  etapesVerification: string[];
+  /**
    * Les intitules de menu exacts n'ont pas ete releves sur un telephone. Tant que
    * ce drapeau est `true`, l'interface dit que les libelles peuvent differer
    * plutot que de faire passer une supposition pour une consigne.
+   *
+   * Il couvre les DEUX listes ci-dessus : elles nomment toutes deux des options
+   * de menu, et elles viennent de la meme source — c'est-a-dire d'aucune.
    */
   etapesAConfirmer: boolean;
   /**

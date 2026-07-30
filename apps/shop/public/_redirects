@@ -1,0 +1,16 @@
+# Reecritures de la boutique publique.
+#
+# `/v/<code>` et `/suivi/<jeton>` dependent d'une donnee qui n'existe PAS au
+# moment de la construction du site : le recu n'est pas ecrit, et il change quand
+# l'acheteuse contresigne. Astro produit donc UNE page par route, et ces regles
+# la servent pour tous les chemins de la famille — le code et le jeton sont lus
+# dans l'URL par l'ilot, qui interroge l'API a l'execution.
+#
+# Le code 200 est un REECRITURE, pas une redirection : l'URL vue par l'acheteuse
+# reste `/v/ACDE-4679`, ce qui compte pour un lien qu'on recopie et qu'on partage.
+#
+# L'alternative etait un adaptateur SSR. Elle aurait change la stack figee et
+# retire la boutique du cache CDN pose par l'ADR 0003, pour deux pages. Voir
+# l'ADR 0021.
+/v/*      /v/index.html      200
+/suivi/*  /suivi/index.html  200

@@ -37,8 +37,11 @@ jobs:
       DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
       - uses: actions/checkout@v5
+      # PAS de `version:` ici. `pnpm/action-setup` REFUSE que la version soit
+      # declaree a deux endroits, et `packageManager` de `package.json` en est
+      # deja la source de verite — c'est aussi elle que `corepack` lit en local.
+      # Poser les deux fait echouer l'action avant meme l'installation.
       - uses: pnpm/action-setup@v4
-        with: { version: 11 }
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -100,8 +103,11 @@ jobs:
       DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
       - uses: actions/checkout@v5
+      # PAS de `version:` ici. `pnpm/action-setup` REFUSE que la version soit
+      # declaree a deux endroits, et `packageManager` de `package.json` en est
+      # deja la source de verite — c'est aussi elle que `corepack` lit en local.
+      # Poser les deux fait echouer l'action avant meme l'installation.
       - uses: pnpm/action-setup@v4
-        with: { version: 11 }
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -115,7 +121,15 @@ jobs:
       # bride (Moto G Power, Slow 4G) et non sur un poste de developpement :
       # c'est la seule facon d'empecher la derive vers une application qui ne
       # marche bien que chez ceux qui l'ecrivent.
-      - run: pnpm exec playwright install --with-deps chromium
+      #
+      # `--filter @catalog/seller` n'est PAS decoratif. `@playwright/test` est
+      # une dependance de `apps/seller`, pas de la racine : pnpm n'installe pas
+      # a plat, donc la racine n'a que ses propres binaires et `pnpm exec
+      # playwright` y echoue sur « Command not found ». En local la commande
+      # semble marcher — elle attrape un playwright global du PATH, souvent
+      # d'une AUTRE version, qui installerait le mauvais navigateur. Le filtre
+      # garantit la version du depot, la seule que `pnpm e2e` utilisera.
+      - run: pnpm --filter @catalog/seller exec playwright install --with-deps chromium
       # Le serveur de previsualisation sert le build : il faut donc construire.
       - run: pnpm --filter @catalog/seller build
       - name: Construction de la boutique publique

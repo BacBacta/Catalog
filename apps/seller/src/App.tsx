@@ -8,6 +8,7 @@ import { Connexion } from "./routes/Connexion.tsx";
 import { Dashboard } from "./routes/Dashboard.tsx";
 import { Reversement } from "./routes/Reversement.tsx";
 import { UiDemo } from "./routes/UiDemo.tsx";
+import { VerifierRecu } from "./routes/VerifierRecu.tsx";
 
 const router = createBrowserRouter([
   { path: "/", element: <Dashboard /> },
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
   { path: "/articles/nouveau", element: <ArticleForm /> },
   { path: "/articles/:id", element: <ArticleForm /> },
   { path: "/commandes/:orderId/preuve", element: <CollerSms /> },
+  { path: "/verifier", element: <VerifierRecu /> },
   // Page de demonstration du design system (lot 2). Elle est la cible du
   // controle axe-core et de la mesure de poids JS.
   { path: "/demo", element: <UiDemo /> },

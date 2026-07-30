@@ -1,0 +1,36 @@
+---
+import Suivi from "../../islands/Suivi.tsx";
+import Base from "../../layouts/Base.astro";
+
+/**
+ * Le suivi de l'acheteuse — `/suivi/<jeton>`.
+ *
+ * Meme construction que `/v/` : une page unique, et la reecriture de
+ * `public/_redirects` envoie tous les `/suivi/*` dessus.
+ *
+ * Le lien porte un SECRET, pas une reference : c'est lui qui ouvre la
+ * contre-signature. La page n'est evidemment pas indexee.
+ */
+export function getStaticPaths() {
+  return [{ params: { jeton: undefined } }];
+}
+---
+
+<Base
+  title="Suivi de commande — Catalog"
+  description="Suivre une commande et confirmer un paiement."
+  noindex
+>
+  <main class="mx-auto flex w-full max-w-[34rem] flex-col gap-4 px-4 py-6">
+    <h1 class="text-title font-bold leading-tight text-ink">Votre commande</h1>
+
+    <Suivi client:only="preact" />
+
+    <noscript>
+      <p class="rounded-card border border-line bg-surface p-4 text-caption text-ink-2">
+        Cette page a besoin de JavaScript. Sans elle, la vendeuse peut vous dire où en est votre
+        commande sur WhatsApp — et le reçu, lui, reste vérifiable par son code.
+      </p>
+    </noscript>
+  </main>
+</Base>
