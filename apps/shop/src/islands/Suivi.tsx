@@ -24,12 +24,19 @@ import { CarteRecu, CarteRefus } from "./recu/CarteRecu.tsx";
 
 const API_BASE = (import.meta.env.PUBLIC_API_BASE ?? "").replace(/\/$/, "");
 
-/** Le jeton, extrait du chemin. Fonction PURE. */
-export function jetonDuChemin(chemin: string): string | null {
+/**
+ * Le jeton, extrait de l'URL. Fonction PURE.
+ *
+ * Deux formes, comme pour le recu : `/suivi/<jeton>` — la jolie, qui exige une
+ * reecriture cote hebergement — et `/suivi/?t=<jeton>`, qui n'exige rien.
+ */
+export function jetonDuChemin(chemin: string, requete = ""): string | null {
   const segments = chemin.split("/").filter(Boolean);
   if (segments[0] !== "suivi") return null;
-  const jeton = segments[1];
-  return jeton ? decodeURIComponent(jeton) : null;
+  const segment = segments[1];
+  if (segment) return decodeURIComponent(segment);
+  const t = new URLSearchParams(requete).get("t");
+  return t ? t.trim() || null : null;
 }
 
 interface Suivi {
@@ -58,7 +65,10 @@ export default function SuiviAcheteuse() {
   const [envoi, setEnvoi] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const jeton = typeof window === "undefined" ? null : jetonDuChemin(window.location.pathname);
+  const jeton =
+    typeof window === "undefined"
+      ? null
+      : jetonDuChemin(window.location.pathname, window.location.search);
 
   async function charger() {
     if (!jeton) return setEtat({ nom: "inconnu" });

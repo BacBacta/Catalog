@@ -18,18 +18,24 @@ import { CarteRecu, CarteRefus } from "./recu/CarteRecu.tsx";
 const API_BASE = (import.meta.env.PUBLIC_API_BASE ?? "").replace(/\/$/, "");
 
 /**
- * Le code, extrait du chemin. Fonction PURE : elle prend le chemin, elle ne lit
- * pas `location`.
+ * Le code, extrait de l'URL. Fonction PURE : elle prend chemin et requete, elle
+ * ne lit pas `location`.
  *
- * Le dernier segment non vide, et rien d'autre : `/v/ACDE-4679`, `/v/ACDE-4679/`
- * et `/v/acde4679` menent tous au meme endroit. Le serveur normalise ensuite —
- * une acheteuse recopie un code a la main.
+ * **Deux formes, et la seconde est celle qui marche partout.** `/v/ACDE-4679`
+ * est la jolie, celle qu'on partage ; elle exige une reecriture cote
+ * hebergement, parce qu'une sortie statique ne connait que les chemins enumeres
+ * a la construction. `/v/?c=ACDE-4679` ne demande AUCUNE configuration : elle
+ * fonctionne en developpement, en previsualisation et derriere n'importe quel
+ * CDN. Le produit ne depend donc pas d'un reglage d'hebergement — la jolie URL
+ * est un confort par-dessus. Voir l'ADR 0021.
  */
-export function codeDuChemin(chemin: string): string | null {
+export function codeDuChemin(chemin: string, requete = ""): string | null {
   const segments = chemin.split("/").filter(Boolean);
   if (segments[0] !== "v") return null;
-  const code = segments[1];
-  return code ? decodeURIComponent(code) : null;
+  const segment = segments[1];
+  if (segment) return decodeURIComponent(segment);
+  const c = new URLSearchParams(requete).get("c");
+  return c ? c.trim() || null : null;
 }
 
 type Etat =
@@ -44,7 +50,7 @@ export default function Recu() {
   const [etat, setEtat] = useState<Etat>({ nom: "chargement" });
 
   useEffect(() => {
-    const code = codeDuChemin(window.location.pathname);
+    const code = codeDuChemin(window.location.pathname, window.location.search);
     if (!code) {
       setEtat({ nom: "vide" });
       return;

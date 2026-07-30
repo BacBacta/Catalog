@@ -80,6 +80,17 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
       </Card>
 
       <Card>
+        <CardTitle>Verifier un recu</CardTitle>
+        <CardNote>
+          Une cliente vous montre un recu ? Controlez-le avant d'expedier : c'est la que la fraude
+          se joue.
+        </CardNote>
+        <Button render={<Link to="/verifier" />} tone="outline" size="lg">
+          Verifier un recu
+        </Button>
+      </Card>
+
+      <Card>
         <CardTitle>Votre boutique</CardTitle>
         <CardNote>
           {seller.city} · lien public <span className="font-mono text-ink">/{seller.slug}</span>

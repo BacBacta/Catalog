@@ -35,6 +35,37 @@ export default defineConfig({
       timeout: 120_000,
     },
     /**
+     * La BOUTIQUE publique, pour les deux pages du lot 10 : `/v/<code>` et
+     * `/suivi/<jeton>`.
+     *
+     * En mode `dev` et non `preview`, deliberement : c'est le mode qui exerce
+     * les routes attrape-tout `[...code]` telles qu'elles seront servies en
+     * production par la reecriture de `public/_redirects`. `preview` exigerait
+     * en plus une construction prealable, que rien ne garantit ici.
+     *
+     * L'API n'est pas sollicitee : ces tests interceptent `/api/**`. Ce qu'ils
+     * mesurent — le rendu, l'accessibilite, ce que l'ecran dit et ne dit pas —
+     * n'en depend pas, et le serveur est deja couvert par ses propres tests
+     * contre une vraie base.
+     */
+    {
+      // `astro dev` directement : le script `dev` du paquet fixe deja un port,
+      // et un second `--port` en argument ne le remplace pas.
+      /**
+       * `build` puis `preview`, et NON `dev`.
+       *
+       * `astro dev` passe en arriere-plan des qu'il detecte un environnement
+       * d'agent : le processus rend la main aussitot, et Playwright conclut que
+       * le serveur est mort. `preview` reste au premier plan et sert exactement
+       * ce que le CDN servira — c'est-a-dire ce qu'on veut mesurer.
+       */
+      command:
+        "pnpm --filter @catalog/shop build && pnpm --filter @catalog/shop exec astro preview --port 4174 --host 127.0.0.1",
+      url: "http://127.0.0.1:4174/",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    /**
      * L'API n'est lancee que si une base est disponible. Le parcours vendeuse
      * s'appuie sur un VRAI serveur — session, OTP, journal — parce qu'une API
      * simulee ne prouverait rien de ce que le lot 4 doit tenir. Sans
@@ -63,6 +94,23 @@ export default defineConfig({
                 process.env.BETTER_AUTH_SECRET ?? "secret-de-test-e2e-32-caracteres-minimum",
               // Le navigateur voit l'origine de l'app, pas celle de l'API.
               TRUSTED_ORIGINS: "http://127.0.0.1:4173,http://localhost:4173",
+              /**
+               * Les plafonds PAR ADRESSE sont releves pour la suite, et
+               * seulement ceux-la.
+               *
+               * Tous les tests sortent par `127.0.0.1` : c'est litteralement le
+               * cas que l'ADR du lot 4 signale — plusieurs vendeuses derriere une
+               * meme adresse publique. Au bout de quelques executions, la suite
+               * s'enferme dehors et echoue sur « l'envoi du code a echoue »,
+               * c'est-a-dire pour la bonne raison au mauvais endroit.
+               *
+               * Le plafond PAR NUMERO reste a sa valeur de production : c'est lui
+               * que `parcours-vendeuse.spec.ts` verifie, et le desserrer viderait
+               * ce test de son sens.
+               */
+              OTP_MAX_PAR_IP: "100000",
+              OTP_MAX_PAR_NUMERO_PAR_JOUR: "1000",
+              OTP_MAX_GLOBAL_PAR_JOUR: "1000000",
             },
           },
         ]
