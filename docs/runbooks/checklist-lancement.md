@@ -73,6 +73,22 @@ Chacune a un test qui prouve son échec (`attaques-preuve.test.ts`) :
 > métrique de sécurité, pas de confort.** S'il s'effondre, la seule protection
 > contre la fabrication s'effondre avec lui.
 
+> **Un garde-fou d'AGENTS.md est en veille, par décision de produit (ADR 0025).**
+> Avec `SMS_PROVIDER=whatsapp`, les deux codes à usage unique arrivent sur la
+> même puce : la vérification du **numéro de reversement** n'atteste alors plus
+> le contrôle de ce numéro, seulement le contrôle du compte. Quelqu'un qui a la
+> session WhatsApp de la vendeuse sous les yeux peut donc rediriger les
+> encaissements, et la vérification aura formellement eu lieu.
+>
+> Ce qui borne la portée : l'attaque exige un accès au téléphone ou à la
+> session, le changement s'écrit dans le journal d'audit en ajout seul, et
+> **avec `SMS_PROVIDER=orange` le garde-fou est intact** — c'est une propriété
+> du canal, pas une suppression de code. Le refermer est un aiguillage dans
+> `smsSenderDepuisEnv`, pas une migration.
+>
+> **À décider avant l'ouverture : la date de ce retour, pas l'intention.** Un
+> garde-fou reporté sans échéance est un garde-fou supprimé.
+
 ---
 
 ## 3. La tenue en charge
@@ -175,6 +191,7 @@ session de développement ne peut prendre à la place de quelqu'un.
 | 5.3 | Qui est prévenu, et par quel canal, quand l'interrupteur bascule | ❌ |
 | 5.4 | Taille de la première vague | ❌ |
 | 5.5 | Le seuil de contre-signature au-dessous duquel on s'inquiète | ❌ |
+| 5.6 | La date à laquelle le garde-fou du numéro de reversement revient (ADR 0025) | ❌ |
 
 Le 5.5 mérite d'être posé avant l'ouverture, pas après : c'est la seule
 protection contre la fabrication de preuves, et un seuil décidé après coup se
