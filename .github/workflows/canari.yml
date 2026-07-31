@@ -49,9 +49,20 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Le client Prisma est necessaire a la RESOLUTION des imports du paquet,
-      # meme si ce test ne touche aucune base.
-      - run: pnpm db:generate
+      # PAS de `pnpm db:generate` ici, et c'est verifie plutot que suppose.
+      #
+      # La premiere version de ce fichier l'appelait « pour la resolution des
+      # imports ». C'etait faux sur les deux plans. D'abord ca cassait : Prisma 7
+      # sort l'URL du schema et la lit dans `prisma.config.ts`, qui echoue en
+      # `PrismaConfigEnvError` quand `DATABASE_URL` est absente — or ce job n'en
+      # pose aucune, deliberement. Ensuite c'etait inutile : les trois fichiers
+      # de test n'importent que `src/domain/proof` et `@catalog/contracts`, tous
+      # deux purs. Mesure en ecartant le client genere : 86 tests, tous verts.
+      #
+      # Ajouter une `DATABASE_URL` factice aurait fait passer le job en rendant
+      # le probleme invisible. Le domaine de la preuve est PUR (lot 7) : c'est
+      # ce qui rend ce canari court, sans dependance a reveiller, et executable
+      # un jour d'incident ou la base est justement ce qui ne va pas.
       - name: Canari — la specification et les motifs disent la meme chose
         run: pnpm --filter @catalog/api exec vitest run src/__tests__/canari-formats.test.ts
       - name: Motifs de SMS — la suite complete
