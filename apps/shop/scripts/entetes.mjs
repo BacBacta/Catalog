@@ -117,9 +117,27 @@ const COMMUNS = [
  * `/v/ACDE-4679` rend un 404 — seule `/v/?c=ACDE-4679` fonctionne, et c'est
  * justement la forme dont le produit ne doit PAS dependre (ADR 0021).
  */
+/**
+ * ── La destination est `/v`, PAS `/v/index.html`, et c'est mesure ─────────
+ *
+ * `cleanUrls: true` fait de `/v/index.html` une URL NON CANONIQUE : Vercel y
+ * repond 308 vers `/v`. Une reecriture qui pointe dessus ne sert donc rien, et
+ * `/v/ACDE-4679` rendait 404 — exactement le defaut que ces regles existent
+ * pour empecher.
+ *
+ * Constate sur un vrai deploiement, pas deduit :
+ *
+ *     /v/ACDE-4679     404
+ *     /v/index.html    308 -> /v
+ *     /v               200
+ *
+ * `public/_redirects` garde `/v/index.html` : Netlify et Cloudflare Pages
+ * servent ce chemin tel quel. Les deux syntaxes divergent ici, et c'est la
+ * raison pour laquelle elles ne partagent pas cette liste.
+ */
 const REECRITURES = [
-  ["/v/:reste*", "/v/index.html"],
-  ["/suivi/:reste*", "/suivi/index.html"],
+  ["/v/:reste*", "/v"],
+  ["/suivi/:reste*", "/suivi"],
 ];
 
 /**

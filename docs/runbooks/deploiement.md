@@ -216,8 +216,16 @@ donner `DATABASE_URL` pour l'instantané, ce qui n'a aucune raison d'être.
 pnpm db:generate                      # le client Prisma, que l'instantané importe
 pnpm shop:snapshot                    # a besoin de DATABASE_URL
 PUBLIC_API_BASE=https://api-preprod.catalog.cm pnpm --filter @catalog/shop build
-npx vercel deploy apps/shop/dist --yes --prod
+cd apps/shop/dist && VERCEL_PROJECT_ID=… VERCEL_ORG_ID=… npx vercel deploy --yes --prod
 ```
+
+> **Cibler le projet par son identifiant, pas par le répertoire.** Un
+> `vercel deploy apps/shop/dist` écrit un `.vercel/project.json` **dans `dist/`**
+> et lie le déploiement à un projet nommé d'après le répertoire — `dist`. Le
+> déploiement suivant part alors dans ce projet parasite, et le vrai continue de
+> servir l'ancienne version, **au vert**. Constaté : deux projets créés, dont un
+> nommé `dist`. Les variables `VERCEL_PROJECT_ID` / `VERCEL_ORG_ID` lèvent
+> l'ambiguïté — c'est déjà ce que fait le workflow.
 
 > **`--prod`, même en préproduction.** Sans lui, Vercel crée une
 > *prévisualisation* : une URL jetable. `preprod.catalog.cm` continue de servir
@@ -237,6 +245,18 @@ curl -sI https://preprod.catalog.cm/ | grep -i "content-security-policy\|referre
 curl -sI https://preprod.catalog.cm/v/ACDE-4679 | head -1   # 200, pas 404
 curl -sI https://preprod.catalog.cm/suivi/xxxx | head -1    # 200, pas 404
 ```
+
+> **Les deux dernières lignes ont déjà attrapé un vrai défaut**, sur le premier
+> déploiement réel du 31/07/2026. Les en-têtes passaient — donc `vercel.json`
+> était bien lu — mais `/v/ACDE-4679` rendait **404**. Cause : `cleanUrls: true`
+> fait de `/v/index.html` une URL non canonique, à laquelle Vercel répond 308
+> vers `/v`. Une réécriture qui pointe dessus ne sert rien. La destination est
+> désormais `/v`, et `public/_redirects` garde `/v/index.html` parce que Netlify
+> et Cloudflare, eux, servent ce chemin tel quel.
+>
+> Vérifié après correction : `/v/ACDE-4679` → 200, et le corps servi porte bien
+> `<title>Vérifier un reçu — Catalog</title>`. **Ne pas se contenter du code de
+> statut** : une page d'accueil rendue à la place du reçu répondrait 200 aussi.
 
 ---
 
