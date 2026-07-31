@@ -1,5 +1,4 @@
 import { createPrismaClient } from "@catalog/db";
-import { demarrerObservabilite } from "./observabilite/demarrage.ts";
 import { serve } from "@hono/node-server";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
 import { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
@@ -10,6 +9,7 @@ import app from "./app.ts";
 import { createAuth, smsSenderDepuisEnv } from "./auth.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
+import { demarrerObservabilite } from "./observabilite/demarrage.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { commandeRoutes } from "./routes/commandes.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
