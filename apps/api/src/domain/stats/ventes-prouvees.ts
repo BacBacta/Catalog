@@ -1,4 +1,4 @@
-import type { ProofState } from "@catalog/contracts";
+import type { ProofState, RepartitionVentes } from "@catalog/contracts";
 
 /**
  * La part des ventes PROUVEES.
@@ -19,23 +19,18 @@ import type { ProofState } from "@catalog/contracts";
  * apporte.
  */
 
-export interface PartVentesProuvees {
-  /** SMS operateur analyse, sept controles passes. */
-  prouve: number;
-  /** En plus du SMS, l'acheteuse a confirme. Deux voix : le plus fort. */
-  contresigne: number;
-  /** Depot direct declare a la main. Il compte, il n'est pas prouve. */
-  nonTrace: number;
-  /**
-   * Total des ventes RETENUES au denominateur.
-   *
-   * Les commandes contestees et celles encore en attente n'y sont PAS : une
-   * vente dont on ne sait pas encore si elle a ete payee ne dit rien sur le
-   * contournement, et l'y compter ferait plonger l'indicateur a chaque nouvelle
-   * commande de la journee.
-   */
-  total: number;
-}
+/**
+ * La repartition vient de `@catalog/contracts` et n'est PAS redeclaree ici.
+ *
+ * AGENTS.md §6 : on ne redeclare jamais un type a la main de part et d'autre
+ * d'une frontiere. Cette repartition traverse la frontiere HTTP — l'ecran
+ * statistiques la lit telle quelle — donc sa forme appartient au contrat, et le
+ * domaine s'y conforme au lieu d'en tenir une copie qui divergera.
+ *
+ * Ce que le contrat NE dit pas, et que ce fichier tient : quels etats entrent au
+ * denominateur, et pourquoi. Un schema decrit une forme, pas une regle.
+ */
+export type { RepartitionVentes } from "@catalog/contracts";
 
 /**
  * Part, en POURCENTAGE ENTIER, de ce qui est reellement prouve.
@@ -47,7 +42,7 @@ export interface PartVentesProuvees {
  *
  * `contresigne` compte comme prouve : il est plus fort, pas different.
  */
-export function pourcentProuve(part: PartVentesProuvees): number | null {
+export function pourcentProuve(part: RepartitionVentes): number | null {
   if (part.total <= 0) return null;
   return Math.round(((part.prouve + part.contresigne) * 100) / part.total);
 }
@@ -61,14 +56,34 @@ export function pourcentProuve(part: PartVentesProuvees): number | null {
  * encore de reponse. Les compter comme des echecs de preuve accuserait la
  * vendeuse d'un fait qui n'est pas etabli.
  */
-export function repartirVentes(etats: readonly ProofState[]): PartVentesProuvees {
-  const part: PartVentesProuvees = { prouve: 0, contresigne: 0, nonTrace: 0, total: 0 };
-  for (const e of etats) {
-    if (e === "prouve") part.prouve += 1;
-    else if (e === "contresigne") part.contresigne += 1;
-    else if (e === "declare_non_trace") part.nonTrace += 1;
+export function repartirVentes(etats: readonly ProofState[]): RepartitionVentes {
+  return repartirComptes(etats.map((etat) => ({ etat, nombre: 1 })));
+}
+
+/**
+ * La meme repartition, a partir de COMPTES deja agreges.
+ *
+ * C'est la forme que rend un `GROUP BY` : cinq lignes, pas cinq mille. La base
+ * sait compter mieux que nous, et deplier ses comptes en un tableau d'etats pour
+ * les recompter serait un aller-retour gratuit — sur la vendeuse qui a le plus
+ * de commandes, c'est-a-dire exactement celle qu'il ne faut pas ralentir.
+ *
+ * `repartirVentes` s'y ramene : une seule regle decide de ce qui entre au
+ * denominateur, et il n'y a pas deux endroits ou l'oublier.
+ */
+export function repartirComptes(
+  comptes: ReadonlyArray<{ etat: ProofState; nombre: number }>,
+): RepartitionVentes {
+  const part: RepartitionVentes = { prouve: 0, contresigne: 0, nonTrace: 0, total: 0 };
+  for (const { etat, nombre } of comptes) {
+    if (!Number.isInteger(nombre) || nombre < 0) {
+      throw new Error(`compte invalide pour ${etat} : ${nombre}`);
+    }
+    if (etat === "prouve") part.prouve += nombre;
+    else if (etat === "contresigne") part.contresigne += nombre;
+    else if (etat === "declare_non_trace") part.nonTrace += nombre;
     else continue; // attendu, conteste : hors champ, pas au denominateur.
-    part.total += 1;
+    part.total += nombre;
   }
   return part;
 }

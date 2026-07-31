@@ -21,6 +21,33 @@ export {
   StatusBadge,
   type StatusBadgeProps,
 } from "./blocks.tsx";
+/* Graphiques (lot 13). Aucune bibliotheque : un `<svg>` et des boites en CSS.
+   `Graphique` EXIGE les colonnes et les lignes de sa vue tableau — la regle
+   « chaque graphique a une vue tableau » est donc tenue par le typage. */
+export {
+  aire,
+  type Cadre,
+  empiler,
+  graduations,
+  hautDEchelle,
+  indicesAEtiqueter,
+  jourCourt,
+  ligne,
+  nombre,
+  type Point,
+  projeter,
+  type SegmentEmpile,
+} from "./charts/echelle.ts";
+export { Graphique, type GraphiqueProps, type LigneTableau } from "./charts/Graphique.tsx";
+export {
+  BarreEmpilee,
+  type BarreItem,
+  Barres,
+  type BarresProps,
+  Courbe,
+  type CourbeProps,
+  type SegmentProps,
+} from "./charts/traces.tsx";
 export { MoneyDisplay, type MoneyDisplayProps, type MoneySize } from "./money-display.tsx";
 export { OtpField, type OtpFieldProps } from "./otp-field.tsx";
 /* Primitives sur Base UI. */

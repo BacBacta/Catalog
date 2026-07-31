@@ -44,6 +44,9 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm size
 
 Les cinq doivent passer. `pnpm size` fait échouer la boutique publique
 au-delà de 30 Ko de JS — c'est une règle de compilation, pas une intention.
+Depuis le lot 13 il mesure **deux** paquets : la boutique, et l'écran
+statistiques de l'app vendeuse (8 Ko, plafond choisi pour qu'aucune
+bibliothèque de graphiques n'y entre).
 
 ## Méthode
 
@@ -60,7 +63,28 @@ lot 4 (authentification par téléphone, numéro de reversement, limitation de
 débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutique
 publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau),
 lot 8 (analyseurs de SMS, sept contrôles, écran de collage), lot 9 (rampe de
-paiement), lot 10 (reçu vérifiable et contre-signature).
+paiement), lot 10 (reçu vérifiable et contre-signature), lot 11 (cycle de vie des
+commandes), lot 12 (avis vérifiés et réputation), lot 13 (écran statistiques).
+
+Quatre choses à savoir du lot 13 avant de toucher à un graphique, toutes dans
+l'ADR 0022 :
+
+- **Il n'y a aucune bibliothèque de graphiques, et trois contrôles le
+  garantissent** : une liste de paquets refusés dans tous les `package.json`, un
+  test qui lit les imports de `packages/ui/src/charts/`, et le plafond de 8 Ko du
+  paquet de l'écran. La plus légère des bibliothèques pèse ~10 Ko à elle seule.
+- **`Graphique` EXIGE ses colonnes et ses lignes.** On ne peut pas rendre un
+  graphique sans sa vue tableau : la règle est tenue par le typage, pas par la
+  discipline. Le tableau vit dans un `<details>` et s'ouvre sans JavaScript.
+- **Les couleurs sortent d'un validateur de palette**, jamais de l'œil, et
+  `tokens.test.ts` re-mesure les écarts de clarté à chaque exécution. Les deux
+  rampes s'inversent entre les thèmes : la marche la plus profonde est celle qui
+  contraste le plus avec SA surface. « Non tracé » est **gris**, jamais rouge.
+- **Deux informations manquantes sont DITES, pas comblées** (AGENTS.md §7.7) :
+  les sources de trafic n'existent nulle part, et `product_view` n'est alimentée
+  par aucun chemin de code — la boutique statique ne compte pas ses pages vues.
+  `stats-instrumentation.test.ts` empêche le drapeau `vuesInstrumentees` de
+  mentir dans un sens comme dans l'autre.
 
 Trois choses à savoir du lot 10 avant de toucher au reçu, toutes dans l'ADR 0021 :
 
