@@ -100,12 +100,26 @@ function politique(empreintes) {
 
 /** Les en-tetes communs a toutes les reponses. */
 const COMMUNS = [
-  "X-Content-Type-Options: nosniff",
+  ["X-Content-Type-Options", "nosniff"],
   // Le jeton de suivi voyage dans l'URL : aucun referent ne sort d'ici.
-  "Referrer-Policy: no-referrer",
-  "X-Frame-Options: DENY",
-  "Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()",
-  "Cross-Origin-Opener-Policy: same-origin",
+  ["Referrer-Policy", "no-referrer"],
+  ["X-Frame-Options", "DENY"],
+  ["Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"],
+  ["Cross-Origin-Opener-Policy", "same-origin"],
+];
+
+/**
+ * Les reecritures dont le produit depend, dans la seule forme qui les decrit.
+ *
+ * `/v/<code>` et `/suivi/<jeton>` n'existent PAS a la construction : le recu
+ * n'est pas ecrit, et il change quand l'acheteuse contresigne. Astro produit une
+ * page par route, et ces regles la servent pour toute la famille. Sans elles,
+ * `/v/ACDE-4679` rend un 404 — seule `/v/?c=ACDE-4679` fonctionne, et c'est
+ * justement la forme dont le produit ne doit PAS dependre (ADR 0021).
+ */
+const REECRITURES = [
+  ["/v/:reste*", "/v/index.html"],
+  ["/suivi/:reste*", "/suivi/index.html"],
 ];
 
 /**
@@ -157,6 +171,11 @@ if (empreintes.size > MAX_EMPREINTES) {
   process.exit(1);
 }
 
+const csp = politique([...empreintes].sort());
+const tous = [...COMMUNS, ["Content-Security-Policy", csp]];
+
+/* ────────────────────────── 1. `_headers` — Netlify, Cloudflare Pages ────── */
+
 const lignes = [
   "# GENERE PAR scripts/entetes.mjs — NE PAS MODIFIER A LA MAIN.",
   "# Les empreintes de la politique de securite de contenu decrivent le HTML",
@@ -168,11 +187,56 @@ const lignes = [
   "# sans qu'on ait a enumerer des chemins qui n'existent pas a la construction.",
   "",
   "/*",
-  ...COMMUNS.map((h) => `  ${h}`),
-  `  Content-Security-Policy: ${politique([...empreintes].sort())}`,
+  ...tous.map(([nom, valeur]) => `  ${nom}: ${valeur}`),
 ];
 
 await writeFile(join(DIST, "_headers"), `${lignes.join("\n")}\n`, "utf8");
+
+/* ────────────────────────── 2. `vercel.json` — Vercel ────────────────────── */
+
+/**
+ * **Vercel ne lit NI `_redirects` NI `_headers`.** Ce sont des formats Netlify
+ * et Cloudflare Pages. Deployer la boutique sur Vercel sans ce fichier ferait
+ * tomber deux choses **sans aucune erreur** :
+ *
+ * 1. tous les en-tetes de securite, dont `Referrer-Policy: no-referrer` — celui
+ *    qui empeche le jeton de suivi de partir dans un `Referer` ;
+ * 2. les reecritures `/v/*` et `/suivi/*`, donc les jolies URL de recu et de
+ *    suivi. `/v/ACDE-4679` rendrait 404, et seule `/v/?c=ACDE-4679`
+ *    fonctionnerait — la forme dont l'ADR 0021 dit que le produit ne doit pas
+ *    dependre.
+ *
+ * ── Pourquoi il est ECRIT DANS LES SOURCES et versionne ───────────────────
+ *
+ * Vercel lit `vercel.json` a la racine du projet **avant** la construction : il
+ * ne peut pas etre produit dans `dist/`. Il est donc genere ici, a cote de
+ * `_headers`, et committe — c'est la seule facon que les deux ne divergent pas.
+ * Un pas de CI reconstruit et compare : un `vercel.json` perime fait echouer la
+ * porte au lieu de partir en production avec une politique fausse.
+ *
+ * Les empreintes ne dependent PAS du catalogue — ce sont les amorces
+ * d'hydratation d'Astro, identiques d'un article a l'autre —, donc ce fichier ne
+ * bouge que quand un ilot change. Verifie : trois empreintes pour 358 pages.
+ */
+const vercel = {
+  $schema: "https://openapi.vercel.sh/vercel.json",
+  headers: [
+    {
+      source: "/(.*)",
+      headers: tous.map(([key, value]) => ({ key, value })),
+    },
+  ],
+  rewrites: REECRITURES.map(([source, destination]) => ({ source, destination })),
+  // Le HTML ne se met pas en cache : le recu change quand l'acheteuse
+  // contresigne, et une page de boutique doit refleter un article retire.
+  cleanUrls: true,
+  trailingSlash: false,
+};
+
+const CHEMIN_VERCEL = new URL("../vercel.json", import.meta.url).pathname;
+await writeFile(CHEMIN_VERCEL, `${JSON.stringify(vercel, null, 2)}\n`, "utf8");
+
 console.log(
-  `_headers ecrit : ${fichiers.length} page(s), ${empreintes.size} empreinte(s) de script en ligne.`,
+  `_headers et vercel.json ecrits : ${fichiers.length} page(s), ` +
+    `${empreintes.size} empreinte(s) de script en ligne.`,
 );

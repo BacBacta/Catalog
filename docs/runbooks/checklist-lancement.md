@@ -114,6 +114,9 @@ utilisateur virtuel, et signale en clair toute réponse 429.
 | 4.5 | `COHORTE_POURCENT` posé à la valeur de la première vague | ❌ | décision produit |
 | 4.6 | Les identifiants des vendeuses pilotes sont dans `COHORTE_PILOTES` | ❌ | après le terrain |
 | 4.7 | La page `/statut` est en ligne et servie par le CDN | ✅ | `apps/shop/src/pages/statut.astro` |
+| 4.8 | Configuration de déploiement écrite (Fly + Vercel) | ✅ | [deploiement.md](deploiement.md) |
+| 4.9 | `vercel.json` à jour — Vercel ne lit ni `_redirects` ni `_headers` | ✅ | garde CI, `git diff --exit-code` |
+| 4.10 | Fournisseur SMS tranché — **sans lui, aucune vendeuse n'entre** | ❌ | `sms-provider.ts` lève, délibérément |
 
 ---
 

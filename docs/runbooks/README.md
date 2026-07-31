@@ -31,6 +31,12 @@ diagnostic, et c'est délibéré : **on arrête d'abord, on comprend ensuite.** 
 interrupteur se remet en position ouverte en dix secondes ; une demi-heure de
 diagnostic pendant que des preuves se perdent ne se rattrape pas.
 
+## Et deux fichiers qui ne sont pas des runbooks
+
+[deploiement.md](deploiement.md) se lit avant le premier déploiement, une fois :
+secrets à poser, gardes qui empêchent la machine de démarrer, et pourquoi Vercel
+a besoin d'un `vercel.json` généré — il ne lit ni `_redirects` ni `_headers`.
+
 ## Et une liste qui n'est pas un runbook
 
 [checklist-lancement.md](checklist-lancement.md) se lit **avant** l'incident,
