@@ -116,7 +116,18 @@ utilisateur virtuel, et signale en clair toute réponse 429.
 | 4.7 | La page `/statut` est en ligne et servie par le CDN | ✅ | `apps/shop/src/pages/statut.astro` |
 | 4.8 | Configuration de déploiement écrite (Fly + Vercel) | ✅ | [deploiement.md](deploiement.md) |
 | 4.9 | `vercel.json` à jour — Vercel ne lit ni `_redirects` ni `_headers` | ✅ | garde CI, `git diff --exit-code` |
-| 4.10 | Fournisseur SMS tranché — **sans lui, aucune vendeuse n'entre** | ❌ | `sms-provider.ts` lève, délibérément |
+| 4.10 | Canal du code de connexion tranché — **sans lui, aucune vendeuse n'entre** | ❌ | `sms-provider.ts` lève, délibérément |
+| 4.11 | Si Orange : l'application est souscrite à **`sms-cm`**, pas à `sms-onnet-cm` | ❌ | **ne se vérifie pas en code** — voir ci-dessous |
+| 4.12 | Un code reçu sur un numéro **MTN** et sur un numéro **Orange** | ❌ | la seule preuve de couverture réelle |
+
+> **4.11 et 4.12 vont ensemble, et c'est le piège le plus coûteux de cette
+> liste.** Les deux offres SMS d'Orange partagent le même chemin technique ;
+> seule la souscription de l'application les distingue. Des identifiants issus
+> de l'offre « Orange Only » enverraient en Orange seul, l'API répondrait
+> normalement, tous les tests du dépôt passeraient — et une vendeuse MTN sur
+> trois ne pourrait jamais se connecter, sans que rien ne le signale. Le test
+> `sms-adaptateurs.test.ts` ferme l'autre porte (le paramètre de requête) ;
+> celle-ci ne se ferme que par une mesure.
 
 ---
 

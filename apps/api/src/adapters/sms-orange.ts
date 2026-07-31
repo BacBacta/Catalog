@@ -14,9 +14,21 @@ import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
  * | `sms-cm` — « SMS Cameroon » | **tous les operateurs** du Cameroun |
  * | `sms-onnet-cm` — « SMS Cameroon (Orange Only) » | abonnes Orange seulement |
  *
- * Et la bascule de l'une a l'autre tient a un **parametre de requete** :
- * `?resource_type_parameter_management=SMS_OCB2` restreint l'envoi au reseau
- * Orange. Cet adaptateur ne le pose JAMAIS, et un test le verifie.
+ * **Les deux partagent le MEME chemin technique** — `/smsmessaging/v1/outbound/`
+ * — et la meme documentation. Il y a donc DEUX facons de se retrouver en
+ * « Orange seulement », et une seule est dans ce fichier :
+ *
+ * 1. **le parametre de requete** `?resource_type_parameter_management=SMS_OCB2`.
+ *    Cet adaptateur ne le pose JAMAIS, et un test le verifie ;
+ * 2. **la souscription de l'application**, choisie dans la console Orange —
+ *    `addapi/sms-cm` ou `addapi/sms-onnet-cm`. **Ce code ne peut pas la voir ni
+ *    la contraindre.** Des identifiants issus d'une application souscrite a
+ *    l'offre « Orange Only » enverraient en Orange seul, et tous les tests de ce
+ *    depot passeraient quand meme.
+ *
+ * Le point 2 est donc une verification de COMPTE, pas de code : elle vit dans
+ * `docs/runbooks/checklist-lancement.md`. La dire ici plutot que de laisser
+ * croire que le test suffit.
  *
  * Pourquoi tant d'insistance : une vendeuse sur trois est chez MTN. Si l'envoi
  * devenait « Orange seulement », elles ne recevraient plus leur code de
@@ -25,6 +37,10 @@ import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
  * et qui n'appellent pas. C'est exactement la panne silencieuse que
  * `sms-provider.ts` decrit : « une passerelle qui accepte le message puis ne le
  * delivre pas est le cas courant, et il ne se voit pas depuis un code 200 ».
+ *
+ * Le seul controle possible est une MESURE : envoyer a un numero MTN et a un
+ * numero Orange, et regarder ce qui arrive. C'est la premiere ligne du protocole
+ * de terrain.
  *
  * ── Le jeton OAuth est mis en cache, et il le faut ────────────────────────
  *
@@ -37,9 +53,23 @@ import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
  * ── Ce que cet adaptateur ne fait PAS ─────────────────────────────────────
  *
  * Il ne sait pas si le message a ete **delivre**. Orange accuse reception de la
- * demande ; la delivrance se constate par un rappel de statut que ce lot ne
- * branche pas (voir l'ADR). Un `send()` qui se termine sans lever veut dire
- * « accepte par Orange », jamais « lu par la vendeuse ».
+ * DEMANDE ; un `send()` qui se termine sans lever veut donc dire « accepte par
+ * Orange », jamais « arrive chez la vendeuse ».
+ *
+ * L'ecart entre les deux n'est pas theorique : c'est le cas courant que
+ * `sms-provider.ts` decrit — « une passerelle qui accepte le message puis ne le
+ * delivre pas […] ne se voit pas depuis un code HTTP 200 ».
+ *
+ * **Orange offre des accuses de livraison** (« Delivery Receipt to your
+ * backend »), et c'est donc une option disponible, pas une inconnue. Elle n'est
+ * pas branchee ici parce qu'elle demande une route publique de rappel — donc une
+ * surface a proteger, des regles de debit, une authentification de l'appelant.
+ * Le lot 15 vient d'ecrire ces regles ; les appliquer a une route de plus est un
+ * travail en soi, pas un ajout discret.
+ *
+ * En attendant, le signal de substitution est gratuit et deja en place : le taux
+ * de VERIFICATION d'OTP reussie. Si les codes partent et que personne ne les
+ * saisit, c'est qu'ils n'arrivent pas.
  *
  * Source : `https://developer.orange.com/apis/sms-cm` et la mise en route
  * commune `https://developer.orange.com/apis/sms/getting-started`.

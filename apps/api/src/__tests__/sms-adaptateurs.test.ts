@@ -142,14 +142,22 @@ describe("Orange — SMS Cameroon", () => {
   });
 
   /**
-   * ══════════════════════════════════════════════════════════════════════
-   *  LE TEST LE PLUS IMPORTANT DE CE FICHIER
-   * ══════════════════════════════════════════════════════════════════════
-   *
    * `?resource_type_parameter_management=SMS_OCB2` bascule l'envoi sur le
    * reseau Orange SEUL. Une vendeuse sur trois est chez MTN : le poser, c'est
    * les empecher de se connecter — et rien ne le dirait, puisque l'API
    * repondrait normalement.
+   *
+   * ── CE QUE CE TEST NE PROUVE PAS ──────────────────────────────────────
+   *
+   * Il ferme UNE des deux portes. L'autre est la souscription de
+   * l'application dans la console Orange (`addapi/sms-cm` contre
+   * `addapi/sms-onnet-cm`) : les deux offres partagent le meme chemin
+   * technique, donc des identifiants issus de la mauvaise enverraient en
+   * Orange seul et ce test passerait quand meme.
+   *
+   * Cette seconde porte ne se ferme pas en code. Elle se verifie au compte,
+   * et par une mesure — un envoi vers un numero MTN. Voir
+   * `docs/runbooks/checklist-lancement.md`.
    */
   it("n'utilise JAMAIS le parametre qui restreint au reseau Orange", async () => {
     const { appels, envoyeur } = construire([JETON_OK, { ok: true }]);
