@@ -7,9 +7,19 @@
 # garde : un secret qui y entre est un secret publie, et il le reste dans les
 # couches meme s'il est efface par une instruction suivante. Cette ligne est la
 # meme regle qu'AGENTS.md applique au depot, appliquee a l'image.
-.env
-.env.*
-!.env.example
+#
+# ── `**/` n'est pas decoratif ─────────────────────────────────────────────
+#
+# Un motif sans `**/` ne s'applique QU'A LA RACINE du contexte de construction.
+# `.env` seul laissait donc entrer `apps/api/.env` ou `packages/db/.env` — le
+# bloc suivant l'avait compris pour `node_modules`, qui est ecrit deux fois pour
+# cette raison exacte ; le bloc de securite, non.
+#
+# L'ordre compte : `!**/.env.example` doit rester APRES `**/.env.*`, sinon la
+# regle d'exclusion le reprend.
+**/.env
+**/.env.*
+!**/.env.example
 
 # ── Le second bloc empeche un defaut mesure ───────────────────────────────
 #
@@ -47,4 +57,7 @@ test-results
 .git
 .github
 .vscode
+# Meme raison que le bloc `.env` : sans `**/`, seul un journal a la racine est
+# exclu, et `apps/api/debug.log` entrerait dans l'image publiee.
 *.log
+**/*.log

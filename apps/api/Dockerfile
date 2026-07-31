@@ -139,6 +139,27 @@ ENV PORT=8080
 # echouait a l'etape des migrations, avant de servir la moindre requete.
 RUN mkdir -p /app && chown node:node /app
 
+# ── Le repertoire de l'interrupteur d'arret ───────────────────────────────
+#
+# `INTERRUPTEUR_FICHIER` de `fly.toml` vaut `/run/catalog/interrupteur`, et
+# **rien ne creait ce repertoire**. `/run` appartient a root ; le processus
+# tourne en `node`. C'est la meme regle que six lignes plus haut, non appliquee.
+#
+# Ce qui rend le defaut couteux, c'est qu'il est SILENCIEUX dans les deux sens :
+# `positionCourante` avale l'echec de lecture a dessein — « un fichier absent
+# n'est pas une erreur », sinon le garde-fou deviendrait une cause de panne — et
+# rien ne distingue « pas de fichier » de « pas de repertoire ». Le service
+# repond normalement, tous les tests passent, et le jour de l'incident
+# `echo lecture_seule > /run/catalog/interrupteur` rend « No such file or
+# directory ». C'est-a-dire que l'interrupteur d'arret ne marche que le jour ou
+# l'on n'en a pas besoin.
+#
+# Le repertoire est cree ici plutot qu'au premier incident, et appartient a
+# `node` : l'operateur ecrit en root par `fly ssh console`, mais un chemin
+# inscriptible par le processus laisse la porte ouverte a un basculement
+# automatique sans changer d'image.
+RUN mkdir -p /run/catalog && chown node:node /run/catalog
+
 # `--chown` : l'etage de construction tourne en root, l'execution en `node`.
 # Sans cette option, tout le contenu appartient a root. Le corriger par un
 # `chown` separe doublerait la taille de l'image : chaque couche garde sa copie

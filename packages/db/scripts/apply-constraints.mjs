@@ -43,6 +43,28 @@ try {
   // en place, ou aucun. Un demi-jeu de contraintes serait pire que rien,
   // parce qu'on croirait le tout applique.
   await client.query("BEGIN");
+  /**
+   * ── Deux delais, parce que ce script tourne PENDANT que le service repond ──
+   *
+   * `ALTER TABLE … ADD CONSTRAINT` prend un verrou ACCESS EXCLUSIVE. En
+   * deploiement `rolling`, l'ancienne version sert encore le trafic : si une
+   * requete quelconque tient un verrou sur la table, l'ALTER attend — et,
+   * PostgreSQL faisant la queue, toutes les requetes suivantes sur cette table
+   * attendent derriere lui. Une commande de migration qui patiente devient
+   * alors une panne totale de la table, pendant que le deploiement a l'air de
+   * progresser.
+   *
+   * `lock_timeout` fait echouer l'attente du VERROU en trois secondes ;
+   * `statement_timeout` borne une instruction qui, elle, a bien demarre — une
+   * validation de contrainte sur une grosse table, par exemple.
+   *
+   * Echouer vite est ici le bon comportement : la transaction se defait, les
+   * contraintes restent celles d'avant, le `release_command` sort en erreur et
+   * Fly n'envoie pas la nouvelle version. On relance a un moment plus calme.
+   * `SET LOCAL` : la portee est la transaction, rien ne fuit sur la connexion.
+   */
+  await client.query("SET LOCAL lock_timeout = '3s'");
+  await client.query("SET LOCAL statement_timeout = '30s'");
   await client.query(sql);
   await client.query("COMMIT");
   console.log("contraintes appliquees");
