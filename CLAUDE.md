@@ -21,6 +21,14 @@ Les plus structurants :
   Il remplace l'orientation du `0007` et s'appuie sur les mesures du `0008`.
   C'est celui à lire en premier.
 - `0010` — le produit s'appelle **Catalog** ; `catalogue` reste le nom commun
+- `0025` — **un garde-fou d'AGENTS.md est en veille**, et il faut le savoir avant
+  de toucher aux OTP : quand `SMS_PROVIDER=whatsapp`, les deux codes arrivent sur
+  la même puce, donc la vérification du **numéro de reversement** n'atteste plus
+  le contrôle de ce numéro. C'est un report explicite, décidé par le porteur du
+  produit, borné au canal et réversible par un aiguillage — ce n'est **pas** un
+  défaut à corriger au passage. Le même ADR acte que **ni MTN ni Orange n'offre
+  de vérification de transaction par un tiers** : le SMS reçu par la vendeuse
+  n'est pas le meilleur signal, c'est le seul.
 
 Les ADR `0007` et `0008` restent utiles pour comprendre pourquoi la voie
 agrégateur a été abandonnée, mais ils sont dépassés pour la v1.
