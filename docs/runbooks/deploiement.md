@@ -96,11 +96,19 @@ mkdir -p /run/catalog   # l'interrupteur ; voir interrupteur-et-retour-arriere.m
 fly deploy
 ```
 
-`fly deploy` lance d'abord le `release_command` : `pnpm db:migrate`, qui
-enchaîne `prisma migrate deploy` **puis** `apply-constraints.mjs`. L'ordre n'est
-pas négociable — les contraintes SQL du lot 3 ne sont pas dans les migrations
+`fly deploy` lance d'abord le `release_command`, qui enchaîne
+`prisma migrate deploy` **puis** `apply-constraints.mjs`. L'ordre n'est pas
+négociable — les contraintes SQL du lot 3 ne sont pas dans les migrations
 Prisma, et une base migrée sans elles accepterait un montant négatif ou un
 identifiant d'opérateur en double.
+
+> **Il appelle les binaires directement, et pas `pnpm db:migrate`.** Le
+> raccourci par le lanceur de scripts est celui qu'on tape en local, mais il
+> échoue dans l'image : pnpm 11 vérifie que `node_modules` correspond au
+> lockfile avant d'exécuter un script, déclenche un `pnpm install`, et sort en
+> `EACCES` dans un conteneur où le processus n'a aucune raison d'écrire. Mesuré
+> dans le conteneur, pas déduit. La commande exacte est dans `fly.toml` — **ne
+> pas la « simplifier » en la ramenant au script pnpm.**
 
 Vérifier :
 
