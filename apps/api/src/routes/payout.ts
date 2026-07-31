@@ -193,6 +193,8 @@ export function payoutRoutes(deps: PayoutRoutesDeps) {
       to: numero,
       text: texteSms("otp_reversement", code),
       kind: "otp_reversement",
+      /** Le code brut, pour les canaux a gabarit. Voir `SmsMessage`. */
+      valeur: code,
     });
 
     // Le corps de reponse ne porte NI le code, ni son empreinte.

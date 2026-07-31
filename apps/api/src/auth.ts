@@ -4,7 +4,9 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { phoneNumber } from "better-auth/plugins";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
+import { OrangeSmsSender } from "./adapters/sms-orange.ts";
 import { PendingSmsProvider, resolveSmsSender } from "./adapters/sms-provider.ts";
+import { WhatsAppSender } from "./adapters/sms-whatsapp.ts";
 import type { SmsSender } from "./domain/sms-sender.ts";
 import { texteSms } from "./domain/sms-sender.ts";
 
@@ -117,6 +119,8 @@ export function createAuth(deps: AuthDeps) {
             to: n,
             text: texteSms("otp_connexion", code),
             kind: "otp_connexion",
+            /** Le code brut, pour les canaux a gabarit. Voir `SmsMessage`. */
+            valeur: code,
           });
 
           await deps.onOtpEnvoye?.({ phone: n, kind: "otp_connexion" });
@@ -136,10 +140,42 @@ export function createAuth(deps: AuthDeps) {
   });
 }
 
-/** Fabriques disponibles. C'est le seul endroit ou un nom de fournisseur vit. */
+/**
+ * Fabriques disponibles. C'est le seul endroit ou un nom de fournisseur vit.
+ *
+ * Quatre valeurs pour `SMS_PROVIDER` :
+ *
+ * | valeur | canal | remarque |
+ * |---|---|---|
+ * | `console` | aucun, ecrit sur la sortie standard | refuse de se charger en production |
+ * | `orange` | SMS, **tous operateurs** du Cameroun | API `sms-cm` |
+ * | `whatsapp` | modele d'authentification WhatsApp | ne porte QUE les deux OTP |
+ * | `provider` | rien : leve | la place tenue, si l'on veut une autre passerelle |
+ *
+ * **Le choix se fait ici et nulle part ailleurs.** Aucune route, aucun job,
+ * aucune regle metier ne sait quel canal est actif — c'est ce qui permet d'en
+ * changer sans toucher au domaine, et de revenir en arriere en une variable.
+ */
 export function smsSenderDepuisEnv(env: NodeJS.ProcessEnv = process.env): SmsSender {
   return resolveSmsSender(env, {
     console: () => new ConsoleSmsSender(env),
+    orange: () =>
+      new OrangeSmsSender({
+        clientId: env.ORANGE_CLIENT_ID ?? "",
+        clientSecret: env.ORANGE_CLIENT_SECRET ?? "",
+        senderAddress: env.ORANGE_SENDER_ADDRESS ?? "",
+        senderName: env.ORANGE_SENDER_NAME,
+        ...(env.ORANGE_BASE_URL ? { baseUrl: env.ORANGE_BASE_URL } : {}),
+      }),
+    whatsapp: () =>
+      new WhatsAppSender({
+        phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID ?? "",
+        accessToken: env.WHATSAPP_ACCESS_TOKEN ?? "",
+        templateName: env.WHATSAPP_TEMPLATE_OTP ?? "",
+        ...(env.WHATSAPP_TEMPLATE_LANGUE ? { langue: env.WHATSAPP_TEMPLATE_LANGUE } : {}),
+        ...(env.WHATSAPP_API_VERSION ? { version: env.WHATSAPP_API_VERSION } : {}),
+        ...(env.WHATSAPP_BASE_URL ? { baseUrl: env.WHATSAPP_BASE_URL } : {}),
+      }),
     provider: () =>
       new PendingSmsProvider({
         ...(env.SMS_API_KEY ? { apiKey: env.SMS_API_KEY } : {}),
