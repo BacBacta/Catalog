@@ -295,6 +295,23 @@ export function suiviRoutes(deps: RecuDeps) {
        * a l'ecran : deux endroits qui deduisent la meme regle finissent par la
        * deduire differemment.
        */
+      /**
+       * Le droit de deposer un avis, calcule par le SERVEUR (lot 12). L'ilot
+       * ne rededuit pas la regle : deux endroits qui la deduisent finissent par
+       * la deduire differemment.
+       */
+      avis: droitAuDepot({
+        etape: commande.step,
+        modeLivraison:
+          (commande.delivery as { mode?: string } | null)?.mode === "retrait"
+            ? "retrait"
+            : "livraison",
+        totalXaf: commande.totalXaf,
+        amountPaidXaf: commande.amountPaidXaf,
+        balanceXaf: commande.balanceXaf,
+        etatPreuve: commande.proofState,
+        annuleeA: null,
+      }),
       actions: {
         contresigner: commande.proofState === "prouve",
         contester: commande.proofState !== "conteste",
