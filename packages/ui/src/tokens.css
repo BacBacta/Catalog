@@ -33,6 +33,47 @@
   --color-brand-fill: #0e7a5f;
   --color-brand-on-fill: #ffffff;
 
+  /* ── graphiques (lot 13) ──
+     Aucune de ces valeurs n'est choisie a l'oeil. Elles sortent du validateur
+     de palette, teinte de marque tenue a son propre chroma (~0,10 OKLCH), et
+     `tokens.test.ts` re-mesure les seuils a chaque execution.
+
+     Deux RAMPES ORDINALES, pas une palette categorielle : ce qui est trace ici
+     a un ORDRE — les marches de l'entonnoir, la force d'une preuve — et une
+     rampe d'une seule teinte met cet ordre dans la couleur. Des teintes
+     categorielles le detruiraient.
+
+     En mode sombre les rampes s'INVERSENT : la marche la plus profonde reste
+     celle qui contraste le plus avec sa surface, donc claire sur fond sombre.
+     Ce n'est pas une inversion automatique, c'est le meme principe applique a
+     l'autre surface. */
+
+  /* Serie UNIQUE — vues par jour, articles les plus vus. Une seule teinte : il
+     n'y a qu'une serie, donc pas de legende et rien a distinguer. */
+  --color-serie: #0e7a5f;
+  /* Le gris de recul. Ce qui n'est pas l'histoire du graphique. */
+  --color-serie-recul: #b1b1b1;
+  /* Le filet de la grille : PLEIN, jamais pointille — un pointille se lit comme
+     un seuil ou une projection alors que ce n'est qu'un repere. */
+  --color-grille: #e4e9e7;
+
+  /* Entonnoir : quatre marches, une teinte, clair → fonce.
+     Ecart de clarte >= 0,06 entre voisines, extremite claire a 2,37:1. */
+  --color-etape-1: #5cb99b;
+  --color-etape-2: #3a997d;
+  --color-etape-3: #0d7b60;
+  --color-etape-4: #005b46;
+
+  /* Part des ventes prouvees : emphase sur ce qui est prouve, gris de recul sur
+     ce qui ne l'est pas. `contresigne` porte deux voix, donc le pas le plus
+     appuye. `non-trace` est GRIS et non rouge : un depot direct declare a la
+     main n'est pas une faute, c'est l'absence de trace — le peindre en danger
+     accuserait la vendeuse d'un fait qui n'est pas etabli.
+     Pire paire voisine : ΔE 15,3 sous protanopie, 16,1 en vision normale. */
+  --color-preuve-contresigne: #005b46;
+  --color-preuve-prouve: #2b8d71;
+  --color-preuve-non-trace: #b1b1b1;
+
   /* ── statuts : reserves, jamais reutilises comme couleur de serie ── */
   --color-good: #077a07;
   --color-warn: #8f5c13;
@@ -109,6 +150,19 @@
     --color-warn-soft: #2a2110;
     --color-danger-soft: #2d1a1a;
     --color-brand-soft: #10241f;
+
+    /* Graphiques. Les deux rampes s'inversent : la marche la plus profonde est
+       toujours celle qui contraste le plus avec SA surface. */
+    --color-serie: #17a37f;
+    --color-serie-recul: #585858;
+    --color-grille: #2c2c2a;
+    --color-etape-1: #00755a;
+    --color-etape-2: #349376;
+    --color-etape-3: #56b394;
+    --color-etape-4: #77d3b3;
+    --color-preuve-contresigne: #5bd0ab;
+    --color-preuve-prouve: #149d7a;
+    --color-preuve-non-trace: #585858;
   }
 }
 :root[data-theme="dark"] {
@@ -132,6 +186,19 @@
   --color-warn-soft: #2a2110;
   --color-danger-soft: #2d1a1a;
   --color-brand-soft: #10241f;
+
+  /* Graphiques. Les deux rampes s'inversent : la marche la plus profonde est
+     toujours celle qui contraste le plus avec SA surface. */
+  --color-serie: #17a37f;
+  --color-serie-recul: #585858;
+  --color-grille: #2c2c2a;
+  --color-etape-1: #00755a;
+  --color-etape-2: #349376;
+  --color-etape-3: #56b394;
+  --color-etape-4: #77d3b3;
+  --color-preuve-contresigne: #5bd0ab;
+  --color-preuve-prouve: #149d7a;
+  --color-preuve-non-trace: #585858;
 }
 
 /* Le mouvement est une amelioration, jamais une dependance.
@@ -156,6 +223,9 @@
   button,
   a[role="button"],
   [role="tab"],
+  /* `<summary>` est une commande a part entiere : c'est lui qui ouvre la vue
+     tableau de chaque graphique (lot 13). Il se rate au pouce comme un bouton. */
+  summary,
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea,

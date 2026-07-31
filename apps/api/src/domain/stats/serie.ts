@@ -1,3 +1,5 @@
+import type { EtapeEntonnoir, EtapeEntonnoirCle, Jour, PointSerie } from "@catalog/contracts";
+
 /**
  * Series temporelles et entonnoir, pour l'ecran statistiques.
  *
@@ -11,13 +13,13 @@
  * journees differentes selon le serveur qui a rendu la page.
  */
 
-/** Un jour, au format `AAAA-MM-JJ`. */
-export type Jour = string;
-
-export interface PointSerie {
-  jour: Jour;
-  valeur: number;
-}
+/**
+ * `Jour` et `PointSerie` viennent de `@catalog/contracts` et ne sont PAS
+ * redeclares ici : ils traversent la frontiere HTTP, donc leur forme appartient
+ * au contrat (AGENTS.md §6). Le domaine tient la REGLE — un jour est en heure de
+ * Douala, une serie n'a pas de trou — pas la forme.
+ */
+export type { EtapeEntonnoir, Jour, PointSerie } from "@catalog/contracts";
 
 const JOUR = /^\d{4}-\d{2}-\d{2}$/;
 const MS_PAR_JOUR = 86_400_000;
@@ -72,15 +74,7 @@ export interface Entonnoir {
   prouvees: number;
 }
 
-export interface EtapeEntonnoir {
-  cle: keyof Entonnoir;
-  libelle: string;
-  valeur: number;
-  /** Part de l'etape PRECEDENTE, en pourcentage entier. `null` en tete. */
-  pourcentPrecedent: number | null;
-}
-
-const LIBELLES: Record<keyof Entonnoir, string> = {
+const LIBELLES: Record<EtapeEntonnoirCle, string> = {
   vues: "Articles vus",
   commandes: "Commandes passées",
   payees: "Commandes payées",
@@ -100,7 +94,7 @@ const LIBELLES: Record<keyof Entonnoir, string> = {
  * de comptage, et le masquer le rendrait introuvable.
  */
 export function etapesEntonnoir(e: Entonnoir): EtapeEntonnoir[] {
-  const ordre: (keyof Entonnoir)[] = ["vues", "commandes", "payees", "prouvees"];
+  const ordre: EtapeEntonnoirCle[] = ["vues", "commandes", "payees", "prouvees"];
   let precedent: number | null = null;
 
   return ordre.map((cle) => {

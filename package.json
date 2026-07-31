@@ -15,7 +15,7 @@
     "format": "biome check --write .",
     "db:generate": "pnpm --filter @catalog/db generate",
     "db:validate": "pnpm --filter @catalog/db validate",
-    "size": "pnpm --filter @catalog/shop size",
+    "size": "pnpm --filter @catalog/shop size && pnpm --filter @catalog/seller size",
     "db:migrate": "pnpm --filter @catalog/db migrate:deploy",
     "db:seed": "pnpm --filter @catalog/db seed",
     "db:constraints": "pnpm --filter @catalog/db constraints",

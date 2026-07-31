@@ -12,6 +12,8 @@
  * afficher leur message. Seule une panne reseau leve.
  */
 
+import type { StatsVendeuse } from "@catalog/contracts/stats";
+
 export interface ReponseApi<T> {
   ok: boolean;
   statut: number;
@@ -242,4 +244,16 @@ export const api = {
       `/api/commandes/${id}/paiement-declare`,
       { corps: { montantXaf } },
     ),
+
+  /* ────────────────────────── statistiques (lot 13) ────────────────────────── */
+
+  /**
+   * Les chiffres de la vendeuse sur une fenetre glissante.
+   *
+   * Le type vient du CONTRAT et n'est pas redeclare ici : c'est la meme source
+   * de verite que celle dont la route se sert pour serialiser. `import type`
+   * disparait a la compilation, donc importer depuis `@catalog/contracts/stats`
+   * ne fait entrer ni Zod ni ses effets de bord de module dans le paquet.
+   */
+  statistiques: (jours: number) => appeler<StatsVendeuse>(`/api/statistiques?jours=${jours}`),
 };

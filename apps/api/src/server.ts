@@ -19,6 +19,7 @@ import { productRoutes } from "./routes/products.ts";
 import { rampeRoutes } from "./routes/rampe.ts";
 import { recuRoutes, suiviRoutes } from "./routes/recu.ts";
 import { sellerRoutes } from "./routes/seller.ts";
+import { statsRoutes } from "./routes/stats.ts";
 
 /**
  * Point d'entree. C'est ici que les dependances concretes sont branchees :
@@ -50,6 +51,10 @@ app.route(
 );
 
 app.route("/api/articles", productRoutes({ prisma, session, storage }));
+// Les statistiques : sous session, et filtrees par la vendeuse de la session.
+// Aucun identifiant de boutique ne circule dans l'URL — ce serait un numero a
+// essayer, et les chiffres d'une vendeuse ne regardent qu'elle.
+app.route("/api/statistiques", statsRoutes({ prisma, session }));
 app.route("/api/commandes", preuveRoutes({ prisma, session, chiffreur: resolveChiffreurSms() }));
 // Le cycle de vie, sur le MEME prefixe. Les deux routeurs se partagent
 // `/api/commandes` sans se recouvrir : `preuveRoutes` tient `GET /:id` et

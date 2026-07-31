@@ -117,6 +117,17 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
       </Card>
 
       <Card>
+        <CardTitle>Vos chiffres</CardTitle>
+        <CardNote>
+          Combien de vos ventes sont vraiment prouvees, ou vous perdez vos clientes, et ce qu'elles
+          regardent le plus.
+        </CardNote>
+        <Button render={<Link to="/statistiques" />} tone="outline" size="lg">
+          Voir mes chiffres
+        </Button>
+      </Card>
+
+      <Card>
         <CardTitle>Verifier un recu</CardTitle>
         <CardNote>
           Une cliente vous montre un recu ? Controlez-le avant d'expedier : c'est la que la fraude

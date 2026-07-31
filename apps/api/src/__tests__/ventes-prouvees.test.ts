@@ -1,6 +1,10 @@
 import type { ProofState } from "@catalog/contracts";
 import { describe, expect, it } from "vitest";
-import { pourcentProuve, repartirVentes } from "../domain/stats/ventes-prouvees.ts";
+import {
+  pourcentProuve,
+  repartirComptes,
+  repartirVentes,
+} from "../domain/stats/ventes-prouvees.ts";
 
 /**
  * La part des ventes prouvees — l'indicateur le plus important du produit.
@@ -72,5 +76,54 @@ describe("pourcentage prouve", () => {
     const p = pourcentProuve({ prouve: 1, contresigne: 0, nonTrace: 2, total: 3 });
     expect(Number.isInteger(p)).toBe(true);
     expect(p).toBe(33);
+  });
+});
+
+/**
+ * La forme que rend un `GROUP BY` : cinq lignes, pas cinq mille. La base sait
+ * compter mieux que nous, et deplier ses comptes pour les recompter serait un
+ * aller-retour gratuit — sur la vendeuse qui a le plus de commandes,
+ * c'est-a-dire exactement celle qu'il ne faut pas ralentir.
+ */
+describe("repartition a partir de comptes agreges", () => {
+  it("donne exactement le meme resultat que la repartition etat par etat", () => {
+    expect(
+      repartirComptes([
+        { etat: "prouve", nombre: 2 },
+        { etat: "contresigne", nombre: 1 },
+        { etat: "declare_non_trace", nombre: 3 },
+        { etat: "attendu", nombre: 4 },
+        { etat: "conteste", nombre: 5 },
+      ]),
+    ).toEqual(
+      repartirVentes([
+        "prouve",
+        "prouve",
+        "contresigne",
+        "declare_non_trace",
+        "declare_non_trace",
+        "declare_non_trace",
+        "attendu",
+        "attendu",
+        "attendu",
+        "attendu",
+        "conteste",
+        "conteste",
+        "conteste",
+        "conteste",
+        "conteste",
+      ]),
+    );
+  });
+
+  /**
+   * Un compte negatif ou fractionnaire ne vient pas d'un `GROUP BY` : il vient
+   * d'un defaut ailleurs. On leve plutot que de propager un total faux dans
+   * l'indicateur le plus important du produit.
+   */
+  it("refuse un compte qui ne peut pas venir d'un comptage", () => {
+    for (const nombre of [-1, 1.5, Number.NaN]) {
+      expect(() => repartirComptes([{ etat: "prouve", nombre }])).toThrow(/compte invalide/);
+    }
   });
 });

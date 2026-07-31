@@ -7,6 +7,23 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: development
+    # AGENTS.md §3 fige la pile : « ne pas mettre a jour une version majeure sans
+    # ADR ». Dependabot ne sait pas lire cette regle, et il rouvrira indefiniment
+    # les memes propositions tant qu'on ne la lui ecrit pas ici.
+    #
+    # Une seule est ignoree, celle dont le blocage est TECHNIQUE et documente :
+    # **TypeScript 7 ne supporte pas encore Astro**, et la boutique publique est
+    # en Astro. Ce n'est pas une preference de version, c'est une incompatibilite
+    # — la proposition ne peut pas etre acceptee, et la rouvrir chaque semaine
+    # coute une revue a chaque fois. Voir l'issue #4, fermee pour cette raison.
+    #
+    # Les autres majeures de la pile ne sont PAS ignorees, et c'est deliberé :
+    # elles sont acceptables le jour ou un ADR les accompagne, et une proposition
+    # ouverte est le rappel qu'une version a bouge. Les ignorer toutes rendrait
+    # le depot aveugle a sa propre obsolescence.
+    ignore:
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: monthly }

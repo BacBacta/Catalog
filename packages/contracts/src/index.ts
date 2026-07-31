@@ -6,4 +6,5 @@ export * from "./payment.ts";
 export * from "./phone.ts";
 export * from "./product.ts";
 export * from "./proof.ts";
+export * from "./stats.ts";
 export * from "./whatsapp.ts";

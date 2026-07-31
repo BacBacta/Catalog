@@ -136,6 +136,136 @@ describe("le mode sombre est concu, pas inverse", () => {
   });
 });
 
+/* ═════════════════ les rampes de graphique (lot 13) ═════════════════ */
+
+/**
+ * Clarte perceptuelle OKLab. Ce n'est pas la luminance WCAG : celle-ci mesure un
+ * rapport de contraste, celle-la mesure ce que l'oeil appelle « plus clair ».
+ * C'est la bonne echelle pour juger d'une rampe.
+ */
+function clarteOklab(hex: string): number {
+  const [r, g, b] = channels(hex).map((v) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  }) as [number, number, number];
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return 0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s;
+}
+
+/**
+ * Les couleurs de graphique ne sont pas choisies a l'oeil.
+ *
+ * Elles sont sorties d'un validateur de palette — bande de clarte, plancher de
+ * chroma, separation sous protanopie et deuteranopie simulees, contraste sur la
+ * surface — puis figees dans `tokens.css`. Ce test ne rejoue pas la simulation
+ * de daltonisme : il tient l'invariant dont TOUT le reste depend, la **clarte**.
+ *
+ * C'est le bon invariant a garder, et pas un pis-aller : une protanopie ou une
+ * deuteranopie effondre les axes de teinte et laisse essentiellement la clarte.
+ * Deux couleurs separees sur cet axe restent separees pour tout le monde ; deux
+ * couleurs qui ne le sont que par la teinte se confondent. Une retouche qui
+ * rapprocherait deux marches casserait donc ici, avant d'arriver a l'ecran.
+ */
+describe.each([
+  ["clair", lightTokens(), "clair" as const],
+  ["sombre", darkTokens(), "sombre" as const],
+])("rampes de graphique — theme %s", (_nom, tokens, theme) => {
+  const ETAPES = ["--color-etape-1", "--color-etape-2", "--color-etape-3", "--color-etape-4"];
+  const PREUVE = [
+    "--color-preuve-contresigne",
+    "--color-preuve-prouve",
+    "--color-preuve-non-trace",
+  ];
+
+  it("chaque jeton de graphique existe dans les deux themes", () => {
+    for (const k of [
+      ...ETAPES,
+      ...PREUVE,
+      "--color-serie",
+      "--color-serie-recul",
+      "--color-grille",
+    ]) {
+      expect(tokens[k], `jeton absent : ${k}`).toBeDefined();
+    }
+  });
+
+  /**
+   * L'entonnoir est une suite ORDONNEE : ses marches doivent se lire dans
+   * l'ordre. Le sens s'inverse entre les themes — la marche la plus profonde est
+   * toujours celle qui contraste le plus avec SA surface, donc foncee sur clair
+   * et claire sur sombre.
+   */
+  it("la rampe de l'entonnoir est monotone, dans le sens de sa surface", () => {
+    const clartes = ETAPES.map((k) => clarteOklab(tokens[k] as string));
+    for (let i = 1; i < clartes.length; i++) {
+      const avant = clartes[i - 1] as number;
+      const apres = clartes[i] as number;
+      const attendu = theme === "clair" ? avant > apres : avant < apres;
+      expect(attendu, `${ETAPES[i - 1]} → ${ETAPES[i]} : ${avant} → ${apres}`).toBe(true);
+    }
+  });
+
+  it("deux marches voisines de l'entonnoir se distinguent — ecart de clarte >= 0,06", () => {
+    const clartes = ETAPES.map((k) => clarteOklab(tokens[k] as string));
+    for (let i = 1; i < clartes.length; i++) {
+      const ecart = Math.abs((clartes[i] as number) - (clartes[i - 1] as number));
+      expect(
+        Number(ecart.toFixed(3)),
+        `${ETAPES[i - 1]} et ${ETAPES[i]} sont trop proches`,
+      ).toBeGreaterThanOrEqual(0.06);
+    }
+  });
+
+  /**
+   * L'extremite CLAIRE d'une rampe est celle qui disparait. En dessous de 2:1
+   * sur sa surface, la premiere marche de l'entonnoir n'existe plus.
+   */
+  it("l'extremite la moins contrastee de la rampe tient 2:1 sur sa surface", () => {
+    const surface = tokens["--color-surface"] as string;
+    for (const k of ETAPES) {
+      const r = contrast(tokens[k] as string, surface);
+      expect(Number(r.toFixed(2)), `${k} sur la surface`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  /**
+   * Les trois classes de la part des ventes prouvees se touchent dans une meme
+   * barre. Elles doivent se distinguer sans la couleur — la legende porte le
+   * libelle et la valeur — mais aussi AVEC, pour qui la lit d'un coup d'oeil.
+   */
+  it("les trois classes de preuve sont separees sur l'axe de clarte", () => {
+    const clartes = PREUVE.map((k) => clarteOklab(tokens[k] as string));
+    for (let i = 1; i < clartes.length; i++) {
+      const ecart = Math.abs((clartes[i] as number) - (clartes[i - 1] as number));
+      expect(
+        Number(ecart.toFixed(3)),
+        `${PREUVE[i - 1]} et ${PREUVE[i]} se confondraient sous daltonisme`,
+      ).toBeGreaterThanOrEqual(0.08);
+    }
+  });
+
+  /**
+   * Un depot direct non trace n'est pas une faute : il compte, il n'est
+   * simplement pas prouve. Le peindre en danger accuserait la vendeuse d'un fait
+   * qui n'est pas etabli — et volerait au passage une couleur reservee au
+   * statut.
+   */
+  it("« non trace » est un gris de recul, jamais une couleur de statut", () => {
+    for (const theme_ of [tokens]) {
+      const nonTrace = theme_["--color-preuve-non-trace"] as string;
+      const [r, g, b] = channels(nonTrace);
+      expect(Math.max(r, g, b) - Math.min(r, g, b), "« non trace » doit etre neutre").toBeLessThan(
+        8,
+      );
+      for (const statut of ["--color-danger", "--color-warn", "--color-good"]) {
+        expect(nonTrace).not.toBe(theme_[statut]);
+      }
+    }
+  });
+});
+
 describe("contraintes non negociables du socle", () => {
   it("aucune police telechargee : ni @font-face, ni import distant", () => {
     expect(CSS).not.toMatch(/@font-face/);
