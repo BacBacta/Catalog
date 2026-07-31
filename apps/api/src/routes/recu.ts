@@ -12,6 +12,7 @@ import { etapesDuSuivi } from "../domain/order/cycle.ts";
 import { appliquerEvenement, type EvenementPreuve } from "../domain/proof/machine.ts";
 import { jetonBienForme } from "../domain/receipt/jeton.ts";
 import { emettreRecu, porteeDuRecu } from "../domain/receipt/recu.ts";
+import { droitAuDepot, NOTE_MAX, NOTE_MIN } from "../domain/review/reputation.ts";
 import { type SessionDeps, vendeuseCourante } from "./seller.ts";
 
 /**
@@ -305,6 +306,84 @@ export function suiviRoutes(deps: RecuDeps) {
   r.post("/:jeton/contresigner", (c) =>
     transition(c, { type: "contresignature", par: "acheteuse" }),
   );
+
+  /**
+   * `POST /api/suivi/:jeton/avis` — l'acheteuse depose son avis (lot 12).
+   *
+   * C'est le lien de suivi qui autorise, comme pour la contre-signature : la
+   * reference se devine et le code de verification est public des qu'un recu est
+   * montre. Seul le jeton prouve qu'on est bien l'acheteuse.
+   *
+   * **Un depot direct non trace n'est pas BLOQUE ici.** L'acheteuse a recu sa
+   * commande et a le droit d'en parler : son avis est publie, sans le label, et
+   * n'entre pas dans la note. On ne l'empeche pas, on le distingue.
+   *
+   * **L'unicite est tranchee par la BASE**, jamais par un SELECT suivi d'un
+   * `if` : `Review.orderId` est UNIQUE (lot 3), on tente l'INSERT et on traduit
+   * la violation. Deux envois simultanes passeraient tous les deux le SELECT.
+   */
+  r.post("/:jeton/avis", async (c) => {
+    sansCache(c);
+    const commande = await parJeton(c.req.param("jeton"));
+    if (!commande) return c.json({ erreur: "lien_inconnu" }, 404);
+
+    const corps = await c.req.json().catch(() => null);
+    const note = corps?.note;
+    // Entier de 1 a 5. Une note hors echelle est refusee, jamais ramenee au bord.
+    if (!Number.isInteger(note) || note < NOTE_MIN || note > NOTE_MAX) {
+      return c.json({ erreur: "note_invalide" }, 400);
+    }
+    const texte = typeof corps?.texte === "string" ? corps.texte.slice(0, 1000).trim() : null;
+
+    const droit = droitAuDepot({
+      etape: commande.step,
+      modeLivraison:
+        (commande.delivery as { mode?: string } | null)?.mode === "retrait"
+          ? "retrait"
+          : "livraison",
+      totalXaf: commande.totalXaf,
+      amountPaidXaf: commande.amountPaidXaf,
+      balanceXaf: commande.balanceXaf,
+      etatPreuve: commande.proofState,
+      annuleeA: null,
+    });
+    if (!droit.possible) return c.json({ erreur: "commande_non_livree" }, 409);
+
+    const now = deps.maintenant?.() ?? new Date();
+    try {
+      await deps.prisma.$transaction(async (tx) => {
+        await tx.review.create({
+          data: {
+            orderId: commande.id,
+            sellerId: commande.seller.id,
+            rating: note,
+            body: texte || null,
+            verified: droit.verifie,
+            createdAt: now,
+          },
+        });
+        await tx.orderEvent.create({
+          data: {
+            orderId: commande.id,
+            kind: "avis_depose",
+            actor: "acheteuse",
+            at: now,
+            payload: { verifie: droit.verifie },
+          },
+        });
+      });
+    } catch (e) {
+      // `Review.orderId` est UNIQUE : un second avis sur la meme commande est
+      // refuse par la base, pas par un `if` que deux requetes simultanees
+      // passeraient toutes les deux.
+      if ((e as { code?: string } | null)?.code === "P2002") {
+        return c.json({ erreur: "avis_deja_depose" }, 409);
+      }
+      throw e;
+    }
+
+    return c.json({ depose: true, verifie: droit.verifie }, 201);
+  });
 
   /** La contestation n'efface rien. Elle ouvre un litige, et le dit. */
   r.post("/:jeton/contester", async (c) => {

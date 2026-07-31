@@ -326,3 +326,99 @@ describe("normaliserCode", () => {
     expect(normaliserCode("ACDE-467")).toBeNull();
   });
 });
+
+/**
+ * Le depot d'avis (lot 12).
+ *
+ * Deux criteres de la definition de terminé s'y jouent, et aucun ne peut se
+ * verifier sans base :
+ *
+ * 1. un paiement NON TRACE produit un avis NON verifie, qui ne modifie pas la
+ *    note — la note ne compte que les avis verifies ;
+ * 2. un DEUXIEME avis sur la meme commande est rejete, par la contrainte
+ *    `UNIQUE(order_id)` et non par un `if`.
+ */
+describeDb("depot d'un avis", () => {
+  /** `creer` produit une commande a l'etape `recue` : on la livre ici. */
+  async function livree(suffixe: number, proofState: string, etape = "livree") {
+    const jeu = await creer(suffixe, { proofState, avecPreuve: proofState === "prouve" });
+    await prisma.order.update({
+      where: { id: jeu.orderId },
+      data: { step: etape as never },
+    });
+    const o = await prisma.order.findUnique({
+      where: { id: jeu.orderId },
+      select: { sellerId: true },
+    });
+    return { ...jeu, sellerId: o?.sellerId as string };
+  }
+
+  const deposer = (jeton: string, note: unknown, texte?: string) =>
+    app().fetch(
+      new Request(`http://x/api/suivi/${jeton}/avis`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(texte === undefined ? { note } : { note, texte }),
+      }),
+    );
+
+  it("refuse une note hors echelle plutot que de la ramener au bord", async () => {
+    const v = await livree((RUN + 9101) % 900000, "prouve");
+    for (const note of [0, 6, 4.5, "5"]) {
+      expect((await deposer(v.jeton, note)).status).toBe(400);
+    }
+  });
+
+  it("une commande non livree n'ouvre pas le depot", async () => {
+    const v = await livree((RUN + 9102) % 900000, "prouve", "preparee");
+    expect((await deposer(v.jeton, 5)).status).toBe(409);
+  });
+
+  it("une commande livree et prouvee produit un avis VERIFIE", async () => {
+    const v = await livree((RUN + 9103) % 900000, "prouve");
+    const r = await deposer(v.jeton, 5, "Tres bonne vendeuse");
+    expect(r.status).toBe(201);
+    expect(await r.json()).toMatchObject({ depose: true, verifie: true });
+
+    const avis = await prisma.review.findUnique({ where: { orderId: v.orderId } });
+    expect(avis?.verified).toBe(true);
+    expect(avis?.rating).toBe(5);
+  });
+
+  /** LE critere : non trace → avis publie, mais NON verifie. */
+  it("un paiement declare a la main produit un avis NON verifie", async () => {
+    const v = await livree((RUN + 9104) % 900000, "declare_non_trace");
+    const r = await deposer(v.jeton, 5);
+    expect(r.status).toBe(201);
+    expect(await r.json()).toMatchObject({ depose: true, verifie: false });
+    const avis = await prisma.review.findUnique({ where: { orderId: v.orderId } });
+    expect(avis?.verified).toBe(false);
+  });
+
+  /** Et il n'entre PAS dans la note : c'est ce que lit l'instantane public. */
+  it("un avis non verifie n'entre PAS dans la note de la boutique", async () => {
+    const v = await livree((RUN + 9105) % 900000, "declare_non_trace");
+    await deposer(v.jeton, 1);
+    const comptees = await prisma.review.count({
+      where: { sellerId: v.sellerId, verified: true },
+    });
+    expect(comptees).toBe(0);
+  });
+
+  it("un DEUXIEME avis sur la meme commande est rejete", async () => {
+    const v = await livree((RUN + 9106) % 900000, "prouve");
+    expect((await deposer(v.jeton, 5)).status).toBe(201);
+    const second = await deposer(v.jeton, 1);
+    expect(second.status).toBe(409);
+    expect(await second.json()).toMatchObject({ erreur: "avis_deja_depose" });
+
+    // La premiere note est intacte : le second envoi n'a rien ecrase.
+    const avis = await prisma.review.findUnique({ where: { orderId: v.orderId } });
+    expect(avis?.rating).toBe(5);
+  });
+
+  it("un jeton inconnu ne dit RIEN de la commande", async () => {
+    const r = await deposer("jeton-qui-nexiste-pas-du-tout-1234567890", 5);
+    expect(r.status).toBe(404);
+  });
+});
