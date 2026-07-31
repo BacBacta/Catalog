@@ -100,8 +100,28 @@ jobs:
       # workflow ne les lit jamais : un secret qui traverse un journal
       # d'integration continue est un secret publie. La liste et la procedure
       # sont dans docs/runbooks/deploiement.md.
+      # ── La cible est EXPLICITE, et « production » n'existe pas encore ──────
+      #
+      # `flyctl deploy` sans `--config` ni `--app` lit le `fly.toml` de la
+      # racine. Il n'y en a qu'un, il fige `app = "catalog-api-preprod"`, et son
+      # en-tete dit qu'il decrit la preproduction. Choisir `environnement:
+      # production` dans le menu deployait donc SUR LA PREPRODUCTION, sans rien
+      # signaler — pendant que le job `boutique`, lui, prenait bien la variable
+      # `API_BASE_URL` de l'environnement production. Les deux moities du
+      # produit seraient parties a deux endroits differents.
+      #
+      # Un menu qui ment sur ce qu'il fait est pire qu'un menu absent. Tant
+      # qu'aucune configuration de production n'existe, on refuse le choix ici
+      # plutot que de l'honorer de travers.
+      - name: La cible de production n'existe pas encore
+        if: inputs.environnement == 'production'
+        run: |
+          echo "Aucune configuration Fly de production dans ce depot."
+          echo "Le seul fly.toml decrit la preproduction (catalog-api-preprod)."
+          echo "Creer fly.production.toml et passer --config avant d'utiliser ce choix."
+          exit 1
       - name: fly deploy
-        run: flyctl deploy --remote-only --wait-timeout 10m
+        run: flyctl deploy --remote-only --wait-timeout 10m --config fly.toml --app catalog-api-preprod
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       # Le deploiement est fini quand le service REPOND, pas quand la commande
@@ -136,6 +156,15 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # ── Le client Prisma, et ce n'est pas une precaution ────────────────
+      #
+      # `exporter-catalogue.mjs` importe `createPrismaClient` depuis
+      # `@catalog/db`, dont le client est GENERE — il n'est pas dans le depot.
+      # Le job `porte` lance bien `pnpm db:generate`, mais il tourne sur un
+      # autre executeur : rien ne se transmet d'un job a l'autre. Sans cette
+      # ligne, `pnpm shop:snapshot` meurt sur un module absent, au tout premier
+      # deploiement, avant d'avoir rien construit.
+      - run: pnpm db:generate
       # ── Sans instantane, AUCUNE page de boutique n'est construite ───────
       #
       # C'est volontaire (lot 6) : la boutique ne parle pas a la base, elle lit
@@ -145,6 +174,25 @@ jobs:
         run: pnpm shop:snapshot
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # ── Sans cette garde, une variable oubliee ne se voit qu'en production ──
+      #
+      # `vars.API_BASE_URL` est une VARIABLE, pas un secret : absente, elle
+      # s'etend en chaine vide, sans erreur. `entetes.mjs` retombe alors sur
+      # `connect-src 'self'` — une politique parfaitement valide —, les ilots
+      # appellent une URL relative sur l'origine de la boutique, ou aucune API
+      # ne repond, et le recu comme le suivi cessent de fonctionner.
+      #
+      # Rien n'echoue : ni le build, ni le deploiement, ni un test. Le defaut
+      # n'apparait que dans le navigateur d'une acheteuse. On refuse donc de
+      # construire plutot que de produire un artefact faux.
+      - name: L'origine de l'API est renseignee
+        run: |
+          test -n "${{ vars.API_BASE_URL }}" || {
+            echo "La variable API_BASE_URL est vide pour l'environnement '${{ inputs.environnement }}'."
+            echo "Elle entre dans connect-src : sans elle la boutique se construit"
+            echo "et se deploie sans jamais pouvoir joindre l'API."
+            exit 1
+          }
       - name: Construction
         run: pnpm --filter @catalog/shop build
         env:
@@ -154,12 +202,49 @@ jobs:
           PUBLIC_API_BASE: ${{ vars.API_BASE_URL }}
       - name: Budget de poids
         run: pnpm --filter @catalog/shop size
+      # ── `--prebuilt` est un DRAPEAU, pas une option a valeur ──────────────
+      #
+      # `--prebuilt=false` ne desactivait rien : au mieux la valeur est ignoree
+      # et le mode prebuild est ACTIVE, au pire l'analyse des arguments echoue.
+      # Or nous n'avons pas de `.vercel/output` — Astro produit `dist/`. Le mode
+      # par defaut, qui est celui qu'on veut, s'obtient en n'ecrivant rien.
+      #
+      # ── `--prod` dans les DEUX environnements, et c'est voulu ─────────────
+      #
+      # Sans `--prod`, Vercel cree une PREVISUALISATION : une URL jetable.
+      # L'adresse reelle continue de servir la version precedente, et le job
+      # passe au vert — on croit avoir deploye la preproduction alors qu'on n'a
+      # rien change de ce que voit un testeur.
+      #
+      # `VERCEL_PROJECT_ID` est un secret porte par l'ENVIRONNEMENT GitHub
+      # (`environment: ${{ inputs.environnement }}`) : chaque environnement
+      # designe donc son propre projet Vercel, et « production de ce projet-la »
+      # est exactement ce qu'on veut dans les deux cas.
       - name: vercel deploy
         run: |
           npx --yes vercel@latest deploy apps/shop/dist \
-            --prebuilt=false --yes --token "$VERCEL_TOKEN" \
-            ${{ inputs.environnement == 'production' && '--prod' || '' }}
+            --yes --prod --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # ── Le job `api` verifie que le service repond ; celui-ci ne verifiait
+      # rien. Un deploiement de boutique qui « reussit » sans servir la nouvelle
+      # version est exactement le genre de vert qui coute une demi-journee.
+      - name: La boutique sert la nouvelle version
+        run: |
+          set -euo pipefail
+          base="${{ vars.SHOP_BASE_URL }}"
+          if [ -z "$base" ]; then
+            echo "SHOP_BASE_URL non renseignee : verification sautee."
+            echo "La poser rend ce pas utile — voir docs/runbooks/deploiement.md."
+            exit 0
+          fi
+          entetes=$(curl -sSI --max-time 15 "$base/" || true)
+          echo "$entetes" | head -1
+          echo "$entetes" | grep -qi "referrer-policy: no-referrer" || {
+            echo "Referrer-Policy absent : vercel.json n'a pas ete lu."
+            echo "Le jeton de suivi voyage dans l'URL — voir ADR 0021."
+            exit 1
+          }
+          echo "En-tetes servis par Vercel : vercel.json est bien pris en compte."

@@ -54,6 +54,10 @@ demande de vrais identifiants, donc il passe par `fly secrets`.
 **Aucun ne va dans le dépôt, ni dans `fly.toml`, ni dans un workflow.** Un
 secret qui traverse un journal d'intégration continue est un secret publié.
 
+> **L'application doit exister avant.** `fly secrets set --app …` échoue sur une
+> application inconnue : lancer le `fly launch --no-deploy` de §4 d'abord, puis
+> revenir ici. L'ordre §3 → §4 est celui de la lecture, pas celui des gestes.
+
 ```bash
 fly secrets set --app catalog-api-preprod \
   DATABASE_URL="postgresql://…" \
@@ -63,8 +67,15 @@ fly secrets set --app catalog-api-preprod \
   PAYOUT_OTP_SECRET="$(openssl rand -hex 32)" \
   S3_ENDPOINT="https://…" S3_BUCKET="catalog-media" \
   S3_ACCESS_KEY="…" S3_SECRET_KEY="…" S3_REGION="…" \
-  TRUSTED_ORIGINS="https://preprod.catalog.cm"
+  TRUSTED_ORIGINS="https://app-preprod.catalog.cm"
 ```
+
+> **`TRUSTED_ORIGINS` prend les origines de l'APP VENDEUSE, pas de la
+> boutique.** Elle n'alimente que deux choses : les origines de confiance de
+> Better Auth, et la branche `session` du CORS. Les quatre routes que la
+> boutique appelle — `/api/recu`, `/api/suivi`, `/api/rampe`, `/api/statut` —
+> sont publiques et sans cookie : y mettre l'origine de la boutique n'ouvre
+> rien, et **omettre celle de l'app vendeuse l'empêche de se connecter**.
 
 > **`SMS_ENCRYPTION_KEY` ne se perd pas et ne se change pas à la légère.** Elle
 > chiffre le SMS d'opérateur au repos (lot 8). La perdre rend illisibles toutes
@@ -80,7 +91,15 @@ Côté dépôt GitHub, pour le workflow :
 | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | `vercel deploy` |
 | `DATABASE_URL` | l'instantané du catalogue, **uniquement** |
 
-Et une variable, pas un secret : `API_BASE_URL` — c'est une URL publique.
+Et deux variables, pas des secrets — ce sont des URL publiques :
+
+| Variable | Sert à |
+|---|---|
+| `API_BASE_URL` | `connect-src` de la CSP, et la vérification post-déploiement de l'API. **Le workflow refuse de construire si elle est vide** : sans elle la boutique se déploie au vert sans jamais pouvoir joindre l'API |
+| `SHOP_BASE_URL` | vérifier après coup que Vercel sert bien `vercel.json`. Facultative : absente, le pas se saute en le disant |
+
+Les deux se posent **par environnement** GitHub, comme `VERCEL_PROJECT_ID` :
+c'est ce qui fait que préproduction et production ne se marchent pas dessus.
 
 ---
 
@@ -92,7 +111,6 @@ Et une variable, pas un secret : `API_BASE_URL` — c'est une URL publique.
 fly launch --no-deploy --copy-config --name catalog-api-preprod --region cdg
 fly postgres create --name catalog-pg-preprod --region cdg   # PostgreSQL 18
 fly postgres attach catalog-pg-preprod --app catalog-api-preprod
-mkdir -p /run/catalog   # l'interrupteur ; voir interrupteur-et-retour-arriere.md
 fly deploy
 ```
 
@@ -110,6 +128,47 @@ identifiant d'opérateur en double.
 > dans le conteneur, pas déduit. La commande exacte est dans `fly.toml` — **ne
 > pas la « simplifier » en la ramenant au script pnpm.**
 
+Le répertoire de l'interrupteur d'arrêt (`/run/catalog`) est créé **par
+l'image**, pas à la main : voir le `mkdir` de l'étage d'exécution du
+`Dockerfile`. Une version antérieure de ce runbook le posait ici, au milieu de
+commandes `fly` — il se serait exécuté sur le poste de l'opérateur, jamais sur
+la machine.
+
+### Si le `release_command` échoue
+
+C'est le seul point de cette procédure d'où l'on ne revient pas tout seul, et il
+faut le savoir avant d'y être. Fly n'envoie pas la nouvelle version — c'est le
+comportement voulu — mais une migration interrompue **en cours d'application**
+laisse Prisma dans un état qu'aucun redéploiement ne débloque : la migration est
+marquée en échec, et toute exécution suivante s'arrête sur `P3009` sans rien
+tenter.
+
+```bash
+fly ssh console -C "sh -c 'cd /app/packages/db && ./node_modules/.bin/prisma migrate status'"
+```
+
+Puis, selon ce que dit le diagnostic — et **seulement après avoir regardé la
+base**, pas par réflexe :
+
+| Constat | Geste |
+|---|---|
+| La migration n'a rien appliqué | `prisma migrate resolve --rolled-back <nom>` |
+| Elle a tout appliqué mais a échoué après | `prisma migrate resolve --applied <nom>` |
+| Elle a appliqué une partie | Défaire à la main, puis `--rolled-back` |
+
+Le troisième cas est le seul vraiment coûteux, et c'est celui qu'évite le
+`lock_timeout` de `apply-constraints.mjs` : les contraintes sont appliquées dans
+**une** transaction, donc tout ou rien.
+
+Pour remettre le service en ligne sans attendre le diagnostic, redéployer
+l'image précédente — elle tourne sur l'ancien schéma, et c'est précisément ce
+que garantit l'expand/contract d'AGENTS.md §6 :
+
+```bash
+fly releases --app catalog-api-preprod          # relever la version qui marchait
+fly deploy --image <image de cette version> --strategy immediate
+```
+
 Vérifier :
 
 ```bash
@@ -118,16 +177,29 @@ curl -sS https://api-preprod.catalog.cm/api/statut | jq
 
 ### La boutique
 
-Le projet Vercel se crée avec **`apps/shop/dist` comme répertoire de sortie** et
-**aucune commande de construction** : le workflow construit, Vercel ne fait que
-servir. Faire construire Vercel demanderait de lui donner `DATABASE_URL` pour
-l'instantané, ce qui n'a aucune raison d'être.
+Le projet Vercel se crée avec **aucune commande de construction** : le workflow
+construit, Vercel ne fait que servir. Faire construire Vercel demanderait de lui
+donner `DATABASE_URL` pour l'instantané, ce qui n'a aucune raison d'être.
+
+> **Le répertoire de sortie du projet reste VIDE — surtout pas
+> `apps/shop/dist`.** `vercel deploy apps/shop/dist` fait déjà de ce répertoire
+> la racine du déploiement ; le réglage du projet s'appliquerait *par-dessus*, et
+> Vercel chercherait `apps/shop/dist/apps/shop/dist`. Le chemin ne se donne
+> qu'une fois, et c'est sur la ligne de commande.
 
 ```bash
+pnpm db:generate                      # le client Prisma, que l'instantané importe
 pnpm shop:snapshot                    # a besoin de DATABASE_URL
 PUBLIC_API_BASE=https://api-preprod.catalog.cm pnpm --filter @catalog/shop build
-npx vercel deploy apps/shop/dist --yes
+npx vercel deploy apps/shop/dist --yes --prod
 ```
+
+> **`--prod`, même en préproduction.** Sans lui, Vercel crée une
+> *prévisualisation* : une URL jetable. `preprod.catalog.cm` continue de servir
+> la version d'avant et la commande rend un succès — on croit avoir déployé.
+> Chaque environnement a **son propre projet Vercel** (le `VERCEL_PROJECT_ID` du
+> workflow est porté par l'environnement GitHub), donc « la production de ce
+> projet-là » est bien ce qu'on veut dans les deux cas.
 
 > **`PUBLIC_API_BASE` entre dans la politique de sécurité de contenu.** Fausse ou
 > absente, `connect-src` ne contient pas l'API et le navigateur bloque les îlots
