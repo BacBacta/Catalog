@@ -63,6 +63,7 @@ interface Suivi {
   portee?: string;
   refus?: RefusRecu;
   actions: { contresigner: boolean; contester: boolean };
+  avis?: { possible: boolean; verifie: boolean };
 }
 
 type Etat =
@@ -252,11 +253,127 @@ export default function SuiviAcheteuse() {
         </button>
       ) : null}
 
+      {s.avis?.possible ? <DepotAvis jeton={jeton as string} verifie={s.avis.verifie} /> : null}
+
       {/* Le corollaire assume du « pas de compte requis ». On le dit plutot que
           de le laisser decouvrir. */}
       <p class="text-caption text-muted">
         Ce lien vous est personnel : il permet de confirmer le paiement. Ne le transmettez pas.
       </p>
     </div>
+  );
+}
+
+/**
+ * Le depot d'avis de l'acheteuse (lot 12).
+ *
+ * **Cinq boutons, pas un curseur ni un widget d'etoiles.** L'acheteuse est sur
+ * un telephone d'entree de gamme, souvent d'une seule main, dans une
+ * conversation WhatsApp : un choix se tape, il ne se fait pas glisser. Chaque
+ * bouton porte son intitule en TEXTE, pas seulement une etoile — un lecteur
+ * d'ecran doit pouvoir annoncer « 4 sur 5 ».
+ *
+ * Le commentaire est FACULTATIF. L'exiger ferait disparaitre la majorite des
+ * avis, et une note seule vaut mieux qu'un silence.
+ */
+function DepotAvis({ jeton, verifie }: { jeton: string; verifie: boolean }) {
+  const [note, setNote] = useState<number | null>(null);
+  const [texte, setTexte] = useState("");
+  const [envoi, setEnvoi] = useState(false);
+  const [fait, setFait] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  if (fait) {
+    return (
+      <p class="text-body text-good" data-testid="avis-depose">
+        Merci, votre avis est enregistré.
+      </p>
+    );
+  }
+
+  async function envoyer(e: Event) {
+    e.preventDefault();
+    if (note === null || envoi) return;
+    setEnvoi(true);
+    setErreur(null);
+    try {
+      const r = await fetch(`${API_BASE}/api/suivi/${encodeURIComponent(jeton)}/avis`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ note, texte: texte.trim() || undefined }),
+      });
+      if (r.status === 201) return setFait(true);
+      const corps = (await r.json().catch(() => null)) as { erreur?: string } | null;
+      setErreur(
+        corps?.erreur === "avis_deja_depose"
+          ? "Vous avez déjà donné votre avis sur cette commande."
+          : "Votre avis n'a pas pu être enregistré.",
+      );
+    } catch {
+      setErreur("Le réseau n'a pas répondu. Rien n'a été enregistré.");
+    } finally {
+      setEnvoi(false);
+    }
+  }
+
+  return (
+    <form onSubmit={envoyer} class="flex flex-col gap-3" data-testid="depot-avis">
+      <h3 class="text-body font-semibold text-ink">Votre avis sur cette vendeuse</h3>
+
+      {/* Le label est dit ICI, une fois, plutot que repete sur cinq boutons. */}
+      <fieldset class="flex flex-col gap-2 border-0 p-0">
+        <legend class="text-caption text-ink-2">Votre note, de 1 à 5</legend>
+        <div class="flex flex-wrap gap-2">
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button
+              key={n}
+              type="button"
+              data-testid={`note-${n}`}
+              aria-pressed={note === n}
+              onClick={() => setNote(n)}
+              class={`min-h-[var(--size-touch)] min-w-[var(--size-touch)] rounded-field border px-4 text-body font-semibold ${
+                note === n
+                  ? "border-brand-500 bg-brand-fill text-brand-on-fill"
+                  : "border-control-line bg-surface text-ink"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <label class="flex flex-col gap-1 text-caption text-ink-2">
+        Un mot, si vous voulez (facultatif)
+        <textarea
+          value={texte}
+          onInput={(e) => setTexte((e.target as HTMLTextAreaElement).value)}
+          rows={2}
+          maxLength={1000}
+          class="rounded-field border border-control-line bg-surface p-2 text-body text-ink"
+        />
+      </label>
+
+      {/* On DIT si l'avis comptera dans la note, avant l'envoi. Le decouvrir
+          apres serait vecu comme une sanction cachee. */}
+      <p class="text-caption text-muted">
+        {verifie
+          ? "Votre paiement est tracé : votre avis portera la mention « achat vérifié »."
+          : "Le paiement de cette commande n'a pas de preuve opérateur. Votre avis sera publié, sans la mention « achat vérifié », et n'entrera pas dans la note de la boutique."}
+      </p>
+
+      <p role="status" aria-live="polite" class="text-caption text-danger">
+        {erreur}
+      </p>
+
+      <button
+        type="submit"
+        disabled={note === null || envoi}
+        data-testid="envoyer-avis"
+        class="min-h-[var(--size-touch)] rounded-field bg-brand-fill px-5 py-3 text-body font-semibold text-brand-on-fill disabled:opacity-55"
+      >
+        {envoi ? "Envoi…" : "Envoyer mon avis"}
+      </button>
+    </form>
   );
 }
