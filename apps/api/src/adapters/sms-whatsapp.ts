@@ -128,13 +128,20 @@ export class WhatsAppSender implements SmsSender {
   readonly #url: string;
 
   constructor(cfg: WhatsAppConfig) {
+    /** Meme regle que l'adaptateur Orange : on nomme la VARIABLE a poser. */
+    const VARIABLE = {
+      phoneNumberId: "WHATSAPP_PHONE_NUMBER_ID",
+      accessToken: "WHATSAPP_ACCESS_TOKEN",
+      templateName: "WHATSAPP_TEMPLATE_OTP",
+    } as const;
     const manquants = (["phoneNumberId", "accessToken", "templateName"] as const).filter(
       (k) => !cfg[k],
     );
     if (manquants.length) {
       throw new Error(
-        `Configuration WhatsApp incomplete : ${manquants.join(", ")}. ` +
-          "Voir .env.example, section « fournisseur SMS ».",
+        `Configuration WhatsApp incomplete. Variables absentes : ` +
+          `${manquants.map((k) => VARIABLE[k]).join(", ")}. ` +
+          "Voir .env.example, section « whatsapp : modèle d'authentification (Cloud API) ».",
       );
     }
     this.#cfg = cfg;

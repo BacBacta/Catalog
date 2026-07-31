@@ -42,10 +42,35 @@ pourquoi une machine boucle en redémarrage.
 | Variable absente | Message |
 |---|---|
 | `SMS_PROVIDER` | `ConsoleSmsSender est un fournisseur de developpement : en production, aucun OTP ne partirait et les vendeuses resteraient dehors.` |
-| `S3_ENDPOINT` | `MemoryStorage est un stockage de developpement : en production, les photos disparaitraient au premier redemarrage.` |
+| **une des quatre** `S3_ENDPOINT` · `S3_BUCKET` · `S3_ACCESS_KEY` · `S3_SECRET_KEY` | `MemoryStorage est un stockage de developpement […] Variables de stockage absentes : <les noms>.` |
+| `BETTER_AUTH_SECRET` | `BETTER_AUTH_SECRET est absent. Il signe les sessions vendeuses […]` |
+| `PAYOUT_OTP_SECRET` (ou `BETTER_AUTH_SECRET`) | `PAYOUT_OTP_SECRET (ou BETTER_AUTH_SECRET) est requis […]` |
+| les `ORANGE_*` / `WHATSAPP_*`, **si `SMS_PROVIDER` les désigne** | `Configuration … incomplete. Variables absentes : <les noms>.` |
 
 `SMS_PROVIDER=provider` est déjà posé dans `fly.toml`. Le stockage, non : il
 demande de vrais identifiants, donc il passe par `fly secrets`.
+
+> **Le tableau n'en listait que deux, et le message S3 ne nommait que
+> `S3_ENDPOINT`** — quelle que soit la variable réellement absente. Un
+> `S3_SECRET_KEY` mal orthographié dans la longue ligne à contre-obliques de §3
+> produisait donc un journal disant de configurer `S3_ENDPOINT`, que
+> `fly secrets list` montrait pourtant présent. Les messages nomment désormais
+> la variable manquante.
+
+> **`BETTER_AUTH_SECRET` était le piège le plus coûteux.** Sa validation vivait
+> à l'intérieur de Better Auth, dans une promesse sans `.catch` : elle rejetait
+> **après** le `serve()`. Le journal affichait `catalog-api ecoute sur …` puis le
+> processus mourait. Sur Fly, une boucle de redémarrage dont chaque itération
+> montre une ligne d'écoute *réussie* — on cherche du côté du port, du health
+> check ou de la mémoire. La vérification est maintenant synchrone, avant
+> l'écoute : plus aucune ligne d'écoute ne précède l'erreur.
+
+> **La bascule du canal SMS mérite un ordre.** Poser les identifiants
+> `ORANGE_*` ou `WHATSAPP_*` **avant** de changer `SMS_PROVIDER` : les
+> adaptateurs se construisent à l'import, donc une variable oubliée met hors
+> ligne le parcours **acheteuse** — reçu, suivi, rampe —, celui qui
+> fonctionnait. `SMS_PROVIDER=provider` ne lève, lui, qu'à l'envoi : c'est
+> pourquoi le premier déploiement passe.
 
 ---
 

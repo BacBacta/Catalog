@@ -93,11 +93,20 @@ export class MemoryStorage implements ObjectStorage {
   constructor(
     env: { NODE_ENV?: string | undefined } = process.env,
     base = "http://127.0.0.1:8787/api/media",
+    // `string[]` et non `readonly string[]` : le garde `node-strip-only` cherche
+    // `readonly\s+\w` dans les parametres de constructeur pour attraper les
+    // proprietes de parametre, et ne distingue pas un TYPE d'un modificateur. Sa
+    // sur-approximation est du bon cote — un faux positif agace, un faux negatif
+    // fait sortir le serveur a l'import. On plie ici plutot que d'elargir le motif.
+    manquantes: string[] = [],
   ) {
     if (env.NODE_ENV === "production") {
       throw new Error(
         "MemoryStorage est un stockage de developpement : en production, les " +
-          "photos disparaitraient au premier redemarrage. Configurez S3_ENDPOINT.",
+          "photos disparaitraient au premier redemarrage. " +
+          (manquantes.length
+            ? `Variables de stockage absentes : ${manquantes.join(", ")}.`
+            : "Configurez S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY et S3_SECRET_KEY."),
       );
     }
     this.#base = base;
@@ -148,5 +157,20 @@ export function resolveStorage(env: NodeJS.ProcessEnv = process.env): ObjectStor
       ...(env.S3_REGION ? { region: env.S3_REGION } : {}),
     });
   }
-  return new MemoryStorage(env);
+  /**
+   * **Le repli exige les QUATRE variables, donc le message doit dire laquelle
+   * manque.** Il ne nommait que `S3_ENDPOINT`, quelle que soit l'absente : un
+   * `S3_SECRET_KEY` mal orthographie dans le `fly secrets set` produisait un
+   * journal disant de configurer `S3_ENDPOINT`, que `fly secrets list` montrait
+   * pourtant present. La machine boucle en redemarrage et l'operateur cherche du
+   * cote de la seule variable qui, elle, est correcte.
+   */
+  return new MemoryStorage(env, undefined, manquantesS3(env));
+}
+
+/** Les variables de stockage absentes, dans l'ordre ou on les pose. */
+function manquantesS3(env: NodeJS.ProcessEnv): string[] {
+  return (["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY"] as const).filter(
+    (k) => !env[k],
+  );
 }
