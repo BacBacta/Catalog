@@ -137,6 +137,12 @@ utilisateur virtuel, et signale en clair toute réponse 429.
 > et Orange bien avant qu'une vendeuse n'ait renoncé à se connecter. Sans eux,
 > 4.12 n'est vrai que le jour où on l'a testé.
 >
+> **Orange décline lui-même la garantie de réception**, dans ses conditions :
+> « Orange Cameroon does not warrant actual receipt of the SMS by Subscribers ».
+> Ce compteur n'est donc pas une précaution excessive — c'est la seule chose qui
+> distingue « parti » de « arrivé », et l'opérateur ne s'engage que sur le
+> premier.
+>
 > Une nuance à ne pas perdre en lisant ce compteur : `DeliveryImpossible`
 > **n'est pas une preuve de non-livraison** — un téléphone éteint plus de 24 h,
 > un numéro fixe ou désaffecté produisent le même statut. Seul

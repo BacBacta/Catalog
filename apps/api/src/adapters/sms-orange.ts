@@ -74,8 +74,27 @@ import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
  * L'interpretation vit dans `domain/sms/livraison.ts`, qui ne tient qu'une seule
  * valeur pour certaine.
  *
- * Source : `https://developer.orange.com/apis/sms-cm` et la mise en route
- * commune `https://developer.orange.com/apis/sms/getting-started`.
+ * ── Ce que les CONDITIONS d'Orange disent, et pas seulement la page ──────
+ *
+ * La couverture tous operateurs est confirmee par les conditions contractuelles
+ * de `sms-cm`, pas par un argumentaire commercial : le service envoie « a des
+ * abonnes de n'importe quel operateur situe au Cameroun ».
+ *
+ * Les memes conditions declinent la garantie de reception : « Orange Cameroon
+ * does not warrant actual receipt of the SMS by Subscribers as there are many
+ * technical reasons outside the control of Orange that may impede reception ».
+ * **L'operateur dit lui-meme que son acceptation ne vaut pas livraison** — c'est
+ * l'argument le plus solide pour la mesure branchee plus haut.
+ *
+ * ── Une voisine ecartee, pour qu'on ne refasse pas l'enquete ─────────────
+ *
+ * Orange publie aussi « Messaging Pro Cameroon ». Elle envoie des SMS en masse,
+ * mais **Orange uniquement**, sans accuse de livraison documente. Strictement
+ * moins bien que `sms-cm` pour cet usage.
+ *
+ * Sources : `https://developer.orange.com/apis/sms-cm`, ses conditions
+ * (`/terms-and-conditions`), et la mise en route commune
+ * `https://developer.orange.com/apis/sms/getting-started`.
  */
 
 export interface OrangeSmsConfig {
