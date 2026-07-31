@@ -165,6 +165,7 @@ export function smsSenderDepuisEnv(env: NodeJS.ProcessEnv = process.env): SmsSen
         clientSecret: env.ORANGE_CLIENT_SECRET ?? "",
         senderAddress: env.ORANGE_SENDER_ADDRESS ?? "",
         senderName: env.ORANGE_SENDER_NAME,
+        accuseUrl: env.SMS_ACCUSE_URL,
         ...(env.ORANGE_BASE_URL ? { baseUrl: env.ORANGE_BASE_URL } : {}),
       }),
     whatsapp: () =>

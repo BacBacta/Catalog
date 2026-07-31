@@ -168,6 +168,36 @@ describe("Orange — SMS Cameroon", () => {
     expect(appels[1]?.url).toContain("/smsmessaging/v1/outbound/");
   });
 
+  /* ── l'accuse de livraison ── */
+
+  it("ne demande pas d'accuse quand aucune URL n'est configuree", async () => {
+    const { appels, envoyeur } = construire([JETON_OK, { ok: true }]);
+    await envoyeur.send(OTP);
+    expect(corpsDe(appels[1]?.init as RequestInit).outboundSMSMessageRequest).not.toHaveProperty(
+      "receiptRequest",
+    );
+  });
+
+  /**
+   * **`callbackData` revient tel quel dans un rappel qui n'est ni chiffre ni
+   * signe.** Y mettre le code reviendrait a le publier ; y mettre le numero en
+   * ferait une donnee personnelle de plus sur le reseau. Seule l'etiquette y va.
+   */
+  it("l'accuse ne transporte que l'etiquette du message — jamais le code", async () => {
+    const { appels, envoyeur } = construire([JETON_OK, { ok: true }], {
+      accuseUrl: "https://api.catalog.cm/api/sms/accuse/le-secret",
+    });
+    await envoyeur.send(OTP);
+
+    const demande = corpsDe(appels[1]?.init as RequestInit).outboundSMSMessageRequest;
+    expect(demande.receiptRequest).toEqual({
+      notifyURL: "https://api.catalog.cm/api/sms/accuse/le-secret",
+      callbackData: "otp_connexion",
+    });
+    expect(JSON.stringify(demande.receiptRequest)).not.toContain("483920");
+    expect(JSON.stringify(demande.receiptRequest)).not.toContain("237677000001");
+  });
+
   it("reutilise le jeton tant qu'il est valide", async () => {
     const { appels, envoyeur } = construire([JETON_OK, { ok: true }, { ok: true }]);
     await envoyeur.send(OTP);

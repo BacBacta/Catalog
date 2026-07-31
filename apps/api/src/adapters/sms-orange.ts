@@ -60,16 +60,19 @@ import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
  * `sms-provider.ts` decrit — « une passerelle qui accepte le message puis ne le
  * delivre pas […] ne se voit pas depuis un code HTTP 200 ».
  *
- * **Orange offre des accuses de livraison** (« Delivery Receipt to your
- * backend »), et c'est donc une option disponible, pas une inconnue. Elle n'est
- * pas branchee ici parce qu'elle demande une route publique de rappel — donc une
- * surface a proteger, des regles de debit, une authentification de l'appelant.
- * Le lot 15 vient d'ecrire ces regles ; les appliquer a une route de plus est un
- * travail en soi, pas un ajout discret.
+ * **L'accuse de livraison comble cet ecart**, et il est branche : `accuseUrl`
+ * ci-dessous, la route `POST /api/sms/accuse/:secret`, et le compteur
+ * `catalog.sms.livraison` ventile par operateur.
  *
- * En attendant, le signal de substitution est gratuit et deja en place : le taux
- * de VERIFICATION d'OTP reussie. Si les codes partent et que personne ne les
- * saisit, c'est qu'ils n'arrivent pas.
+ * C'est aussi le SEUL controle automatique du point 2 plus haut. Si les numeros
+ * en 67 et 68 ne sont jamais livres alors que ceux en 69 le sont toujours, la
+ * souscription est fausse — et on le sait avant qu'une vendeuse MTN n'ait
+ * renonce a se connecter.
+ *
+ * Une nuance a ne pas perdre : `DeliveryImpossible` **n'est pas une preuve de
+ * non-delivrance** — un telephone eteint plus de 24 h produit le meme statut.
+ * L'interpretation vit dans `domain/sms/livraison.ts`, qui ne tient qu'une seule
+ * valeur pour certaine.
  *
  * Source : `https://developer.orange.com/apis/sms-cm` et la mise en route
  * commune `https://developer.orange.com/apis/sms/getting-started`.
@@ -90,6 +93,23 @@ export interface OrangeSmsConfig {
    * l'acceptent plus. Ne pas l'inventer : il se declare.
    */
   senderName?: string | undefined;
+  /**
+   * L'URL que Orange rappellera avec l'accuse de livraison, secret compris.
+   *
+   * ── Deux facons de la declarer, et il faut savoir laquelle marche ────────
+   *
+   * La documentation Orange demande de faire inscrire l'URL sur une LISTE
+   * BLANCHE, par un formulaire, hors API. La norme dont cette API derive prevoit
+   * en plus un `receiptRequest` par message, que l'adaptateur pose ci-dessous.
+   *
+   * **Les deux n'ont pas ete verifiees sur un vrai compte**, faute d'en avoir
+   * un : c'est marque comme tel dans la checklist de lancement plutot que
+   * presente comme acquis. Si seule la liste blanche fonctionne, ce champ est
+   * sans effet et le rappel arrive quand meme — rien ne casse.
+   *
+   * Absente, aucun `receiptRequest` n'est pose et rien ne change.
+   */
+  accuseUrl?: string | undefined;
   /** Racine de l'API. Parametrable pour les tests, jamais en production. */
   baseUrl?: string;
   fetchImpl?: typeof fetch;
@@ -212,6 +232,20 @@ export class OrangeSmsSender implements SmsSender {
           senderAddress: adresseTel(this.#cfg.senderAddress),
           ...(this.#cfg.senderName ? { senderName: this.#cfg.senderName } : {}),
           outboundSMSTextMessage: { message: message.text },
+          /**
+           * L'accuse de livraison. `callbackData` porte l'ETIQUETTE du message
+           * — `otp_connexion` — et rien d'autre : **jamais le code, jamais le
+           * numero**. Cette valeur revient telle quelle dans le rappel, qui
+           * n'est ni chiffre ni signe ; y mettre un OTP reviendrait a le publier.
+           */
+          ...(this.#cfg.accuseUrl
+            ? {
+                receiptRequest: {
+                  notifyURL: this.#cfg.accuseUrl,
+                  callbackData: message.kind,
+                },
+              }
+            : {}),
         },
       }),
     });

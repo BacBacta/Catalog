@@ -118,7 +118,9 @@ utilisateur virtuel, et signale en clair toute réponse 429.
 | 4.9 | `vercel.json` à jour — Vercel ne lit ni `_redirects` ni `_headers` | ✅ | garde CI, `git diff --exit-code` |
 | 4.10 | Canal du code de connexion tranché — **sans lui, aucune vendeuse n'entre** | ❌ | `sms-provider.ts` lève, délibérément |
 | 4.11 | Si Orange : l'application est souscrite à **`sms-cm`**, pas à `sms-onnet-cm` | ❌ | **ne se vérifie pas en code** — voir ci-dessous |
-| 4.12 | Un code reçu sur un numéro **MTN** et sur un numéro **Orange** | ❌ | la seule preuve de couverture réelle |
+| 4.12 | Un code reçu sur un numéro **MTN** et sur un numéro **Orange** | ❌ | la première preuve de couverture réelle |
+| 4.13 | `SMS_ACCUSE_SECRET` et `SMS_ACCUSE_URL` posés, URL inscrite chez Orange | ❌ | HTTPS/443, certificat valide, formulaire de liste blanche |
+| 4.14 | Le compteur `catalog.sms.livraison` reçoit des points pour **les deux** opérateurs | ❌ | la couverture, surveillée en continu |
 
 > **4.11 et 4.12 vont ensemble, et c'est le piège le plus coûteux de cette
 > liste.** Les deux offres SMS d'Orange partagent le même chemin technique ;
@@ -128,6 +130,19 @@ utilisateur virtuel, et signale en clair toute réponse 429.
 > trois ne pourrait jamais se connecter, sans que rien ne le signale. Le test
 > `sms-adaptateurs.test.ts` ferme l'autre porte (le paramètre de requête) ;
 > celle-ci ne se ferme que par une mesure.
+>
+> **4.13 et 4.14 transforment cette mesure ponctuelle en surveillance
+> continue.** Les accusés de livraison d'Orange, ventilés par opérateur
+> (`catalog.sms.livraison`), montrent un écart systématique entre préfixes MTN
+> et Orange bien avant qu'une vendeuse n'ait renoncé à se connecter. Sans eux,
+> 4.12 n'est vrai que le jour où on l'a testé.
+>
+> Une nuance à ne pas perdre en lisant ce compteur : `DeliveryImpossible`
+> **n'est pas une preuve de non-livraison** — un téléphone éteint plus de 24 h,
+> un numéro fixe ou désaffecté produisent le même statut. Seul
+> `DeliveredToTerminal` est sûr. C'est pourquoi l'état `echec_possible` porte ce
+> nom, et pourquoi il ne faut pas bâtir une alerte sur son seul volume : c'est
+> l'ÉCART entre opérateurs qui parle, pas le niveau absolu.
 
 ---
 

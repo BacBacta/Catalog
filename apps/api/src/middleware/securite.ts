@@ -114,6 +114,12 @@ const PREFIXES: ReadonlyArray<[string, ClasseCors]> = [
   ["/api/statistiques", "session"],
   ["/api/commandes", "session"],
   ["/api/media", "session"],
+  /**
+   * L'accuse de livraison d'Orange : machine a machine, jamais un navigateur.
+   * `fermee` — aucun en-tete CORS — est donc exact, et c'est aussi ce qui
+   * empeche une page tierce d'aller y poster depuis le navigateur d'un visiteur.
+   */
+  ["/api/sms", "fermee"],
 ];
 
 export function classeDuChemin(chemin: string): ClasseCors {

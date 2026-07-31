@@ -16,6 +16,7 @@ import { gardeDeCohorte } from "./middleware/cohorte.ts";
 import { limiterDebit, MemoireDeDebit } from "./middleware/debit.ts";
 import { monterAvecGardes, TAILLE_JSON_MAX } from "./middleware/securite.ts";
 import { demarrerObservabilite } from "./observabilite/demarrage.ts";
+import { accuseLivraisonRoutes } from "./routes/accuse-livraison.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { commandeRoutes } from "./routes/commandes.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
@@ -99,6 +100,18 @@ app.route(
     ...(process.env.CATALOG_VERSION ? { version: process.env.CATALOG_VERSION } : {}),
   }),
 );
+
+/**
+ * L'accuse de livraison d'Orange (« Delivery Receipt »). Monte UNIQUEMENT si un
+ * secret est configure : sans lui, la route n'existe pas du tout.
+ *
+ * C'est un refus par defaut, et c'est le bon sens ici — une route de rappel
+ * ouverte sans secret laisserait n'importe qui fausser la mesure de couverture,
+ * qui est justement le seul controle automatique du fait que les vendeuses MTN
+ * recoivent leur code.
+ */
+const secretAccuse = process.env.SMS_ACCUSE_SECRET?.trim();
+if (secretAccuse) app.route("/api/sms", accuseLivraisonRoutes({ secret: secretAccuse }));
 
 // Uniquement quand le fournisseur factice est actif — donc jamais en production,
 // ou `ConsoleSmsSender` refuse de se construire.
