@@ -1,3 +1,4 @@
+import { IMAGE_TAILLE_MAX_OCTETS } from "@catalog/contracts";
 import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
@@ -6,9 +7,14 @@ import { resolveChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
 import app from "./app.ts";
-import { createAuth, smsSenderDepuisEnv } from "./auth.ts";
+import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
+import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
+import { reglesDepuisEnv } from "./domain/securite/debit.ts";
+import { gardeDeCohorte } from "./middleware/cohorte.ts";
+import { limiterDebit, MemoireDeDebit } from "./middleware/debit.ts";
+import { monterAvecGardes, TAILLE_JSON_MAX } from "./middleware/securite.ts";
 import { demarrerObservabilite } from "./observabilite/demarrage.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { commandeRoutes } from "./routes/commandes.ts";
@@ -21,6 +27,7 @@ import { rampeRoutes } from "./routes/rampe.ts";
 import { recuRoutes, suiviRoutes } from "./routes/recu.ts";
 import { sellerRoutes } from "./routes/seller.ts";
 import { statsRoutes } from "./routes/stats.ts";
+import { statutRoutes } from "./routes/statut.ts";
 
 /**
  * Point d'entree. C'est ici que les dependances concretes sont branchees :
@@ -74,6 +81,25 @@ app.route("/api/rampe", rampeRoutes(rampe));
 app.route("/api/recu", recuRoutes({ prisma, rampe, session }));
 app.route("/api/suivi", suiviRoutes({ prisma, rampe }));
 
+/**
+ * La page de statut publique. Elle passe l'interrupteur en toutes positions —
+ * un service muet ne se supervise pas — et sa sonde de base est partagee entre
+ * tous les appelants : une page de statut est consultee au moment ou tout le
+ * monde a un probleme, elle ne doit pas ajouter sa charge a la panne.
+ */
+app.route(
+  "/api/statut",
+  statutRoutes({
+    baseJoignable: async () => {
+      await prisma.$queryRaw`SELECT 1`;
+      return true;
+    },
+    position: () => positionCourante(),
+    message: () => process.env.STATUT_MESSAGE?.trim() || null,
+    ...(process.env.CATALOG_VERSION ? { version: process.env.CATALOG_VERSION } : {}),
+  }),
+);
+
 // Uniquement quand le fournisseur factice est actif — donc jamais en production,
 // ou `ConsoleSmsSender` refuse de se construire.
 const dev = devOtpRoutes({ console: sms instanceof ConsoleSmsSender ? sms : null });
@@ -93,6 +119,34 @@ if (storage instanceof MemoryStorage) app.route("/api/media", mediaRoutes(storag
 const otel = demarrerObservabilite();
 console.log(otel.actif ? "observabilite : active" : `observabilite : inactive — ${otel.raison}`);
 
+/**
+ * Les gardes de bordure du lot 15 (ADR 0024).
+ *
+ * **Ils enveloppent l'application, ils ne s'ajoutent pas dedans**, et le
+ * montage vient donc APRES toutes les routes. Hono execute les gestionnaires
+ * dans l'ordre d'enregistrement : un `app.use("*", …)` place ici ne
+ * s'appliquerait pas a `/health`, declare dans `app.ts` donc enregistre a
+ * l'import. C'est exactement ce qui s'est produit a la premiere ecriture de ce
+ * lot — `/health` ressortait sans un seul en-tete de securite —, et le montage
+ * en racine rend la question impossible a reposer.
+ *
+ * Le plafond des corps : 16 Ko partout, sauf le televersement de photo. Le
+ * facteur 1,2 couvre l'enveloppe `multipart` — bornes, en-tetes de partie et
+ * sauts de ligne — qui s'ajoute au fichier lui-meme.
+ */
+const reglesDeDebit = reglesDepuisEnv(process.env);
+const racine = monterAvecGardes(app, {
+  hsts: hstsActif(),
+  origines: origines(),
+  position: () => positionCourante(),
+  debit: limiterDebit({ regles: reglesDeDebit, memoire: new MemoireDeDebit(reglesDeDebit) }),
+  cohorte: gardeDeCohorte({ session, config: () => cohorteDepuisEnv() }),
+  plafond: (chemin) =>
+    /^\/api\/articles\/[^/]+\/image$/.test(chemin)
+      ? Math.ceil(IMAGE_TAILLE_MAX_OCTETS * 1.2)
+      : TAILLE_JSON_MAX,
+});
+
 const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port });
+serve({ fetch: racine.fetch, port });
 console.log(`catalog-api ecoute sur http://localhost:${port}`);

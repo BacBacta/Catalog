@@ -16,14 +16,28 @@ Chacun de ces fichiers a la même structure, et elle n'est pas décorative :
 Le dernier est celui qu'on oublie d'écrire, et c'est le plus important : sans
 lui, un incident se termine quand quelqu'un est fatigué.
 
-## Les quatre situations couvertes
+## Les cinq situations couvertes
 
 | Runbook | Probabilité | Ce qui casse |
 |---|---|---|
 | [Changement de format de SMS](changement-format-sms.md) | **La plus probable** | Les preuves sont refusées en bloc. Rien ne tombe. |
 | [Code USSD modifié](code-ussd-modifie.md) | Moyenne | La rampe ouvre un menu inattendu. |
 | [Paiement contesté](paiement-conteste.md) | Certaine, récurrente | Une vendeuse et une acheteuse ne disent pas la même chose. |
+| [Interrupteur et retour arrière](interrupteur-et-retour-arriere.md) | Inévitable au moins une fois | Un déploiement se passe mal. |
 | [Restauration d'une sauvegarde](restauration-sauvegarde.md) | Rare, grave | La base est perdue ou corrompue. |
+
+L'interrupteur est le seul de ces runbooks qui ne commence pas par un
+diagnostic, et c'est délibéré : **on arrête d'abord, on comprend ensuite.** Un
+interrupteur se remet en position ouverte en dix secondes ; une demi-heure de
+diagnostic pendant que des preuves se perdent ne se rattrape pas.
+
+## Et une liste qui n'est pas un runbook
+
+[checklist-lancement.md](checklist-lancement.md) se lit **avant** l'incident,
+une seule fois, avant d'ouvrir à la première vendeuse qui n'est pas dans la
+pièce. Elle distingue ce qui est vérifié par une commande, ce qui reste à
+décider, et les quatre points qu'aucune session de développement ne peut
+cocher — infrastructure réelle, réseau camerounais réel, préproduction.
 
 ## Deux entrées de l'ancienne liste ont disparu
 

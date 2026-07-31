@@ -59,3 +59,25 @@ onlyBuiltDependencies:
 # nul. C'est une collision de dependance transitive, pas un choix de stack.
 overrides:
   tslib: ^2.8.1
+
+  # ── Audit de dependances (lot 15) ────────────────────────────────────────
+  #
+  # `pnpm audit` signalait quatre avis, dont deux ELEVES. Tous portaient sur de
+  # l'outillage de construction — `@lhci/cli` et `vite-plugin-pwa` —, donc rien
+  # de ce qui part en production : `pnpm audit --prod` etait deja vide, et c'est
+  # cette commande-la qui garde la CI.
+  #
+  # Ces resolutions ont ete posees quand meme, et il faut savoir pourquoi : un
+  # rapport d'audit qui affiche en permanence deux lignes rouges « connues et
+  # sans gravite » est un rapport qu'on cesse de lire. Le jour ou une CINQUIEME
+  # ligne apparait — celle qui compte —, elle se noie dans les quatre autres.
+  # Un audit ne vaut que s'il est vide.
+  #
+  # Les trois montees traversent des frontieres de version majeure (`uuid` 8 → 11
+  # passe en modules ES). Elles ont donc ete VERIFIEES et non supposees : build
+  # de l'app vendeuse avec `vite-plugin-pwa` (qui atteint `brace-expansion` par
+  # workbox), et `pnpm shop:lighthouse` complet — quinze passages, toutes les
+  # assertions vertes.
+  brace-expansion: ^5.0.8
+  tmp: ^0.2.6
+  uuid: ^11.1.1

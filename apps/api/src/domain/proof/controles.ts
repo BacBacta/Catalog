@@ -1,5 +1,5 @@
 import type { CheckResult, CheckState, Verdict } from "@catalog/contracts";
-import type { ParsedSms, SmsPattern } from "./motifs.ts";
+import type { ParsedSms, Sens, SmsPattern } from "./motifs.ts";
 import { decodeOrangeId, local9 } from "./outils.ts";
 
 /**
@@ -291,15 +291,48 @@ export function controle6AutoCoherence(sms: ParsedSms): CheckResult | null {
 
 /* ────────────────────────── 7. contre-signature ────────────────────────── */
 
-export function controle7Contresignature(commande: CommandePourControles): CheckResult {
-  return commande.contresigneeParAcheteuse
-    ? c(7, "contresignature", "pass", "L'acheteuse a confirmé avoir payé.")
-    : c(
-        7,
-        "contresignature",
-        "pending",
-        "En attente de la confirmation de l'acheteuse. Elle la donne depuis son lien de suivi.",
-      );
+/**
+ * **Le sens du message change la NATURE de ce controle**, et c'est le point le
+ * plus important de la fonction.
+ *
+ * - message **entrant** (celui de la vendeuse) : il fait autorite a lui seul.
+ *   La contre-signature le renforce, donc son absence est `pending` — elle
+ *   n'empeche rien ;
+ * - message **sortant** (celui de l'acheteuse) : c'est une CORROBORATION,
+ *   jamais une preuve (AGENTS.md §2). Son absence de contre-signature est donc
+ *   un `warn`, ce qui plafonne le verdict a « accepté sous réserve ».
+ *
+ * Sans cette distinction, un SMS d'emission dont le destinataire est le numero
+ * de reversement franchissait les six autres controles et produisait
+ * « accepte » — c'est-a-dire exactement l'interdit « faire passer une commande
+ * en prouve sur le seul SMS d'emission de l'acheteuse ». Le defaut a ete trouve
+ * par la revue de securite du lot 15 ; voir l'ADR 0024.
+ *
+ * Le plafond se leve des que l'acheteuse contresigne : « en attente du message
+ * entrant OU de la contre-signature » est bien une alternative.
+ */
+export function controle7Contresignature(
+  commande: CommandePourControles,
+  sens: Sens = "entrant",
+): CheckResult {
+  if (commande.contresigneeParAcheteuse) {
+    return c(7, "contresignature", "pass", "L'acheteuse a confirmé avoir payé.");
+  }
+  if (sens === "sortant") {
+    return c(
+      7,
+      "contresignature",
+      "warn",
+      "Ce message est celui de l'acheteuse, pas le vôtre : il corrobore le paiement sans le prouver. " +
+        "Il faut votre SMS de réception, ou la confirmation de l'acheteuse depuis son lien de suivi.",
+    );
+  }
+  return c(
+    7,
+    "contresignature",
+    "pending",
+    "En attente de la confirmation de l'acheteuse. Elle la donne depuis son lien de suivi.",
+  );
 }
 
 /* ────────────────────────── l'ensemble ────────────────────────── */
@@ -345,7 +378,7 @@ export function appliquerControles(entree: EntreeControles): ResultatControles {
   const six = controle6AutoCoherence(sms);
   if (six) checks.push(six);
 
-  checks.push(controle7Contresignature(commande));
+  checks.push(controle7Contresignature(commande, pattern.sens));
 
   return { checks, verdict: verdictDe(checks) };
 }
