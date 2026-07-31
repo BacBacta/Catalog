@@ -108,6 +108,40 @@ fly secrets set --app catalog-api-preprod \
 > de transaction, donc la matière du reçu. À sauvegarder ailleurs que sur Fly,
 > le jour où elle est créée.
 
+### Le stockage : Tigris pose les mauvais noms
+
+`fly storage create` provisionne un bucket Tigris **et pose lui-même cinq
+secrets** — sous des noms qui ne sont pas ceux que l'application lit :
+
+| Ce que Tigris pose | Ce que l'application lit |
+|---|---|
+| `AWS_ENDPOINT_URL_S3` | `S3_ENDPOINT` |
+| `BUCKET_NAME` | `S3_BUCKET` |
+| `AWS_ACCESS_KEY_ID` | `S3_ACCESS_KEY` |
+| `AWS_SECRET_ACCESS_KEY` | `S3_SECRET_KEY` |
+| `AWS_REGION` | `S3_REGION` |
+
+**Sans ce mappage, la machine ne démarre pas** — le garde de §2 lève, alors que
+`fly secrets list` montre cinq secrets de stockage bien présents. C'est
+exactement la fausse piste que le message d'erreur évite désormais : il nomme
+les quatre variables *attendues*, pas celles qui existent.
+
+```bash
+fly storage create --name catalog-media-preprod --app catalog-api-preprod --yes
+# puis, en recopiant les valeurs affichées :
+fly secrets set --app catalog-api-preprod \
+  S3_ENDPOINT="https://fly.storage.tigris.dev" S3_BUCKET="catalog-media-preprod" \
+  S3_ACCESS_KEY="tid_…" S3_SECRET_KEY="tsec_…" S3_REGION="auto"
+```
+
+> `--yes` vaut **acceptation des conditions de service de Tigris Data**. Ce
+> n'est pas un drapeau de confort : c'est un engagement contractuel, et il n'y a
+> pas d'autre moyen de créer le bucket sans terminal interactif.
+>
+> `flyctl` **affiche les clés en clair** à la création. Elles passent donc par le
+> terminal, l'historique du shell et, en session assistée, le transcript. Les
+> régénérer depuis la console Tigris une fois le déploiement stabilisé.
+
 Côté dépôt GitHub, pour le workflow :
 
 | Secret | Sert à |
@@ -194,11 +228,28 @@ fly releases --app catalog-api-preprod          # relever la version qui marchai
 fly deploy --image <image de cette version> --strategy immediate
 ```
 
-Vérifier :
+### `fly deploy` réussit sur un service mort — vérifier, toujours
+
+**Ce n'est pas une précaution, c'est une observation.** Au premier déploiement
+réel, `fly deploy` a rendu **0** et affiché `Visit your newly deployed app`
+pendant que la machine bouclait en redémarrage sur un garde de boot. Ni le code
+de sortie, ni le message, ni le `[[http_service.checks]]` de `fly.toml` n'ont
+arrêté quoi que ce soit : la sonde existe, mais rien dans la commande ne bloque
+sur son résultat.
+
+Le job `api` du workflow attrape ce cas — son pas « Le service répond »
+interroge `/api/statut` en boucle. Le `fly deploy` lancé à la main, non. D'où
+ces trois lignes, à exécuter systématiquement après un déploiement manuel :
 
 ```bash
+fly status -a catalog-api-preprod        # STATE doit dire "started", pas "stopped"
 curl -sS https://api-preprod.catalog.cm/api/statut | jq
+fly logs -a catalog-api-preprod --no-tail | tail -30   # si le statut ne répond pas
 ```
+
+`/api/statut` doit rendre `{"niveau":"ok","base":"joignable",…}`. Un service qui
+répond mais dont la base ne l'est pas rend `niveau: "degrade"` — c'est une
+information différente d'un silence, et c'est pour cela que la page existe.
 
 ### La boutique
 
