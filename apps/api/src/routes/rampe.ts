@@ -1,5 +1,6 @@
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import { Hono } from "hono";
+import { avecSpan, PARCOURS, poser } from "../observabilite/traces.ts";
 
 /**
  * `GET /api/rampe` — la configuration de la rampe de paiement.
@@ -21,11 +22,27 @@ import { Hono } from "hono";
  * rien a proteger d'un autre site — mais on n'ouvre que CETTE route.
  */
 export function rampeRoutes(config: RampeConfig) {
-  return new Hono().get("/", (c) => {
-    c.header("Access-Control-Allow-Origin", "*");
-    // Une minute : assez pour amortir une rafale, assez peu pour qu'un
-    // changement de code arrive vite chez les acheteuses.
-    c.header("Cache-Control", "public, max-age=60");
-    return c.json(config);
-  });
+  /**
+   * Le drapeau `verifie` de chaque operateur, une fois pour toutes.
+   *
+   * Il voyage dans la trace parce que c'est la question qu'on se posera devant
+   * un pic d'echecs de paiement : est-ce qu'on sert un raccourci que PERSONNE
+   * n'a jamais compose a Douala ? Tant que ce drapeau est faux, la reponse est
+   * oui, et ce n'est pas un defaut — c'est l'inconnue de terrain n° 2
+   * (AGENTS.md §10) rendue visible la ou on la cherchera.
+   */
+  const tousVerifies = config.operateurs.every((o) =>
+    o.raccourcis.every((r) => r.verifie === true),
+  );
+
+  return new Hono().get("/", (c) =>
+    avecSpan(PARCOURS.rampeOuverte, {}, async (span) => {
+      poser(span, { "catalog.rampe.code_verifie": tousVerifies });
+      c.header("Access-Control-Allow-Origin", "*");
+      // Une minute : assez pour amortir une rafale, assez peu pour qu'un
+      // changement de code arrive vite chez les acheteuses.
+      c.header("Cache-Control", "public, max-age=60");
+      return c.json(config);
+    }),
+  );
 }

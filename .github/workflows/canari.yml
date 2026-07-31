@@ -1,0 +1,58 @@
+name: Canari de formats
+
+# ── Pourquoi un programme quotidien pour un test qui tourne deja en CI ──────
+#
+# Sur une reunion de branche, le canari tourne avec le reste et attrape une
+# derive de COMMIT : un motif « nettoye » sans que la specification suive.
+#
+# Le programme quotidien sert a autre chose, et c'est ce qui justifie ce
+# fichier. La panne la plus probable de Catalog n'est pas un commit fautif :
+# c'est un OPERATEUR qui change son format de SMS, un matin, sans prevenir
+# personne. Ce jour-la, aucun test ne casse — la production casse. Les vendeuses
+# collent leurs SMS comme d'habitude, se font refuser en bloc au controle n° 1,
+# et n'appellent pas : elles arretent de coller.
+#
+# Le signal est le compteur `catalog.preuve.controle{controle=1,etat=fail}`, et
+# il ne se lit que par comparaison. Ce canari est le repere fixe a cote duquel
+# on le lit : tant qu'il est vert, les motifs du depot n'ont pas bouge, donc la
+# bascule vient de l'exterieur. Sans lui, la premiere question du jour d'un
+# incident serait « est-ce nous ou eux ? », et personne ne saurait y repondre.
+#
+# Il tourne SANS BASE et sans reseau : le domaine de la preuve est pur (lot 7),
+# et c'est ce qui rend ce job court, fiable et sans dependance a reveiller.
+
+on:
+  schedule:
+    # 06:00 UTC, soit 07:00 a Douala — avant l'ouverture des boutiques, pour que
+    # l'echec soit lu avant que les vendeuses commencent a coller.
+    - cron: "0 6 * * *"
+  # Rejouable a la main le jour ou on soupconne un changement de format.
+  workflow_dispatch:
+
+concurrency:
+  group: canari
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  TZ: "Africa/Douala"
+
+jobs:
+  formats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # PAS de `version:` : `packageManager` de package.json en est la source.
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Le client Prisma est necessaire a la RESOLUTION des imports du paquet,
+      # meme si ce test ne touche aucune base.
+      - run: pnpm db:generate
+      - name: Canari — la specification et les motifs disent la meme chose
+        run: pnpm --filter @catalog/api exec vitest run src/__tests__/canari-formats.test.ts
+      - name: Motifs de SMS — la suite complete
+        run: pnpm --filter @catalog/api exec vitest run src/__tests__/sms-motifs.test.ts src/__tests__/sept-controles.test.ts
