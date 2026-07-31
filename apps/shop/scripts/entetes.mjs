@@ -206,17 +206,29 @@ await writeFile(join(DIST, "_headers"), `${lignes.join("\n")}\n`, "utf8");
  *    fonctionnerait — la forme dont l'ADR 0021 dit que le produit ne doit pas
  *    dependre.
  *
- * ── Pourquoi il est ECRIT DANS LES SOURCES et versionne ───────────────────
+ * ── Il est ecrit DANS `dist/`, et la premiere version se trompait ─────────
  *
- * Vercel lit `vercel.json` a la racine du projet **avant** la construction : il
- * ne peut pas etre produit dans `dist/`. Il est donc genere ici, a cote de
- * `_headers`, et committe — c'est la seule facon que les deux ne divergent pas.
- * Un pas de CI reconstruit et compare : un `vercel.json` perime fait echouer la
- * porte au lieu de partir en production avec une politique fausse.
+ * La premiere version l'ecrivait a la racine du paquet et le versionnait, en
+ * supposant que Vercel lit `vercel.json` avant la construction. Deux defauts,
+ * tous deux constates :
  *
- * Les empreintes ne dependent PAS du catalogue — ce sont les amorces
- * d'hydratation d'Astro, identiques d'un article a l'autre —, donc ce fichier ne
- * bouge que quand un ilot change. Verifie : trois empreintes pour 358 pages.
+ * 1. **Le deploiement envoie `apps/shop/dist`.** Vercel lit la configuration a
+ *    la racine du repertoire DEPLOYE — le fichier ecrit un cran plus haut
+ *    n'aurait jamais ete lu, et la politique ne se serait jamais appliquee.
+ *    Sans la moindre erreur : exactement la panne que ce fichier existe pour
+ *    empecher.
+ * 2. **Son contenu n'est pas reproductible hors du build.** `connect-src`
+ *    depend de `PUBLIC_API_BASE`, et les empreintes dependent du HTML produit —
+ *    donc de l'instantane du catalogue, que la CI regenere depuis une base
+ *    semee. Le comparer par `git diff` en integration continue ne pouvait pas
+ *    marcher, et ne marchait pas.
+ *
+ * C'est donc un ARTEFACT DE CONSTRUCTION, comme `_headers` : produit dans
+ * `dist/`, non versionne, regenere a chaque build avec les valeurs de
+ * l'environnement qui deploie. Ce que la CI verifie n'est plus l'egalite a un
+ * fichier commite, mais la coherence de l'artefact avec le HTML : les
+ * empreintes qu'il declare sont celles des scripts reellement emis
+ * (`entetes.test.ts`).
  */
 const vercel = {
   $schema: "https://openapi.vercel.sh/vercel.json",
@@ -233,8 +245,7 @@ const vercel = {
   trailingSlash: false,
 };
 
-const CHEMIN_VERCEL = new URL("../vercel.json", import.meta.url).pathname;
-await writeFile(CHEMIN_VERCEL, `${JSON.stringify(vercel, null, 2)}\n`, "utf8");
+await writeFile(join(DIST, "vercel.json"), `${JSON.stringify(vercel, null, 2)}\n`, "utf8");
 
 console.log(
   `_headers et vercel.json ecrits : ${fichiers.length} page(s), ` +

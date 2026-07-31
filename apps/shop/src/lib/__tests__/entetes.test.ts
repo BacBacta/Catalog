@@ -141,3 +141,75 @@ describeConstruit("la sortie construite", () => {
     expect(fichier()).toContain("font-src 'none'");
   });
 });
+
+/**
+ * `vercel.json` — l'artefact que Vercel lira, et que rien ne verifiait.
+ *
+ * ── Deux defauts reels, tous deux constates en integration continue ────────
+ *
+ * 1. **Le fichier etait ecrit au mauvais endroit.** Il atterrissait a la racine
+ *    du paquet, alors que le deploiement envoie `apps/shop/dist`. Vercel lit la
+ *    configuration a la racine du repertoire DEPLOYE : le fichier n'aurait
+ *    jamais ete lu, et ni la politique de securite ni les reecritures ne se
+ *    seraient appliquees — sans la moindre erreur.
+ * 2. **Il etait versionne et compare par `git diff`.** Or son contenu depend de
+ *    `PUBLIC_API_BASE` et des empreintes du HTML, donc de l'instantane du
+ *    catalogue que la CI regenere depuis une base semee. Cette garde ne pouvait
+ *    pas passer.
+ *
+ * Ces tests remplacent la comparaison impossible par une verification de
+ * COHERENCE : ce que le fichier declare est-il ce que le HTML contient.
+ */
+describeConstruit("vercel.json", () => {
+  const lire = () =>
+    JSON.parse(readFileSync(join(DIST, "vercel.json"), "utf8")) as {
+      headers: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+      rewrites: Array<{ source: string; destination: string }>;
+    };
+
+  const cspDe = (v: ReturnType<typeof lire>) =>
+    v.headers[0]?.headers.find((h) => h.key === "Content-Security-Policy")?.value ?? "";
+
+  it("est produit DANS dist, la ou le deploiement le cherche", () => {
+    expect(existsSync(join(DIST, "vercel.json"))).toBe(true);
+    // Et plus a la racine du paquet, ou Vercel ne l'aurait jamais lu.
+    expect(existsSync(join(RACINE, "vercel.json"))).toBe(false);
+  });
+
+  /**
+   * Les deux fichiers decrivent la MEME politique pour la meme sortie. S'ils
+   * divergent, l'un des deux hebergeurs sert une page differente — et on ne le
+   * verrait que dans un navigateur, en production.
+   */
+  it("porte exactement la meme politique que _headers", () => {
+    const dansHeaders = /Content-Security-Policy: (.+)/.exec(
+      readFileSync(join(DIST, "_headers"), "utf8"),
+    )?.[1];
+    expect(cspDe(lire())).toBe(dansHeaders);
+  });
+
+  it("declare les empreintes des scripts reellement emis", () => {
+    const csp = cspDe(lire());
+    const html = readFileSync(join(DIST, "suivi/index.html"), "utf8");
+    for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
+      if (/\ssrc\s*=/.test(m[1] as string)) continue;
+      expect(csp).toContain(sha(m[2] as string));
+    }
+  });
+
+  /**
+   * Sans elles, `/v/ACDE-4679` rend un 404 et seule `/v/?c=…` fonctionne —
+   * c'est-a-dire la forme dont l'ADR 0021 dit que le produit ne doit PAS
+   * dependre.
+   */
+  it("porte les reecritures des deux pages qui transportent une cle", () => {
+    const sources = lire().rewrites.map((r) => r.source);
+    expect(sources.some((s) => s.startsWith("/v/"))).toBe(true);
+    expect(sources.some((s) => s.startsWith("/suivi/"))).toBe(true);
+  });
+
+  it("porte la politique de referent, des deux cotes", () => {
+    const entetes = lire().headers[0]?.headers ?? [];
+    expect(entetes.find((h) => h.key === "Referrer-Policy")?.value).toBe("no-referrer");
+  });
+});

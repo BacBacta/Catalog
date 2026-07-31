@@ -138,8 +138,8 @@ curl -sI https://preprod.catalog.cm/suivi/xxxx | head -1    # 200, pas 404
 ## 5. Pourquoi Vercel a besoin de `vercel.json`
 
 **Vercel ne lit ni `_redirects` ni `_headers`** — ce sont des formats Netlify et
-Cloudflare Pages. Sans `apps/shop/vercel.json`, deux choses tombent **sans
-aucune erreur** :
+Cloudflare Pages. Sans `vercel.json`, deux choses tombent **sans aucune
+erreur** :
 
 1. tous les en-têtes de sécurité, dont `Referrer-Policy: no-referrer`, celui qui
    empêche le jeton de suivi de partir dans un `Referer` — et ce jeton autorise
@@ -149,10 +149,29 @@ aucune erreur** :
    le produit ne doit **pas** dépendre.
 
 Le fichier est **généré** par `apps/shop/scripts/entetes.mjs`, à côté de
-`_headers`, à partir de la même source. Il est versionné parce que Vercel le lit
-avant la construction ; un pas de CI reconstruit et compare, de sorte qu'un
-`vercel.json` périmé fasse échouer la porte au lieu de partir en production avec
-une politique fausse.
+`_headers`, à partir de la même source.
+
+### Il est écrit dans `dist/`, et la première version se trompait
+
+Deux défauts, tous deux constatés, tous deux silencieux :
+
+1. **Il était écrit à la racine du paquet** (`apps/shop/vercel.json`), alors que
+   le déploiement envoie `apps/shop/dist`. Vercel lit sa configuration à la
+   racine du répertoire **déployé** : le fichier n'aurait jamais été lu, et rien
+   n'aurait échoué — exactement la panne que ce fichier existe pour empêcher.
+2. **Il était versionné et comparé par `git diff`** en intégration continue. Or
+   son contenu n'est pas reproductible hors du build : `connect-src` dépend de
+   `PUBLIC_API_BASE`, et les empreintes dépendent du HTML produit, donc de
+   l'instantané du catalogue que la CI regénère depuis une base semée. Cette
+   garde ne pouvait pas passer, et ne passait pas.
+
+C'est donc un **artefact de construction**, comme `_headers` : produit dans
+`dist/`, non versionné, regénéré à chaque build avec les valeurs de
+l'environnement qui déploie. Ce que la CI vérifie n'est plus une égalité à un
+fichier commité, mais une **cohérence** — les empreintes déclarées sont celles
+des scripts réellement émis. Ces assertions se déclarent ignorées sans `dist/`,
+d'où le second passage des tests de la boutique **après** le build : sans lui,
+elles ne tournaient jamais.
 
 ---
 

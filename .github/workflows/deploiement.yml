@@ -71,15 +71,22 @@ jobs:
       - run: pnpm shop:snapshot
       - run: pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm size
       - run: pnpm audit --prod --audit-level high
-      # ── `vercel.json` doit decrire le HTML qu'on deploie ────────────────
+      # ── La politique de securite de la boutique decrit-elle le HTML emis ? ──
       #
-      # Il porte les empreintes de la politique de securite de contenu et les
-      # reecritures `/v/*` et `/suivi/*`. Perime, il ne provoque AUCUNE erreur :
-      # il casse la page dans le navigateur d'une acheteuse, en production
-      # seulement. `pnpm build` vient de le regenerer — s'il differe de ce qui
-      # est committe, on s'arrete ici.
-      - name: vercel.json n'est pas perime
-        run: git diff --exit-code apps/shop/vercel.json
+      # `vercel.json` et `_headers` sont des ARTEFACTS de construction, produits
+      # dans `dist/`. Ils ne sont pas versionnes : leur contenu depend de
+      # `PUBLIC_API_BASE` et des empreintes du HTML, donc de l'instantane du
+      # catalogue que la CI regenere. Les comparer a un fichier commite ne
+      # pouvait pas marcher — la premiere version de cette garde echouait a
+      # chaque execution, pour cette raison.
+      #
+      # Ce qui est verifie a la place est plus fort : que les empreintes
+      # DECLAREES sont celles des scripts REELLEMENT emis. Ces assertions vivent
+      # dans `entetes.test.ts` et se declarent ignorees sans `dist/` — d'ou ce
+      # second passage, APRES le build. Sans lui, elles ne tournaient jamais en
+      # integration continue.
+      - name: En-tetes et CSP — verifies contre le HTML construit
+        run: pnpm --filter @catalog/shop test
 
   api:
     needs: porte

@@ -115,12 +115,23 @@ utilisateur virtuel, et signale en clair toute réponse 429.
 | 4.6 | Les identifiants des vendeuses pilotes sont dans `COHORTE_PILOTES` | ❌ | après le terrain |
 | 4.7 | La page `/statut` est en ligne et servie par le CDN | ✅ | `apps/shop/src/pages/statut.astro` |
 | 4.8 | Configuration de déploiement écrite (Fly + Vercel) | ✅ | [deploiement.md](deploiement.md) |
-| 4.9 | `vercel.json` à jour — Vercel ne lit ni `_redirects` ni `_headers` | ✅ | garde CI, `git diff --exit-code` |
+| 4.9 | `vercel.json` produit **dans `dist/`** — Vercel ne lit ni `_redirects` ni `_headers` | ✅ | `entetes.test.ts`, rejoué après le build |
 | 4.10 | Canal du code de connexion tranché — **sans lui, aucune vendeuse n'entre** | ❌ | `sms-provider.ts` lève, délibérément |
 | 4.11 | Si Orange : l'application est souscrite à **`sms-cm`**, pas à `sms-onnet-cm` | ❌ | **ne se vérifie pas en code** — voir ci-dessous |
 | 4.12 | Un code reçu sur un numéro **MTN** et sur un numéro **Orange** | ❌ | la première preuve de couverture réelle |
 | 4.13 | `SMS_ACCUSE_SECRET` et `SMS_ACCUSE_URL` posés, URL inscrite chez Orange | ❌ | HTTPS/443, certificat valide, formulaire de liste blanche |
 | 4.14 | Le compteur `catalog.sms.livraison` reçoit des points pour **les deux** opérateurs | ❌ | la couverture, surveillée en continu |
+
+> **4.9 a déjà échoué une fois, en silence.** Le fichier était écrit à la racine
+> du paquet alors que le déploiement envoie `apps/shop/dist` — Vercel lit sa
+> configuration à la racine du répertoire **déployé**, donc il n'aurait jamais
+> été lu : ni les en-têtes, ni les réécritures `/v/*` et `/suivi/*`. La première
+> garde le comparait à un fichier commité par `git diff`, ce qui ne pouvait pas
+> passer : son contenu dépend de `PUBLIC_API_BASE` et des empreintes du HTML,
+> donc du catalogue que la CI regénère depuis une base semée. C'est désormais un
+> artefact de construction, et ce qui est vérifié n'est plus une égalité mais une
+> **cohérence** : les empreintes déclarées sont celles des scripts réellement
+> émis. Le vérifier exige de rejouer les tests de la boutique **après** le build.
 
 > **4.11 et 4.12 vont ensemble, et c'est le piège le plus coûteux de cette
 > liste.** Les deux offres SMS d'Orange partagent le même chemin technique ;
