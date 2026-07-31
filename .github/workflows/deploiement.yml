@@ -1,0 +1,165 @@
+name: Déploiement
+
+# ── Manuel, et pas sur fusion ──────────────────────────────────────────────
+#
+# Le declenchement automatique sur `main` viendra, mais pas avant que le retour
+# arriere ait ete joue pour de vrai en preproduction (checklist de lancement
+# §6.3). Une procedure de retour arriere jamais jouee est une hypothese, et
+# armer le deploiement automatique par-dessus une hypothese revient a decouvrir
+# les deux en meme temps, un jour ou ca va mal.
+#
+# Ce fichier rend donc la procedure ECRITE et REJOUABLE — ce qui est l'essentiel
+# — sans la rendre automatique.
+
+on:
+  workflow_dispatch:
+    inputs:
+      cible:
+        description: "Ce qu'on deploie"
+        type: choice
+        options: [api, boutique, les-deux]
+        default: les-deux
+      environnement:
+        description: "Preproduction ou production"
+        type: choice
+        options: [preproduction, production]
+        default: preproduction
+
+concurrency:
+  # Jamais deux deploiements du meme environnement a la fois : le second
+  # rattraperait le `release_command` du premier au milieu d'une migration.
+  group: deploiement-${{ inputs.environnement }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24"
+  TZ: "Africa/Douala"
+
+jobs:
+  # ── La porte ───────────────────────────────────────────────────────────
+  #
+  # Rien ne part sans que la chaine de verification soit repassee sur le commit
+  # qu'on deploie. La CI a deja tourne sur la pull request, mais `main` a pu
+  # bouger depuis, et c'est exactement le cas ou l'on veut le savoir avant.
+  porte:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: catalog
+          POSTGRES_PASSWORD: catalog
+          POSTGRES_DB: catalog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U catalog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:migrate
+      - run: pnpm shop:snapshot
+      - run: pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm size
+      - run: pnpm audit --prod --audit-level high
+      # ── La politique de securite de la boutique decrit-elle le HTML emis ? ──
+      #
+      # `vercel.json` et `_headers` sont des ARTEFACTS de construction, produits
+      # dans `dist/`. Ils ne sont pas versionnes : leur contenu depend de
+      # `PUBLIC_API_BASE` et des empreintes du HTML, donc de l'instantane du
+      # catalogue que la CI regenere. Les comparer a un fichier commite ne
+      # pouvait pas marcher — la premiere version de cette garde echouait a
+      # chaque execution, pour cette raison.
+      #
+      # Ce qui est verifie a la place est plus fort : que les empreintes
+      # DECLAREES sont celles des scripts REELLEMENT emis. Ces assertions vivent
+      # dans `entetes.test.ts` et se declarent ignorees sans `dist/` — d'ou ce
+      # second passage, APRES le build. Sans lui, elles ne tournaient jamais en
+      # integration continue.
+      - name: En-tetes et CSP — verifies contre le HTML construit
+        run: pnpm --filter @catalog/shop test
+
+  api:
+    needs: porte
+    if: inputs.cible == 'api' || inputs.cible == 'les-deux'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environnement }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Les secrets ne sont PAS poses ici. Ils vivent dans `fly secrets`, et ce
+      # workflow ne les lit jamais : un secret qui traverse un journal
+      # d'integration continue est un secret publie. La liste et la procedure
+      # sont dans docs/runbooks/deploiement.md.
+      - name: fly deploy
+        run: flyctl deploy --remote-only --wait-timeout 10m
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Le deploiement est fini quand le service REPOND, pas quand la commande
+      # rend la main. On interroge la page de statut, qui traverse
+      # l'interrupteur en toutes positions.
+      - name: Le service repond
+        run: |
+          set -euo pipefail
+          url="${{ vars.API_BASE_URL }}"
+          for i in $(seq 1 20); do
+            corps=$(curl -sS --max-time 10 "$url/api/statut" || true)
+            echo "$corps"
+            if echo "$corps" | grep -q '"base":"joignable"'; then
+              echo "Service joignable, base joignable."
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "Le service ne repond pas, ou la base est injoignable."
+          exit 1
+
+  boutique:
+    needs: porte
+    if: inputs.cible == 'boutique' || inputs.cible == 'les-deux'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environnement }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # ── Sans instantane, AUCUNE page de boutique n'est construite ───────
+      #
+      # C'est volontaire (lot 6) : la boutique ne parle pas a la base, elle lit
+      # une photo prise a la construction. L'instantane a donc besoin de la vraie
+      # base — c'est le seul pas de ce job qui la touche.
+      - name: Instantane du catalogue
+        run: pnpm shop:snapshot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Construction
+        run: pnpm --filter @catalog/shop build
+        env:
+          # L'origine de l'API vue par le NAVIGATEUR. Elle entre dans
+          # `connect-src` de la politique de securite : fausse, les ilots du
+          # recu, du suivi et de la rampe sont bloques par le navigateur.
+          PUBLIC_API_BASE: ${{ vars.API_BASE_URL }}
+      - name: Budget de poids
+        run: pnpm --filter @catalog/shop size
+      - name: vercel deploy
+        run: |
+          npx --yes vercel@latest deploy apps/shop/dist \
+            --prebuilt=false --yes --token "$VERCEL_TOKEN" \
+            ${{ inputs.environnement == 'production' && '--prod' || '' }}
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

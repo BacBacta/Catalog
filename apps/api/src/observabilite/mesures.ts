@@ -148,6 +148,46 @@ export function mesurerIdentifiantRejoue(operateur: OperatorKey): void {
   rejoues().add(1, { operateur });
 }
 
+/* ────────────────────────── 5. livraison des SMS sortants ────────────────────────── */
+
+const livraisons = () =>
+  metre().createCounter("catalog.sms.livraison", {
+    description:
+      "Accuses de livraison des SMS sortants, par operateur probable. Mesure la couverture reelle.",
+  });
+
+/**
+ * **La mesure qui repond a une question qu'aucun test ne peut trancher.**
+ *
+ * Les deux offres SMS d'Orange — `sms-cm`, tous operateurs, et `sms-onnet-cm`,
+ * Orange seul — partagent le meme chemin technique. Seule la souscription de
+ * l'application les distingue, et elle est invisible depuis le code : des
+ * identifiants issus de la mauvaise offre enverraient en Orange seul, l'API
+ * repondrait normalement, et toute la suite de tests passerait.
+ *
+ * Ce compteur le voit. Un ECART SYSTEMATIQUE entre les prefixes MTN et Orange —
+ * les premiers jamais livres, les seconds toujours — ne s'explique pas par des
+ * telephones eteints. Il dit que la souscription est fausse, et il le dit avant
+ * qu'une vendeuse MTN n'ait renonce a se connecter.
+ *
+ * ── Pourquoi l'etat ET le statut brut ─────────────────────────────────────
+ *
+ * `etat` est notre lecture, en quatre valeurs stables : c'est ce qu'on met dans
+ * une alerte. `statut` est le mot d'Orange, tel quel : c'est ce qu'on lit le
+ * jour ou l'operateur en ajoute un, et sans lui la nouveaute deviendrait
+ * `inconnu` sans qu'on sache lequel.
+ *
+ * **Le numero n'est pas une etiquette.** Cardinalite infinie, et donnee
+ * personnelle : meme regle que l'identifiant d'operateur du lot 14.
+ */
+export function mesurerLivraisonSms(point: {
+  operateur: string;
+  etat: string;
+  statut: string;
+}): void {
+  livraisons().add(1, { operateur: point.operateur, etat: point.etat, statut: point.statut });
+}
+
 /* ────────────────────────── le filet, en metrique ────────────────────────── */
 
 /**

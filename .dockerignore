@@ -1,0 +1,50 @@
+# Ce qui n'entre PAS dans une image.
+#
+# ── Le premier bloc est une regle de securite, pas d'optimisation ──────────
+#
+# `.env` porte `DATABASE_URL`, `BETTER_AUTH_SECRET` et `SMS_ENCRYPTION_KEY`.
+# Une image est un artefact qui se pousse dans un registre, se telecharge et se
+# garde : un secret qui y entre est un secret publie, et il le reste dans les
+# couches meme s'il est efface par une instruction suivante. Cette ligne est la
+# meme regle qu'AGENTS.md applique au depot, appliquee a l'image.
+.env
+.env.*
+!.env.example
+
+# ── Le second bloc empeche un defaut mesure ───────────────────────────────
+#
+# Sans lui, `COPY . .` recopie le `node_modules` de la MACHINE HOTE par-dessus
+# celui que `pnpm install` vient de produire dans l'image. Deux consequences,
+# et la premiere ne se voit qu'a l'execution :
+#
+#  1. les binaires natifs — `sharp`, `@prisma/engines` — sont ceux de l'hote,
+#     donc potentiellement de la mauvaise architecture ou de la mauvaise libc ;
+#  2. pnpm detecte le repertoire desynchronise et veut le supprimer, ce qu'il
+#     refuse de faire sans terminal : `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`.
+#
+# Constate a la premiere construction de cette image, pas suppose.
+node_modules
+**/node_modules
+
+# Sorties de construction : refaites dans l'image, et lourdes.
+dist
+**/dist
+.astro
+**/.astro
+**/generated
+
+# Artefacts de test et de mesure.
+coverage
+**/coverage
+.lighthouseci
+**/.lighthouseci
+playwright-report
+**/playwright-report
+test-results
+**/test-results
+
+# Historique et outillage local.
+.git
+.github
+.vscode
+*.log

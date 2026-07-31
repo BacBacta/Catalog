@@ -56,6 +56,20 @@ export function familleDe(methode: string, chemin: string): FamilleDeRoute | nul
   // Le collage de SMS, sous session mais borne : voir l'en-tete du module.
   if (methode === "POST" && /^\/api\/commandes\/[^/]+\/preuve$/.test(chemin)) return "preuve";
 
+  /**
+   * L'accuse de livraison d'Orange, sous la famille `lecture` et non `ecriture`.
+   *
+   * Le calcul, parce qu'il se verifie : le plafond journalier global d'OTP est
+   * de 2 000. Meme si les 2 000 accuses arrivaient dans la meme heure, cela
+   * ferait 33 par minute — trois fois sous les 120 de la famille `lecture`, et
+   * douze fois AU-DESSUS des 10 de la famille `ecriture`, qui les jetterait.
+   *
+   * Ce n'est pas une ecriture au sens du produit : la route n'ouvre aucune
+   * transaction et ne touche pas la base. Ce qu'on borne ici, c'est la
+   * recherche du secret par force brute.
+   */
+  if (chemin.startsWith("/api/sms/")) return "lecture";
+
   const publique =
     chemin.startsWith("/api/rampe") ||
     chemin.startsWith("/api/recu") ||

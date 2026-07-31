@@ -100,12 +100,26 @@ function politique(empreintes) {
 
 /** Les en-tetes communs a toutes les reponses. */
 const COMMUNS = [
-  "X-Content-Type-Options: nosniff",
+  ["X-Content-Type-Options", "nosniff"],
   // Le jeton de suivi voyage dans l'URL : aucun referent ne sort d'ici.
-  "Referrer-Policy: no-referrer",
-  "X-Frame-Options: DENY",
-  "Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()",
-  "Cross-Origin-Opener-Policy: same-origin",
+  ["Referrer-Policy", "no-referrer"],
+  ["X-Frame-Options", "DENY"],
+  ["Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()"],
+  ["Cross-Origin-Opener-Policy", "same-origin"],
+];
+
+/**
+ * Les reecritures dont le produit depend, dans la seule forme qui les decrit.
+ *
+ * `/v/<code>` et `/suivi/<jeton>` n'existent PAS a la construction : le recu
+ * n'est pas ecrit, et il change quand l'acheteuse contresigne. Astro produit une
+ * page par route, et ces regles la servent pour toute la famille. Sans elles,
+ * `/v/ACDE-4679` rend un 404 — seule `/v/?c=ACDE-4679` fonctionne, et c'est
+ * justement la forme dont le produit ne doit PAS dependre (ADR 0021).
+ */
+const REECRITURES = [
+  ["/v/:reste*", "/v/index.html"],
+  ["/suivi/:reste*", "/suivi/index.html"],
 ];
 
 /**
@@ -157,6 +171,11 @@ if (empreintes.size > MAX_EMPREINTES) {
   process.exit(1);
 }
 
+const csp = politique([...empreintes].sort());
+const tous = [...COMMUNS, ["Content-Security-Policy", csp]];
+
+/* ────────────────────────── 1. `_headers` — Netlify, Cloudflare Pages ────── */
+
 const lignes = [
   "# GENERE PAR scripts/entetes.mjs — NE PAS MODIFIER A LA MAIN.",
   "# Les empreintes de la politique de securite de contenu decrivent le HTML",
@@ -168,11 +187,67 @@ const lignes = [
   "# sans qu'on ait a enumerer des chemins qui n'existent pas a la construction.",
   "",
   "/*",
-  ...COMMUNS.map((h) => `  ${h}`),
-  `  Content-Security-Policy: ${politique([...empreintes].sort())}`,
+  ...tous.map(([nom, valeur]) => `  ${nom}: ${valeur}`),
 ];
 
 await writeFile(join(DIST, "_headers"), `${lignes.join("\n")}\n`, "utf8");
+
+/* ────────────────────────── 2. `vercel.json` — Vercel ────────────────────── */
+
+/**
+ * **Vercel ne lit NI `_redirects` NI `_headers`.** Ce sont des formats Netlify
+ * et Cloudflare Pages. Deployer la boutique sur Vercel sans ce fichier ferait
+ * tomber deux choses **sans aucune erreur** :
+ *
+ * 1. tous les en-tetes de securite, dont `Referrer-Policy: no-referrer` — celui
+ *    qui empeche le jeton de suivi de partir dans un `Referer` ;
+ * 2. les reecritures `/v/*` et `/suivi/*`, donc les jolies URL de recu et de
+ *    suivi. `/v/ACDE-4679` rendrait 404, et seule `/v/?c=ACDE-4679`
+ *    fonctionnerait — la forme dont l'ADR 0021 dit que le produit ne doit pas
+ *    dependre.
+ *
+ * ── Il est ecrit DANS `dist/`, et la premiere version se trompait ─────────
+ *
+ * La premiere version l'ecrivait a la racine du paquet et le versionnait, en
+ * supposant que Vercel lit `vercel.json` avant la construction. Deux defauts,
+ * tous deux constates :
+ *
+ * 1. **Le deploiement envoie `apps/shop/dist`.** Vercel lit la configuration a
+ *    la racine du repertoire DEPLOYE — le fichier ecrit un cran plus haut
+ *    n'aurait jamais ete lu, et la politique ne se serait jamais appliquee.
+ *    Sans la moindre erreur : exactement la panne que ce fichier existe pour
+ *    empecher.
+ * 2. **Son contenu n'est pas reproductible hors du build.** `connect-src`
+ *    depend de `PUBLIC_API_BASE`, et les empreintes dependent du HTML produit —
+ *    donc de l'instantane du catalogue, que la CI regenere depuis une base
+ *    semee. Le comparer par `git diff` en integration continue ne pouvait pas
+ *    marcher, et ne marchait pas.
+ *
+ * C'est donc un ARTEFACT DE CONSTRUCTION, comme `_headers` : produit dans
+ * `dist/`, non versionne, regenere a chaque build avec les valeurs de
+ * l'environnement qui deploie. Ce que la CI verifie n'est plus l'egalite a un
+ * fichier commite, mais la coherence de l'artefact avec le HTML : les
+ * empreintes qu'il declare sont celles des scripts reellement emis
+ * (`entetes.test.ts`).
+ */
+const vercel = {
+  $schema: "https://openapi.vercel.sh/vercel.json",
+  headers: [
+    {
+      source: "/(.*)",
+      headers: tous.map(([key, value]) => ({ key, value })),
+    },
+  ],
+  rewrites: REECRITURES.map(([source, destination]) => ({ source, destination })),
+  // Le HTML ne se met pas en cache : le recu change quand l'acheteuse
+  // contresigne, et une page de boutique doit refleter un article retire.
+  cleanUrls: true,
+  trailingSlash: false,
+};
+
+await writeFile(join(DIST, "vercel.json"), `${JSON.stringify(vercel, null, 2)}\n`, "utf8");
+
 console.log(
-  `_headers ecrit : ${fichiers.length} page(s), ${empreintes.size} empreinte(s) de script en ligne.`,
+  `_headers et vercel.json ecrits : ${fichiers.length} page(s), ` +
+    `${empreintes.size} empreinte(s) de script en ligne.`,
 );

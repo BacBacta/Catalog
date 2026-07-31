@@ -19,6 +19,23 @@ export interface SmsMessage {
    * un OTP dans un log est un OTP compromis.
    */
   kind: "otp_connexion" | "otp_reversement" | "rappel_solde" | "expiration";
+  /**
+   * La valeur BRUTE qui a servi a composer `text` — le code a six chiffres, le
+   * montant, la reference.
+   *
+   * ── Pourquoi elle voyage a cote de la phrase ──────────────────────────────
+   *
+   * Un canal SMS envoie une phrase. **Un modele WhatsApp n'accepte pas de
+   * phrase** : Meta approuve un gabarit — « {{1}} is your verification code » —
+   * et l'API attend le PARAMETRE, pas le texte fini. Sans ce champ, l'adaptateur
+   * WhatsApp devrait re-extraire le code de la phrase par une expression
+   * reguliere, qui se casserait a la premiere reformulation d'un libelle. Un
+   * canal ne doit pas dependre de la ponctuation d'un autre.
+   *
+   * Optionnelle a dessein : un adaptateur SMS l'ignore, et rien de ce qui
+   * existait avant ce champ n'a besoin d'etre reecrit.
+   */
+  valeur?: string;
 }
 
 export interface SmsSender {

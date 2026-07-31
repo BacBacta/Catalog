@@ -18,3 +18,8 @@ test-results/
 apps/shop/src/data/
 apps/shop/.lighthouseci/
 apps/api/coverage/
+
+# Artefact de construction, produit dans dist/ par scripts/entetes.mjs.
+# Il dependait de PUBLIC_API_BASE et du catalogue seme : le versionner rendait
+# la garde CI impossible a satisfaire. Voir le commentaire du script.
+apps/shop/vercel.json
