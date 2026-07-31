@@ -59,8 +59,45 @@ export function origines(env: NodeJS.ProcessEnv = process.env): string[] {
     .filter(Boolean);
 }
 
+/**
+ * **Le garde de demarrage le plus insidieux du service, avant cette fonction.**
+ *
+ * `betterAuth()` rend un contexte construit par une fonction `async`, a laquelle
+ * aucun `.catch` n'est attache tant qu'aucune requete n'arrive. Sa validation du
+ * secret rejette donc APRES le `serve()` et APRES le `console.log` d'ecoute. La
+ * sortie observee, dans cet ordre :
+ *
+ *     catalog-api ecoute sur http://localhost:8080
+ *     [BetterAuthError: You are using the default secret…]
+ *
+ * et Node 24 tue le processus sur le rejet non gere. Sur Fly, cela donne une
+ * boucle de redemarrage dont chaque iteration montre une ligne d'ECOUTE
+ * REUSSIE — l'operateur cherche du cote du port, du health check ou de la
+ * memoire, et le runbook lui a promis que seuls deux gardes empechent de
+ * demarrer.
+ *
+ * Pire : sans cette verification, `secret` vaut `undefined` et Better Auth
+ * retombe sur une valeur PAR DEFAUT, publique et identique chez tout le monde.
+ * Hors production, le processus ne mourrait meme pas — il signerait les sessions
+ * avec un secret connu.
+ *
+ * On echoue donc ici, synchroniquement, avec le nom de la variable a poser.
+ */
+export function verifierSecretAuth(env: NodeJS.ProcessEnv = process.env): void {
+  if (!env.BETTER_AUTH_SECRET) {
+    throw new Error(
+      "BETTER_AUTH_SECRET est absent. Il signe les sessions vendeuses : sans lui, " +
+        "Better Auth retombe sur un secret par defaut, public et partage. " +
+        "Poser une valeur aleatoire de 32 octets : openssl rand -hex 32. " +
+        "Voir docs/runbooks/deploiement.md, section « Les secrets ».",
+    );
+  }
+}
+
 export function createAuth(deps: AuthDeps) {
   const trusted = deps.trustedOrigins ?? origines();
+  // Seulement quand le secret n'est pas injecte : les tests construisent le leur.
+  if (deps.secret === undefined) verifierSecretAuth();
 
   return betterAuth({
     database: prismaAdapter(deps.prisma, { provider: "postgresql" }),

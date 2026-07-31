@@ -40,6 +40,8 @@ export interface OptionsObservabilite {
   version?: string | undefined;
   /** Intervalle d'export des metriques, en millisecondes. */
   intervalleMetriquesMs?: number;
+  /** L'environnement, injectable pour que le message se teste sans le muter. */
+  env?: NodeJS.ProcessEnv | undefined;
 }
 
 export function demarrerObservabilite(options: OptionsObservabilite = {}): {
@@ -50,11 +52,22 @@ export function demarrerObservabilite(options: OptionsObservabilite = {}): {
 
   const endpoint = options.endpoint ?? process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
   if (!endpoint) {
+    /**
+     * Le message affirmait « c'est le comportement voulu hors production » — y
+     * compris sur une machine `NODE_ENV=production`, ou il est faux. Une ligne
+     * de journal qui rassure a tort est pire que pas de ligne du tout : c'est
+     * exactement celle qu'on relit en cherchant pourquoi aucune alerte n'est
+     * partie pendant un incident.
+     */
+    const enProduction = (options.env ?? process.env).NODE_ENV === "production";
     return {
       actif: false,
       raison:
         "OTEL_EXPORTER_OTLP_ENDPOINT absent : traces et metriques sont inertes. " +
-        "C'est le comportement voulu hors production.",
+        (enProduction
+          ? "EN PRODUCTION : aucune alerte ne partira, et le canari de formats " +
+            "est aveugle. Poser l'endpoint."
+          : "C'est le comportement voulu hors production."),
     };
   }
 

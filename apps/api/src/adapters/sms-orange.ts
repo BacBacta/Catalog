@@ -176,13 +176,30 @@ export class OrangeSmsSender implements SmsSender {
   #jeton: { valeur: string; expireA: number } | null = null;
 
   constructor(cfg: OrangeSmsConfig) {
+    /**
+     * **Le message nomme les VARIABLES, pas les champs.** Il listait
+     * `clientId, clientSecret, senderAddress` — des noms de l'interface
+     * TypeScript, que l'operateur devait traduire de tete — et renvoyait a une
+     * section « fournisseur SMS » qui n'existe pas dans `.env.example`.
+     *
+     * Le moment ou ce message se lit est exactement le mauvais : la bascule du
+     * canal de connexion est le geste qui debloque le parcours vendeuse, et ce
+     * garde leve a l'IMPORT. Une variable oubliee met donc hors ligne le
+     * parcours ACHETEUSE — recu, suivi, rampe — qui, lui, fonctionnait.
+     */
+    const VARIABLE = {
+      clientId: "ORANGE_CLIENT_ID",
+      clientSecret: "ORANGE_CLIENT_SECRET",
+      senderAddress: "ORANGE_SENDER_ADDRESS",
+    } as const;
     const manquants = (["clientId", "clientSecret", "senderAddress"] as const).filter(
       (k) => !cfg[k],
     );
     if (manquants.length) {
       throw new Error(
-        `Configuration Orange SMS incomplete : ${manquants.join(", ")}. ` +
-          "Voir .env.example, section « fournisseur SMS ».",
+        `Configuration Orange SMS incomplete. Variables absentes : ` +
+          `${manquants.map((k) => VARIABLE[k]).join(", ")}. ` +
+          "Voir .env.example, section « orange : API « SMS Cameroon » (sms-cm) ».",
       );
     }
     this.#cfg = cfg;
