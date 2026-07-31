@@ -48,6 +48,10 @@ Depuis le lot 13 il mesure **deux** paquets : la boutique, et l'écran
 statistiques de l'app vendeuse (8 Ko, plafond choisi pour qu'aucune
 bibliothèque de graphiques n'y entre).
 
+`pnpm db:sauvegarde` et `pnpm db:restauration` (lot 14) ne sont **pas** dans
+cette chaîne : ils demandent une vraie base, et une restauration ne se lance pas
+par mégarde.
+
 ## Méthode
 
 Un lot à la fois. Test d'abord sur la logique métier. Tout écart au blueprint
@@ -64,7 +68,25 @@ débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutiqu
 publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau),
 lot 8 (analyseurs de SMS, sept contrôles, écran de collage), lot 9 (rampe de
 paiement), lot 10 (reçu vérifiable et contre-signature), lot 11 (cycle de vie des
-commandes), lot 12 (avis vérifiés et réputation), lot 13 (écran statistiques).
+commandes), lot 12 (avis vérifiés et réputation), lot 13 (écran statistiques),
+lot 14 (observabilité, canari de formats, runbooks, sauvegardes).
+
+Quatre choses à savoir du lot 14, toutes dans l'ADR 0023 :
+
+- **Le SMS brut ne figure dans AUCUNE trace**, et c'est tenu par deux couches :
+  une liste FERMÉE d'attributs autorisés, et un processeur de rédaction qui
+  nettoie aussi les événements, le message de statut et le nom du span. La fuite
+  réelle n'arrive pas par `setAttribute` — elle arrive par `recordException`,
+  qui recopie le message ET la pile d'appel.
+- **Aucune auto-instrumentation OpenTelemetry.** Elle capturerait les paramètres
+  SQL, dont `buyerToken` — le secret qui autorise la contre-signature.
+- **Le canari rejoue la SPÉCIFICATION**, pas les fixtures : il lit
+  `docs/formats-sms-operateurs.md`, en extrait les messages et les fait passer
+  par les analyseurs réels. Il tourne aussi chaque jour en CI, et c'est ce qui
+  permet de répondre, un jour d'incident, à « est-ce nous ou l'opérateur ? ».
+- **`restauration.sh` refuse d'écrire dans `DATABASE_URL`.** On restaure
+  ailleurs, on vérifie — contraintes SQL du lot 3 réappliquées, trois contrôles
+  d'intégrité —, puis on bascule.
 
 Quatre choses à savoir du lot 13 avant de toucher à un graphique, toutes dans
 l'ADR 0022 :

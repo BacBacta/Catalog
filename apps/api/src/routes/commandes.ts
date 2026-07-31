@@ -11,6 +11,7 @@ import {
 } from "../domain/order/cycle.ts";
 import { appliquerVersement } from "../domain/order/paiement.ts";
 import { appliquerEvenement } from "../domain/proof/machine.ts";
+import { mesurerEtatPreuve } from "../observabilite/mesures.ts";
 import { type SessionDeps, vendeuseCourante } from "./seller.ts";
 
 /**
@@ -326,6 +327,19 @@ export function commandeRoutes(deps: CommandeDeps) {
         },
       });
     });
+
+    /**
+     * **La mesure du contournement, cote exploitant.**
+     *
+     * L'ecran statistiques du lot 13 montre cette part a la vendeuse ; ce
+     * compteur la montre pour tout le reseau, en fenetre glissante. C'est le
+     * meme chiffre vu de deux bouts, et c'est voulu — celui de la vendeuse
+     * l'aide a se corriger, celui-ci dit si le PRODUIT tient sa promesse.
+     *
+     * Il est pose apres la transaction, pas dedans : une metrique qui compte un
+     * evenement non commit ment, et elle ment dans le sens rassurant.
+     */
+    mesurerEtatPreuve(preuve.ok ? preuve.etat : commande.proofState);
 
     const relu = (await deps.prisma.order.findUnique({
       where: { id: commande.id },

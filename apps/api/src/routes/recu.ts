@@ -7,12 +7,15 @@ import {
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import { operateurParId } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
+import type { Span } from "@opentelemetry/api";
 import { type Context, Hono } from "hono";
 import { etapesDuSuivi } from "../domain/order/cycle.ts";
 import { appliquerEvenement, type EvenementPreuve } from "../domain/proof/machine.ts";
 import { jetonBienForme } from "../domain/receipt/jeton.ts";
 import { emettreRecu, porteeDuRecu } from "../domain/receipt/recu.ts";
 import { droitAuDepot, NOTE_MAX, NOTE_MIN } from "../domain/review/reputation.ts";
+import { mesurerEtatPreuve } from "../observabilite/mesures.ts";
+import { avecSpan, PARCOURS, poser, poserIssue } from "../observabilite/traces.ts";
 import { type SessionDeps, vendeuseCourante } from "./seller.ts";
 
 /**
@@ -417,10 +420,35 @@ export function suiviRoutes(deps: RecuDeps) {
    * invisible, et c'est exactement le signal qu'on voudra lire le jour ou un etat
    * parait faux.
    */
+  /**
+   * Contre-signature et contestation, tracees.
+   *
+   * La contre-signature est le seul geste a DEUX VOIX du produit — c'est le
+   * controle n° 7, et c'est ce qui distingue une preuve forte d'une preuve
+   * simple. Son taux de passage merite d'etre suivi : s'il s'effondre, ce n'est
+   * pas la preuve qui casse, c'est le lien de suivi qui n'arrive plus.
+   *
+   * **Le jeton n'est JAMAIS un attribut de trace.** C'est le secret qui autorise
+   * la contre-signature (ADR 0021) : le voir passer dans une trace reviendrait a
+   * le publier, et il suffirait alors de lire un tableau de bord pour valider le
+   * paiement d'autrui. On trace l'identifiant de commande, qui n'autorise rien.
+   */
   async function transition(c: Context, evenement: EvenementPreuve) {
+    return avecSpan(
+      evenement.type === "contresignature" ? PARCOURS.contresignature : PARCOURS.etapeAvancee,
+      {},
+      (span) => transitionTracee(c, evenement, span),
+    );
+  }
+
+  async function transitionTracee(c: Context, evenement: EvenementPreuve, span: Span) {
     sansCache(c);
     const commande = await parJeton(c.req.param("jeton") ?? "");
-    if (!commande) return c.json({ erreur: "lien_inconnu" }, 404);
+    if (!commande) {
+      poserIssue(span, "introuvable");
+      return c.json({ erreur: "lien_inconnu" }, 404);
+    }
+    poser(span, { "catalog.commande.id": commande.id });
 
     const now = deps.maintenant?.() ?? new Date();
     const resultat = appliquerEvenement(commande.proofState as never, evenement, now);
@@ -458,8 +486,13 @@ export function suiviRoutes(deps: RecuDeps) {
     });
 
     if (!resultat.ok) {
+      poser(span, { "catalog.commande.transition_refusee": resultat.raison });
+      poserIssue(span, "refus_transition");
       return c.json({ refuse: resultat.raison, etat: resultat.etat }, 409);
     }
+    poser(span, { "catalog.commande.etat_preuve": resultat.etat });
+    mesurerEtatPreuve(resultat.etat);
+    poserIssue(span, "acceptee");
     return c.json({ etat: resultat.etat });
   }
 

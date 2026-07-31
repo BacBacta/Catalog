@@ -16,7 +16,9 @@
     "check:offline": "node scripts/check-schema.mjs",
     "seed": "node --experimental-strip-types prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "migrate:deploy": "prisma migrate deploy && node scripts/apply-constraints.mjs"
+    "migrate:deploy": "prisma migrate deploy && node scripts/apply-constraints.mjs",
+    "sauvegarde": "bash scripts/sauvegarde.sh",
+    "restauration": "bash scripts/restauration.sh"
   },
   "dependencies": {
     "@catalog/contracts": "workspace:*",

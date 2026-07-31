@@ -5,6 +5,12 @@ allowBuilds:
   '@prisma/engines': true
   esbuild: true
   prisma: true
+  # NON. `protobufjs` arrive en dependance TRANSITIVE d'OpenTelemetry (lot 14) et
+  # son script d'installation ne sert qu'au transport protobuf. Les exportateurs
+  # que nous utilisons sont les `*-otlp-http`, qui parlent JSON : ce script ne
+  # produit rien dont ce depot se serve. Un script d'installation arbitraire, dans
+  # un depot qui touche a des paiements, ne s'execute pas « au cas ou ».
+  protobufjs: false
 minimumReleaseAgeExclude:
   - '@astrojs/internal-helpers@0.10.2'
   - '@astrojs/markdown-satteri@0.3.5'

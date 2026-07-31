@@ -9,6 +9,7 @@ import app from "./app.ts";
 import { createAuth, smsSenderDepuisEnv } from "./auth.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
+import { demarrerObservabilite } from "./observabilite/demarrage.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { commandeRoutes } from "./routes/commandes.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
@@ -81,6 +82,16 @@ if (dev) app.route("/api/dev", dev);
 // De meme pour le stockage en memoire : avec un vrai S3, l'URL signee pointe
 // chez le fournisseur et cette route n'existe pas.
 if (storage instanceof MemoryStorage) app.route("/api/media", mediaRoutes(storage));
+
+/**
+ * L'observabilite se branche AVANT d'ecouter, et elle ne demarre que si un
+ * collecteur est configure. Sans `OTEL_EXPORTER_OTLP_ENDPOINT`, le code
+ * instrumente tourne a l'identique — l'API d'OpenTelemetry rend alors un tracer
+ * sans effet. On le DIT au demarrage plutot que de laisser croire a une
+ * observabilite qui n'existe pas (lot 14, ADR 0023).
+ */
+const otel = demarrerObservabilite();
+console.log(otel.actif ? "observabilite : active" : `observabilite : inactive — ${otel.raison}`);
 
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port });
