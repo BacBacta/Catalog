@@ -24,7 +24,7 @@ export type ButtonSize = "md" | "lg" | "icon";
  * un appelant surcharge la classe.
  */
 const TONE: Record<ButtonTone, string> = {
-  primary: "bg-brand-fill text-brand-on-fill hover:opacity-90",
+  primary: "bg-brand-fill text-brand-on-fill shadow-card hover:opacity-90",
   outline: "border border-control-line bg-surface text-ink hover:bg-plane",
   ghost: "bg-transparent text-brand-500 hover:bg-brand-soft",
   danger: "border border-danger bg-danger-soft text-danger hover:opacity-90",
@@ -39,22 +39,60 @@ const SIZE: Record<ButtonSize, string> = {
 export interface ButtonProps extends ButtonPrimitive.Props {
   tone?: ButtonTone;
   size?: ButtonSize;
+  /**
+   * Travail en cours : le bouton se fige, annonce `aria-busy` et montre un
+   * anneau qui tourne A COTE du libelle — jamais a sa place. Un libelle qui
+   * disparait pendant l'attente laisse l'utilisatrice devant un bouton muet,
+   * et l'anneau seul ne dit pas ce qui est en train de se faire.
+   */
+  loading?: boolean;
 }
 
-export function Button({ className, tone = "primary", size = "md", ...props }: ButtonProps) {
+export function Button({
+  className,
+  tone = "primary",
+  size = "md",
+  loading = false,
+  children,
+  disabled,
+  ...props
+}: ButtonProps) {
   return (
     <ButtonPrimitive
       data-slot="button"
+      aria-busy={loading || undefined}
+      disabled={disabled || loading}
       className={cx(
         "inline-flex shrink-0 items-center justify-center gap-2 rounded-field font-sans font-semibold",
-        "transition-[opacity,background-color] duration-fast ease-out",
+        "transition-[opacity,background-color,transform,box-shadow] duration-fast ease-out",
+        /* L'appui se SENT : 1,5 % de recul, retire sous reduced-motion par la
+           regle globale de tokens.css. */
+        "active:scale-[0.985]",
         "disabled:pointer-events-none disabled:opacity-55",
         TONE[tone],
         SIZE[size],
         className as string,
       )}
       {...props}
-    />
+    >
+      {loading ? (
+        <svg
+          aria-hidden="true"
+          className="size-4 shrink-0 animate-spin"
+          viewBox="0 0 16 16"
+          fill="none"
+        >
+          <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeOpacity="0.3" strokeWidth="2" />
+          <path
+            d="M14.5 8A6.5 6.5 0 0 0 8 1.5"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      ) : null}
+      {children}
+    </ButtonPrimitive>
   );
 }
 
@@ -104,7 +142,8 @@ export function Card({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cx(
-        "flex flex-col gap-3 rounded-card border border-line bg-surface p-4 font-sans text-ink",
+        "flex flex-col gap-3 rounded-card border border-line bg-surface p-5 font-sans text-ink",
+        "shadow-card",
         className,
       )}
       {...props}

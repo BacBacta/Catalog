@@ -107,21 +107,57 @@
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-hero: 2.125rem; /* montants mis en avant */
+  --text-hero--line-height: 1.15;
+  /* Titre de PAGE (refonte ADR 0030) : un cran au-dessus du titre de carte,
+     pour que la hierarchie h1 > h3 soit visible et pas seulement semantique. */
+  --text-display: 1.5rem;
+  --text-display--line-height: 1.2;
   --text-title: 1.1875rem;
   --text-body: 1rem; /* jamais sous 15px sur mobile */
   --text-caption: 0.78125rem;
 
-  --radius-card: 14px;
+  --radius-card: 16px;
   --radius-field: 12px;
   --radius-pill: 999px;
 
+  /* ── profondeur (refonte ADR 0030) ──
+     Deux couches par ombre : une courte qui assoit, une longue qui detache.
+     Les ombres sont TEINTEES de l'encre de la surface claire — un gris pur
+     ternit. En sombre, une ombre ne se voit presque pas : la profondeur y est
+     portee par les surfaces (--color-raised) et un filet, et les valeurs
+     ci-dessous sont donc surchargees en quasi-invisibles plutot que retirees,
+     pour que les composants n'aient pas a connaitre le theme. */
+  --shadow-card: 0 1px 2px rgb(20 32 28 / 0.05), 0 6px 20px -6px rgb(20 32 28 / 0.09);
+  --shadow-raised: 0 2px 6px rgb(20 32 28 / 0.08), 0 16px 40px -12px rgb(20 32 28 / 0.22);
+  --shadow-nav: 0 -1px 2px rgb(20 32 28 / 0.04), 0 -8px 24px -12px rgb(20 32 28 / 0.14);
+
   /* ── mouvement : court, sortie douce ── */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Sortie avec un soupcon de rebond, pour les entrees d'ecran et les
+     apparitions. Jamais sur une frappe : le rebond a un cout d'attention. */
+  --ease-spring: cubic-bezier(0.3, 1.25, 0.4, 1);
   --duration-fast: 150ms;
   --duration-base: 220ms;
+  --duration-slow: 320ms;
 
   /* ── cible tactile : 44px, au-dela des 24px exiges par WCAG 2.2 ── */
   --size-touch: 44px;
+
+  /* ── entree d'ecran (refonte ADR 0030) ──
+     Huit pixels de glissement, une seule fois, a l'ouverture d'un ecran.
+     La regle prefers-reduced-motion plus bas la neutralise entierement. */
+  --animate-entree: entree var(--duration-slow) var(--ease-out) both;
+
+  @keyframes entree {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 /* Mode sombre CHOISI, pas obtenu par inversion : chaque valeur est
@@ -130,6 +166,11 @@
    laisse `data-theme="light"` reprendre la main sans guerre de specificite. */
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
+    /* Une ombre sur fond sombre est un mensonge doux : on la reduit a un
+       ancrage minimal, et la profondeur vient des surfaces. */
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35);
+    --shadow-raised: 0 2px 8px rgb(0 0 0 / 0.5);
+    --shadow-nav: 0 -1px 2px rgb(0 0 0 / 0.4);
     --color-surface: #1a1a19;
     --color-plane: #0d0d0d;
     --color-raised: #232322;
@@ -166,6 +207,9 @@
   }
 }
 :root[data-theme="dark"] {
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-raised: 0 2px 8px rgb(0 0 0 / 0.5);
+  --shadow-nav: 0 -1px 2px rgb(0 0 0 / 0.4);
   --color-surface: #1a1a19;
   --color-plane: #0d0d0d;
   --color-raised: #232322;

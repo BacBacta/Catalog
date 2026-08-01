@@ -10,7 +10,7 @@ import {
   OfflineState,
 } from "@catalog/ui";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { Protege } from "../components/Protege.tsx";
 import { type Article, api, messageDErreur, PanneReseau } from "../lib/api.ts";
@@ -188,11 +188,7 @@ function Formulaire() {
     <Ecran
       titre={titre}
       surtitre="Catalogue"
-      actions={
-        <Button tone="ghost" render={<Link to="/articles" />}>
-          Retour
-        </Button>
-      }
+      retour={{ vers: "/articles", libelle: "Mes articles" }}
     >
       <Card>
         <CardTitle>Photo, nom, prix</CardTitle>
@@ -286,7 +282,7 @@ function Formulaire() {
             {erreur}
           </p>
 
-          <Button type="submit" size="lg" disabled={enCours}>
+          <Button type="submit" size="lg" loading={enCours}>
             {enCours ? "Enregistrement…" : nouveau ? "Publier l'article" : "Enregistrer"}
           </Button>
         </form>

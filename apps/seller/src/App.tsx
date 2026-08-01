@@ -1,6 +1,7 @@
 import { LoadingState } from "@catalog/ui";
 import { lazy, Suspense } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router";
+import { Coquille } from "./components/Coquille.tsx";
 import { Ecran } from "./components/Ecran.tsx";
 import { SessionProvider } from "./lib/session.tsx";
 import { Appareils } from "./routes/Appareils.tsx";
@@ -13,6 +14,7 @@ import { Connexion } from "./routes/Connexion.tsx";
 import { ConnexionCle } from "./routes/ConnexionCle.tsx";
 import { ConnexionWhatsApp } from "./routes/ConnexionWhatsApp.tsx";
 import { Dashboard } from "./routes/Dashboard.tsx";
+import { Reglages } from "./routes/Reglages.tsx";
 import { Reversement } from "./routes/Reversement.tsx";
 import { UiDemo } from "./routes/UiDemo.tsx";
 import { VerifierRecu } from "./routes/VerifierRecu.tsx";
@@ -37,35 +39,47 @@ const Statistiques = lazy(() =>
 );
 
 const router = createBrowserRouter([
-  { path: "/", element: <Dashboard /> },
+  /**
+   * Les ecrans CONNECTES vivent sous la Coquille : la barre de navigation
+   * inferieure les accompagne tous (ADR 0030). Les ecrans d'authentification
+   * restent en dehors — pas de barre pour qui n'est pas entre.
+   */
+  {
+    element: <Coquille />,
+    children: [
+      { path: "/", element: <Dashboard /> },
+      { path: "/appareils", element: <Appareils /> },
+      { path: "/reglages", element: <Reglages /> },
+      { path: "/reversement", element: <Reversement /> },
+      { path: "/articles", element: <Articles /> },
+      { path: "/articles/nouveau", element: <ArticleForm /> },
+      { path: "/articles/:id", element: <ArticleForm /> },
+      { path: "/commandes", element: <Commandes /> },
+      { path: "/commandes/:orderId/preuve", element: <CollerSms /> },
+      { path: "/verifier", element: <VerifierRecu /> },
+      {
+        path: "/statistiques",
+        element: (
+          <Suspense
+            fallback={
+              <Ecran titre="Vos chiffres" surtitre="Statistiques">
+                <LoadingState label="Ouverture de vos chiffres…" lines={5} />
+              </Ecran>
+            }
+          >
+            <Statistiques />
+          </Suspense>
+        ),
+      },
+    ],
+  },
   { path: "/connexion", element: <Connexion /> },
   { path: "/connexion/code", element: <CodeConnexion /> },
   { path: "/connexion/whatsapp", element: <ConnexionWhatsApp /> },
   { path: "/cle", element: <ConnexionCle /> },
-  { path: "/appareils", element: <Appareils /> },
-  { path: "/reversement", element: <Reversement /> },
-  { path: "/articles", element: <Articles /> },
-  { path: "/articles/nouveau", element: <ArticleForm /> },
-  { path: "/articles/:id", element: <ArticleForm /> },
-  { path: "/commandes", element: <Commandes /> },
-  { path: "/commandes/:orderId/preuve", element: <CollerSms /> },
-  { path: "/verifier", element: <VerifierRecu /> },
-  {
-    path: "/statistiques",
-    element: (
-      <Suspense
-        fallback={
-          <Ecran titre="Vos chiffres" surtitre="Statistiques">
-            <LoadingState label="Ouverture de vos chiffres…" lines={5} />
-          </Ecran>
-        }
-      >
-        <Statistiques />
-      </Suspense>
-    ),
-  },
   // Page de demonstration du design system (lot 2). Elle est la cible du
-  // controle axe-core et de la mesure de poids JS.
+  // controle axe-core et de la mesure de poids JS. Hors coquille : elle mesure
+  // les composants, pas la navigation.
   { path: "/demo", element: <UiDemo /> },
 ]);
 

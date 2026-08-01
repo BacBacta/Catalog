@@ -2,7 +2,7 @@ import { normalizePhone } from "@catalog/contracts";
 import { Button, Card, CardNote, CardTitle, Field, Input, OfflineState } from "@catalog/ui";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Ecran } from "../components/Ecran.tsx";
+import { CadreConnexion } from "../components/CadreConnexion.tsx";
 import { api, messageDErreur, PanneReseau } from "../lib/api.ts";
 import { clePresumee, seConnecterAvecCle, webAuthnDisponible } from "../lib/cle.ts";
 
@@ -145,7 +145,7 @@ export function Connexion() {
 
   if (horsLigne) {
     return (
-      <Ecran titre="Connexion">
+      <CadreConnexion titre="Connexion">
         <OfflineState
           action={
             <Button tone="outline" onClick={() => setHorsLigne(false)}>
@@ -156,12 +156,15 @@ export function Connexion() {
           Le code arrive par SMS, mais la demande a besoin du reseau. Des qu'il revient, reprenez
           ici.
         </OfflineState>
-      </Ecran>
+      </CadreConnexion>
     );
   }
 
   return (
-    <Ecran titre="Connexion">
+    <CadreConnexion
+      titre="Connexion"
+      note="Vos commandes, vos preuves de paiement et vos chiffres, sur votre telephone."
+    >
       <Card>
         <CardTitle>Votre numero</CardTitle>
         <CardNote>
@@ -182,7 +185,7 @@ export function Connexion() {
                 type="button"
                 size="lg"
                 onClick={() => void connexionParCle()}
-                disabled={cleEnCours}
+                loading={cleEnCours}
               >
                 {cleEnCours ? "Verification…" : "Se connecter avec l'empreinte"}
               </Button>
@@ -193,7 +196,7 @@ export function Connexion() {
                 size="lg"
                 tone="outline"
                 onClick={() => void commencerGoogle()}
-                disabled={googleEnCours}
+                loading={googleEnCours}
               >
                 {googleEnCours ? "Ouverture de Google…" : "Continuer avec Google"}
               </Button>
@@ -204,7 +207,7 @@ export function Connexion() {
                 size="lg"
                 tone="outline"
                 onClick={() => void commencerWhatsapp()}
-                disabled={defiEnCours}
+                loading={defiEnCours}
               >
                 {defiEnCours ? "Preparation…" : "Continuer avec WhatsApp"}
               </Button>
@@ -240,11 +243,11 @@ export function Connexion() {
             {erreur}
           </p>
 
-          <Button type="submit" size="lg" disabled={envoiEnCours}>
+          <Button type="submit" size="lg" loading={envoiEnCours}>
             {envoiEnCours ? "Envoi du code…" : "Recevoir le code"}
           </Button>
         </form>
       </Card>
-    </Ecran>
+    </CadreConnexion>
   );
 }

@@ -10,7 +10,7 @@ import {
   OtpField,
 } from "@catalog/ui";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { Protege } from "../components/Protege.tsx";
 import { api, messageDErreur, PanneReseau, type Vendeuse } from "../lib/api.ts";
@@ -121,11 +121,7 @@ function Formulaire({ vendeuse }: { vendeuse: Vendeuse }) {
     <Ecran
       titre="Numero de reversement"
       surtitre="Reglages"
-      actions={
-        <Button tone="ghost" render={<Link to="/" />}>
-          Retour
-        </Button>
-      }
+      retour={{ vers: "/", libelle: "Accueil" }}
     >
       <Card>
         <CardTitle>C'est la que l'argent arrive</CardTitle>
@@ -170,7 +166,7 @@ function Formulaire({ vendeuse }: { vendeuse: Vendeuse }) {
             >
               {erreur}
             </p>
-            <Button type="submit" size="lg" disabled={enCours}>
+            <Button type="submit" size="lg" loading={enCours}>
               {enCours ? "Envoi du code…" : "Recevoir le code"}
             </Button>
           </form>
@@ -189,7 +185,7 @@ function Formulaire({ vendeuse }: { vendeuse: Vendeuse }) {
               label="Code reçu sur le nouveau numéro"
               autoFocus
             />
-            <Button type="submit" size="lg" disabled={enCours}>
+            <Button type="submit" size="lg" loading={enCours}>
               {enCours ? "Confirmation…" : "Confirmer ce numero"}
             </Button>
           </form>

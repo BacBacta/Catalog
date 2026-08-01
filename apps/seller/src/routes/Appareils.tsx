@@ -1,6 +1,7 @@
-import { Button, Card, CardNote, CardTitle, OfflineState } from "@catalog/ui";
+import { Button, Card, CardNote, CardTitle, LoadingState, OfflineState } from "@catalog/ui";
 import { useCallback, useEffect, useState } from "react";
 import { Ecran } from "../components/Ecran.tsx";
+import { IconeAppareil } from "../components/icones.tsx";
 import { type CleEnrolee, clePresumee, listerCles, revoquerCle } from "../lib/cle.ts";
 
 /**
@@ -67,7 +68,9 @@ export function Appareils() {
           geste a faire depuis un nouveau telephone quand l'ancien est perdu.
         </CardNote>
 
-        {phase === "chargement" ? <p className="text-caption text-ink-2">Chargement…</p> : null}
+        {phase === "chargement" ? (
+          <LoadingState label="Lecture de vos appareils…" lines={2} />
+        ) : null}
 
         {phase === "erreur" ? (
           <>
@@ -93,8 +96,11 @@ export function Appareils() {
             {cles.map((cle) => (
               <li
                 key={cle.id}
-                className="flex items-center gap-3 rounded-card border border-control-line p-3"
+                className="flex items-center gap-3 rounded-field border border-line bg-plane p-3"
               >
+                <span aria-hidden="true" className="text-brand-500">
+                  <IconeAppareil />
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-body font-semibold">{cle.name ?? "Appareil"}</p>
                   <p className="text-caption text-ink-2">
@@ -119,5 +125,13 @@ export function Appareils() {
 }
 
 function EcranAppareils({ children }: { children: React.ReactNode }) {
-  return <Ecran titre="Appareils">{children}</Ecran>;
+  return (
+    <Ecran
+      titre="Appareils"
+      surtitre="Reglages"
+      retour={{ vers: "/reglages", libelle: "Reglages" }}
+    >
+      {children}
+    </Ecran>
+  );
 }

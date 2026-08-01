@@ -1,7 +1,7 @@
 import { Button, Card, CardNote, CardTitle, OfflineState } from "@catalog/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Ecran } from "../components/Ecran.tsx";
+import { CadreConnexion } from "../components/CadreConnexion.tsx";
 import { api, PanneReseau } from "../lib/api.ts";
 import { destinationApresConnexion } from "../lib/cle.ts";
 
@@ -95,7 +95,7 @@ export function ConnexionWhatsApp() {
 
   if (phase === "horsLigne") {
     return (
-      <Ecran titre="Connexion">
+      <CadreConnexion titre="Connexion">
         <OfflineState
           action={
             <Button tone="outline" onClick={() => setPhase("attente")}>
@@ -103,13 +103,13 @@ export function ConnexionWhatsApp() {
             </Button>
           }
         />
-      </Ecran>
+      </CadreConnexion>
     );
   }
 
   if (phase === "expire") {
     return (
-      <Ecran titre="Connexion">
+      <CadreConnexion titre="Connexion">
         <Card>
           <CardTitle>Ce lien a expire</CardTitle>
           <CardNote>
@@ -120,7 +120,7 @@ export function ConnexionWhatsApp() {
             Reprendre
           </Button>
         </Card>
-      </Ecran>
+      </CadreConnexion>
     );
   }
 
@@ -128,7 +128,7 @@ export function ConnexionWhatsApp() {
   const secondes = String(restantS % 60).padStart(2, "0");
 
   return (
-    <Ecran titre="Connexion">
+    <CadreConnexion titre="Connexion">
       <Card>
         <CardTitle>Envoyez le message WhatsApp</CardTitle>
         <CardNote>
@@ -149,6 +149,6 @@ export function ConnexionWhatsApp() {
           Annuler
         </Button>
       </Card>
-    </Ecran>
+    </CadreConnexion>
   );
 }

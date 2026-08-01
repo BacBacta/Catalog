@@ -1,7 +1,7 @@
 import { Button, Card, CardNote, CardTitle } from "@catalog/ui";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Ecran } from "../components/Ecran.tsx";
+import { CadreConnexion } from "../components/CadreConnexion.tsx";
 import {
   marquerProposition,
   scellerAppareil,
@@ -57,7 +57,7 @@ export function ConnexionCle() {
 
   if (phase === "fait") {
     return (
-      <Ecran titre="C'est active">
+      <CadreConnexion titre="C'est active">
         <Card>
           <CardTitle>Double ancrage</CardTitle>
           <CardNote>
@@ -69,25 +69,25 @@ export function ConnexionCle() {
             Continuer
           </Button>
         </Card>
-      </Ecran>
+      </CadreConnexion>
     );
   }
 
   return (
-    <Ecran titre="Connexion">
+    <CadreConnexion titre="Connexion">
       <Card>
         <CardTitle>Se reconnecter sans code ?</CardTitle>
         <CardNote>
           La prochaine fois, votre empreinte ou votre schema suffira. Plus besoin d'attendre un
           message — meme sans credit, meme sans reseau operateur.
         </CardNote>
-        <Button size="lg" onClick={activer} disabled={phase === "scellement"}>
+        <Button size="lg" onClick={activer} loading={phase === "scellement"}>
           {phase === "scellement" ? "Suivez l'ecran du telephone…" : "Activer — deux secondes"}
         </Button>
         <Button tone="ghost" onClick={plusTard}>
           Plus tard
         </Button>
       </Card>
-    </Ecran>
+    </CadreConnexion>
   );
 }
