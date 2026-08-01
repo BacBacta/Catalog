@@ -167,6 +167,54 @@ export function Connexion() {
         <CardNote>
           Nous vous envoyons un code a six chiffres par SMS. Pas de mot de passe a retenir.
         </CardNote>
+
+        {/*
+         * Les autres ceremonies, quand elles existent — maquette
+         * `docs/maquettes/google-passkey.html`. L'ordre est celui de la
+         * maquette : l'empreinte d'abord (elle ne s'affiche que la ou une cle
+         * a deja servi), Google ensuite, WhatsApp enfin. Le SMS reste toujours
+         * en dessous : aucune ceremonie n'est un peage (ADR 0029).
+         */}
+        {(cleDispo || googleDispo || whatsappDispo) && (
+          <div className="mb-4 flex flex-col gap-3">
+            {cleDispo && (
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => void connexionParCle()}
+                disabled={cleEnCours}
+              >
+                {cleEnCours ? "Verification…" : "Se connecter avec l'empreinte"}
+              </Button>
+            )}
+            {googleDispo && (
+              <Button
+                type="button"
+                size="lg"
+                tone="outline"
+                onClick={() => void commencerGoogle()}
+                disabled={googleEnCours}
+              >
+                {googleEnCours ? "Ouverture de Google…" : "Continuer avec Google"}
+              </Button>
+            )}
+            {whatsappDispo && (
+              <Button
+                type="button"
+                size="lg"
+                tone="outline"
+                onClick={() => void commencerWhatsapp()}
+                disabled={defiEnCours}
+              >
+                {defiEnCours ? "Preparation…" : "Continuer avec WhatsApp"}
+              </Button>
+            )}
+            <p aria-hidden="true" className="text-center text-caption text-ink-2">
+              ou
+            </p>
+          </div>
+        )}
+
         <form onSubmit={soumettre} noValidate className="flex flex-col gap-4">
           <Field
             label="Numero de telephone"
