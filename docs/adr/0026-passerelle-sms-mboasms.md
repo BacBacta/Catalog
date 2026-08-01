@@ -29,14 +29,43 @@ Ce qui a été éliminé, dans l'ordre :
 |---|---|
 | Souscription `sms-onnet-cm` | L'envoi vers un numéro **Orange** n'est pas arrivé non plus |
 | Mauvaise adresse d'expéditeur | `tel:+2370000` est ce que génère la console d'Orange **pour ce compte** |
-| Nom d'expéditeur non déclaré | Testé avec `CATALOG`, avec `SMS 683800` alloué, et **sans nom** |
 | Notre code | La requête est structurellement identique à l'échantillon `curl` de la console |
 | Authentification | Jeton obtenu à chaque appel, six réponses 201 |
 
-Restent des causes côté compte, que le code ne peut ni voir ni corriger : le
-contrat affiche `availableUnits: 30, requestedUnits: 70` et **le compteur ne
-décroît jamais**, six envois plus tard. Lecture retenue : les messages
-n'entrent jamais dans la chaîne de remise.
+### La cause, confirmée par Orange lui-même
+
+La console d'Orange porte l'explication, sur l'écran des expéditeurs autorisés :
+
+> *If the API returns http 201 but the message is not received on the terminal,
+> please contact local team to check **sender name whitelisting** for your
+> account. **For non-Orange numbers, the sender names will have to be
+> whitelisted with the other operators too.***
+
+**Le nom d'expéditeur doit être inscrit sur liste blanche, opérateur par
+opérateur.** Le même écran indique `Authorized senders : SMS 683800 (default)`
+et « You have no custom sender names defined ».
+
+Une hypothèse avait été écartée à tort en cours de diagnostic : le nom
+d'expéditeur, jugé hors de cause parce que trois valeurs — `CATALOG`,
+`SMS 683800`, et aucun nom — échouaient identiquement. Le raisonnement était
+faux. Ce n'est pas la *valeur* qui bloque mais son **enregistrement chez
+l'opérateur destinataire** : aucune valeur ne pouvait aboutir, et c'est
+précisément cette uniformité qui égarait.
+
+De même, `availableUnits: 30 / requestedUnits: 70` n'était qu'une réservation
+passagère : la console affiche un solde de **100 unités**. Le forfait n'a jamais
+été en cause.
+
+### Ce que cela change pour le choix
+
+Cela **renforce** la décision au lieu de l'affaiblir. Le déblocage d'Orange
+passe par une démarche commerciale auprès de l'équipe locale, **répétée avec
+chaque opérateur** dès qu'on veut joindre un numéro non-Orange — c'est-à-dire
+la majorité des vendeuses. Une passerelle agrégatrice a déjà fait ce travail
+pour les trois réseaux : c'est exactement le service qu'on lui achète.
+
+Orange redevient utilisable une fois la liste blanche obtenue, ce qui justifie
+de garder son adaptateur câblé.
 
 ### Trois pièges d'API découverts au passage, et ils partagent une signature
 
