@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — le bot WhatsApp Catalog</title>
+<style>
+  :root {
+    --brand: #0e7a5f;
+    --fond-page: #f4f6f5;
+    --encre: #14201c;
+    --encre-2: #5a6b65;
+    --carte: #ffffff;
+    --fil: #e4e9e7;
+    --wa-fond: #e7e0d5;
+    --wa-sortant: #d7f7c8;
+    --wa-note: #fdf4e4;
+    --wa-note-encre: #8f5c13;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fond-page: #0d0d0d;
+      --encre: #ffffff;
+      --encre-2: #c3c2b7;
+      --carte: #1a1a19;
+      --fil: #2c2c2a;
+      --wa-fond: #101a14;
+      --wa-sortant: #144d36;
+      --wa-note: #2a2110;
+      --wa-note-encre: #eda100;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--fond-page);
+    color: var(--encre);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  .page { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  h2 { font-size: 1.05rem; margin: 0 0 8px; }
+  .sous-titre { color: var(--encre-2); font-size: .9rem; margin: 0 0 20px; max-width: 70ch; }
+
+  .cadre-idee {
+    background: var(--carte); border: 1px solid var(--fil); border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 20px; font-size: .9rem;
+  }
+  .cadre-idee ul { margin: 8px 0 0; padding-left: 18px; }
+  .cadre-idee li { margin-bottom: 4px; }
+
+  .onglets { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .onglet {
+    min-height: 44px; padding: 0 18px; border-radius: 999px; font-weight: 600;
+    border: 1px solid var(--fil); background: var(--carte); color: var(--encre);
+    cursor: pointer; font-size: .95rem;
+  }
+  .onglet[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  .colonnes { display: grid; gap: 24px; grid-template-columns: 1fr; }
+  @media (min-width: 900px) { .colonnes { grid-template-columns: 380px 1fr; align-items: start; } }
+
+  /* ── le telephone ── */
+  .telephone {
+    background: var(--wa-fond); border-radius: 22px; border: 1px solid var(--fil);
+    overflow: hidden; max-width: 380px; margin: 0 auto; width: 100%;
+  }
+  .tete-chat {
+    background: var(--brand); color: #fff; padding: 12px 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 10px; background: #fff2; flex: none;
+    display: grid; place-items: center;
+  }
+  .tete-chat .nom { font-weight: 700; font-size: .95rem; }
+  .tete-chat .etat { font-size: .72rem; opacity: .85; }
+  .fil-chat { padding: 14px 10px 18px; display: flex; flex-direction: column; gap: 8px; }
+
+  .bulle {
+    max-width: 86%; border-radius: 12px; padding: 8px 11px; font-size: .86rem;
+    background: var(--carte); box-shadow: 0 1px 1px rgb(0 0 0 / .08);
+    white-space: pre-line;
+  }
+  .bulle.sortant { align-self: flex-end; background: var(--wa-sortant); }
+  .bulle .heure { display: block; text-align: right; font-size: .64rem; color: var(--encre-2); margin-top: 3px; }
+  .bulle strong { font-weight: 700; }
+  .bulle .mono { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; }
+
+  /* messages interactifs simules */
+  .boutons-wa { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+  .btn-wa {
+    border: 0; border-top: 1px solid var(--fil); background: none; color: #0a7cff;
+    min-height: 40px; font-weight: 600; font-size: .86rem; cursor: default; width: 100%;
+  }
+  .liste-wa { border-top: 1px solid var(--fil); margin-top: 8px; padding-top: 4px; }
+  .ligne-liste { display: flex; justify-content: space-between; gap: 10px; padding: 7px 2px; border-bottom: 1px solid var(--fil); font-size: .84rem; }
+  .ligne-liste:last-child { border-bottom: 0; }
+  .ligne-liste .prix { color: var(--encre-2); flex: none; }
+  .photo-produit {
+    height: 110px; border-radius: 9px; margin-bottom: 7px;
+    background: linear-gradient(135deg, #0e7a5f22, #0e7a5f55);
+    display: grid; place-items: center; color: var(--brand); font-size: .78rem; font-weight: 600;
+  }
+  .jour { align-self: center; background: #ffffff8a; border-radius: 8px; padding: 2px 10px; font-size: .7rem; color: #43503f; }
+  @media (prefers-color-scheme: dark) { .jour { background: #ffffff1c; color: var(--encre-2); } }
+
+  /* ── annotations ── */
+  .notes { display: flex; flex-direction: column; gap: 12px; }
+  .note {
+    background: var(--carte); border: 1px solid var(--fil); border-left: 4px solid var(--brand);
+    border-radius: 12px; padding: 12px 14px; font-size: .86rem;
+  }
+  .note.garde { border-left-color: var(--wa-note-encre); background: var(--wa-note); color: var(--wa-note-encre); }
+  .note .num {
+    display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px;
+    background: var(--brand); color: #fff; font-size: .75rem; font-weight: 700; margin-right: 6px;
+  }
+  .repere {
+    align-self: flex-start; background: var(--brand); color: #fff; border-radius: 999px;
+    font-size: .68rem; font-weight: 700; padding: 1px 9px; margin: 6px 0 -2px;
+  }
+  .bulle.sortant + .repere { align-self: flex-end; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Le bot WhatsApp Catalog — maquette de conversation</h1>
+  <p class="sous-titre">
+    Deux fils, un seul numéro. Le bot est <strong>le numéro Catalog</strong>, pas celui de la
+    vendeuse : chaque vendeuse n'a pas de WABA à créer ni d'entreprise à faire vérifier — c'est
+    Catalog qui porte le compte, une fois. La conversation <em>humaine</em> reste sur le numéro
+    personnel de la vendeuse : le bot met un bouton « Parler à Amina » qui y mène. On ne déplace
+    pas la transaction, on la structure.
+  </p>
+
+  <div class="cadre-idee">
+    <h2>Ce que la maquette tient pour acquis</h2>
+    <ul>
+      <li><strong>Le domaine ne change pas</strong> : mêmes analyseurs SMS, sept contrôles, reçus,
+        acompte <span class="mono">floor</span>, rampe USSD. Le bot est un nouveau canal devant le même moteur.</li>
+      <li><strong>Catalog n'encaisse toujours rien</strong> : le bot pré-remplit le paiement, l'argent va
+        du portefeuille de l'acheteuse à celui de la vendeuse, comme aujourd'hui.</li>
+      <li><strong>Verrou d'entrée</strong> : un WABA vérifié par Meta (dossier déjà en cours), et une
+        tarification par conversation à confronter à l'abonnement de 2 500 F.</li>
+    </ul>
+  </div>
+
+  <fieldset class="onglets" style="border:0;padding:0;margin:0 0 16px">
+    <legend style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Choisir le fil de conversation</legend>
+    <button type="button" class="onglet" aria-pressed="true" id="ong-acheteuse" onclick="voir('acheteuse')">Fil de l'acheteuse</button>
+    <button type="button" class="onglet" aria-pressed="false" id="ong-vendeuse" onclick="voir('vendeuse')">Fil de la vendeuse</button>
+  </fieldset>
+
+  <!-- ═══════════════════════ FIL ACHETEUSE ═══════════════════════ -->
+  <section id="vue-acheteuse" class="colonnes">
+    <article class="telephone" aria-label="Conversation WhatsApp de l'acheteuse avec Catalog">
+      <div class="tete-chat">
+        <span class="avatar" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <path d="M23.2 12.4h9.1a3.3 3.3 0 0 1 3.3 3.3v9.1a3.3 3.3 0 0 1-.97 2.33l-9.53 9.53a3.3 3.3 0 0 1-4.66 0l-7.11-7.11a3.3 3.3 0 0 1 0-4.66l9.53-9.53a3.3 3.3 0 0 1 2.33-.97Z" stroke="#fff" stroke-width="3"/>
+            <circle cx="29.4" cy="18.6" r="2.5" fill="#fff"/>
+          </svg>
+        </span>
+        <div>
+          <div class="nom">Catalog ✓</div>
+          <div class="etat">Compte entreprise vérifié</div>
+        </div>
+      </div>
+      <div class="fil-chat">
+        <span class="jour">Aujourd'hui</span>
+
+        <span class="repere">1</span>
+        <div class="bulle sortant">Voir la boutique <strong>chez-amina</strong><span class="heure">09:12</span></div>
+
+        <div class="bulle">
+          <strong>Chez Amina</strong> — Douala
+          ✓ 27 ventes prouvées · ★ 4,8 (12 avis vérifiés)
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">Voir les articles</button>
+            <button type="button" class="btn-wa">Suivre ma commande</button>
+            <button type="button" class="btn-wa">💬 Parler à Amina</button>
+          </div>
+          <span class="heure">09:12</span>
+        </div>
+
+        <span class="repere">2</span>
+        <div class="bulle sortant">Voir les articles<span class="heure">09:12</span></div>
+
+        <div class="bulle">
+          <strong>Le catalogue</strong> — page 1 sur 2
+          <div class="liste-wa">
+            <div class="ligne-liste"><span>Pagne wax 6 yards</span><span class="prix">15 000 F</span></div>
+            <div class="ligne-liste"><span>Sac en raphia tressé</span><span class="prix">8 000 F</span></div>
+            <div class="ligne-liste"><span>Huile de coco pressée à froid</span><span class="prix">3 500 F</span></div>
+            <div class="ligne-liste"><span>Savon noir artisanal</span><span class="prix">1 500 F</span></div>
+            <div class="ligne-liste"><span>Voir la suite ▸</span><span class="prix"></span></div>
+          </div>
+          <span class="heure">09:12</span>
+        </div>
+
+        <span class="repere">3</span>
+        <div class="bulle sortant">Pagne wax 6 yards<span class="heure">09:13</span></div>
+
+        <div class="bulle">
+          <div class="photo-produit">[ photo de l'article ]</div>
+          <strong>Pagne wax 6 yards</strong> — 15 000 FCFA
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">Commander</button>
+            <button type="button" class="btn-wa">◀ Retour au catalogue</button>
+            <button type="button" class="btn-wa">💬 Parler à Amina</button>
+          </div>
+          <span class="heure">09:13</span>
+        </div>
+
+        <span class="repere">4</span>
+        <div class="bulle sortant">Commander<span class="heure">09:13</span></div>
+
+        <div class="bulle">Combien en voulez-vous ?
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">1</button>
+            <button type="button" class="btn-wa">2</button>
+            <button type="button" class="btn-wa">Un autre nombre</button>
+          </div>
+          <span class="heure">09:13</span>
+        </div>
+        <div class="bulle sortant">1<span class="heure">09:13</span></div>
+
+        <div class="bulle">Comment recevoir votre commande ?
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">🛵 Livraison</button>
+            <button type="button" class="btn-wa">🤝 Point de retrait convenu</button>
+          </div>
+          <span class="heure">09:13</span>
+        </div>
+        <div class="bulle sortant">🛵 Livraison<span class="heure">09:14</span></div>
+
+        <span class="repere">5</span>
+        <div class="bulle">Votre quartier, un repère, et le numéro à appeler ?
+          <em>Exemple : Bonapriso, en face de la pharmacie du Rond-Point — 690 11 22 33</em>
+          <span class="heure">09:14</span>
+        </div>
+        <div class="bulle sortant">Bonapriso, en face de la pharmacie du Rond-Point. 690 11 22 33<span class="heure">09:15</span></div>
+
+        <span class="repere">6</span>
+        <div class="bulle"><strong>Commande CT-1043 — Chez Amina</strong>
+          Pagne wax 6 yards × 1 : 15 000 FCFA
+          Total : <strong>15 000 FCFA</strong> — acompte : <strong>7 500 FCFA</strong>
+          Code de vérification : <span class="mono">ACDE-4679</span>
+          Livraison : Bonapriso, en face de la pharmacie du Rond-Point
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">Payer l'acompte — 7 500 F</button>
+            <button type="button" class="btn-wa">Annuler</button>
+          </div>
+          <span class="heure">09:15</span>
+        </div>
+
+        <span class="repere">7</span>
+        <div class="bulle sortant">Payer l'acompte — 7 500 F<span class="heure">09:15</span></div>
+        <div class="bulle"><strong>Payer 7 500 FCFA à Chez Amina</strong>
+          Orange Money — numéro vérifié ✓
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">Ouvrir le clavier de paiement</button>
+          </div>
+          Ou composez : <span class="mono">#150#</span> puis « Transfert »
+          <em>Votre code secret ne se tape que sur l'écran Orange — jamais ici.</em>
+          <span class="heure">09:15</span>
+        </div>
+
+        <span class="jour">Quelques minutes plus tard</span>
+
+        <span class="repere">8</span>
+        <div class="bulle">✅ <strong>Paiement prouvé</strong> — 7 500 FCFA
+          Amina a confirmé votre paiement avec le SMS de son opérateur.
+          Votre reçu : <span class="mono">catalog.cm/v/?c=ACDE-4679</span>
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">C'est bien moi qui ai payé ✓</button>
+          </div>
+          <span class="heure">09:24</span>
+        </div>
+
+        <span class="jour">Deux jours plus tard</span>
+
+        <span class="repere">9</span>
+        <div class="bulle">📦 Votre commande <span class="mono">CT-1043</span> a été remise.
+          Votre avis compte — il sera marqué <strong>achat vérifié</strong>.
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">Donner mon avis</button>
+          </div>
+          <span class="heure">17:40</span>
+        </div>
+      </div>
+    </article>
+
+    <div class="notes">
+      <div class="note"><span class="num">1</span><strong>L'entrée.</strong> Un lien
+        <span class="mono">wa.me/&lt;numéro Catalog&gt;?text=Voir la boutique chez-amina</span> —
+        partagé en statut, en story, sous une photo. Le texte pré-rempli identifie la boutique :
+        pas de compte à créer, pas d'app à installer, le premier message EST la visite.</div>
+      <div class="note"><span class="num">2</span><strong>Le catalogue est un « list message »
+        natif</strong> : 10 lignes maximum par liste, d'où la pagination « Voir la suite ». La
+        source de vérité est le même instantané JSON que la boutique web — un canal de plus,
+        pas une seconde base.</div>
+      <div class="note"><span class="num">3</span><strong>Trois boutons maximum par message</strong>
+        (limite de l'API). « Parler à Amina » ouvre le WhatsApp <em>personnel</em> de la vendeuse :
+        la négociation, les photos sur demande, l'humain — tout reste où il a toujours été.</div>
+      <div class="note"><span class="num">5</span><strong>Pas de champ adresse, jamais.</strong>
+        Le bot demande ce que le contrat exige : quartier, repère, téléphone. Une question en
+        langage naturel, pas un formulaire — c'est le terrain camerounais tel qu'AGENTS.md le fixe.</div>
+      <div class="note"><span class="num">6</span><strong>Le récapitulatif est le message canonique</strong>
+        d'AGENTS.md : article, quantité, prix, total, nom de la boutique, référence, code de
+        vérification — autosuffisant en texte brut, lisible même transféré ailleurs.</div>
+      <div class="note garde"><span class="num">7</span><strong>Point à confirmer sur téléphone réel :</strong>
+        les boutons WhatsApp n'ouvrent que des liens <span class="mono">https</span>, pas
+        <span class="mono">tel:</span>. Le bouton passe donc par la page <span class="mono">/payer</span>
+        (qui ouvre le composeur USSD), et le code d'entrée est répété en texte. Même règle que la
+        rampe actuelle : rien au-delà du code d'entrée n'est promis tant que ce n'est pas composé à Douala.</div>
+      <div class="note"><span class="num">8</span><strong>La preuve ne change pas de nature.</strong>
+        C'est le SMS reçu par la VENDEUSE qui prouve (voir son fil) ; le bouton de l'acheteuse est la
+        contre-signature — la deuxième voix du contrôle n° 7. Hors fenêtre de 24 h, ce message part
+        en gabarit pré-approuvé (catégorie « utility », facturée par Meta).</div>
+      <div class="note"><span class="num">9</span><strong>L'avis vérifié</strong> n'est proposé qu'après
+        remise ET preuve — la règle du lot 12, inchangée.</div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ FIL VENDEUSE ═══════════════════════ -->
+  <section id="vue-vendeuse" class="colonnes" hidden>
+    <article class="telephone" aria-label="Conversation WhatsApp de la vendeuse avec Catalog">
+      <div class="tete-chat">
+        <span class="avatar" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <path d="M23.2 12.4h9.1a3.3 3.3 0 0 1 3.3 3.3v9.1a3.3 3.3 0 0 1-.97 2.33l-9.53 9.53a3.3 3.3 0 0 1-4.66 0l-7.11-7.11a3.3 3.3 0 0 1 0-4.66l9.53-9.53a3.3 3.3 0 0 1 2.33-.97Z" stroke="#fff" stroke-width="3"/>
+            <circle cx="29.4" cy="18.6" r="2.5" fill="#fff"/>
+          </svg>
+        </span>
+        <div>
+          <div class="nom">Catalog ✓</div>
+          <div class="etat">Compte entreprise vérifié</div>
+        </div>
+      </div>
+      <div class="fil-chat">
+        <span class="jour">Aujourd'hui</span>
+
+        <span class="repere">A</span>
+        <div class="bulle">📦 <strong>Nouvelle commande CT-1043</strong>
+          Pagne wax 6 yards × 1 — 15 000 FCFA
+          Mireille · 690 11 22 33 · Bonapriso, en face de la pharmacie du Rond-Point
+          Acompte attendu : <strong>7 500 FCFA</strong> sur votre Orange Money.
+          <em>Dès que le SMS d'Orange arrive, collez-le ici : je vérifie et j'envoie le reçu.</em>
+          <span class="heure">09:16</span>
+        </div>
+
+        <span class="jour">Le SMS Orange arrive sur sa puce</span>
+
+        <span class="repere">B</span>
+        <div class="bulle sortant"><span class="mono">Vous avez recu un transfert de 7500 FCFA de MIREILLE N. (690112233). ID transaction: PP26 0801.1234.567890. Votre nouveau solde…</span><span class="heure">09:23</span></div>
+
+        <span class="repere">C</span>
+        <div class="bulle">✅ <strong>Paiement prouvé — 7 sur 7</strong>
+          ✓ Message Orange reconnu · ✓ Montant 7 500 F · ✓ Bon numéro
+          ✓ Date cohérente · ✓ Jamais utilisé ailleurs · ✓ Identifiant cohérent
+          ⏳ Contre-signature de Mireille demandée
+          <strong>CT-1043 → payée.</strong> Le reçu est parti à Mireille.
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">C'est préparé</button>
+            <button type="button" class="btn-wa">Voir la commande</button>
+          </div>
+          <span class="heure">09:23</span>
+        </div>
+
+        <span class="repere">D</span>
+        <div class="bulle sortant">C'est préparé<span class="heure">10:02</span></div>
+        <div class="bulle">CT-1043 → <strong>préparée</strong>. Quand le livreur part :
+          <div class="boutons-wa">
+            <button type="button" class="btn-wa">Confiée au livreur</button>
+          </div>
+          <span class="heure">10:02</span>
+        </div>
+
+        <span class="repere">E</span>
+        <div class="bulle sortant">solde<span class="heure">12:30</span></div>
+        <div class="bulle">💰 <strong>Soldes à encaisser : 43 500 FCFA</strong> sur 3 commandes.
+          CT-1043 : 7 500 F · CT-1041 : 24 000 F · CT-1039 : 12 000 F
+          <span class="heure">12:30</span>
+        </div>
+      </div>
+    </article>
+
+    <div class="notes">
+      <div class="note"><span class="num">A</span><strong>La notification part en gabarit</strong>
+        (« utility template ») : hors fenêtre de 24 h, c'est la seule forme que Meta autorise —
+        pré-approuvée, facturée à la conversation. C'est LE poste de coût du bot, à mettre en face
+        des 2 500 F/mois.</div>
+      <div class="note"><span class="num">B</span><strong>Coller le SMS dans le chat est le même
+        geste qu'aujourd'hui</strong>, au meilleur endroit : la vendeuse est DÉJÀ dans WhatsApp.
+        Mêmes analyseurs, mêmes sept contrôles, même règle — seul le SMS reçu par elle prouve.
+        <em>(SMS d'exemple — les motifs réels vivent dans docs/formats-sms-operateurs.md.)</em></div>
+      <div class="note garde"><span class="num">B</span><strong>À trancher dans l'ADR :</strong>
+        le SMS brut transiterait par les serveurs Meta. L'ADR 0023 l'a banni de nos traces ; il
+        faudra dire explicitement ce qu'on accepte de faire transiter par un tiers, et ce qui
+        reste réservé à l'app.</div>
+      <div class="note"><span class="num">C</span><strong>Le verdict est le même objet</strong> que
+        l'écran des sept contrôles — rendu en texte. En cas de refus, chaque contrôle en échec est
+        nommé en langue simple, comme à l'écran.</div>
+      <div class="note"><span class="num">D</span><strong>Le cycle de vie au pouce</strong> :
+        préparée → confiée au livreur → remise, trois boutons au fil de l'eau. L'avancement
+        d'étape est le même endpoint que l'app.</div>
+      <div class="note"><span class="num">E</span><strong>Des mots-clés sobres</strong>
+        (« solde », « commandes », « aide ») — pas d'IA conversationnelle : un menu qui répond
+        toujours pareil, comme un USSD qu'on connaît par cœur. Ce qui reste dans l'app : les
+        photos du catalogue, le numéro de reversement (OTP), les statistiques, les appareils.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+  function voir(quelle) {
+    const acheteuse = quelle === "acheteuse";
+    document.getElementById("vue-acheteuse").hidden = !acheteuse;
+    document.getElementById("vue-vendeuse").hidden = acheteuse;
+    document.getElementById("ong-acheteuse").setAttribute("aria-pressed", String(acheteuse));
+    document.getElementById("ong-vendeuse").setAttribute("aria-pressed", String(!acheteuse));
+  }
+  Object.assign(window, { voir });
+</script>
+</body>
+</html>
