@@ -184,7 +184,14 @@ export const api = {
   /* ── connexion par WhatsApp entrant — ADR 0027 ── */
 
   etatConnexionWhatsapp: () =>
-    appeler<{ disponible: boolean }>("/api/auth/connexion-whatsapp/etat"),
+    appeler<{ disponible: boolean; google?: boolean }>("/api/auth/connexion-whatsapp/etat"),
+
+  /* ── ceremonie Google — ADR 0029 : redirection OAuth, aucun client en plus ── */
+
+  commencerGoogle: (callbackURL: string) =>
+    appeler<{ url?: string }>("/api/auth/sign-in/social", {
+      corps: { provider: "google", callbackURL },
+    }),
 
   creerDefiWhatsapp: () =>
     appeler<{ jeton: string; suivi: string; code: string; lien: string; expireDansS: number }>(
@@ -205,8 +212,10 @@ export const api = {
 
   moi: () => appeler<Vendeuse>("/api/vendeuse/moi"),
 
-  creerProfil: (businessName: string, city: string) =>
-    appeler("/api/vendeuse/profil", { corps: { businessName, city } }),
+  creerProfil: (businessName: string, city: string, contactPhone?: string) =>
+    appeler("/api/vendeuse/profil", {
+      corps: { businessName, city, ...(contactPhone ? { contactPhone } : {}) },
+    }),
 
   envoyerCodeReversement: (nouveauNumero: string) =>
     appeler("/api/reversement/code", { corps: { nouveauNumero } }),

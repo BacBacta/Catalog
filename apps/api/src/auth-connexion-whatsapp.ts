@@ -186,6 +186,12 @@ export interface ConnexionWhatsAppOptions {
   maintenant?: () => Date;
   /** L'aleatoire, injectable pour les tests. */
   aleatoire?: (octets: number) => Uint8Array;
+  /**
+   * La ceremonie Google est-elle configuree ? — ADR 0029. Porte par CE point
+   * d'etat parce que l'ecran de connexion le consulte deja : un seul appel
+   * decide des boutons a afficher, aucun bouton qui echoue au premier appui.
+   */
+  googleActif?: boolean | undefined;
 }
 
 export function connexionWhatsApp(options: ConnexionWhatsAppOptions) {
@@ -198,7 +204,8 @@ export function connexionWhatsApp(options: ConnexionWhatsAppOptions) {
       etatConnexionWhatsApp: createAuthEndpoint(
         "/connexion-whatsapp/etat",
         { method: "GET" },
-        async (ctx) => ctx.json({ disponible: Boolean(options.waba) }),
+        async (ctx) =>
+          ctx.json({ disponible: Boolean(options.waba), google: Boolean(options.googleActif) }),
       ),
 
       creerDefiWhatsApp: createAuthEndpoint(

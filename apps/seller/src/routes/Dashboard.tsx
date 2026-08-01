@@ -30,7 +30,11 @@ import { useSession } from "../lib/session.tsx";
  * le numero de reversement se regle.
  */
 export function Dashboard() {
-  return <Protege>{(v) => (v.seller ? <Accueil vendeuse={v} /> : <CreationProfil />)}</Protege>;
+  return (
+    <Protege>
+      {(v) => (v.seller ? <Accueil vendeuse={v} /> : <CreationProfil vendeuse={v} />)}
+    </Protege>
+  );
 }
 
 function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
@@ -175,10 +179,17 @@ function useSoldesAEncaisser(): number | null {
 }
 
 /** Deux questions, une fois. Rien d'autre n'est obligatoire pour commencer. */
-function CreationProfil() {
+function CreationProfil({ vendeuse }: { vendeuse: Vendeuse }) {
+  /**
+   * Compte ne de Google (ADR 0029) : pas de numero de connexion — le numero de
+   * contact de la boutique se DECLARE ici. C'est celui du wa.me public : une
+   * erreur prive la vendeuse de ses propres clientes, elle se corrige seule.
+   */
+  const demanderContact = !vendeuse.loginPhone;
   const { rafraichir } = useSession();
   const [nom, setNom] = useState("");
   const [ville, setVille] = useState("");
+  const [contact, setContact] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
 
@@ -187,7 +198,11 @@ function CreationProfil() {
     setErreur(null);
     setEnCours(true);
     try {
-      const r = await api.creerProfil(nom.trim(), ville.trim());
+      const r = await api.creerProfil(
+        nom.trim(),
+        ville.trim(),
+        demanderContact ? contact.trim() : undefined,
+      );
       if (!r.ok) {
         setErreur(messageDErreur(r, "La creation n'a pas abouti. Reessayez."));
         return;

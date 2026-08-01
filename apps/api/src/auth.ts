@@ -16,11 +16,12 @@ import { texteSms } from "./domain/sms-sender.ts";
 /**
  * Authentification vendeuse — Better Auth 1.6 avec le plugin `phoneNumber`.
  *
- * **Il n'y a PAS d'authentification par e-mail dans ce produit.** Les
- * commercantes camerounaises s'identifient par numero de telephone. Le champ
- * `email` du noyau de Better Auth recoit une valeur technique derivee du
- * numero : aucun ecran ne la demande, aucun message ne l'affiche, et rien n'est
- * jamais envoye dessus.
+ * **Il n'y a PAS de parcours e-mail dans ce produit** : aucune adresse ne se
+ * saisit, aucun message ne part jamais vers une boite. L'ADR 0029 a AMENDE la
+ * regle d'un cran precis — le bouton « Continuer avec Google », selecteur de
+ * compte systeme, est permis : l'adresse Google devient la cle technique du
+ * compte sans qu'aucun ecran ne la demande. Pour les comptes nes du telephone,
+ * le champ `email` garde sa valeur technique derivee du numero (`.invalid`).
  *
  * Le fournisseur SMS arrive par injection. Aucun fournisseur n'est code en dur
  * ici : `resolveSmsSender` choisit d'apres la configuration, et l'adaptateur de
@@ -45,6 +46,13 @@ export interface AuthDeps {
    */
   passkeyRpId?: string | undefined;
   passkeyOrigin?: string | undefined;
+  /**
+   * La ceremonie Google — ADR 0029. En dormance sans les deux identifiants :
+   * ni fournisseur monte, ni bouton affiche (l'endpoint d'etat le dit). La
+   * SEULE ceremonie sans dossier a deposer nulle part.
+   */
+  googleClientId?: string | undefined;
+  googleClientSecret?: string | undefined;
   /** Appele APRES l'envoi reussi, pour enregistrer la tentative (debit). */
   onOtpEnvoye?: (data: { phone: string; kind: string }) => Promise<void>;
   /** Consulte AVANT l'envoi. Lever ici empeche l'envoi. */
@@ -158,6 +166,19 @@ export function createAuth(deps: AuthDeps): InstanceAuth {
      * premier envoi d'OTP. Les noms de TABLE, eux, ne changent pas : ils sont
      * poses par `@@map` et restent `user`, `session`, `account`, `verification`.
      */
+    /**
+     * La ceremonie Google (ADR 0029), en dormance sans identifiants. Le flux
+     * est la redirection OAuth classique ; le rappel est
+     * `/api/auth/callback/google`, a declarer dans la console Google Cloud.
+     */
+    ...(deps.googleClientId && deps.googleClientSecret
+      ? {
+          socialProviders: {
+            google: { clientId: deps.googleClientId, clientSecret: deps.googleClientSecret },
+          },
+        }
+      : {}),
+
     user: { modelName: "authUser" },
     session: { modelName: "authSession" },
     account: { modelName: "authAccount" },
@@ -222,7 +243,11 @@ export function createAuth(deps: AuthDeps): InstanceAuth {
        * technique, meme nom — pour qu'une vendeuse arrivee par un canal se
        * connecte par l'autre sur le MEME compte.
        */
-      connexionWhatsApp({ waba: deps.wabaNumero, emailTechnique }),
+      connexionWhatsApp({
+        waba: deps.wabaNumero,
+        emailTechnique,
+        googleActif: Boolean(deps.googleClientId && deps.googleClientSecret),
+      }),
 
       /**
        * Les passkeys — ADR 0028, EN DORMANCE tant que le domaine final n'existe

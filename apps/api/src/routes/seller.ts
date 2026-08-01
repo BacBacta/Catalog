@@ -107,26 +107,65 @@ export function sellerRoutes(deps: SessionDeps) {
           );
         }
 
-        const phone = normalizePhone(v.loginPhone);
-        if (!phone) return c.json({ erreur: "numero_invalide" }, 422);
+        /**
+         * Le numero de contact de la boutique — ADR 0029.
+         *
+         * Compte ne du telephone : il est DERIVE du numero de connexion,
+         * comme avant. Compte ne de Google (pas de numero verifie) : il se
+         * DECLARE ici. C'est un attribut, pas une preuve — une vendeuse qui le
+         * saisit faux prive ses propres clientes de la joindre, et le corrige
+         * dans Reglages. Il n'entre JAMAIS dans la recherche de compte des
+         * ceremonies telephone : declarer le numero d'autrui ne cree aucun
+         * lien d'authentification.
+         */
+        const declare = normalizePhone(String(corps?.contactPhone ?? ""));
+        const phone = normalizePhone(v.loginPhone) ?? declare;
+        if (!phone) {
+          return c.json(
+            {
+              erreur: "numero_contact_requis",
+              message:
+                "Le numero WhatsApp de la boutique est necessaire : c'est lui que vos clientes toucheront.",
+            },
+            422,
+          );
+        }
 
-        const seller = await deps.prisma.seller.create({
-          data: {
-            userId: v.userId,
-            phone,
-            businessName: nom,
-            slug: await slugLibre(deps.prisma, slugifier(nom)),
-            city: ville,
-          },
-          select: {
-            id: true,
-            businessName: true,
-            slug: true,
-            city: true,
-            payoutPhone: true,
-            payoutOperator: true,
-          },
-        });
+        const seller = await deps.prisma.seller
+          .create({
+            data: {
+              userId: v.userId,
+              phone,
+              businessName: nom,
+              slug: await slugLibre(deps.prisma, slugifier(nom)),
+              city: ville,
+            },
+            select: {
+              id: true,
+              businessName: true,
+              slug: true,
+              city: true,
+              payoutPhone: true,
+              payoutOperator: true,
+            },
+          })
+          .catch((cause: unknown) => {
+            /**
+             * `Seller.phone` est UNIQUE : c'est l'anti-squat des boutiques. Une
+             * collision est une reponse claire, jamais une 500.
+             */
+            if ((cause as { code?: string })?.code === "P2002") return null;
+            throw cause;
+          });
+        if (!seller) {
+          return c.json(
+            {
+              erreur: "numero_deja_utilise",
+              message: "Une boutique utilise deja ce numero. Verifiez-le, ou contactez-nous.",
+            },
+            422,
+          );
+        }
         return c.json(seller, 201);
       })
   );

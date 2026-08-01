@@ -47,6 +47,8 @@ const auth = createAuth({
   wabaNumero: process.env.WHATSAPP_WABA_NUMERO?.trim(),
   passkeyRpId: process.env.PASSKEY_RP_ID?.trim(),
   passkeyOrigin: process.env.PASSKEY_ORIGIN?.trim(),
+  googleClientId: process.env.GOOGLE_CLIENT_ID?.trim(),
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim(),
 });
 const session = {
   prisma,

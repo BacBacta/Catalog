@@ -32,7 +32,9 @@ export function Connexion() {
    * serait pire que pas de bouton. `false` tant qu'on ne SAIT pas.
    */
   const [whatsappDispo, setWhatsappDispo] = useState(false);
+  const [googleDispo, setGoogleDispo] = useState(false);
   const [defiEnCours, setDefiEnCours] = useState(false);
+  const [googleEnCours, setGoogleEnCours] = useState(false);
 
   /**
    * Le bouton « empreinte » — ADR 0028. Il ne s'affiche que si une cle a deja
@@ -65,7 +67,9 @@ export function Connexion() {
     api
       .etatConnexionWhatsapp()
       .then((r) => {
-        if (vivant && r.ok && r.donnees?.disponible) setWhatsappDispo(true);
+        if (!vivant || !r.ok) return;
+        if (r.donnees?.disponible) setWhatsappDispo(true);
+        if (r.donnees?.google) setGoogleDispo(true);
       })
       .catch(() => {}); // silencieux : l'ecran reste celui du SMS
     return () => {
@@ -89,6 +93,29 @@ export function Connexion() {
     } finally {
       setDefiEnCours(false);
     }
+  }
+
+  /**
+   * La ceremonie Google — ADR 0029. Une redirection OAuth : on demande l'URL a
+   * l'API, le navigateur part chez Google, revient sur /api/auth/callback et
+   * Better Auth renvoie vers /cle — ou la proposition de passkey enchaine.
+   * Le retour vaut pour la destination : rien a sonder, rien a stocker.
+   */
+  async function commencerGoogle() {
+    setErreur(null);
+    setGoogleEnCours(true);
+    try {
+      const r = await api.commencerGoogle(`${window.location.origin}/cle`);
+      if (r.ok && r.donnees?.url) {
+        window.location.href = r.donnees.url;
+        return; // la page part : ne pas relacher le bouton
+      }
+      setErreur(messageDErreur(r, "La connexion Google n'a pas abouti. Reessayez."));
+    } catch (cause) {
+      if (cause instanceof PanneReseau) setHorsLigne(true);
+      else setErreur("La connexion Google n'a pas abouti. Reessayez.");
+    }
+    setGoogleEnCours(false);
   }
 
   const numero = normalizePhone(saisie);
