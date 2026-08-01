@@ -228,6 +228,28 @@ fly releases --app catalog-api-preprod          # relever la version qui marchai
 fly deploy --image <image de cette version> --strategy immediate
 ```
 
+### Si le bâtisseur distant refuse un jeton de déploiement
+
+Constaté le 01/08/2026 avec un jeton `fly tokens create deploy` (scopé à l'app,
+24 h) : le **registre** l'accepte (`docker login registry.fly.io`, utilisateur
+`x`, jeton en mot de passe), les **machines** aussi — y compris celles de
+l'app bâtisseur —, mais le canal de construction de `fly deploy` sort en
+`unauthorized`, bâtisseur hérité comme Depot, builder démarré ou pas.
+
+Le contournement qui marche : construire localement, pousser au registre,
+déployer par image — le bâtisseur n'est plus dans la boucle.
+
+```bash
+docker build -f apps/api/Dockerfile -t registry.fly.io/catalog-api-preprod:<etiquette> .
+cat <jeton> | docker login registry.fly.io -u x --password-stdin
+docker push registry.fly.io/catalog-api-preprod:<etiquette>
+fly deploy --app catalog-api-preprod --image registry.fly.io/catalog-api-preprod:<etiquette>
+```
+
+Le `release_command` (migrations puis contraintes) s'exécute normalement : il
+tourne sur une machine Fly, pas chez le bâtisseur. Les secrets mis en attente
+(`--stage`) partent avec ce déploiement comme avec un autre.
+
 ### `fly deploy` réussit sur un service mort — vérifier, toujours
 
 **Ce n'est pas une précaution, c'est une observation.** Au premier déploiement
