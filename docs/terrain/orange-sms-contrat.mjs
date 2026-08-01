@@ -18,6 +18,28 @@
  * mêmes URL, même en-tête, même corps. Un instrument qui prend un raccourci
  * mesure autre chose que la production.
  *
+ * ─── MESURE DU 01/08/2026, à ne pas oublier ───────────────────────────────
+ *
+ * **Orange NE VALIDE PAS l'adresse d'expéditeur.** Un envoi émis depuis
+ * `tel:+237000000000` — qui n'est même pas un format camerounais valide — a
+ * reçu **HTTP 201 Created**, avec un `resourceURL` et un identifiant de
+ * requête. Aucun rejet, aucun avertissement.
+ *
+ * Deux conséquences, et elles sont structurantes :
+ *
+ *   • On ne peut PAS valider un numéro candidat par le refus de l'API. Le seul
+ *     verdict est un téléphone qui sonne. C'est pour cela que ce script insiste
+ *     autant sur « allez VOIR l'appareil ».
+ *   • Une mauvaise valeur d'`ORANGE_SENDER_ADDRESS` échoue en SILENCE : 201 en
+ *     réponse, journaux propres, code convaincu d'avoir envoyé, vendeuse qui ne
+ *     reçoit rien. Le garde de `sms-orange.ts` qui exige la variable est donc la
+ *     seule barrière — il n'y en a aucune côté opérateur.
+ *
+ * Autre observation de la même mesure : cet unique envoi a fait passer le
+ * contrat de `availableUnits: 100, requestedUnits: 0` à `30 / 70`. Un forfait
+ * d'essai ne se consomme pas message par message ; il réserve par blocs.
+ * Comptez large avant de tester.
+ *
  * ─────────────────────────────────────────────────────────────────────────
  *
  *   node docs/terrain/orange-sms-contrat.mjs
@@ -230,8 +252,14 @@ try {
     console.log("    suivie d'une non-reception est la signature de `sms-onnet-cm`.");
     console.log(`\n    Si le SMS arrive : ORANGE_SENDER_ADDRESS="${depuis}"\n`);
   } else {
-    console.log("\n  ✖ Refuse. Si le motif porte sur l'adresse d'expediteur,");
-    console.log("    c'est que ce numero n'est pas celui du contrat.\n");
+    /**
+     * Mesure du 01/08/2026 : un refus sur l'adresse d'expediteur est
+     * IMPROBABLE — Orange accepte meme `tel:+237000000000`. Un echec ici
+     * porte donc plutot sur le jeton, le forfait epuise, ou la destination.
+     */
+    console.log("\n  ✖ Refuse. Regardez le motif : le jeton, le forfait");
+    console.log("    epuise et la destination sont les causes probables.");
+    console.log("    L'adresse d'expediteur, elle, n'est pas validee par Orange.\n");
     process.exit(1);
   }
 } catch (e) {
