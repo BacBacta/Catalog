@@ -145,16 +145,20 @@
 
   /* ── entree d'ecran (refonte ADR 0030) ──
      Huit pixels de glissement, une seule fois, a l'ouverture d'un ecran.
-     La regle prefers-reduced-motion plus bas la neutralise entierement. */
+     La regle prefers-reduced-motion plus bas la neutralise entierement.
+
+     PAS d'opacite, et c'est mesure : un fondu rend le contraste dependant de
+     l'instant ou on le lit. axe-core, lance juste apres la navigation, a
+     mesure des textes a mi-fondu et compte 7 violations qui n'existent pas a
+     l'arrivee. Une translation pure laisse chaque couleur exacte a tout
+     moment — le mouvement reste, la mesure redevient stable. */
   --animate-entree: entree var(--duration-slow) var(--ease-out) both;
 
   @keyframes entree {
     from {
-      opacity: 0;
       transform: translateY(8px);
     }
     to {
-      opacity: 1;
       transform: none;
     }
   }
