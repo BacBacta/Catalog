@@ -5,9 +5,14 @@
  * Il répond à deux questions que le code ne peut PAS trancher tout seul, et
  * qui bloquent toutes les deux l'ouverture du parcours vendeuse :
  *
- *   1. Quelle adresse d'expéditeur mon contrat autorise-t-il ?
- *      Elle n'est pas dans le panneau des identifiants de la console — ce n'est
- *      pas un identifiant. Elle relève du contrat SMS souscrit.
+ *   1. Quelle adresse d'expéditeur utiliser ?
+ *      RÉPONDU le 01/08/2026, et la réponse surprend : ce n'est ni un
+ *      identifiant, ni votre numéro. Orange publie une table
+ *      `country_sender_number` — un identifiant de ROUTAGE fixe par pays.
+ *      Cameroun : `tel:+2370000`. Quatre chiffres, donc pas un MSISDN.
+ *      → https://developer.orange.com/apis/sms/getting-started
+ *      C'est pour cela qu'elle est introuvable dans la console : rien à y
+ *      chercher. Reste à confirmer par un envoi réel (voir plus bas).
  *
  *   2. Suis-je sur `sms-cm` ou sur `sms-onnet-cm` ?
  *      C'est LA question qui décide si les vendeuses MTN reçoivent leur code.
