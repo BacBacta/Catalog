@@ -70,6 +70,14 @@ export function familleDe(methode: string, chemin: string): FamilleDeRoute | nul
    */
   if (chemin.startsWith("/api/sms/")) return "lecture";
 
+  /**
+   * Le webhook WhatsApp entrant (ADR 0027), pour la meme raison et sous la
+   * meme famille que l'accuse : ce qu'on borne est la force brute sur le
+   * secret d'URL, et le volume legitime — un message par connexion — reste
+   * tres loin du plafond `lecture`.
+   */
+  if (chemin.startsWith("/api/whatsapp/")) return "lecture";
+
   const publique =
     chemin.startsWith("/api/rampe") ||
     chemin.startsWith("/api/recu") ||

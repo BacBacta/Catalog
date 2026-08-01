@@ -181,6 +181,28 @@ export const api = {
       corps: { phoneNumber, code, disableSession: false },
     }),
 
+  /* ── connexion par WhatsApp entrant — ADR 0027 ── */
+
+  etatConnexionWhatsapp: () =>
+    appeler<{ disponible: boolean }>("/api/auth/connexion-whatsapp/etat"),
+
+  creerDefiWhatsapp: () =>
+    appeler<{ jeton: string; suivi: string; code: string; lien: string; expireDansS: number }>(
+      "/api/auth/connexion-whatsapp/defi",
+      { corps: {} },
+    ),
+
+  attenteDefiWhatsapp: (suivi: string) =>
+    appeler<{ statut: "en_attente" | "verifie" | "inconnu" }>(
+      `/api/auth/connexion-whatsapp/attente?suivi=${encodeURIComponent(suivi)}`,
+    ),
+
+  echangerDefiWhatsapp: (jeton: string) =>
+    appeler<{ statut: "connecte" | "en_attente" | "inconnu" }>(
+      "/api/auth/connexion-whatsapp/echanger",
+      { corps: { jeton } },
+    ),
+
   moi: () => appeler<Vendeuse>("/api/vendeuse/moi"),
 
   creerProfil: (businessName: string, city: string) =>

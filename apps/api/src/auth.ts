@@ -8,6 +8,7 @@ import { MboaSmsSender } from "./adapters/sms-mboa.ts";
 import { OrangeSmsSender } from "./adapters/sms-orange.ts";
 import { PendingSmsProvider, resolveSmsSender } from "./adapters/sms-provider.ts";
 import { WhatsAppSender } from "./adapters/sms-whatsapp.ts";
+import { connexionWhatsApp } from "./auth-connexion-whatsapp.ts";
 import type { SmsSender } from "./domain/sms-sender.ts";
 import { texteSms } from "./domain/sms-sender.ts";
 
@@ -28,6 +29,12 @@ import { texteSms } from "./domain/sms-sender.ts";
 export interface AuthDeps {
   prisma: PrismaClient;
   sms: SmsSender;
+  /**
+   * Le numero WhatsApp de Catalog (WABA), pour la connexion par message
+   * ENTRANT — ADR 0027. Absent, le canal est ferme : les points d'entree
+   * repondent `disponible: false` et refusent de creer un defi.
+   */
+  wabaNumero?: string | undefined;
   /** Appele APRES l'envoi reussi, pour enregistrer la tentative (debit). */
   onOtpEnvoye?: (data: { phone: string; kind: string }) => Promise<void>;
   /** Consulte AVANT l'envoi. Lever ici empeche l'envoi. */
@@ -174,6 +181,16 @@ export function createAuth(deps: AuthDeps) {
           getTempName: (phone) => normalizePhone(phone) ?? phone,
         },
       }),
+
+      /**
+       * La connexion par WhatsApp ENTRANT — ADR 0027. Le plugin est toujours
+       * monte : sans numero WABA il repond `disponible: false`, et l'ecran
+       * vendeuse n'affiche pas le bouton. La creation d'utilisateur y est le
+       * miroir exact du `signUpOnVerification` ci-dessus — meme adresse
+       * technique, meme nom — pour qu'une vendeuse arrivee par un canal se
+       * connecte par l'autre sur le MEME compte.
+       */
+      connexionWhatsApp({ waba: deps.wabaNumero, emailTechnique }),
     ],
   });
 }

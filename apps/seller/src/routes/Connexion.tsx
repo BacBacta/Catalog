@@ -1,6 +1,6 @@
 import { normalizePhone } from "@catalog/contracts";
 import { Button, Card, CardNote, CardTitle, Field, Input, OfflineState } from "@catalog/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { api, messageDErreur, PanneReseau } from "../lib/api.ts";
@@ -24,6 +24,45 @@ export function Connexion() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [horsLigne, setHorsLigne] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+
+  /**
+   * La connexion par WhatsApp entrant — ADR 0027. Le bouton n'apparait que si
+   * l'API annonce le canal configure : un bouton qui echoue au premier appui
+   * serait pire que pas de bouton. `false` tant qu'on ne SAIT pas.
+   */
+  const [whatsappDispo, setWhatsappDispo] = useState(false);
+  const [defiEnCours, setDefiEnCours] = useState(false);
+
+  useEffect(() => {
+    let vivant = true;
+    api
+      .etatConnexionWhatsapp()
+      .then((r) => {
+        if (vivant && r.ok && r.donnees?.disponible) setWhatsappDispo(true);
+      })
+      .catch(() => {}); // silencieux : l'ecran reste celui du SMS
+    return () => {
+      vivant = false;
+    };
+  }, []);
+
+  async function commencerWhatsapp() {
+    setErreur(null);
+    setDefiEnCours(true);
+    try {
+      const r = await api.creerDefiWhatsapp();
+      if (!r.ok || !r.donnees) {
+        setErreur(messageDErreur(r, "La connexion WhatsApp n'a pas abouti. Reessayez."));
+        return;
+      }
+      naviguer("/connexion/whatsapp", { state: r.donnees });
+    } catch (cause) {
+      if (cause instanceof PanneReseau) setHorsLigne(true);
+      else setErreur("La connexion WhatsApp n'a pas abouti. Reessayez.");
+    } finally {
+      setDefiEnCours(false);
+    }
+  }
 
   const numero = normalizePhone(saisie);
 

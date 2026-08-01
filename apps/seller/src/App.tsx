@@ -9,6 +9,7 @@ import { CodeConnexion } from "./routes/CodeConnexion.tsx";
 import { CollerSms } from "./routes/CollerSms.tsx";
 import { Commandes } from "./routes/Commandes.tsx";
 import { Connexion } from "./routes/Connexion.tsx";
+import { ConnexionWhatsApp } from "./routes/ConnexionWhatsApp.tsx";
 import { Dashboard } from "./routes/Dashboard.tsx";
 import { Reversement } from "./routes/Reversement.tsx";
 import { UiDemo } from "./routes/UiDemo.tsx";
@@ -37,6 +38,7 @@ const router = createBrowserRouter([
   { path: "/", element: <Dashboard /> },
   { path: "/connexion", element: <Connexion /> },
   { path: "/connexion/code", element: <CodeConnexion /> },
+  { path: "/connexion/whatsapp", element: <ConnexionWhatsApp /> },
   { path: "/reversement", element: <Reversement /> },
   { path: "/articles", element: <Articles /> },
   { path: "/articles/nouveau", element: <ArticleForm /> },

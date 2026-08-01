@@ -8,6 +8,7 @@ import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
 import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
+import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
@@ -29,6 +30,7 @@ import { recuRoutes, suiviRoutes } from "./routes/recu.ts";
 import { sellerRoutes } from "./routes/seller.ts";
 import { statsRoutes } from "./routes/stats.ts";
 import { statutRoutes } from "./routes/statut.ts";
+import { whatsappEntrantRoutes } from "./routes/whatsapp-entrant.ts";
 
 /**
  * Point d'entree. C'est ici que les dependances concretes sont branchees :
@@ -39,7 +41,7 @@ const sms = smsSenderDepuisEnv();
 const otpStore = new PrismaOtpAttemptStore(prisma);
 const storage = resolveStorage();
 const limits = limitesDepuisEnv(process.env);
-const auth = createAuth({ prisma, sms });
+const auth = createAuth({ prisma, sms, wabaNumero: process.env.WHATSAPP_WABA_NUMERO?.trim() });
 const session = {
   prisma,
   session: (req: Request) => auth.api.getSession({ headers: req.headers }),
@@ -112,6 +114,30 @@ app.route(
  */
 const secretAccuse = process.env.SMS_ACCUSE_SECRET?.trim();
 if (secretAccuse) app.route("/api/sms", accuseLivraisonRoutes({ secret: secretAccuse }));
+
+/**
+ * Le webhook WhatsApp entrant (ADR 0027) — meme refus par defaut que l'accuse :
+ * il faut LES DEUX secrets, celui du chemin et celui de la signature Meta.
+ * L'un sans l'autre serait une porte a moitie fermee, donc pas de route.
+ */
+const secretEntrant = process.env.WHATSAPP_ENTRANT_SECRET?.trim();
+const secretAppMeta = process.env.WHATSAPP_APP_SECRET?.trim();
+if (secretEntrant && secretAppMeta) {
+  app.route(
+    "/api/whatsapp",
+    whatsappEntrantRoutes({
+      secret: secretEntrant,
+      appSecret: secretAppMeta,
+      surMessage: async (message) => {
+        const contexte = await auth.$context;
+        await appliquerMessageEntrant(contexte.internalAdapter as unknown as MagasinDefis, {
+          ...message,
+          maintenant: new Date(),
+        });
+      },
+    }),
+  );
+}
 
 // Uniquement quand le fournisseur factice est actif — donc jamais en production,
 // ou `ConsoleSmsSender` refuse de se construire.

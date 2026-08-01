@@ -138,6 +138,21 @@ const MENTIONS_TOLEREES = [
   "apps/api/src/__tests__/aggregator-dormant.test.ts",
   "packages/db/prisma/schema.prisma",
   "packages/db/scripts/check-schema.mjs",
+  /**
+   * Le webhook de connexion WhatsApp entrant — ADR 0027, ajout du 01/08/2026.
+   *
+   * Ce n'est PAS un webhook de paiement, et c'est toute la difference que
+   * l'ADR 0011 protege : aucun tiers n'y pilote l'etat d'une commande. Il
+   * recoit le message de CONNEXION de la vendeuse, atteste par Meta, et ne
+   * touche qu'a la table de verification de Better Auth. L'interdit du
+   * webhook de paiement reste entier.
+   */
+  "apps/api/src/routes/whatsapp-entrant.ts",
+  "apps/api/src/__tests__/connexion-whatsapp-flux.test.ts",
+  "apps/api/src/server.ts",
+  "apps/api/src/auth-connexion-whatsapp.ts",
+  "apps/api/src/domain/connexion-whatsapp.ts",
+  "apps/api/src/middleware/debit.ts",
 ].sort();
 
 describe("ADR 0011 — les mentions de webhook restantes sont celles, et rien de plus", () => {
