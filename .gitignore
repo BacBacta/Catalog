@@ -28,3 +28,8 @@ apps/shop/vercel.json
 
 # Liaison locale du CLI Vercel (identifiants de projet) — jamais versionnee.
 .vercel/
+
+# Copie temporaire du CA du proxy sandbox, posee dans le contexte de build le
+# temps d'un `docker build` local (runbook deploiement, « bâtisseur refusé »).
+# La chaine de deploiement la supprime elle-meme ; elle ne se committe jamais.
+.ca-proxy-local.crt
