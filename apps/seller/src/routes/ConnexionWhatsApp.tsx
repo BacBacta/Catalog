@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { api, PanneReseau } from "../lib/api.ts";
+import { destinationApresConnexion } from "../lib/cle.ts";
 
 /**
  * L'attente de la connexion par WhatsApp — ADR 0027.
@@ -48,7 +49,7 @@ export function ConnexionWhatsApp() {
     try {
       const r = await api.echangerDefiWhatsapp(defi.jeton);
       if (r.ok && r.donnees?.statut === "connecte") {
-        naviguer("/", { replace: true });
+        naviguer(destinationApresConnexion(), { replace: true });
         return;
       }
       // Un concurrent a consomme, ou le defi a expire entre deux sondages.

@@ -41,7 +41,13 @@ const sms = smsSenderDepuisEnv();
 const otpStore = new PrismaOtpAttemptStore(prisma);
 const storage = resolveStorage();
 const limits = limitesDepuisEnv(process.env);
-const auth = createAuth({ prisma, sms, wabaNumero: process.env.WHATSAPP_WABA_NUMERO?.trim() });
+const auth = createAuth({
+  prisma,
+  sms,
+  wabaNumero: process.env.WHATSAPP_WABA_NUMERO?.trim(),
+  passkeyRpId: process.env.PASSKEY_RP_ID?.trim(),
+  passkeyOrigin: process.env.PASSKEY_ORIGIN?.trim(),
+});
 const session = {
   prisma,
   session: (req: Request) => auth.api.getSession({ headers: req.headers }),

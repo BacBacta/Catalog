@@ -1,3 +1,4 @@
+import { passkey } from "@better-auth/passkey";
 import { normalizePhone } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { betterAuth } from "better-auth";
@@ -35,6 +36,15 @@ export interface AuthDeps {
    * repondent `disponible: false` et refusent de creer un defi.
    */
   wabaNumero?: string | undefined;
+  /**
+   * WebAuthn — ADR 0028. Le `rpId` est EPINGLE AU DOMAINE de l'app vendeuse :
+   * une cle enrolee sous un domaine meurt avec lui, et fly.dev comme vercel.app
+   * sont sur la Public Suffix List. Ces options ne se posent donc QUE sur le
+   * domaine definitif. Absentes, le plugin n'est pas monte : ses points
+   * d'entree repondent 404, et l'app vendeuse n'affiche rien.
+   */
+  passkeyRpId?: string | undefined;
+  passkeyOrigin?: string | undefined;
   /** Appele APRES l'envoi reussi, pour enregistrer la tentative (debit). */
   onOtpEnvoye?: (data: { phone: string; kind: string }) => Promise<void>;
   /** Consulte AVANT l'envoi. Lever ici empeche l'envoi. */
@@ -102,11 +112,33 @@ export function verifierSecretAuth(env: NodeJS.ProcessEnv = process.env): void {
   }
 }
 
-export function createAuth(deps: AuthDeps) {
+/**
+ * La surface d'auth que le serveur CONSOMME — et rien de plus.
+ *
+ * L'inference complete de `betterAuth()` refererait des types non portables de
+ * @simplewebauthn (TS2883) des que le plugin passkey entre dans le tableau. On
+ * annote donc structurellement : `handler` pour le montage HTTP, `getSession`
+ * dans la forme exacte qu'attendent les routes (voir `SessionDeps`), et
+ * `$context` pour l'adaptateur interne du rappel WhatsApp entrant (ADR 0027). Les points
+ * d'entree des plugins, eux, se servent en HTTP — ils n'ont pas besoin de
+ * types ici.
+ */
+export interface InstanceAuth {
+  handler: (requete: Request) => Promise<Response>;
+  api: {
+    getSession: (entree: {
+      headers: Headers;
+    }) => Promise<{ user: { id: string; phoneNumber?: string | null | undefined } } | null>;
+  };
+  $context: Promise<{ internalAdapter: unknown }>;
+}
+
+export function createAuth(deps: AuthDeps): InstanceAuth {
   const trusted = deps.trustedOrigins ?? origines();
   // Seulement quand le secret n'est pas injecte : les tests construisent le leur.
   if (deps.secret === undefined) verifierSecretAuth();
 
+  // L'elargissement est sur : la surface reelle contient strictement plus.
   return betterAuth({
     database: prismaAdapter(deps.prisma, { provider: "postgresql" }),
     secret: deps.secret ?? process.env.BETTER_AUTH_SECRET,
@@ -191,8 +223,26 @@ export function createAuth(deps: AuthDeps) {
        * connecte par l'autre sur le MEME compte.
        */
       connexionWhatsApp({ waba: deps.wabaNumero, emailTechnique }),
+
+      /**
+       * Les passkeys — ADR 0028, EN DORMANCE tant que le domaine final n'existe
+       * pas. La table `passkey` (AuthPasskey) existe des maintenant : une
+       * migration expand n'attend pas son consommateur. `aaguid` et `backedUp`
+       * alimentent l'ecran « Appareils » — nom du fournisseur, et promesse
+       * qu'un telephone restaure retrouvera sa cle.
+       */
+      ...(deps.passkeyRpId
+        ? [
+            passkey({
+              rpID: deps.passkeyRpId,
+              rpName: "Catalog",
+              ...(deps.passkeyOrigin ? { origin: deps.passkeyOrigin } : {}),
+              schema: { passkey: { modelName: "authPasskey" } },
+            }),
+          ]
+        : []),
     ],
-  });
+  }) as unknown as InstanceAuth;
 }
 
 /**

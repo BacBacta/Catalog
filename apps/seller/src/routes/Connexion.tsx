@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { api, messageDErreur, PanneReseau } from "../lib/api.ts";
+import { clePresumee, seConnecterAvecCle, webAuthnDisponible } from "../lib/cle.ts";
 
 /**
  * Saisie du numero de connexion.
@@ -32,6 +33,32 @@ export function Connexion() {
    */
   const [whatsappDispo, setWhatsappDispo] = useState(false);
   const [defiEnCours, setDefiEnCours] = useState(false);
+
+  /**
+   * Le bouton « empreinte » — ADR 0028. Il ne s'affiche que si une cle a deja
+   * ete enrolee DEPUIS CE NAVIGATEUR (indice local) : sur un appareil vierge,
+   * il n'aurait rien a offrir. Un echec retombe sans bruit sur les boutons du
+   * dessous — jamais un mur.
+   */
+  const [cleDispo] = useState(() => webAuthnDisponible() && clePresumee());
+  const [cleEnCours, setCleEnCours] = useState(false);
+
+  async function connexionParCle() {
+    setErreur(null);
+    setCleEnCours(true);
+    try {
+      const ok = await seConnecterAvecCle();
+      if (ok) {
+        naviguer("/", { replace: true });
+        return;
+      }
+      setErreur("La cle n'a pas repondu. Utilisez WhatsApp ou le code SMS ci-dessous.");
+    } catch {
+      setErreur("La cle n'a pas repondu. Utilisez WhatsApp ou le code SMS ci-dessous.");
+    } finally {
+      setCleEnCours(false);
+    }
+  }
 
   useEffect(() => {
     let vivant = true;

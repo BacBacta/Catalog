@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { api, messageDErreur, PanneReseau } from "../lib/api.ts";
+import { destinationApresConnexion } from "../lib/cle.ts";
 import { useSession } from "../lib/session.tsx";
 
 /**
@@ -47,7 +48,7 @@ export function CodeConnexion() {
       // fierait a l'etat charge a l'ouverture de l'application — « anonyme » —
       // et renverrait la vendeuse sur la connexion qu'elle vient de reussir.
       await rafraichir();
-      naviguer("/", { replace: true });
+      naviguer(destinationApresConnexion(), { replace: true });
     } catch (cause) {
       if (cause instanceof PanneReseau) setHorsLigne(true);
       else setErreur("La verification n'a pas abouti. Reessayez.");

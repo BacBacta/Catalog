@@ -411,6 +411,7 @@ model AuthUser {
 
   sessions AuthSession[]
   accounts AuthAccount[]
+  passkeys AuthPasskey[]
   seller   Seller?
 
   @@map("user")
@@ -463,6 +464,33 @@ model AuthVerification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Cles WebAuthn (passkeys) — ADR 0028.
+///
+/// Une ligne par appareil enroye. `credentialID` identifie la cle aupres du
+/// navigateur ; `publicKey` verifie ses signatures ; `counter` detecte le
+/// clonage ; `backedUp` dit si la cle est synchronisee (compte Google) — c'est
+/// ce qui permet a l'ecran « Appareils » d'annoncer qu'un nouveau telephone la
+/// retrouvera. Les champs suivent le schema du plugin @better-auth/passkey.
+model AuthPasskey {
+  id           String    @id @default(uuid(7))
+  name         String?
+  publicKey    String    @map("public_key")
+  userId       String    @map("user_id")
+  credentialID String    @map("credential_id")
+  counter      Int
+  deviceType   String    @map("device_type")
+  backedUp     Boolean   @map("backed_up")
+  transports   String?
+  aaguid       String?
+  createdAt    DateTime? @default(now()) @map("created_at")
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkey")
 }
 
 /// Journal d'audit au niveau de la vendeuse, EN AJOUT SEUL.

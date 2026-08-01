@@ -3,12 +3,14 @@ import { lazy, Suspense } from "react";
 import { createBrowserRouter, RouterProvider } from "react-router";
 import { Ecran } from "./components/Ecran.tsx";
 import { SessionProvider } from "./lib/session.tsx";
+import { Appareils } from "./routes/Appareils.tsx";
 import { ArticleForm } from "./routes/ArticleForm.tsx";
 import { Articles } from "./routes/Articles.tsx";
 import { CodeConnexion } from "./routes/CodeConnexion.tsx";
 import { CollerSms } from "./routes/CollerSms.tsx";
 import { Commandes } from "./routes/Commandes.tsx";
 import { Connexion } from "./routes/Connexion.tsx";
+import { ConnexionCle } from "./routes/ConnexionCle.tsx";
 import { ConnexionWhatsApp } from "./routes/ConnexionWhatsApp.tsx";
 import { Dashboard } from "./routes/Dashboard.tsx";
 import { Reversement } from "./routes/Reversement.tsx";
@@ -39,6 +41,8 @@ const router = createBrowserRouter([
   { path: "/connexion", element: <Connexion /> },
   { path: "/connexion/code", element: <CodeConnexion /> },
   { path: "/connexion/whatsapp", element: <ConnexionWhatsApp /> },
+  { path: "/cle", element: <ConnexionCle /> },
+  { path: "/appareils", element: <Appareils /> },
   { path: "/reversement", element: <Reversement /> },
   { path: "/articles", element: <Articles /> },
   { path: "/articles/nouveau", element: <ArticleForm /> },

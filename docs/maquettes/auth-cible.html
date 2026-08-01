@@ -1,0 +1,431 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — L'authentification cible : WhatsApp entrant + passkey</title>
+<style>
+  :root {
+    --brand-50:#e6f4f0; --brand-100:#cfe9e1; --brand-500:#0e7a5f; --brand-700:#0a5c48;
+    --surface:#ffffff; --surface-2:#f4f7f6; --ink:#14201c; --ink-2:#5a6b65;
+    --danger:#c93636; --danger-soft:#fdecec; --wa:#075e54; --wa-bulle:#dcf8c6; --wa-fond:#ece5dd;
+    --sms:#b8860b; --sms-soft:#faf3e0;
+    --radius-card:14px; --radius-field:12px; --radius-pill:999px;
+    --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --brand-50:#123c31; --brand-100:#16483b; --surface:#1a1a19; --surface-2:#232322;
+            --ink:#ffffff; --ink-2:#c3c2b7; --danger-soft:#3a1f1f;
+            --wa-fond:#0b141a; --wa-bulle:#005c4b; --sms-soft:#3a3320; }
+    .tel { box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+    .wa-msg { color:#e9edef; }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: var(--font); background: var(--surface-2); color: var(--ink); padding: 24px 16px 64px; }
+  .page { max-width: 1010px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin-bottom: 4px; }
+  .sous { color: var(--ink-2); margin-bottom: 18px; font-size: .95rem; }
+
+  /* ── frise de vie ── */
+  .frise { display:flex; gap:6px; flex-wrap:wrap; margin-bottom: 22px; }
+  .moment { flex:1 1 150px; border-radius: var(--radius-card); padding: 10px 12px; cursor:pointer;
+            border: 2px solid transparent; background: var(--surface); font: inherit; text-align:left; }
+  .moment[aria-current="step"] { border-color: var(--brand-500); }
+  .moment .quand { font-size:.7rem; color:var(--ink-2); text-transform:uppercase; letter-spacing:.4px; }
+  .moment .quoi { font-size:.85rem; font-weight:600; display:block; margin:2px 0; }
+  .moment .badge { font-size:.68rem; border-radius: var(--radius-pill); padding: 2px 8px; }
+  .b-vert  { background: var(--brand-50); color: var(--brand-700); }
+  .b-wa    { background: var(--wa); color: #fff; }
+  .b-sms   { background: var(--sms-soft); color: var(--sms); }
+  @media (prefers-color-scheme: dark) { .b-vert { color: var(--brand-100); } }
+
+  .colonnes { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; justify-content: center; }
+  .tel { width: 340px; border-radius: 34px; background: var(--surface); border: 6px solid #14201c;
+         box-shadow: 0 12px 40px rgba(20,32,28,.18); overflow: hidden; flex-shrink: 0; position: relative; }
+  .tel-encoche { height: 22px; background: #14201c; }
+  .ecran { min-height: 590px; display: flex; flex-direction: column; }
+  .app-entete { padding: 16px 20px 4px; display:flex; justify-content:space-between; align-items:center; }
+  .marque { font-weight: 700; color: var(--brand-500); font-size: 1.05rem; }
+  .jour { font-size:.72rem; color:var(--ink-2); background:var(--surface-2); border-radius:var(--radius-pill); padding:3px 9px; }
+  .app-corps { padding: 10px 20px 22px; display: flex; flex-direction: column; gap: 13px; flex: 1; }
+  h2 { font-size: 1.12rem; }
+  .note { color: var(--ink-2); font-size: .87rem; line-height: 1.5; }
+  .btn { font: inherit; font-weight: 600; padding: 13px 16px; min-height: 48px; width: 100%;
+         border-radius: var(--radius-field); border: none; cursor: pointer;
+         background: var(--brand-500); color: #fff; display:flex; gap:10px; align-items:center; justify-content:center; }
+  .btn:focus-visible, button:focus-visible { outline: 3px solid var(--brand-500); outline-offset: 2px; }
+  .btn-contour { background: transparent; color: var(--brand-500); border: 1.5px solid var(--brand-500); }
+  .btn-wa { background: var(--wa); }
+  .btn-discret { background: transparent; color: var(--ink-2); border: none; min-height:44px; font:inherit; cursor:pointer; }
+  .pastille { background: var(--brand-50); color: var(--brand-700); border-radius: var(--radius-card);
+              padding: 11px 13px; font-size: .84rem; line-height: 1.5; }
+  @media (prefers-color-scheme: dark) { .pastille { color: var(--brand-100); } }
+  .pastille-sms { background: var(--sms-soft); color: var(--sms); border-radius: var(--radius-card);
+                  padding: 11px 13px; font-size: .84rem; line-height: 1.5; }
+  .centre { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+            gap:14px; padding:22px; text-align:center; }
+  .coche { width: 52px; height: 52px; border-radius: 50%; background: var(--brand-500);
+           display: grid; place-items: center; color: #fff; font-size: 1.5rem; }
+  .cout { font-size:.75rem; color:var(--brand-700); background:var(--brand-50);
+          border-radius:var(--radius-pill); padding:4px 12px; }
+  @media (prefers-color-scheme: dark) { .cout { color: var(--brand-100); } }
+
+  .wa-entete { background: var(--wa); color: #fff; padding: 12px 16px; display: flex; gap: 12px; align-items: center; }
+  .wa-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--brand-500);
+               display: grid; place-items: center; color: #fff; font-weight: 700; font-size:.8rem; }
+  .wa-fil { flex: 1; background: var(--wa-fond); padding: 16px 14px; display:flex; flex-direction:column; gap:10px; }
+  .wa-msg { align-self: flex-end; background: var(--wa-bulle); border-radius: 10px;
+            padding: 9px 12px; max-width: 86%; font-size: .88rem; line-height: 1.4; }
+  .wa-pied { padding: 10px 12px; background: var(--surface); display: flex; gap: 8px; }
+  .wa-pied .faux-champ { flex: 1; border: 1px solid var(--brand-100); border-radius: var(--radius-pill);
+                         padding: 10px 14px; color: var(--ink-2); font-size: .84rem; overflow:hidden;
+                         text-overflow:ellipsis; white-space:nowrap; }
+  .wa-envoyer { width: 44px; height: 44px; border-radius: 50%; border: none; background: var(--wa);
+                color:#fff; font-size: 1.1rem; cursor: pointer; }
+
+  .voile { position:absolute; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-end;
+           opacity:0; pointer-events:none; transition: opacity .25s ease; }
+  .voile.montre { opacity:1; pointer-events:auto; }
+  @media (prefers-reduced-motion: reduce) { .voile { transition:none; } .feuille { transition:none !important; } }
+  .feuille { background: var(--surface); width:100%; border-radius: 22px 22px 0 0; padding: 20px 20px 24px;
+             display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center;
+             transform: translateY(12px); transition: transform .25s ease; }
+  .voile.montre .feuille { transform: translateY(0); }
+  .empreinte { width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--brand-500);
+               display:grid; place-items:center; color: var(--brand-500); }
+  .empreinte.valide { background: var(--brand-500); color:#fff; }
+  .feuille small { color: var(--ink-2); }
+
+  .otp { display:flex; gap:8px; justify-content:center; }
+  .otp span { width:38px; height:46px; border:1.5px solid var(--brand-100); border-radius:8px;
+              display:grid; place-items:center; font-size:1.2rem; font-weight:700; font-family:var(--mono); }
+
+  .panneau { flex: 1 1 400px; min-width: 320px; max-width: 570px; display: flex; flex-direction: column; gap: 16px; }
+  .carte { background: var(--surface); border-radius: var(--radius-card); padding: 18px;
+           box-shadow: 0 2px 10px rgba(20,32,28,.07); }
+  .carte h3 { font-size: .95rem; margin-bottom: 8px; }
+  .carte p, .carte li { font-size: .87rem; color: var(--ink-2); line-height: 1.55; }
+  .carte ul { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .journal { font-family: var(--mono); font-size: .75rem; line-height: 1.6; background: #14201c; color: #d7e4df;
+             border-radius: var(--radius-card); padding: 15px; overflow-x: auto; min-height: 150px; }
+  .journal .l { display:block; white-space: pre; }
+  .journal .sortant { color:#7cc2b0; } .journal .os { color:#ffd479; } .journal .ok { color:#8be08b; }
+  .journal .att { color:#8a9a94; } .journal .sms { color:#e8b04b; }
+  .depend { width:100%; border-collapse:collapse; font-size:.82rem; }
+  .depend td { padding: 6px 8px; border-top: 1px solid var(--brand-100); color: var(--ink-2); }
+  .depend td:first-child { color: var(--ink); font-weight: 600; }
+</style>
+
+<div class="page">
+  <h1>L'authentification cible — WhatsApp entrant + passkey</h1>
+  <p class="sous">La vie entière d'un compte, en cinq moments. <strong>Catalog n'envoie plus
+     jamais un SMS pour connecter quelqu'un</strong> — il n'en reste qu'un seul dans toute
+     l'histoire, et c'est le bon. Cliquez la frise.</p>
+
+  <div class="frise" role="tablist" aria-label="Moments de la vie du compte">
+    <button type="button" class="moment" id="m1" aria-current="step" onclick="moment(1)">
+      <span class="quand">Jour 1</span><span class="quoi">Inscription</span>
+      <span class="badge b-wa">cérémonie WhatsApp</span></button>
+    <button type="button" class="moment" id="m2" onclick="moment(2)">
+      <span class="quand">Jour 1, +30 s</span><span class="quoi">La clé</span>
+      <span class="badge b-vert">empreinte scellée</span></button>
+    <button type="button" class="moment" id="m3" onclick="moment(3)">
+      <span class="quand">Jour 47 — et tous les autres</span><span class="quoi">Quotidien</span>
+      <span class="badge b-vert">0 F · local</span></button>
+    <button type="button" class="moment" id="m4" onclick="moment(4)">
+      <span class="quand">Jour 214</span><span class="quoi">Nouveau téléphone</span>
+      <span class="badge b-vert">clé restaurée</span></button>
+    <button type="button" class="moment" id="m5" onclick="moment(5)">
+      <span class="quand">Un jour, peut-être</span><span class="quoi">Reversement</span>
+      <span class="badge b-sms">le seul SMS</span></button>
+  </div>
+
+  <div class="colonnes">
+    <section class="tel" aria-label="Simulation du téléphone de la vendeuse">
+      <div class="tel-encoche"></div>
+
+      <!-- 1 · inscription -->
+      <div class="ecran" id="e1">
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 1</span></div>
+        <div class="app-corps">
+          <h2>Bienvenue</h2>
+          <p class="note">Pas de compte à créer, pas de mot de passe. Votre WhatsApp
+             <em>est</em> votre identité.</p>
+          <button type="button" class="btn btn-wa" onclick="aller('eWa')">Continuer avec WhatsApp</button>
+          <p class="note">WhatsApp s'ouvre avec un message déjà écrit. Vous l'envoyez —
+             <strong>rien à recopier, jamais</strong>.</p>
+          <div class="pastille">Sans WhatsApp&nbsp;? Le code SMS reste possible, dès que
+             l'opérateur le permet.</div>
+        </div>
+      </div>
+
+      <!-- WhatsApp -->
+      <div class="ecran" id="eWa" hidden>
+        <div class="wa-entete"><div class="wa-avatar">C</div>
+          <div><strong>Catalog</strong><br><small style="opacity:.8">compte professionnel</small></div></div>
+        <div class="wa-fil">
+          <div class="wa-msg" id="bulle" hidden>Connexion Catalog : <strong>7F3K-2M</strong>.
+            Si on vous a demandé d'envoyer ce message pour quelqu'un d'autre, ne l'envoyez pas.
+          </div>
+        </div>
+        <div class="wa-pied">
+          <div class="faux-champ" id="brouillon">Connexion Catalog : 7F3K-2M. Si on vous a…</div>
+          <button type="button" class="wa-envoyer" onclick="envoyerWa()" aria-label="Envoyer">➤</button>
+        </div>
+      </div>
+
+      <!-- 2 · la cle, enchainee -->
+      <div class="ecran" id="e2" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 1 · +30 s</span></div>
+        <div class="app-corps">
+          <div class="centre" style="flex:0; padding:8px">
+            <div class="coche" aria-hidden="true">✓</div>
+            <h2>Vous êtes dedans</h2>
+          </div>
+          <div class="pastille"><strong>Pendant que vous y êtes&nbsp;:</strong> scellez ce
+             téléphone. La prochaine fois, votre empreinte suffira — même sans crédit,
+             même sans réseau.</div>
+          <button type="button" class="btn" onclick="feuille('e2fin')">Sceller avec mon empreinte</button>
+          <button type="button" class="btn-discret" onclick="moment(3)">Plus tard</button>
+        </div>
+      </div>
+
+      <div class="ecran" id="e2fin" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 1</span></div>
+        <div class="centre">
+          <div class="coche" aria-hidden="true">✓</div>
+          <h2>Double ancrage</h2>
+          <p class="note">Votre <strong>numéro</strong> est prouvé par Meta.
+             Votre <strong>téléphone</strong> est scellé par votre empreinte.
+             Ensemble, ils remplacent tous les codes.</p>
+          <span class="cout">Coût de l'inscription complète : 0 F</span>
+          <button type="button" class="btn" onclick="moment(3)">Continuer</button>
+        </div>
+      </div>
+
+      <!-- 3 · quotidien -->
+      <div class="ecran" id="e3" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 47</span></div>
+        <div class="app-corps">
+          <h2>Connexion</h2>
+          <button type="button" class="btn" onclick="feuille('e3fin')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 11c0 3-1 5-2.5 7M15.5 9.5a4 4 0 0 0-7 2.7c0 2.3-.6 4-1.7 5.6M18 8a7.5 7.5 0 0 0-13 3.2c0 1.7-.3 3.2-.9 4.5M20.5 12c0-1-.1-2-.4-2.9"/></svg>
+            Se connecter avec l'empreinte
+          </button>
+          <p class="note" style="text-align:center">Une seconde. Aucun message n'est envoyé,
+             à personne.</p>
+          <div class="pastille">Réseau opérateur en panne&nbsp;? Crédit à zéro&nbsp;?
+             <strong>Aucune importance</strong> — la clé est dans le téléphone.</div>
+        </div>
+      </div>
+
+      <div class="ecran" id="e3fin" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 47</span></div>
+        <div class="centre">
+          <div class="coche" aria-hidden="true">✓</div>
+          <h2>Bonjour&nbsp;!</h2>
+          <p class="note">Et pareil au jour 48, 62, 103… La cérémonie WhatsApp ne reviendra
+             que si vous changez d'appareil.</p>
+          <span class="cout">Coût de toutes ces connexions : 0 F</span>
+          <button type="button" class="btn" onclick="moment(4)">Jour 214 : nouveau téléphone →</button>
+        </div>
+      </div>
+
+      <!-- 4 · nouveau telephone -->
+      <div class="ecran" id="e4" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 214</span></div>
+        <div class="app-corps">
+          <h2>Nouveau téléphone</h2>
+          <p class="note">L'ancien est perdu, vendu ou cassé. Deux chemins, selon une seule
+             question&nbsp;: le compte Google a-t-il suivi&nbsp;?</p>
+          <button type="button" class="btn" onclick="feuille('e4fin')">Google restauré → mon empreinte</button>
+          <p class="note" style="text-align:center">La clé a voyagé avec le compte Google.
+             <strong>Même avant la nouvelle SIM</strong> — le Wi-Fi suffit.</p>
+          <div class="separateur" style="display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:.8rem"><span style="flex:1;height:1px;background:var(--brand-100)"></span>sinon<span style="flex:1;height:1px;background:var(--brand-100)"></span></div>
+          <button type="button" class="btn btn-wa" onclick="aller('eWa2')">Refaire la cérémonie WhatsApp</button>
+        </div>
+      </div>
+
+      <div class="ecran" id="eWa2" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 214</span></div>
+        <div class="app-corps">
+          <div class="pastille">WhatsApp a suivi votre numéro sur ce téléphone — Meta l'a
+             re-vérifié à l'installation. La cérémonie marche donc <strong>exactement comme
+             au jour 1</strong> : un message pré-rempli, un envoi.</div>
+          <button type="button" class="btn btn-wa" onclick="envoyerWa2()">Envoyer le message</button>
+          <p class="note">Puis ce téléphone scellera sa propre clé, et vous retirerez
+             l'ancienne dans Réglages › Appareils.</p>
+        </div>
+      </div>
+
+      <div class="ecran" id="e4fin" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Jour 214</span></div>
+        <div class="centre">
+          <div class="coche" aria-hidden="true">✓</div>
+          <h2>Comme si de rien n'était</h2>
+          <p class="note">Nouveau téléphone, même geste. L'ancienne clé se révoque dans
+             Réglages › Appareils — l'appareil perdu ne peut plus rien.</p>
+          <button type="button" class="btn" onclick="moment(5)">Le jour du reversement →</button>
+        </div>
+      </div>
+
+      <!-- 5 · reversement -->
+      <div class="ecran" id="e5" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span><span class="jour">Réglages</span></div>
+        <div class="app-corps">
+          <h2>Changer le numéro de reversement</h2>
+          <p class="note">Le geste le plus sensible du produit — celui qu'un fraudeur
+             viserait. Il exige <strong>les deux preuves</strong>.</p>
+          <div class="pastille">1&nbsp;· Votre empreinte — <strong>fait ✓</strong></div>
+          <div class="pastille-sms">2&nbsp;· Le code envoyé par SMS au <strong>nouveau
+             numéro</strong> — c'est le SEUL SMS de tout le parcours, et il prouve la seule
+             chose que ni WhatsApp ni l'empreinte ne peuvent prouver&nbsp;: que cette
+             puce-là est dans votre main.</div>
+          <fieldset class="otp" style="border:none;padding:0;margin:0"><legend class="sr-only" style="position:absolute;clip:rect(0 0 0 0)">Code reçu</legend><span>4</span><span>8</span><span>3</span><span>9</span><span>2</span><span>0</span></fieldset>
+          <button type="button" class="btn" onclick="finRev()">Confirmer</button>
+        </div>
+      </div>
+
+      <div class="ecran" id="e5fin" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="centre">
+          <div class="coche" aria-hidden="true">✓</div>
+          <h2>Le cercle est fermé</h2>
+          <p class="note">Connexion par WhatsApp et empreinte, reversement par SMS&nbsp;:
+             <strong>les deux preuves ne partagent plus jamais un canal</strong>. La garantie
+             suspendue par l'ADR 0025 est restaurée — par l'architecture elle-même.</p>
+          <button type="button" class="btn" onclick="moment(1)">Rejouer la vie du compte</button>
+        </div>
+      </div>
+
+      <!-- feuille biometrique -->
+      <div class="voile" id="voile" aria-hidden="true">
+        <div class="feuille">
+          <div class="empreinte" id="emp">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 11c0 3-1 5-2.5 7M15.5 9.5a4 4 0 0 0-7 2.7c0 2.3-.6 4-1.7 5.6M18 8a7.5 7.5 0 0 0-13 3.2c0 1.7-.3 3.2-.9 4.5M20.5 12c0-1-.1-2-.4-2.9"/></svg>
+          </div>
+          <strong>Catalog</strong>
+          <small id="feuille-texte">Touchez le capteur d'empreinte</small>
+        </div>
+      </div>
+    </section>
+
+    <!-- panneau -->
+    <div class="panneau">
+      <div class="carte">
+        <h3>Les coulisses</h3>
+        <div class="journal" id="journal" aria-live="polite"></div>
+      </div>
+
+      <div class="carte">
+        <h3>Qui dépend de quoi — toute la vie du compte</h3>
+        <table class="depend">
+          <tr><td>Inscription</td><td>Meta (WhatsApp entrant)</td><td>0 F</td></tr>
+          <tr><td>Quotidien</td><td>personne — local</td><td>0 F</td></tr>
+          <tr><td>Nouveau téléphone</td><td>Google, ou Meta</td><td>0 F</td></tr>
+          <tr><td>Reversement</td><td>un SMS (MboaSMS)</td><td>~15 F, rare</td></tr>
+        </table>
+        <p style="margin-top:8px">Les listes blanches d'opérateurs — le mur du 01/08/2026 —
+           ne touchent plus que la dernière ligne&nbsp;: un volume minuscule, sans urgence,
+           déjà en validation.</p>
+      </div>
+
+      <div class="carte">
+        <h3>Ce que cette maquette affirme</h3>
+        <ul>
+          <li><strong>Aucun code n'est jamais transcrit</strong>, du premier jour au dernier.
+              Deux appuis pour naître, un toucher pour vivre.</li>
+          <li>Chaque mécanisme couvre le trou de l'autre&nbsp;: WhatsApp donne l'identité et
+              la récupération, la passkey donne le quotidien et l'immunité au SIM swap.</li>
+          <li>Le seul SMS survivant est celui qui prouve la possession de la <strong>puce de
+              reversement</strong> — ce que rien d'autre ne peut prouver.</li>
+          <li>Préconditions inchangées&nbsp;: vérification Meta (cérémonie), domaine final
+              (clés), sender MboaSMS validé (reversement). Les trois courent déjà.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ecrans = ["e1","eWa","e2","e2fin","e3","e3fin","e4","eWa2","e4fin","e5","e5fin"];
+  const J = document.getElementById("journal");
+  let apresFeuille = null;
+
+  function log(t, c) { const l = document.createElement("span"); l.className = "l " + (c||"");
+    l.textContent = t; J.appendChild(l); J.scrollTop = J.scrollHeight; }
+  function reset() { J.innerHTML = ""; }
+
+  function aller(id) { for (const e of ecrans) document.getElementById(e).hidden = (e !== id); }
+
+  function moment(n) {
+    for (let i = 1; i <= 5; i++) {
+      const m = document.getElementById("m"+i);
+      if (m) { if (i === n) m.setAttribute("aria-current","step"); else m.removeAttribute("aria-current"); }
+    }
+    reset();
+    if (n === 1) { aller("e1"); log("── jour 1 : aucun compte, aucun code ──","att"); }
+    if (n === 2) { aller("e2");
+      log("✓ ceremonie WhatsApp terminee — compte cree, session ouverte","ok");
+      log("── proposition de scellement, une fois ──","att"); }
+    if (n === 3) { aller("e3");
+      log("▸ POST /passkey/generate-authenticate-options","sortant");
+      log("── aucun message n'attend d'etre livre : tout est local ──","att"); }
+    if (n === 4) { aller("e4");
+      log("── nouvel appareil : la cle a-t-elle voyage avec Google ? ──","att"); }
+    if (n === 5) { aller("e5");
+      log("✓ empreinte verifiee (preuve 1/2)","ok");
+      log("▸ otp_reversement → aiguillage : canal SMS (MboaSMS)","sms");
+      log("  le SEUL kind qui emprunte encore un SMS","sms");
+      log("◂ code recu sur la puce Orange Money","sms"); }
+  }
+
+  function feuille(destination) {
+    apresFeuille = destination;
+    if (destination === "e2fin") {
+      log("▸ POST /passkey/generate-register-options","sortant");
+      log('  ← defi + rp: { id: "catalog.cm" }',"sortant");
+      log("◂ navigator.credentials.create → feuille Android","os");
+    } else {
+      log("◂ navigator.credentials.get → feuille Android","os");
+    }
+    document.getElementById("feuille-texte").textContent = "Touchez le capteur d'empreinte";
+    document.getElementById("emp").classList.remove("valide");
+    document.getElementById("voile").classList.add("montre");
+    setTimeout(() => {
+      document.getElementById("emp").classList.add("valide");
+      document.getElementById("feuille-texte").textContent = "Empreinte reconnue";
+      setTimeout(() => {
+        document.getElementById("voile").classList.remove("montre");
+        if (apresFeuille === "e2fin") {
+          log("▸ attestation → cle enregistree · backedUp: true","ok");
+        } else {
+          log("▸ assertion signee → session creee","ok");
+        }
+        aller(apresFeuille);
+      }, 650);
+    }, 1200);
+  }
+
+  function envoyerWa() {
+    document.getElementById("bulle").hidden = false;
+    document.getElementById("brouillon").textContent = "Message";
+    log("◂ webhook Meta : wa_id 237683921934, code 7F3K-2M","os");
+    log("✓ numero atteste par Meta → session","ok");
+    setTimeout(() => moment(2), 1100);
+  }
+
+  function envoyerWa2() {
+    log("◂ webhook Meta : meme numero, nouvel appareil","os");
+    log("✓ ceremonie identique au jour 1 → session","ok");
+    log("▸ nouvelle cle proposee ; l'ancienne se revoque dans Reglages","sortant");
+    setTimeout(() => aller("e4fin"), 1000);
+  }
+
+  function finRev() {
+    log("✓ preuve 2/2 : code du nouveau numero verifie","ok");
+    log("✓ reversement change — passkey + OTP, deux canaux distincts","ok");
+    aller("e5fin");
+  }
+
+  Object.assign(window, { moment, aller, feuille, envoyerWa, envoyerWa2, finRev });
+  moment(1);
+</script>
