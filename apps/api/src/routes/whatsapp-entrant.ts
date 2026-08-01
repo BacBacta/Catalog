@@ -35,6 +35,15 @@ export interface WhatsAppEntrantDeps {
   appSecret: string;
   /** Ce que fait chaque message — injecte, pour tester la route sans Better Auth. */
   surMessage: (message: MessageEntrant) => Promise<void>;
+  /**
+   * Verrou d'EN-TETE, pour les livraisons relayees par 360dialog (ADR 0031) :
+   * le relais ne signe pas, mais rejoue tel quel l'en-tete Authorization
+   * configure sur son webhook. Accepte SEULEMENT quand la signature est
+   * absente — une signature presente et fausse reste un refus.
+   */
+  authEnTete?: string | undefined;
+  /** Le bot (ADR 0031) : recoit la livraison ENTIERE apres les defis. */
+  surLivraison?: ((corps: unknown) => Promise<void>) | undefined;
 }
 
 export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
@@ -66,7 +75,14 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
     const brut = await c.req.text();
     const fournie = c.req.header("x-hub-signature-256");
     const attendue = `sha256=${createHmac("sha256", deps.appSecret).update(brut).digest("hex")}`;
-    if (!fournie || !egalConstant(fournie, attendue)) {
+    const parSignature = fournie != null && egalConstant(fournie, attendue);
+    /* L'en-tete ne remplace la signature que quand elle est ABSENTE : une
+       signature fausse reste une signature fausse. */
+    const parEnTete =
+      fournie == null &&
+      deps.authEnTete != null &&
+      egalConstant(c.req.header("authorization"), deps.authEnTete);
+    if (!parSignature && !parEnTete) {
       return c.json({ erreur: "signature absente ou invalide" }, 401);
     }
 
@@ -86,6 +102,10 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
        */
       await deps.surMessage(message).catch(() => {});
     }
+
+    /* Le bot lit la livraison ENTIERE — reponses interactives comprises, que
+       `lireMessagesEntrants` ne voit pas. Il saute lui-meme les defis. */
+    if (deps.surLivraison) await deps.surLivraison(corps).catch(() => {});
 
     return c.json({ recu: true }, 200);
   });

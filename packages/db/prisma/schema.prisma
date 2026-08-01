@@ -574,3 +574,15 @@ model PayoutOtp {
   @@index([expiresAt])
   @@map("payout_otp")
 }
+
+/// L'etat de conversation du bot WhatsApp — ADR 0031. Une ligne par numero.
+/// Ne contient JAMAIS de texte libre : uniquement la position dans le menu et
+/// des identifiants (slug, article, quantite). Un SMS colle n'y entre pas —
+/// il part en verification et disparait (meme regle que les traces, ADR 0023).
+model BotConversation {
+  phone     String   @id
+  etat      Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("bot_conversation")
+}
