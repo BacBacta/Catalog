@@ -22,4 +22,9 @@ apps/api/coverage/
 # Artefact de construction, produit dans dist/ par scripts/entetes.mjs.
 # Il dependait de PUBLIC_API_BASE et du catalogue seme : le versionner rendait
 # la garde CI impossible a satisfaire. Voir le commentaire du script.
+# NB : `apps/seller/public/vercel.json` est l'inverse — un fichier SOURCE,
+# versionne : son contenu ne depend d'aucun artefact de build.
 apps/shop/vercel.json
+
+# Liaison locale du CLI Vercel (identifiants de projet) — jamais versionnee.
+.vercel/

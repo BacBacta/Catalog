@@ -309,6 +309,61 @@ curl -sI https://preprod.catalog.cm/suivi/xxxx | head -1    # 200, pas 404
 > `<title>Vérifier un reçu — Catalog</title>`. **Ne pas se contenter du code de
 > statut** : une page d'accueil rendue à la place du reçu répondrait 200 aussi.
 
+### L'app vendeuse
+
+Déployée le 01/08/2026 : projet Vercel `catalog-vendeuse-preprod`, servi sur
+`https://catalog-vendeuse-preprod.vercel.app`. Même modèle que la boutique —
+aucune commande de construction côté Vercel, on déploie `dist/` :
+
+```bash
+pnpm --filter @catalog/seller build
+cd apps/seller/dist && npx vercel deploy --yes --prod
+```
+
+Trois différences avec la boutique, toutes trois voulues :
+
+1. **Son `vercel.json` est un fichier SOURCE, versionné** :
+   `apps/seller/public/vercel.json`, que Vite copie tel quel dans `dist/` à
+   chaque build. L'inverse de la boutique, et pour la raison inverse : rien
+   dans son contenu ne dépend du build — pas d'empreintes de scripts en ligne
+   (le HTML construit n'en contient aucun), pas d'origine d'API injectée par
+   l'environnement.
+
+2. **La réécriture `/api/*` vers l'API Fly est le « serveur de tête » annoncé
+   par `apps/seller/vite.config.ts`.** Le cookie de session posé par Better
+   Auth doit être de MÊME ORIGINE : un appel direct du navigateur vers
+   `fly.dev` en ferait un cookie tiers, jeté par défaut sur les navigateurs
+   mobiles — la vendeuse serait déconnectée à chaque ouverture, sans erreur.
+   Le renvoi Vercel fait voyager requêtes ET `Set-Cookie` sous l'origine de
+   l'app. **L'ordre des règles compte** : `/api/*` d'abord, le repli SPA
+   (`/* → /index.html`) ensuite ; les fichiers réels (`/assets`, `/sw.js`)
+   gagnent de toute façon, Vercel servant le système de fichiers avant les
+   réécritures.
+
+3. **Le cache est réparti selon ce que porte le nom du fichier** : `/assets/*`
+   (noms hachés) en `immutable` un an ; `sw.js` et `registerSW.js` en
+   `no-cache`, sinon l'`autoUpdate` du service worker mettrait un cache CDN
+   de retard à chaque livraison.
+
+Vérifié au premier déploiement — la liste à rejouer à chaque livraison :
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://catalog-vendeuse-preprod.vercel.app/connexion   # 200 via repli SPA
+curl -s https://catalog-vendeuse-preprod.vercel.app/api/statut                                   # JSON de l'API Fly
+curl -sI https://catalog-vendeuse-preprod.vercel.app/ | grep -i content-security-policy
+curl -sI https://catalog-vendeuse-preprod.vercel.app/sw.js | grep -i cache-control               # no-cache
+```
+
+Deux choses à savoir pour la suite :
+
+- **`TRUSTED_ORIGINS` sur l'API doit contenir l'origine de l'app** dès qu'un
+  parcours d'authentification pose un cookie depuis elle :
+  `fly secrets set --app catalog-api-preprod TRUSTED_ORIGINS="https://catalog-vendeuse-preprod.vercel.app"`.
+- **Le jour où la cérémonie Google s'active** (ADR 0029), l'URL de base de
+  Better Auth doit être l'origine de l'APP, pas celle de l'API : c'est elle
+  qui entre dans le `redirect_uri` OAuth, et le retour de Google doit passer
+  par le renvoi `/api/*` pour que le cookie atterrisse sur la bonne origine.
+
 ---
 
 ## 5. Pourquoi Vercel a besoin de `vercel.json`
