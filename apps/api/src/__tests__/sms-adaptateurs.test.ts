@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { MboaConfig } from "../adapters/sms-mboa.ts";
+import { cheminMboa, MboaSmsSender } from "../adapters/sms-mboa.ts";
 import { adresseTel, cheminEnvoi, OrangeSmsSender } from "../adapters/sms-orange.ts";
 import { chargeUtile, destinataire, WhatsAppSender } from "../adapters/sms-whatsapp.ts";
 import type { SmsMessage } from "../domain/sms-sender.ts";
@@ -390,5 +392,110 @@ describe("WhatsApp — modele d'authentification", () => {
     expect(message).toContain("otp_connexion");
     // Le corps d'erreur de Meta recopie la charge utile, donc l'OTP.
     expect(message).not.toContain("483920");
+  });
+});
+
+/* ═══════════════════════════ MboaSMS ═══════════════════════════ */
+
+describe("MboaSMS — passerelle camerounaise", () => {
+  const OK = { ok: true, corps: { success: true, totalRecipients: 1 } };
+
+  const construire = (
+    reponses: Array<{ ok: boolean; statut?: number; corps?: unknown }>,
+    cfg: Partial<MboaConfig> = {},
+  ) => {
+    const { appels, fetchImpl } = espion(reponses);
+    const envoyeur = new MboaSmsSender({ apiKey: "mboa_test", fetchImpl, ...cfg });
+    return { appels, envoyeur };
+  };
+
+  it("refuse de se construire sans cle, en nommant la variable", () => {
+    expect(() => new MboaSmsSender({ apiKey: "" })).toThrow(/MBOA_API_KEY/);
+  });
+
+  it("authentifie par en-tete, jamais par parametre d'URL", async () => {
+    const { appels, envoyeur } = construire([OK]);
+    await envoyeur.send(OTP);
+    expect(entete(appels[0], "X-API-Key")).toBe("mboa_test");
+    // Une cle dans l'URL fuirait par les journaux d'acces et les referents.
+    expect(appels[0]?.url).not.toContain("mboa_test");
+  });
+
+  it("envoie les codes sur le point d'entree dedie a la 2FA", async () => {
+    const { appels, envoyeur } = construire([OK]);
+    await envoyeur.send(OTP);
+    expect(appels[0]?.url).toBe("https://api.mboasms.com/api/v1/developer/sms/send-otp");
+  });
+
+  it("envoie le reste sur l'envoi ordinaire", async () => {
+    const { appels, envoyeur } = construire([OK]);
+    await envoyeur.send({ to: "+237677000001", text: "Solde du 12", kind: "rappel_solde" });
+    expect(appels[0]?.url).toBe("https://api.mboasms.com/api/v1/developer/sms/send");
+  });
+
+  it("n'envoie qu'un seul destinataire a la fois", async () => {
+    const { appels, envoyeur } = construire([OK]);
+    await envoyeur.send(OTP);
+    // Un OTP est nominatif : grouper ferait porter a un echec partiel la
+    // responsabilite de dire QUI n'a pas recu.
+    expect(corpsDe(appels[0]?.init ?? {}).phoneNumbers).toEqual(["+237677000001"]);
+  });
+
+  it("n'ajoute l'identifiant d'expediteur que s'il est configure", async () => {
+    const sans = construire([OK]);
+    await sans.envoyeur.send(OTP);
+    expect(corpsDe(sans.appels[0]?.init ?? {})).not.toHaveProperty("senderId");
+
+    const avec = construire([OK], { senderId: "CATALOG" });
+    await avec.envoyeur.send(OTP);
+    expect(corpsDe(avec.appels[0]?.init ?? {}).senderId).toBe("CATALOG");
+  });
+
+  /**
+   * Le coeur de ce qui distingue cet adaptateur : la lecon du 01/08/2026.
+   * Orange a rendu 201 sur six envois dont aucun n'est arrive. Un code de
+   * succes n'atteste que la reception par une facade.
+   */
+  it("un 200 sans confirmation est un ECHEC, pas un succes", async () => {
+    const { envoyeur } = construire([{ ok: true, corps: { success: false } }]);
+    await expect(envoyeur.send(OTP)).rejects.toThrow(/sans confirmer/);
+  });
+
+  it("un 200 qui ne retient aucun destinataire est un ECHEC", async () => {
+    const { envoyeur } = construire([{ ok: true, corps: { success: true, totalRecipients: 0 } }]);
+    await expect(envoyeur.send(OTP)).rejects.toThrow(/aucun destinataire/);
+  });
+
+  it("un corps illisible est un ECHEC, pas un succes par defaut", async () => {
+    /**
+     * Une passerelle derriere un intermediaire peut rendre 200 avec une page
+     * HTML. Sans cette assertion, `catch(() => null)` en ferait un envoi reussi.
+     */
+    const illisible = (async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error("pas du JSON");
+      },
+    })) as unknown as typeof fetch;
+    const envoyeur = new MboaSmsSender({ apiKey: "mboa_test", fetchImpl: illisible });
+    await expect(envoyeur.send(OTP)).rejects.toThrow(/sans confirmer/);
+  });
+
+  it("l'erreur ne porte ni la cle, ni le code, ni le texte", async () => {
+    const { envoyeur } = construire([
+      // Une passerelle qui refuse renvoie couramment la requete refusee.
+      { ok: false, statut: 422, corps: { message: "483920", apiKey: "mboa_test" } },
+    ]);
+    const message = await messageDeLErreur(() => envoyeur.send(OTP));
+    expect(message).toContain("422");
+    expect(message).not.toContain("483920");
+    expect(message).not.toContain("mboa_test");
+  });
+
+  it("l'URL de base est surchargeable, pour un bac a sable", () => {
+    expect(cheminMboa("https://bac.example/", "otp_connexion")).toBe(
+      "https://bac.example/api/v1/developer/sms/send-otp",
+    );
   });
 });

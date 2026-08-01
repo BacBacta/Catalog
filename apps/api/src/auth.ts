@@ -4,6 +4,7 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { phoneNumber } from "better-auth/plugins";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
+import { MboaSmsSender } from "./adapters/sms-mboa.ts";
 import { OrangeSmsSender } from "./adapters/sms-orange.ts";
 import { PendingSmsProvider, resolveSmsSender } from "./adapters/sms-provider.ts";
 import { WhatsAppSender } from "./adapters/sms-whatsapp.ts";
@@ -180,12 +181,13 @@ export function createAuth(deps: AuthDeps) {
 /**
  * Fabriques disponibles. C'est le seul endroit ou un nom de fournisseur vit.
  *
- * Quatre valeurs pour `SMS_PROVIDER` :
+ * Cinq valeurs pour `SMS_PROVIDER` :
  *
  * | valeur | canal | remarque |
  * |---|---|---|
  * | `console` | aucun, ecrit sur la sortie standard | refuse de se charger en production |
  * | `orange` | SMS, **tous operateurs** du Cameroun | API `sms-cm` |
+ * | `mboasms` | SMS, **MTN, Orange et Camtel** | passerelle locale, ADR 0026 |
  * | `whatsapp` | modele d'authentification WhatsApp | ne porte QUE les deux OTP |
  * | `provider` | rien : leve | la place tenue, si l'on veut une autre passerelle |
  *
@@ -204,6 +206,12 @@ export function smsSenderDepuisEnv(env: NodeJS.ProcessEnv = process.env): SmsSen
         senderName: env.ORANGE_SENDER_NAME,
         accuseUrl: env.SMS_ACCUSE_URL,
         ...(env.ORANGE_BASE_URL ? { baseUrl: env.ORANGE_BASE_URL } : {}),
+      }),
+    mboasms: () =>
+      new MboaSmsSender({
+        apiKey: env.MBOA_API_KEY ?? "",
+        senderId: env.MBOA_SENDER_ID,
+        baseUrl: env.MBOA_BASE_URL,
       }),
     whatsapp: () =>
       new WhatsAppSender({
