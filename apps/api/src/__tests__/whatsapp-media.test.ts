@@ -53,6 +53,39 @@ describe("LecteurMediaWhatsapp", () => {
     expect(appels[1]?.cle).toBe("cle");
   });
 
+  it("l'URL Meta (lookaside) est REECRITE vers l'hote de l'API — la regle 360dialog", async () => {
+    const appels: string[] = [];
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const u = String(url);
+      appels.push(u);
+      return u.includes("attachments")
+        ? reponseOctets()
+        : reponseJson({
+            url: "https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=X&hash=Y",
+            mime_type: "image/jpeg",
+          });
+    });
+    const lecteur = new LecteurMediaWhatsapp({ ...CFG, fetchImpl: fetchImpl as never });
+    const media = await lecteur.lire("MEDIA-3");
+    expect(media?.octets).toEqual(octets);
+    /* L'hote de Meta ne connait pas notre cle : chemin et parametres gardes,
+       hote remplace par celui de la base. */
+    expect(appels[1]).toBe("https://waba.test/whatsapp_business/attachments/?mid=X&hash=Y");
+  });
+
+  it("un premier chemin refuse fait tenter la forme /media/{id} — l'on-premise v1", async () => {
+    const appels: string[] = [];
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      const u = String(url);
+      appels.push(u);
+      return u.includes("/media/") ? reponseOctets("image/png") : new Response("", { status: 404 });
+    });
+    const lecteur = new LecteurMediaWhatsapp({ ...CFG, fetchImpl: fetchImpl as never });
+    const media = await lecteur.lire("MEDIA-4");
+    expect(media?.typeAnnonce).toBe("image/png");
+    expect(appels).toEqual(["https://waba.test/v1/MEDIA-4", "https://waba.test/v1/media/MEDIA-4"]);
+  });
+
   it("forme v1 : des octets directement, sans second appel", async () => {
     const fetchImpl = vi.fn(async () => reponseOctets("image/png"));
     const lecteur = new LecteurMediaWhatsapp({ ...CFG, fetchImpl: fetchImpl as never });

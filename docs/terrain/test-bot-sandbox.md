@@ -112,13 +112,28 @@ Recollez le même SMS : refusé. Sur une commande soldée, c'est le montant qui
 ne correspond plus (contrôle n° 2) ; sur un acompte dont le solde égale
 l'acompte, c'est l'unicité (contrôle n° 5).
 
-### 5 · Les images
+### 5 · Les images — LA limite du sandbox, constatée le 02/08/2026
 
-Les articles du seed n'ont pas de photo : ajoutez-en une depuis l'app
-vendeuse (l'envoi par le fil exige un vrai `mediaId` sandbox — le relais en
-panne l'empêche). Ensuite : l'accueil de la boutique gagne
-« Voir en photos », la rafale part légendée nom-prix, et la fiche article
-s'ouvre photo d'abord.
+**Le sandbox n'a pas de médias, et c'est documenté** : ni téléversement ni
+récupération par media ID — il n'expose que `/v1/configs/webhook` et
+`/v1/messages`. Une photo envoyée au bot en sandbox est donc reçue (le
+webhook livre son identifiant, la légende marche, la confirmation part)
+mais **jamais téléchargeable** : l'article se publie « sans photo », et
+c'est le comportement voulu, pas une panne.
+
+Ce que le sandbox permet quand même de tester : la lecture de la légende
+« nom prix », la réaction 👍, la confirmation citée, la publication. Le
+téléchargement lui-même ne se vérifie qu'avec un **numéro de test Meta**
+(Cloud API) ou en production — l'adaptateur applique la règle 360dialog
+(l'URL `lookaside` réécrite vers l'hôte de l'API), corrigée à la suite de ce
+constat.
+
+Pour voir les images de la BOUTIQUE (accueil, fiche photo d'abord, rafale
+« Voir en photos ») : ajoutez la photo depuis l'app vendeuse — le pipeline
+web, lui, ne passe pas par les médias WhatsApp.
+
+À savoir aussi : le sandbox plafonne à **200 messages** par instance — les
+longues sessions de test se comptent.
 
 ### 6 · Les relances (elles demandent du temps réel)
 

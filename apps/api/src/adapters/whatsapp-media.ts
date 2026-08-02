@@ -1,24 +1,34 @@
 import type { LecteurMedia, MediaEntrant } from "../domain/bot/media.ts";
 
 /**
- * Telechargement d'une photo entrante via 360dialog — ADR 0034.
+ * Telechargement d'une photo entrante via 360dialog — ADR 0034, revise apres
+ * le terrain du 02/08/2026 (ADR 0035).
+ *
+ * ── Ce que le terrain a etabli ─────────────────────────────────────────────
+ *
+ * **Le sandbox n'a PAS de medias.** Sa documentation le dit en toutes
+ * lettres : ni televersement ni recuperation par media ID — il n'expose que
+ * la configuration du relais entrant et `/v1/messages`. Une photo envoyee au
+ * sandbox ne peut donc JAMAIS etre lue, et l'article se publie sans elle :
+ * c'est le comportement voulu, pas une panne. Le chemin media ne se verifie
+ * qu'avec un numero de test Meta ou en production.
  *
  * ── Deux formes, et une seule sonde pour les distinguer ────────────────────
  *
  * La Cloud API (production, `waba-v2`) procede en DEUX temps :
  *
  *   GET {base}/{media_id}      → JSON { url, mime_type, file_size, sha256 }
- *   GET {url}                  → les octets ; l'URL vaut cinq minutes
+ *   GET {url reecrite}         → les octets ; l'URL vaut cinq minutes
  *
- * L'API v1 (sandbox) rend les octets DIRECTEMENT sur `GET /v1/media/{id}`.
+ * **L'URL du JSON pointe chez Meta (`lookaside.fbsbx.com`) et ne connait pas
+ * notre cle** : la documentation 360dialog demande de REMPLACER son hote par
+ * celui de l'API, chemin et parametres conserves, puis de presenter
+ * `D360-API-KEY`. La suivre telle quelle echoue — c'est le defaut que le
+ * diagnostic du 02/08/2026 a mis au jour.
  *
- * L'adaptateur ne choisit pas d'apres la configuration : il REGARDE la
- * reponse. Un `content-type` JSON vaut premiere forme, tout le reste vaut
- * octets. C'est ce qui evite un aiguillage sur une variable d'environnement
- * qu'on oublierait de changer le jour du passage en production — et la
- * seconde forme n'est **pas verifiee sur le sandbox**, dont le relais entrant
- * est en panne : elle est marquee comme telle plutot que promue en silence
- * (AGENTS.md §7.7).
+ * L'API v1 (on-premise) rend les octets DIRECTEMENT sur `GET /v1/media/{id}` ;
+ * on la tente en second. Toujours pas verifiee sur un vrai on-premise
+ * (AGENTS.md §7.7) — et jamais verifiable sur le sandbox, voir ci-dessus.
  *
  * ── Ce qui ne sort jamais d'ici ────────────────────────────────────────────
  *
@@ -65,12 +75,16 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
     const entetes = { "D360-API-KEY": this.#cfg.apiKey };
 
     try {
-      const premiere = await this.#fetch(`${base}/${mediaId}`, { headers: entetes });
-      if (!premiere.ok) return null;
+      /* Forme Cloud d'abord ({base}/{id}) ; forme v1 en second ({base}/media/{id}). */
+      let premiere = await this.#fetch(`${base}/${mediaId}`, { headers: entetes });
+      if (!premiere.ok) {
+        premiere = await this.#fetch(`${base}/media/${mediaId}`, { headers: entetes });
+        if (!premiere.ok) return null;
+      }
 
       const type = premiere.headers.get("content-type") ?? "";
       if (!type.includes("json")) {
-        /* Forme v1 : les octets, tout de suite. NON VERIFIEE sur le sandbox. */
+        /* Forme v1 : les octets, tout de suite. NON VERIFIEE (voir l'en-tete). */
         return await this.#octets(premiere, type);
       }
 
@@ -80,9 +94,16 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
       } | null;
       if (typeof meta?.url !== "string") return null;
 
-      /* L'URL de telechargement reste derriere l'authentification 360dialog :
-         l'en-tete se repose, il n'est pas porte par l'URL. */
-      const seconde = await this.#fetch(meta.url, { headers: entetes });
+      /**
+       * L'URL du JSON pointe chez Meta et ne connait pas notre cle : son hote
+       * se REMPLACE par celui de l'API (chemin et parametres conserves), et
+       * l'authentification repart dans l'en-tete — la regle 360dialog.
+       */
+      const cible = new URL(meta.url);
+      const notre = new URL(base);
+      const telechargement = `${notre.origin}${cible.pathname}${cible.search}`;
+
+      const seconde = await this.#fetch(telechargement, { headers: entetes });
       if (!seconde.ok) return null;
       return await this.#octets(
         seconde,
