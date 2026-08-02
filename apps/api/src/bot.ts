@@ -63,8 +63,24 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
   }
 }
 
+/**
+ * La cle de conversation d'un numero WhatsApp quelconque.
+ *
+ * Une ACHETEUSE peut ecrire de n'importe ou — la diaspora qui commande pour
+ * sa famille est un cas reel, decouvert au premier essai sandbox (numero
+ * belge). `normalizePhone` reste la regle pour tout ce qui est camerounais
+ * (comptes vendeuses, numero de rappel de livraison) ; la cle de conversation,
+ * elle, accepte tout wa_id plausible.
+ */
+function cleConversation(waId: string): string | null {
+  const camerounais = normalizePhone(waId);
+  if (camerounais) return camerounais;
+  const chiffres = waId.replace(/^\+/, "");
+  return /^\d{6,15}$/.test(chiffres) ? `+${chiffres}` : null;
+}
+
 async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
-  const phone = normalizePhone(entree.de);
+  const phone = cleConversation(entree.de);
   if (!phone) return;
 
   const utilisateur = await deps.prisma.authUser.findUnique({
