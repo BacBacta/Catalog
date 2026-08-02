@@ -45,6 +45,7 @@ const CHAMPS = {
   name: true,
   priceXaf: true,
   stock: true,
+  description: true,
   imageKey: true,
   imageWidth: true,
   imageHeight: true,
@@ -59,6 +60,7 @@ type LigneProduit = {
   name: string;
   priceXaf: number;
   stock: number;
+  description: string | null;
   imageKey: string | null;
   imageWidth: number | null;
   imageHeight: number | null;
@@ -92,6 +94,7 @@ async function serialiser(storage: ObjectStorage, p: LigneProduit) {
     name: p.name,
     priceXaf: p.priceXaf,
     stock: p.stock,
+    description: p.description,
     position: p.position,
     archive: p.archivedAt !== null,
     image: images
@@ -188,6 +191,10 @@ export function productRoutes(deps: ProductDeps) {
         name: parse.data.name,
         priceXaf: parse.data.priceXaf,
         ...(parse.data.stock !== undefined ? { stock: parse.data.stock } : {}),
+        // Une chaine vide veut dire « pas de description », pas « description vide ».
+        ...(parse.data.description !== undefined
+          ? { description: parse.data.description || null }
+          : {}),
         position: (dernier._max.position ?? -1) + 1,
       },
       select: CHAMPS,
@@ -219,6 +226,9 @@ export function productRoutes(deps: ProductDeps) {
         ...(parse.data.name !== undefined ? { name: parse.data.name } : {}),
         ...(parse.data.priceXaf !== undefined ? { priceXaf: parse.data.priceXaf } : {}),
         ...(parse.data.stock !== undefined ? { stock: parse.data.stock } : {}),
+        ...(parse.data.description !== undefined
+          ? { description: parse.data.description || null }
+          : {}),
       },
       select: CHAMPS,
     });

@@ -103,6 +103,9 @@ model Product {
   priceXaf Int    @map("price_xaf")
   stock    Int    @default(0)
   variants Json?
+  /// Facultative, 300 caracteres au plus (ADR 0033). Elle vend sur la fiche
+  /// article du bot ; la boutique publique ne la montre pas encore.
+  description String?
 
   /// Cle de BASE de l'image, sans extension. Les deux declinaisons stockees en
   /// derivent : `<cle>.avif` et `<cle>.webp`. La cle est opaque — ni identifiant
@@ -582,6 +585,9 @@ model PayoutOtp {
 model BotConversation {
   phone     String   @id
   etat      Json
+  /// La langue du fil ACHETEUSE (ADR 0033) : « english » la change, « français »
+  /// la ramene. Le fil vendeuse reste en francais pour l'instant.
+  langue    String   @default("fr")
   /// La derniere commande creee depuis ce fil — ce qui permet de repondre a
   /// « ou est ma commande ? » sans reconcilier par numero de telephone (le
   /// numero de livraison n'est pas forcement celui du fil : diaspora).

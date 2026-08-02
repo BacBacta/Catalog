@@ -28,6 +28,7 @@
     "@opentelemetry/semantic-conventions": "1.43.0",
     "better-auth": "1.6.25",
     "hono": "4.12.32",
+    "pg-boss": "^12.26.4",
     "sharp": "0.35.3",
     "zod": "4.4.3"
   },

@@ -33,11 +33,26 @@ export const productNameSchema = z
   .min(2, "le nom fait au moins deux caracteres")
   .max(80, "le nom fait au plus quatre-vingts caracteres");
 
+/**
+ * La description, FACULTATIVE et courte — ADR 0033.
+ *
+ * Elle existe pour la fiche article du bot WhatsApp, ou le nom et le prix ne
+ * suffisent pas a vendre un pagne. 300 caracteres : assez pour matiere,
+ * dimensions et usage, trop peu pour un roman — la fiche se lit sur un ecran
+ * de telephone dans une conversation. Une chaine vide vaut « pas de
+ * description » et s'enregistre comme telle.
+ */
+export const productDescriptionSchema = z
+  .string()
+  .trim()
+  .max(300, "la description fait au plus trois cents caracteres");
+
 export const productDraftSchema = z.object({
   name: productNameSchema,
   priceXaf: priceXafSchema,
   /** Absent = non suivi. Ce n'est pas la meme chose que zero. */
   stock: z.number().int().min(0).max(1_000_000).optional(),
+  description: productDescriptionSchema.optional(),
 });
 export type ProductDraft = z.infer<typeof productDraftSchema>;
 

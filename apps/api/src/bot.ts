@@ -5,12 +5,15 @@ import { randomBytes } from "node:crypto";
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
 import type { PrismaClient } from "@catalog/db";
 import {
+  type ArticleBot,
   type BoutiqueBot,
   confirmationCommande,
   ETAT_INITIAL,
   type EtatConv,
   etatApresInactivite,
   extraireSlugBoutique,
+  type LignePanier,
+  normaliserEtat,
   reagirAcheteuse,
   reagirVendeuse,
   type StatutDerniereCommande,
@@ -18,6 +21,7 @@ import {
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import { texte } from "./domain/bot/messages.ts";
+import { type Langue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { type CommandePourCycle, etapesDuSuivi, soldeAEncaisser } from "./domain/order/cycle.ts";
 import { echeance } from "./domain/order/expiration.ts";
@@ -27,12 +31,13 @@ import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
 import { reputation } from "./domain/review/reputation.ts";
 import type { ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
+import type { ChargeRelance } from "./jobs/relance-acompte.ts";
 import { mesurerTransitionBot } from "./observabilite/mesures.ts";
 
 /**
- * Le service du bot — ADR 0031, revise par l'ADR 0032. Il charge l'etat et les
- * donnees, appelle la machine PURE de `domain/bot`, execute l'effet, persiste,
- * envoie.
+ * Le service du bot — ADR 0031, revise par les ADR 0032 et 0033. Il charge
+ * l'etat et les donnees, appelle la machine PURE de `domain/bot`, execute
+ * l'effet, persiste, envoie.
  *
  * C'est ici que nait la PREMIERE creation de commande du produit : jusqu'au
  * bot, la boutique fabriquait un message wa.me et rien n'etait persiste. Le
@@ -59,6 +64,11 @@ export interface BotDeps {
    * Absent : les messages partent sans image, jamais avec un lien mort.
    */
   storage?: ObjectStorage;
+  /**
+   * Planification de la relance d'acompte (ADR 0033). Absente : pas de
+   * relance — la commande vit, seule la piqure de rappel manque.
+   */
+  planifierRelance?: (charge: ChargeRelance) => Promise<void>;
   maintenant?: () => Date;
   aleatoire?: (n: number) => Uint8Array;
 }
@@ -111,10 +121,12 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
 async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
   const enregistrement = await deps.prisma.botConversation.findUnique({ where: { phone } });
+  const langue: Langue = enregistrement?.langue === "en" ? "en" : "fr";
+  const t = TEXTES[langue];
 
-  /* Un etat de flux abandonne depuis plus de 24 h retombe sur le catalogue :
-     le message d'aujourd'hui re-oriente au lieu d'etre avale (ADR 0032). */
-  let etat = (enregistrement?.etat as EtatConv | undefined) ?? ETAT_INITIAL;
+  /* L'etat se RELIT (toutes generations confondues), puis perime : un flux
+     abandonne depuis plus de 24 h retombe sur le catalogue (ADR 0032). */
+  let etat = normaliserEtat(enregistrement?.etat ?? ETAT_INITIAL);
   if (enregistrement) {
     etat = etatApresInactivite(etat, maintenant.getTime() - enregistrement.updatedAt.getTime());
   }
@@ -148,50 +160,75 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
       ? await statutDerniereCommande(deps, enregistrement.derniereCommandeId)
       : null;
 
-  const reaction = reagirAcheteuse(etat, entree, entree.de, boutique, derniereCommande);
+  const reaction = reagirAcheteuse(etat, entree, {
+    vers: entree.de,
+    boutique,
+    derniereCommande,
+    langue,
+  });
   etat = reaction.etat;
   const messages = [...reaction.messages];
   let commandeCreeeId: string | null = null;
 
   if (reaction.effet?.type === "creer_commande" && boutique) {
     const b = reaction.effet.brouillon;
-    const article = boutique.articles.find((a) => a.id === b.articleId);
     const livraison = deliverySchema.safeParse(b.livraison);
-    if (!article || !livraison.success) {
+    const resolution = resoudreLignes(boutique, b.lignes);
+    if (!livraison.success || !resolution.ok) {
       messages.push(
-        texte(
-          entree.de,
-          "Cette commande n'a pas pu être enregistrée. Reprenez au catalogue — rien n'a été perdu.",
-        ),
+        texte(entree.de, resolution.ok ? t.commandeRatee : t.stockInsuffisant(resolution.nom)),
       );
-      etat = ETAT_INITIAL;
+      etat = { nom: "catalogue", slug: boutique.slug, page: 0 };
     } else {
-      const commande = await creerCommande(deps, boutique, article, b.quantite, livraison.data);
+      const commande = await creerCommande(deps, boutique, resolution.articles, livraison.data);
       commandeCreeeId = commande.id;
       messages.push(
-        ...confirmationCommande(entree.de, {
-          reference: commande.ref,
-          codeVerification: commande.verificationCode,
-          boutique: boutique.nom,
-          articleNom: article.nom,
-          quantite: b.quantite,
-          prixUnitaireXaf: article.prixXaf,
-          totalXaf: commande.totalXaf,
-          duAvantXaf: commande.duAvantXaf,
-          livraison: b.livraison,
-          lienSuivi:
-            deps.baseBoutique && commande.buyerToken
-              ? lienDeSuivi(deps.baseBoutique, commande.buyerToken)
-              : null,
-        }),
+        ...confirmationCommande(
+          entree.de,
+          {
+            reference: commande.ref,
+            codeVerification: commande.verificationCode,
+            boutique: boutique.nom,
+            lignes: resolution.articles.map((a) => ({
+              nom: a.article.nom,
+              quantite: a.quantite,
+              prixUnitaireXaf: a.article.prixXaf,
+            })),
+            totalXaf: commande.totalXaf,
+            duAvantXaf: commande.duAvantXaf,
+            livraison: b.livraison,
+            lienSuivi:
+              deps.baseBoutique && commande.buyerToken
+                ? lienDeSuivi(deps.baseBoutique, commande.buyerToken)
+                : null,
+          },
+          langue,
+        ),
       );
+      /* La relance d'acompte (ADR 0033) : planifiee seulement quand un
+         acompte est attendu — le travail redecide de toute facon sur l'etat
+         reel au moment de partir. */
+      if (commande.duAvantXaf > 0 && deps.planifierRelance) {
+        await deps
+          .planifierRelance({ commandeId: commande.id, phone: entree.de, langue })
+          .catch(() => console.warn("bot : relance non planifiee (details retenus)"));
+      }
     }
   }
 
   await deps.prisma.botConversation.upsert({
     where: { phone },
-    create: { phone, etat, ...(commandeCreeeId ? { derniereCommandeId: commandeCreeeId } : {}) },
-    update: { etat, ...(commandeCreeeId ? { derniereCommandeId: commandeCreeeId } : {}) },
+    create: {
+      phone,
+      etat: etat as unknown as object,
+      ...(reaction.langue ? { langue: reaction.langue } : {}),
+      ...(commandeCreeeId ? { derniereCommandeId: commandeCreeeId } : {}),
+    },
+    update: {
+      etat: etat as unknown as object,
+      ...(reaction.langue ? { langue: reaction.langue } : {}),
+      ...(commandeCreeeId ? { derniereCommandeId: commandeCreeeId } : {}),
+    },
   });
   mesurerTransitionBot(etatAvant, etat.nom, reaction.effet?.type);
   for (const m of messages) await deps.envoyeur.envoyer(m);
@@ -210,7 +247,14 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
       products: {
         where: { archivedAt: null },
         orderBy: { position: "asc" },
-        select: { id: true, name: true, priceXaf: true, imageKey: true },
+        select: {
+          id: true,
+          name: true,
+          priceXaf: true,
+          stock: true,
+          description: true,
+          imageKey: true,
+        },
       },
       reviews: { select: { rating: true, verified: true } },
     },
@@ -230,10 +274,41 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
       whatsappVendeuse: seller.phone,
       reversementPose: seller.payoutPhone !== null,
       reputation: { note: rep.note, nbVerifies: rep.nbVerifies },
-      articles: seller.products.map((p) => ({ id: p.id, nom: p.name, prixXaf: p.priceXaf })),
+      articles: seller.products.map((p) => ({
+        id: p.id,
+        nom: p.name,
+        prixXaf: p.priceXaf,
+        /* Zero veut dire « non suivi » — meme lecture que la boutique publique. */
+        stock: p.stock > 0 ? p.stock : null,
+        ...(p.description ? { description: p.description } : {}),
+      })),
     },
     clesImage,
   };
+}
+
+/**
+ * Resout les lignes du panier en articles, et REVERIFIE le stock suivi : le
+ * panier a pu vieillir de quelques minutes, la vendeuse a pu vendre au
+ * comptoir entre-temps. Le refus est global — une commande partielle
+ * surprendrait plus qu'elle n'aiderait.
+ */
+function resoudreLignes(
+  boutique: BoutiqueBot,
+  lignes: LignePanier[],
+):
+  | { ok: true; articles: Array<{ article: ArticleBot; quantite: number }> }
+  | { ok: false; nom: string } {
+  const articles: Array<{ article: ArticleBot; quantite: number }> = [];
+  for (const l of lignes) {
+    const article = boutique.articles.find((a) => a.id === l.articleId);
+    if (!article) return { ok: false, nom: "?" };
+    if (article.stock !== null && l.quantite > article.stock) {
+      return { ok: false, nom: article.nom };
+    }
+    articles.push({ article, quantite: l.quantite });
+  }
+  return articles.length > 0 ? { ok: true, articles } : { ok: false, nom: "?" };
 }
 
 /**
@@ -303,8 +378,7 @@ async function statutDerniereCommande(
 async function creerCommande(
   deps: BotDeps,
   boutique: BoutiqueBot,
-  article: { id: string; nom: string; prixXaf: number },
-  quantite: number,
+  articles: Array<{ article: ArticleBot; quantite: number }>,
   livraison: unknown,
 ): Promise<{
   id: string;
@@ -317,9 +391,12 @@ async function creerCommande(
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
   const maintenant = deps.maintenant?.() ?? new Date();
 
-  const items: OrderItem[] = [
-    { productId: article.id, name: article.nom, unitPriceXaf: article.prixXaf, quantity: quantite },
-  ];
+  const items: OrderItem[] = articles.map((a) => ({
+    productId: a.article.id,
+    name: a.article.nom,
+    unitPriceXaf: a.article.prixXaf,
+    quantity: a.quantite,
+  }));
   const totalXaf = itemsTotalXaf(items);
   /* Acompte seulement si la rampe existe : sans reversement pose, exiger un
      prepaiement enverrait l'acheteuse payer vers nulle part. */

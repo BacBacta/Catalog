@@ -32,6 +32,11 @@ import {
  * Le gain de poids de la photo est **affiche**. Ce n'est pas un gadget de
  * developpeur : c'est son forfait data, et le voir la rassure sur le fait
  * qu'envoyer une photo ne va pas lui couter sa journee.
+ *
+ * La description (ADR 0033) ne contredit pas la regle des trois champs : elle
+ * est FACULTATIVE et REPLIEE derriere un disclosure. Elle n'ajoute rien au
+ * chemin oblige — elle existe pour la fiche article du bot WhatsApp, ou nom et
+ * prix ne suffisent pas a vendre.
  */
 export function ArticleForm() {
   return <Protege>{() => <Formulaire />}</Protege>;
@@ -48,6 +53,7 @@ function Formulaire() {
   const [article, setArticle] = useState<Article | null>(null);
   const [nom, setNom] = useState("");
   const [prix, setPrix] = useState("");
+  const [description, setDescription] = useState("");
   const [photo, setPhoto] = useState<PhotoPreparee | null>(null);
   const [apercu, setApercu] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -65,6 +71,7 @@ function Formulaire() {
         setArticle(a);
         setNom(a.name);
         setPrix(String(a.priceXaf));
+        setDescription(a.description ?? "");
       } else {
         setErreur("Cet article n'existe plus.");
       }
@@ -117,15 +124,24 @@ function Formulaire() {
     setEnCours(true);
     try {
       let cible = article;
+      const desc = description.trim();
       if (!cible) {
-        const r = await api.creerArticle(nom.trim(), priceXaf);
+        const r = await api.creerArticle(nom.trim(), priceXaf, desc || undefined);
         if (!r.ok || !r.donnees) {
           setErreur(messageDErreur(r, "L'article n'a pas pu etre cree."));
           return;
         }
         cible = r.donnees;
-      } else if (cible.name !== nom.trim() || cible.priceXaf !== priceXaf) {
-        const r = await api.modifierArticle(cible.id, { name: nom.trim(), priceXaf });
+      } else if (
+        cible.name !== nom.trim() ||
+        cible.priceXaf !== priceXaf ||
+        (cible.description ?? "") !== desc
+      ) {
+        const r = await api.modifierArticle(cible.id, {
+          name: nom.trim(),
+          priceXaf,
+          description: desc,
+        });
         if (!r.ok || !r.donnees) {
           setErreur(messageDErreur(r, "La modification n'a pas abouti."));
           return;
@@ -277,6 +293,29 @@ function Formulaire() {
               placeholder="15000"
             />
           </Field>
+
+          {/* Facultative et repliee : le chemin oblige reste photo, nom, prix. */}
+          <details open={description.trim().length > 0}>
+            <summary className="min-h-[var(--size-touch)] cursor-pointer py-2 text-caption font-semibold text-ink-2">
+              Ajouter une description (facultatif)
+            </summary>
+            <Field
+              label="Description"
+              htmlFor="description-article"
+              hint={`Matiere, dimensions, usage — elle se lit sur la fiche WhatsApp. ${description.trim().length}/300.`}
+            >
+              <textarea
+                id="description-article"
+                name="description"
+                value={description}
+                maxLength={300}
+                rows={3}
+                onChange={(e) => setDescription(e.target.value)}
+                aria-describedby="description-article-hint"
+                className="w-full rounded-field border border-control-line bg-surface p-3 text-body text-ink"
+              />
+            </Field>
+          </details>
 
           <p role="status" aria-live="polite" className="text-caption text-danger">
             {erreur}

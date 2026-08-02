@@ -15,6 +15,7 @@ import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts"
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
 import { reglesDepuisEnv } from "./domain/securite/debit.ts";
+import { type ChargeRelance, demarrerJobsBot } from "./jobs/relance-acompte.ts";
 import { gardeDeCohorte } from "./middleware/cohorte.ts";
 import { limiterDebit, MemoireDeDebit } from "./middleware/debit.ts";
 import { monterAvecGardes, TAILLE_JSON_MAX } from "./middleware/securite.ts";
@@ -149,6 +150,25 @@ if (secretEntrant && secretAppMeta) {
           storage,
         }
       : null;
+
+  /**
+   * La relance d'acompte (ADR 0033) — premiere utilisation reelle de pg-boss.
+   * Elle ne demarre QU'AVEC le bot : sans lui, personne ne cree de commande
+   * par WhatsApp, donc rien a relancer. Et si la file ne demarre pas, le bot
+   * vit sans relance plutot que de ne pas vivre du tout.
+   */
+  if (bot && process.env.DATABASE_URL) {
+    demarrerJobsBot({
+      connexion: process.env.DATABASE_URL,
+      prisma,
+      envoyeur: bot.envoyeur,
+    })
+      .then((jobs) => {
+        (bot as { planifierRelance?: (c: ChargeRelance) => Promise<void> }).planifierRelance =
+          jobs.planifierRelance;
+      })
+      .catch(() => console.warn("jobs bot : demarrage refuse — le bot continue sans relance"));
+  }
 
   app.route(
     "/api/whatsapp",

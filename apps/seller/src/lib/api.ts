@@ -130,6 +130,7 @@ export interface Article {
   name: string;
   priceXaf: number;
   stock: number;
+  description: string | null;
   position: number;
   archive: boolean;
   image: ImageArticle | null;
@@ -232,11 +233,15 @@ export const api = {
   articles: (avecArchives = false) =>
     appeler<{ articles: Article[] }>(`/api/articles${avecArchives ? "?archives=1" : ""}`),
 
-  creerArticle: (name: string, priceXaf: number) =>
-    appeler<Article>("/api/articles", { corps: { name, priceXaf } }),
+  creerArticle: (name: string, priceXaf: number, description?: string) =>
+    appeler<Article>("/api/articles", {
+      corps: { name, priceXaf, ...(description ? { description } : {}) },
+    }),
 
-  modifierArticle: (id: string, champs: { name?: string; priceXaf?: number; stock?: number }) =>
-    appeler<Article>(`/api/articles/${id}`, { methode: "PATCH", corps: champs }),
+  modifierArticle: (
+    id: string,
+    champs: { name?: string; priceXaf?: number; stock?: number; description?: string },
+  ) => appeler<Article>(`/api/articles/${id}`, { methode: "PATCH", corps: champs }),
 
   archiverArticle: (id: string) => appeler<Article>(`/api/articles/${id}/archiver`, { corps: {} }),
   restaurerArticle: (id: string) =>
