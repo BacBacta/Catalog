@@ -200,7 +200,7 @@
   <div class="chapitres" id="chapitres"></div>
   <div class="outils">
     <label><input type="checkbox" id="basc-notes" checked /> Annotations (quoi de neuf, et d'où ça vient)</label>
-    <button id="rejouer">↻ Rejouer le chapitre</button>
+    <button type="button" id="rejouer">↻ Rejouer le chapitre</button>
   </div>
 </header>
 
@@ -378,6 +378,7 @@ async function frappe(ms) {
 
 function poserChip(label, photo, surClic) {
   const b = document.createElement("button");
+  b.type = "button";
   if (photo) { b.className = "photo-chip"; b.textContent = "📷 " + (label ? "Photo · « " + label + " »" : "Envoyer une photo"); }
   else b.textContent = label;
   b.onclick = () => { chips.innerHTML = ""; surClic(); };
@@ -386,7 +387,7 @@ function poserChip(label, photo, surClic) {
 
 function ouvrirFeuille(l, surChoix) {
   feuille.innerHTML = "<h3>" + l.bouton + "</h3>" + l.lignes.map((x, i) =>
-    '<button class="ligne" data-i="' + i + '"><span class="rond"></span><div><b>' + x.t + "</b><span>" + (x.d || "") + "</span></div></button>").join("");
+    '<button type="button" class="ligne" data-i="' + i + '"><span class="rond"></span><div><b>' + x.t + "</b><span>" + (x.d || "") + "</span></div></button>").join("");
   voile.classList.add("ouverte");
   feuille.querySelectorAll(".ligne").forEach((el) => {
     el.onclick = () => { voile.classList.remove("ouverte"); surChoix(l.lignes[Number(el.dataset.i)].t); };
@@ -405,7 +406,7 @@ async function jouer() {
       const d = document.createElement("div"); d.className = "fin-chapitre";
       const suivant = chapitre + 1 < CHAPITRES.length;
       d.innerHTML = "<div class='systeme' style='margin-bottom:8px'>" + e.fin + "</div>" +
-        (suivant ? "<button>Chapitre suivant →</button>" : "<button>↻ Tout rejouer</button>");
+        (suivant ? '<button type="button">Chapitre suivant →</button>' : '<button type="button">↻ Tout rejouer</button>');
       d.querySelector("button").onclick = () => charger(suivant ? chapitre + 1 : 0);
       fil.appendChild(d); fil.scrollTop = fil.scrollHeight;
       indice.textContent = "Chapitre terminé";
@@ -432,7 +433,7 @@ async function jouer() {
       }
       if (m.corps) html += gras(m.corps);
       if (m.liste) {
-        const bloc = bulleHtml(gras(m.liste.corps || "") + '<div class="boutons-rep"><button>▤ ' + m.liste.bouton + "</button></div>", false);
+        const bloc = bulleHtml(gras(m.liste.corps || "") + '<div class="boutons-rep"><button type="button">▤ ' + m.liste.bouton + "</button></div>", false);
         indice.textContent = "Ouvrez la liste";
         const bt = bloc.querySelector("button");
         bt.onclick = () => ouvrirFeuille(m.liste, (choix) => {
@@ -440,7 +441,7 @@ async function jouer() {
         });
         occupe = false; return;
       }
-      const bloc = bulleHtml(html + (m.boutons ? '<div class="boutons-rep">' + m.boutons.map((b) => "<button>" + b.t + "</button>").join("") + "</div>" : ""), false);
+      const bloc = bulleHtml(html + (m.boutons ? '<div class="boutons-rep">' + m.boutons.map((b) => '<button type="button">' + b.t + "</button>").join("") + "</div>" : ""), false);
 
       if (m.boutons) {
         indice.textContent = "Répondez avec un bouton" + (e.chipAvant || e.chipPhotoAvant ? " — ou la pastille" : "");
@@ -484,6 +485,7 @@ function charger(i) {
 const barreChapitres = document.getElementById("chapitres");
 CHAPITRES.forEach((c, i) => {
   const b = document.createElement("button");
+  b.type = "button";
   b.textContent = c.titre;
   b.onclick = () => charger(i);
   barreChapitres.appendChild(b);
