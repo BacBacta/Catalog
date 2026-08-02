@@ -91,3 +91,30 @@ describe("lireEntreesBot", () => {
     }
   });
 });
+
+describe("le wamid entrant (ADR 0035)", () => {
+  it("est capture sur toutes les formes — et son absence ne casse rien", () => {
+    const [avecId] = lireEntreesBot({
+      messages: [{ from: "237", id: "wamid.abc", type: "text", text: { body: "menu" } }],
+    });
+    expect(avecId).toMatchObject({ genre: "texte", messageId: "wamid.abc" });
+
+    const [sansId] = lireEntreesBot({
+      messages: [{ from: "237", type: "text", text: { body: "menu" } }],
+    });
+    expect(sansId).toMatchObject({ genre: "texte" });
+    expect((sansId as { messageId?: string }).messageId).toBeUndefined();
+
+    const [imageAvec] = lireEntreesBot({
+      messages: [
+        { from: "237", id: "wamid.img", type: "image", image: { id: "m1", caption: "Pagne 5000" } },
+      ],
+    });
+    expect(imageAvec).toMatchObject({
+      genre: "image",
+      mediaId: "m1",
+      legende: "Pagne 5000",
+      messageId: "wamid.img",
+    });
+  });
+});

@@ -1,5 +1,5 @@
 import { formatXaf } from "@catalog/contracts/money";
-import { boutons, type MessageSortant, texte } from "./messages.ts";
+import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
 
 /**
  * L'inscription d'une vendeuse DANS le fil — ADR 0034.
@@ -40,7 +40,13 @@ export type EtatVendeuse =
   /** Ajout d'article — disponible a vie, pas seulement a l'inscription. */
   | { nom: "article_nom" }
   | { nom: "article_prix"; nomArticle: string }
-  | { nom: "article_photo"; nomArticle: string; prixXaf: number };
+  | { nom: "article_photo"; nomArticle: string; prixXaf: number }
+  /**
+   * La photo LEGENDEE lue, en attente du « Publier » (ADR 0035) : on confirme
+   * l'extrait, on ne devine pas en silence (AGENTS.md §7.7). C'est LE geste
+   * du terrain — une photo, sa legende « nom prix », un appui.
+   */
+  | { nom: "article_confirme"; nomArticle: string; prixXaf: number; mediaId: string };
 
 export type EffetVendeuse =
   | { type: "creer_boutique"; nomBoutique: string; ville: string; parrain?: string }
@@ -78,6 +84,18 @@ export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
     case "article_photo":
       return typeof e.nomArticle === "string" && typeof e.prixXaf === "number" && e.prixXaf > 0
         ? { nom: "article_photo", nomArticle: e.nomArticle, prixXaf: Math.floor(e.prixXaf) }
+        : null;
+    case "article_confirme":
+      return typeof e.nomArticle === "string" &&
+        typeof e.prixXaf === "number" &&
+        e.prixXaf > 0 &&
+        typeof e.mediaId === "string"
+        ? {
+            nom: "article_confirme",
+            nomArticle: e.nomArticle,
+            prixXaf: Math.floor(e.prixXaf),
+            mediaId: e.mediaId,
+          }
         : null;
     default:
       return null;
@@ -126,6 +144,27 @@ export function lirePrix(texteBrut: string): number | null {
   const n = Number(chiffres);
   if (!Number.isInteger(n) || n <= 0 || n > 100_000_000) return null;
   return n;
+}
+
+/**
+ * La legende d'une photo, lue comme « nom … prix » — ADR 0035.
+ *
+ * « Pagne wax 6 yards 15 000 » : le PRIX est le dernier groupe de chiffres
+ * (espaces, points et virgules de milliers compris), la devise eventuelle
+ * derriere lui s'ignore, et tout ce qui precede est le nom. « 6 yards » reste
+ * donc dans le nom — seul le groupe FINAL est un prix. Le resultat n'est
+ * jamais publie tel quel : la machine le fait CONFIRMER (§7.7).
+ */
+export function lireLegendeArticle(legende: string): { nom: string; prixXaf: number } | null {
+  const net = legende.trim().replace(/\s+/g, " ");
+  const motif = /^(.{2,80}?)[\s:—–-]+(\d[\d\s.,]*)\s*(?:f\s*cfa|fcfa|cfa|xaf|francs?|f)?\s*$/i.exec(
+    net,
+  );
+  if (!motif?.[1] || !motif[2]) return null;
+  const nom = motif[1].trim();
+  const prix = lirePrix(motif[2]);
+  if (nom.length < NOM_MIN || prix === null) return null;
+  return { nom, prixXaf: prix };
 }
 
 const NOM_MIN = 2;
@@ -179,6 +218,27 @@ export function messageArticlePublie(
   ]);
 }
 
+/**
+ * La confirmation d'une legende lue — en CITANT la photo quand l'identifiant
+ * du message est connu : la reponse contextuelle de l'ADR 0035. On confirme
+ * l'extrait, on ne devine pas (§7.7).
+ */
+export function messageConfirmationLegende(
+  vers: string,
+  a: { nom: string; prixXaf: number },
+  citer?: string,
+): MessageSortant {
+  return boutons(
+    vers,
+    `J'ai lu : *${a.nom}* — *${formatXaf(a.prixXaf)}*. C'est bon ?`,
+    [
+      { id: "publier", titre: "Publier ✓" },
+      { id: "corriger", titre: "Corriger" },
+    ],
+    citer ? { citer } : {},
+  );
+}
+
 /* ────────────────────────── la machine ──────────────────────────────────── */
 
 export interface Entree {
@@ -187,6 +247,8 @@ export interface Entree {
   id?: string;
   mediaId?: string;
   legende?: string;
+  /** Le wamid entrant — pour REAGIR a la photo et la CITER (ADR 0035). */
+  messageId?: string;
 }
 
 /**
@@ -266,11 +328,36 @@ export function reagirInscription(
     }
 
     case "article_nom": {
+      /* Une photo legendee « nom prix » saute les deux questions : c'est le
+         geste rapide de l'ADR 0035, confirme avant publication. Le bot REAGIT
+         a la photo (accuse sans bruit) et la CITE dans sa question. */
+      if (entree.genre === "image" && entree.mediaId && entree.legende) {
+        const lu = lireLegendeArticle(entree.legende);
+        if (lu) {
+          return {
+            etat: {
+              nom: "article_confirme",
+              nomArticle: lu.nom,
+              prixXaf: lu.prixXaf,
+              mediaId: entree.mediaId,
+            },
+            messages: [
+              ...(entree.messageId ? [reaction(vers, entree.messageId, "👍")] : []),
+              messageConfirmationLegende(vers, lu, entree.messageId),
+            ],
+          };
+        }
+      }
       const nom = entree.genre === "texte" ? (entree.texte ?? "").trim() : "";
       if (nom.length < NOM_MIN || nom.length > NOM_MAX) {
         return {
           etat,
-          messages: [texte(vers, "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards")],
+          messages: [
+            texte(
+              vers,
+              "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+            ),
+          ],
         };
       }
       return {
@@ -332,6 +419,56 @@ export function reagirInscription(
             "J'attends la photo — envoyez-la comme une image, depuis l'appareil photo ou la galerie.",
             [{ id: "sans_photo", titre: "Sans photo" }],
           ),
+        ],
+      };
+    }
+
+    case "article_confirme": {
+      /* On confirme l'EXTRAIT, on ne devine pas (§7.7) : rien ne se publie
+         sans le « Publier ». « Corriger » repart au chemin question par
+         question — la photo est gardee de cote, elle se renverra. */
+      if (entree.genre === "bouton" && entree.id === "publier") {
+        return {
+          etat: null,
+          messages: [],
+          effet: {
+            type: "creer_article",
+            nom: etat.nomArticle,
+            prixXaf: etat.prixXaf,
+            mediaId: etat.mediaId,
+          },
+        };
+      }
+      if (entree.genre === "bouton" && entree.id === "corriger") {
+        return {
+          etat: { nom: "article_nom" },
+          messages: [
+            texte(vers, "Reprenons. *Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards"),
+          ],
+        };
+      }
+      /* Une NOUVELLE photo legendee remplace la proposition en attente. */
+      if (entree.genre === "image" && entree.mediaId && entree.legende) {
+        const lu = lireLegendeArticle(entree.legende);
+        if (lu) {
+          return {
+            etat: {
+              nom: "article_confirme",
+              nomArticle: lu.nom,
+              prixXaf: lu.prixXaf,
+              mediaId: entree.mediaId,
+            },
+            messages: [
+              ...(entree.messageId ? [reaction(vers, entree.messageId, "👍")] : []),
+              messageConfirmationLegende(vers, lu, entree.messageId),
+            ],
+          };
+        }
+      }
+      return {
+        etat,
+        messages: [
+          messageConfirmationLegende(vers, { nom: etat.nomArticle, prixXaf: etat.prixXaf }),
         ],
       };
     }

@@ -1,7 +1,7 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { planDePaiement } from "../order/paiement.ts";
-import { boutons, image, liste, type MessageSortant, texte } from "./messages.ts";
+import { boutons, image, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
 
 /**
@@ -206,12 +206,13 @@ export function etatApresInactivite(etat: EtatConv, ageMs: number): EtatConv {
 
 /* ────────────────────────── entree et reaction ──────────────────────────── */
 
+/** `messageId` est le wamid entrant — pour reagir et citer (ADR 0035). */
 export type Entree =
-  | { genre: "texte"; texte: string }
-  | { genre: "bouton"; id: string }
-  | { genre: "liste"; id: string }
+  | { genre: "texte"; texte: string; messageId?: string }
+  | { genre: "bouton"; id: string; messageId?: string }
+  | { genre: "liste"; id: string; messageId?: string }
   /** Une photo. Le fil acheteuse ne la lit pas — seule l'inscription le fait. */
-  | { genre: "image"; mediaId: string };
+  | { genre: "image"; mediaId: string; legende?: string; messageId?: string };
 
 export interface BrouillonCommande {
   slug: string;
@@ -941,6 +942,15 @@ export interface CommandeOuverte {
   resteXaf: number;
 }
 
+/** Ce que le menu vendeuse montre d'elle-meme — charge par le service. */
+export interface BoutiqueVendeuse {
+  nom: string;
+  nbArticles: number;
+  lienBoutique: string;
+  /** L'URL de l'espace vendeuse. `null` quand la base n'est pas configuree. */
+  lienEspace: string | null;
+}
+
 /**
  * La vendeuse ecrit au bot : un SMS colle, ou un mot-cle. Le SMS n'est JAMAIS
  * garde dans l'etat de conversation — il part en effet, se verifie, et
@@ -954,12 +964,14 @@ export function reagirVendeuse(
     smsReconnu: boolean;
     commandesOuvertes: CommandeOuverte[];
     soldesXaf: number;
+    boutique?: BoutiqueVendeuse | null;
   },
 ): Reaction {
   if (entree.genre === "texte" && contexte.smsReconnu) {
     return {
       etat: ETAT_INITIAL,
-      messages: [],
+      /* L'accuse pose SUR le SMS meme (ADR 0035) : le fil reste lisible. */
+      messages: entree.messageId ? [reaction(vers, entree.messageId, "✅")] : [],
       effet: { type: "verifier_sms", texte: entree.texte },
     };
   }
@@ -981,7 +993,8 @@ export function reagirVendeuse(
   }
 
   const mot = entree.genre === "texte" ? entree.texte.trim().toLowerCase() : "";
-  if (mot === "solde" || mot === "soldes") {
+  const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+  if (mot === "solde" || mot === "soldes" || id === "solde") {
     const n = contexte.commandesOuvertes.length;
     const corps =
       n === 0
@@ -993,13 +1006,44 @@ export function reagirVendeuse(
     return { etat: ETAT_INITIAL, messages: [texte(vers, corps)] };
   }
 
+  /**
+   * Le menu vendeuse — ADR 0035. « Ma boutique » n'est plus un cul-de-sac :
+   * l'etat de la boutique, ses liens, et les deux gestes qui comptent. La
+   * copie de repli reste pour le service qui n'aurait pas charge la boutique.
+   */
+  const b = contexte.boutique;
+  if (!b) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        texte(
+          vers,
+          "Collez ici le SMS de votre opérateur pour prouver un paiement, ou écrivez « solde ». Le reste — articles, photos, chiffres — vit dans votre espace vendeuse.",
+        ),
+      ],
+    };
+  }
+  const lignes = [
+    `*${b.nom}*`,
+    b.nbArticles > 0
+      ? `${b.nbArticles} article${b.nbArticles > 1 ? "s" : ""} en ligne`
+      : "Aucun article en ligne pour l'instant — ajoutez le premier !",
+    contexte.commandesOuvertes.length > 0
+      ? `À encaisser : *${formatXaf(contexte.soldesXaf)}* sur ${contexte.commandesOuvertes.length} commande${contexte.commandesOuvertes.length > 1 ? "s" : ""}`
+      : "Rien à encaisser en ce moment.",
+    "",
+    `Votre lien de boutique — partagez-le, mettez-le en Statut :\n${b.lienBoutique}`,
+    ...(b.lienEspace ? [`Vos chiffres et votre reversement : ${b.lienEspace}`] : []),
+    "",
+    "Un paiement reçu ? Collez ici le SMS de votre opérateur — il devient le reçu. Une commande remise ? Écrivez « livrée CT-… ».",
+  ];
   return {
     etat: ETAT_INITIAL,
     messages: [
-      texte(
-        vers,
-        "Collez ici le SMS de votre opérateur pour prouver un paiement, ou écrivez « solde ». Le reste — articles, photos, chiffres — vit dans votre espace vendeuse.",
-      ),
+      boutons(vers, lignes.join("\n"), [
+        { id: "article", titre: "Ajouter un article" },
+        { id: "solde", titre: "Mes soldes" },
+      ]),
     ],
   };
 }

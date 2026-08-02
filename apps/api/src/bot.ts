@@ -38,7 +38,7 @@ import {
   reagirInscription,
 } from "./domain/bot/inscription.ts";
 import type { LecteurMedia } from "./domain/bot/media.ts";
-import { texte } from "./domain/bot/messages.ts";
+import { type MessageSortant, sansCitation, texte } from "./domain/bot/messages.ts";
 import {
   corpsLivraisonMarquee,
   corpsLivraisonRefusee,
@@ -247,11 +247,16 @@ async function filInscription(
   }
 
   /* Une vendeuse installee qui vient d'appuyer sur « Autre article » entre
-     directement dans l'etat — sans que son appui soit lu comme un nom. */
-  if (!etatCourant && sellerId) {
+     directement dans l'etat — sans que son appui soit lu comme un nom. Une
+     PHOTO, elle, traverse jusqu'a la machine : legendee « nom prix », c'est
+     deja l'article entier (ADR 0035). */
+  if (!etatCourant && sellerId && entree.genre !== "image") {
     await poserEtat(deps, phone, etat);
     await deps.envoyeur.envoyer(
-      texte(entree.de, "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards"),
+      texte(
+        entree.de,
+        "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+      ),
     );
     return;
   }
@@ -290,7 +295,7 @@ async function filInscription(
   }
 
   await poserEtat(deps, phone, etatSuivant);
-  for (const m of messages) await deps.envoyeur.envoyer(m);
+  await envoyerSequence(deps, messages);
 }
 
 /**
@@ -299,13 +304,44 @@ async function filInscription(
  * fil acheteuse l'a typee, l'inscription lui est structurellement compatible.
  */
 function entreePourMachine(entree: EntreeBot): EntreeMachine {
+  const id = entree.messageId ? { messageId: entree.messageId } : {};
   switch (entree.genre) {
     case "texte":
-      return { genre: "texte", texte: entree.texte };
+      return { genre: "texte", texte: entree.texte, ...id };
     case "image":
-      return { genre: "image", mediaId: entree.mediaId };
+      return {
+        genre: "image",
+        mediaId: entree.mediaId,
+        ...(entree.legende ? { legende: entree.legende } : {}),
+        ...id,
+      };
     default:
-      return { genre: entree.genre, id: entree.id };
+      return { genre: entree.genre, id: entree.id, ...id };
+  }
+}
+
+/**
+ * L'envoi d'une sequence, avec les deux replis de l'ADR 0035 :
+ * - une REACTION refusee ne casse jamais la suite — c'est un confort ;
+ * - une CITATION refusee fait repartir le message nu — le contenu prime.
+ * Le sandbox v1 n'a pas confirme ces deux formes : on les tente, on ne
+ * parie jamais la conversation dessus.
+ */
+async function envoyerSequence(deps: BotDeps, messages: MessageSortant[]): Promise<void> {
+  for (const m of messages) {
+    if (m.type === "reaction") {
+      await deps.envoyeur.envoyer(m).catch(() => {});
+      continue;
+    }
+    try {
+      await deps.envoyeur.envoyer(m);
+    } catch (e) {
+      if ("context" in m && m.context) {
+        await deps.envoyeur.envoyer(sansCitation(m));
+      } else {
+        throw e;
+      }
+    }
   }
 }
 
@@ -665,7 +701,7 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     },
   });
   mesurerTransitionBot(etatAvant, etat.nom, reaction.effet?.type);
-  for (const m of messages) await deps.envoyeur.envoyer(m);
+  await envoyerSequence(deps, messages);
 }
 
 interface BoutiqueChargee {
@@ -908,12 +944,22 @@ async function creerCommande(
 /* ────────────────────────── fil vendeuse ────────────────────────────────── */
 
 async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string): Promise<void> {
-  const ouvertes = await deps.prisma.order.findMany({
-    where: { sellerId: sellerIdent, balanceXaf: { gt: 0 }, cancelledAt: null },
-    orderBy: { createdAt: "desc" },
-    take: 20,
-    select: { id: true, ref: true, balanceXaf: true },
-  });
+  const [ouvertes, profil] = await Promise.all([
+    deps.prisma.order.findMany({
+      where: { sellerId: sellerIdent, balanceXaf: { gt: 0 }, cancelledAt: null },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, ref: true, balanceXaf: true },
+    }),
+    deps.prisma.seller.findUnique({
+      where: { id: sellerIdent },
+      select: {
+        businessName: true,
+        slug: true,
+        _count: { select: { products: { where: { archivedAt: null } } } },
+      },
+    }),
+  ]);
   const commandesOuvertes = ouvertes.map((o) => ({
     id: o.id,
     reference: o.ref,
@@ -926,6 +972,14 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     smsReconnu,
     commandesOuvertes,
     soldesXaf,
+    boutique: profil
+      ? {
+          nom: profil.businessName,
+          nbArticles: profil._count.products,
+          lienBoutique: lienBot(deps, `boutique ${profil.slug}`),
+          lienEspace: deps.baseApp || null,
+        }
+      : null,
   });
   const messages = [...reaction.messages];
 
@@ -959,7 +1013,7 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     }
   }
 
-  for (const m of messages) await deps.envoyeur.envoyer(m);
+  await envoyerSequence(deps, messages);
 }
 
 /**

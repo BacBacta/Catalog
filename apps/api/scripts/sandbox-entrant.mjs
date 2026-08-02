@@ -2,9 +2,9 @@
 /**
  * Simulateur d'entrant sandbox — instrument de terrain.
  *
- * Le relais ENTRANT du sandbox 360dialog est en panne (ticket ouvert) : ce
- * script joue le role du relais — il livre au webhook ce que le telephone
- * aurait envoye. Les reponses, elles, partent en VRAI vers WhatsApp : le
+ * Quand le relais ENTRANT du sandbox 360dialog fait defaut (session expiree,
+ * panne), ce script joue son role — il livre a la route entrante ce que le
+ * telephone aurait envoye. Les reponses, elles, partent en VRAI vers WhatsApp : le
  * telephone enregistre au sandbox les recoit. On simule donc le pouce, on
  * observe l'ecran.
  *

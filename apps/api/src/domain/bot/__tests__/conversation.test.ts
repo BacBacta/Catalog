@@ -885,3 +885,56 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
     expect(pasUneRef.effet).toBeUndefined();
   });
 });
+
+describe("le fil vendeuse premium (ADR 0035)", () => {
+  const CONTEXTE_NU = { smsReconnu: false, commandesOuvertes: [], soldesXaf: 0 };
+  const MA_BOUTIQUE = {
+    nom: "Chez Bea",
+    nbArticles: 2,
+    lienBoutique: "https://wa.me/237600?text=boutique%20chez-bea",
+    lienEspace: "https://app.exemple.test",
+  };
+
+  it("le SMS reconnu recoit son accuse ✅ pose sur le message meme", () => {
+    const r = reagirVendeuse(
+      { genre: "texte", texte: "Vous avez recu 8000 XAF …", messageId: "wamid.sms" },
+      VERS,
+      { ...CONTEXTE_NU, smsReconnu: true },
+    );
+    expect(r.effet?.type).toBe("verifier_sms");
+    const accuse = r.messages[0] as { type?: string; reaction?: { emoji: string } };
+    expect(accuse.type).toBe("reaction");
+    expect(accuse.reaction?.emoji).toBe("✅");
+  });
+
+  it("« ma boutique » est un menu : etat, liens, et les deux gestes qui comptent", () => {
+    const r = reagirVendeuse({ genre: "texte", texte: "bonjour" }, VERS, {
+      ...CONTEXTE_NU,
+      soldesXaf: 8000,
+      commandesOuvertes: [{ id: "o1", reference: "CT-100001", resteXaf: 8000 }],
+      boutique: MA_BOUTIQUE,
+    });
+    const menu = corpsBoutons(r.messages[0]);
+    expect(menu).toContain("Chez Bea");
+    expect(menu).toContain("2 articles en ligne");
+    expect(menu).toContain(formatXaf(8000));
+    expect(menu).toContain("boutique%20chez-bea");
+    expect(menu).toContain("https://app.exemple.test");
+    expect(idsBoutons(r.messages[0])).toEqual(["article", "solde"]);
+  });
+
+  it("le bouton « Mes soldes » repond comme le mot « solde »", () => {
+    const r = reagirVendeuse({ genre: "bouton", id: "solde" }, VERS, {
+      ...CONTEXTE_NU,
+      soldesXaf: 8000,
+      commandesOuvertes: [{ id: "o1", reference: "CT-100001", resteXaf: 8000 }],
+      boutique: MA_BOUTIQUE,
+    });
+    expect(corpsTexte(r.messages[0])).toContain("CT-100001");
+  });
+
+  it("sans boutique chargee, la copie de repli reste — jamais de silence", () => {
+    const r = reagirVendeuse({ genre: "texte", texte: "bonjour" }, VERS, CONTEXTE_NU);
+    expect(corpsTexte(r.messages[0])).toMatch(/SMS de votre opérateur/);
+  });
+});

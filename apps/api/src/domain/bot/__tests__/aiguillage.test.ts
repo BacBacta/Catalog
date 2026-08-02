@@ -79,3 +79,23 @@ describe("aiguiller", () => {
     expect(aiguiller(txt("bonjour"), REPOS)).toBe("acheteuse");
   });
 });
+
+describe("la photo d'une vendeuse (ADR 0035)", () => {
+  it("part a l'inscription — c'est un article qui arrive, pas du bruit", () => {
+    expect(
+      aiguiller(
+        { genre: "image" },
+        { estVendeuse: true, etatVendeuseEnCours: false, smsReconnu: false, achatEnCours: false },
+      ),
+    ).toBe("inscription");
+  });
+
+  it("celle d'une acheteuse reste au fil acheteuse, qui l'ignore poliment", () => {
+    expect(
+      aiguiller(
+        { genre: "image" },
+        { estVendeuse: false, etatVendeuseEnCours: false, smsReconnu: false, achatEnCours: false },
+      ),
+    ).toBe("acheteuse");
+  });
+});

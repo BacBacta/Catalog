@@ -65,8 +65,11 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
   }
 
   /* 3. Les gestes de vendeuse installee. Le bouton « article » vient du
-     message de publication : il enchaine sans qu'elle ait a taper. */
+     message de publication : il enchaine sans qu'elle ait a taper. Une PHOTO
+     d'une vendeuse au repos est un article qui arrive (ADR 0035) — c'est le
+     geste le plus naturel du canal, il part a l'inscription qui sait le lire. */
   if (ctx.estVendeuse) {
+    if (entree.genre === "image") return "inscription";
     if (entree.genre === "bouton" && (entree.id === "article" || entree.id === "ma_boutique")) {
       return entree.id === "article" ? "inscription" : "vendeuse";
     }

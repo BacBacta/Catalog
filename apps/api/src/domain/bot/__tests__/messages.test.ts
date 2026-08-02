@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boutons, image, liste, texte } from "../messages.ts";
+import { boutons, image, liste, reaction, sansCitation, texte } from "../messages.ts";
 
 /**
  * Les constructeurs de messages sortants — ADR 0031.
@@ -148,5 +148,27 @@ describe("image — la photo pleine largeur (ADR 0035)", () => {
 
   it("refuse un lien vide : un message image sans image n'existe pas", () => {
     expect(() => image("237690112233", "  ")).toThrow();
+  });
+});
+
+describe("reaction et citation (ADR 0035)", () => {
+  it("la reaction vise un message precis", () => {
+    const r = reaction("237690112233", "wamid.abc", "✅");
+    expect(r.type).toBe("reaction");
+    expect(r.reaction).toEqual({ message_id: "wamid.abc", emoji: "✅" });
+    expect(() => reaction("237690112233", " ", "✅")).toThrow();
+  });
+
+  it("citer pose le contexte ; sansCitation le retire, sans toucher au reste", () => {
+    const cite = texte("237690112233", "Bien reçu.", { citer: "wamid.abc" });
+    expect(cite.context).toEqual({ message_id: "wamid.abc" });
+    const nu = sansCitation(cite);
+    expect(nu.context).toBeUndefined();
+    expect(nu.text.body).toBe("Bien reçu.");
+
+    const b = boutons("237690112233", "OK ?", [{ id: "oui", titre: "Oui" }], {
+      citer: "wamid.abc",
+    });
+    expect(b.context).toEqual({ message_id: "wamid.abc" });
   });
 });

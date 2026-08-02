@@ -5,6 +5,7 @@ import {
   demandeEspaceVendeuse,
   demandeInscription,
   type EtatVendeuse,
+  lireLegendeArticle,
   lirePrix,
   messageArticlePublie,
   messageBoutiqueCreee,
@@ -219,5 +220,113 @@ describe("normaliserEtatVendeuse", () => {
     ]) {
       expect(normaliserEtatVendeuse(brut)).toBeNull();
     }
+  });
+});
+
+/**
+ * ADR 0035 — la photo legendee devient un article, apres CONFIRMATION :
+ * on confirme l'extrait, on ne devine jamais en silence (§7.7).
+ */
+describe("la photo legendee (ADR 0035)", () => {
+  it("lireLegendeArticle separe le nom du prix final, devise compris", () => {
+    expect(lireLegendeArticle("Pagne wax 6 yards 15 000")).toEqual({
+      nom: "Pagne wax 6 yards",
+      prixXaf: 15000,
+    });
+    expect(lireLegendeArticle("Robe — 10.000 FCFA")).toEqual({ nom: "Robe", prixXaf: 10000 });
+    expect(lireLegendeArticle("Sac 8000 F")).toEqual({ nom: "Sac", prixXaf: 8000 });
+    expect(lireLegendeArticle("juste du texte")).toBeNull();
+    expect(lireLegendeArticle("15000")).toBeNull();
+    expect(lireLegendeArticle("")).toBeNull();
+  });
+
+  it("au nom d'article, la photo legendee saute les questions : reaction, citation, confirmation", () => {
+    const r = reagirInscription(
+      { nom: "article_nom" },
+      { genre: "image", mediaId: "m-1", legende: "Pagne wax 15 000", messageId: "wamid.abc" },
+      VERS,
+    );
+    expect(r.etat).toEqual({
+      nom: "article_confirme",
+      nomArticle: "Pagne wax",
+      prixXaf: 15000,
+      mediaId: "m-1",
+    });
+    expect(r.effet).toBeUndefined();
+    /* La reaction 👍 posee sur la photo, puis la question qui la CITE. */
+    const premiere = r.messages[0] as { type?: string; reaction?: { message_id: string } };
+    expect(premiere.type).toBe("reaction");
+    expect(premiere.reaction?.message_id).toBe("wamid.abc");
+    const question = r.messages[1] as MessageBoutons;
+    expect(question.context?.message_id).toBe("wamid.abc");
+    expect(idsBoutons(question)).toEqual(["publier", "corriger"]);
+    expect(corps(question)).toContain("Pagne wax");
+  });
+
+  it("« Publier » cree l'article avec SA photo ; « Corriger » repart aux questions", () => {
+    const attente: EtatVendeuse = {
+      nom: "article_confirme",
+      nomArticle: "Pagne wax",
+      prixXaf: 15000,
+      mediaId: "m-1",
+    };
+    const publie = reagirInscription(attente, { genre: "bouton", id: "publier" }, VERS);
+    expect(publie.effet).toEqual({
+      type: "creer_article",
+      nom: "Pagne wax",
+      prixXaf: 15000,
+      mediaId: "m-1",
+    });
+    expect(publie.etat).toBeNull();
+
+    const corrige = reagirInscription(attente, { genre: "bouton", id: "corriger" }, VERS);
+    expect(corrige.etat).toEqual({ nom: "article_nom" });
+    expect(corrige.effet).toBeUndefined();
+  });
+
+  it("une nouvelle photo legendee REMPLACE la proposition en attente", () => {
+    const attente: EtatVendeuse = {
+      nom: "article_confirme",
+      nomArticle: "Pagne wax",
+      prixXaf: 15000,
+      mediaId: "m-1",
+    };
+    const r = reagirInscription(
+      attente,
+      { genre: "image", mediaId: "m-2", legende: "Sac raphia 8000" },
+      VERS,
+    );
+    expect(r.etat).toEqual({
+      nom: "article_confirme",
+      nomArticle: "Sac raphia",
+      prixXaf: 8000,
+      mediaId: "m-2",
+    });
+  });
+
+  it("un bavardage en attente de confirmation repropose les deux boutons", () => {
+    const attente: EtatVendeuse = {
+      nom: "article_confirme",
+      nomArticle: "Pagne wax",
+      prixXaf: 15000,
+      mediaId: "m-1",
+    };
+    const r = reagirInscription(attente, { genre: "texte", texte: "oui vas-y" }, VERS);
+    expect(r.etat).toEqual(attente);
+    expect(idsBoutons(r.messages[0])).toEqual(["publier", "corriger"]);
+  });
+
+  it("l'etat article_confirme se relit, et un etat ampute retombe a null", () => {
+    expect(
+      normaliserEtatVendeuse({
+        nom: "article_confirme",
+        nomArticle: "Pagne",
+        prixXaf: 15000,
+        mediaId: "m-1",
+      }),
+    ).toEqual({ nom: "article_confirme", nomArticle: "Pagne", prixXaf: 15000, mediaId: "m-1" });
+    expect(
+      normaliserEtatVendeuse({ nom: "article_confirme", nomArticle: "Pagne", prixXaf: 15000 }),
+    ).toBeNull();
   });
 });

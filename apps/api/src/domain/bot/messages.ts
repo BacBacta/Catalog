@@ -25,7 +25,22 @@ export interface MessageTexte {
   recipient_type: "individual";
   to: string;
   type: "text";
+  /** Present : le message CITE celui-la — la reponse contextuelle (ADR 0035). */
+  context?: { message_id: string };
   text: { body: string; preview_url: boolean };
+}
+
+/**
+ * Une reaction posee SUR un message recu — l'accuse sans bruit (ADR 0035) :
+ * le 👍 sur la photo d'article, le ✅ sur le SMS colle. Toujours un envoi de
+ * CONFORT : l'appelant l'envoie en mieux-disant, jamais en chemin critique.
+ */
+export interface MessageReaction {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "reaction";
+  reaction: { message_id: string; emoji: string };
 }
 
 export interface BoutonReponse {
@@ -38,6 +53,8 @@ export interface MessageBoutons {
   recipient_type: "individual";
   to: string;
   type: "interactive";
+  /** Present : le message CITE celui-la (ADR 0035). */
+  context?: { message_id: string };
   interactive: {
     type: "button";
     /**
@@ -84,7 +101,12 @@ export interface MessageImage {
   image: { link: string; caption?: string };
 }
 
-export type MessageSortant = MessageTexte | MessageBoutons | MessageListe | MessageImage;
+export type MessageSortant =
+  | MessageTexte
+  | MessageBoutons
+  | MessageListe
+  | MessageImage
+  | MessageReaction;
 
 /** Troncature propre : jamais plus de `max`, ellipse comprise. */
 function tronquer(texte: string, max: number): string {
@@ -99,14 +121,32 @@ function corpsOuLeve(corps: string): string {
   return tronquer(net, CORPS_MAX);
 }
 
-export function texte(vers: string, corps: string): MessageTexte {
+export function texte(vers: string, corps: string, options: { citer?: string } = {}): MessageTexte {
   return {
     messaging_product: "whatsapp",
     recipient_type: "individual",
     to: vers,
     type: "text",
+    ...(options.citer ? { context: { message_id: options.citer } } : {}),
     text: { body: corpsOuLeve(corps), preview_url: false },
   };
+}
+
+export function reaction(vers: string, messageId: string, emoji: string): MessageReaction {
+  if (!messageId.trim()) throw new Error("une reaction exige le message cible");
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: vers,
+    type: "reaction",
+    reaction: { message_id: messageId, emoji },
+  };
+}
+
+/** Retire la citation d'un message — le repli quand l'API la refuse. */
+export function sansCitation<M extends { context?: { message_id: string } }>(m: M): M {
+  const { context: _context, ...reste } = m;
+  return reste as M;
 }
 
 export function image(vers: string, lien: string, legende?: string): MessageImage {
@@ -127,7 +167,7 @@ export function boutons(
   vers: string,
   corps: string,
   choix: ReadonlyArray<{ id: string; titre: string }>,
-  options: { image?: string } = {},
+  options: { image?: string; citer?: string } = {},
 ): MessageBoutons {
   if (choix.length === 0) throw new Error("un message a boutons exige au moins un bouton");
   if (choix.length > BOUTONS_MAX)
@@ -143,6 +183,7 @@ export function boutons(
     recipient_type: "individual",
     to: vers,
     type: "interactive",
+    ...(options.citer ? { context: { message_id: options.citer } } : {}),
     interactive: {
       type: "button",
       ...(options.image
