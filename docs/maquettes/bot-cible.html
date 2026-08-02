@@ -3,48 +3,37 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Catalog — maquette cliquable du bot cible</title>
+<title>Catalog — le bot ultra premium, cliquable</title>
 <style>
   :root {
-    --wa-vert-fonce: #075e54;
-    --wa-vert: #128c7e;
-    --wa-bulle-sortante: #d9fdd3;
-    --wa-fond: #e5ddd5;
-    --wa-bleu-lien: #027eb5;
-    --encre: #1f2428;
-    --note: #8a6d00;
-    --note-fond: #fff3c2;
+    --wa-vert-fonce: #075e54; --wa-vert: #128c7e; --wa-bulle-sortante: #d9fdd3;
+    --wa-fond: #e5ddd5; --wa-bleu-lien: #027eb5; --encre: #1f2428;
+    --note: #8a6d00; --note-fond: #fff3c2;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #111b21; color: var(--encre);
-    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-    padding: 16px 8px 40px;
+    background: #111b21; color: var(--encre); min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; padding: 16px 8px 40px;
   }
-  header.page {
-    color: #e9edef; text-align: center; margin-bottom: 12px; max-width: 720px;
-  }
+  header.page { color: #e9edef; text-align: center; margin-bottom: 10px; max-width: 780px; }
   header.page h1 { font-size: 1.15rem; margin-bottom: 4px; }
   header.page p { font-size: .8rem; color: #8696a0; }
-  .chapitres {
-    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 12px 0 4px;
-  }
+  .legende { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 8px; font-size: .72rem; color: #aebac1; }
+  .legende span { background: #202c33; border-radius: 10px; padding: 3px 9px; }
+  .chapitres { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 12px 0 4px; }
   .chapitres button {
     border: 1px solid #2a3942; background: #202c33; color: #e9edef;
-    border-radius: 18px; padding: 8px 14px; font-size: .8rem; cursor: pointer;
+    border-radius: 18px; padding: 8px 13px; font-size: .78rem; cursor: pointer;
   }
   .chapitres button.actif { background: var(--wa-vert); border-color: var(--wa-vert); font-weight: 600; }
   .outils { display: flex; gap: 12px; align-items: center; margin: 6px 0 14px; color: #8696a0; font-size: .78rem; }
   .outils label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
-  .outils button {
-    border: 1px solid #2a3942; background: transparent; color: #8696a0;
-    border-radius: 14px; padding: 5px 12px; font-size: .78rem; cursor: pointer;
-  }
+  .outils button { border: 1px solid #2a3942; background: transparent; color: #8696a0; border-radius: 14px; padding: 5px 12px; font-size: .78rem; cursor: pointer; }
   .porteur { color: #ffd772; font-size: .82rem; margin-bottom: 8px; font-weight: 600; }
 
   .telephone {
-    width: min(392px, 96vw); height: min(760px, 78vh); background: var(--wa-fond);
+    width: min(392px, 96vw); height: min(768px, 80vh); background: var(--wa-fond);
     border-radius: 26px; overflow: hidden; display: flex; flex-direction: column;
     box-shadow: 0 18px 60px rgba(0,0,0,.55); position: relative;
   }
@@ -54,56 +43,51 @@
                       radial-gradient(circle at 70% 60%, #000 1px, transparent 1.6px);
     background-size: 46px 46px, 62px 62px;
   }
-  .barre {
-    background: var(--wa-vert-fonce); color: #fff; padding: 10px 14px;
-    display: flex; align-items: center; gap: 10px; z-index: 2;
-  }
-  .avatar {
-    width: 36px; height: 36px; border-radius: 50%;
-    background: linear-gradient(135deg, #ffb03a, #ff7c3a);
-    display: grid; place-items: center; font-size: 19px;
-  }
+  .barre { background: var(--wa-vert-fonce); color: #fff; padding: 10px 14px; display: flex; align-items: center; gap: 10px; z-index: 2; }
+  .avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #ffb03a, #ff7c3a); display: grid; place-items: center; font-size: 19px; }
   .barre .qui { flex: 1; line-height: 1.2; }
   .barre .qui b { font-size: .95rem; display: flex; align-items: center; gap: 5px; }
   .coche-verte { color: #4ad504; font-size: .8rem; }
   .barre .qui span { font-size: .72rem; opacity: .85; }
-  .fil {
-    flex: 1; overflow-y: auto; padding: 14px 10px 10px; display: flex;
-    flex-direction: column; gap: 6px; z-index: 1; scroll-behavior: smooth;
-  }
+  .fil { flex: 1; overflow-y: auto; padding: 14px 10px 10px; display: flex; flex-direction: column; gap: 7px; z-index: 1; scroll-behavior: smooth; }
+
   .bulle {
-    max-width: 84%; border-radius: 9px; padding: 7px 9px 6px;
-    font-size: .86rem; line-height: 1.34; position: relative;
-    box-shadow: 0 1px 1px rgba(0,0,0,.12); animation: pop .18s ease-out;
+    max-width: 86%; border-radius: 9px; padding: 7px 9px 6px; font-size: .85rem; line-height: 1.35;
+    position: relative; box-shadow: 0 1px 1px rgba(0,0,0,.12); animation: pop .18s ease-out;
     white-space: pre-line; word-wrap: break-word;
   }
   @keyframes pop { from { transform: translateY(6px); opacity: .3; } }
   .bulle.entrante { background: #fff; align-self: flex-start; border-top-left-radius: 2px; }
   .bulle.sortante { background: var(--wa-bulle-sortante); align-self: flex-end; border-top-right-radius: 2px; }
-  .bulle .heure {
-    float: right; font-size: .64rem; color: #7d8b92; margin: 8px -2px -2px 8px;
-  }
+  .bulle .heure { float: right; font-size: .64rem; color: #7d8b92; margin: 8px -2px -2px 8px; }
   .bulle.sortante .heure::after { content: " ✓✓"; color: #4fb6ec; }
   .bulle b { font-weight: 700; }
-  .bulle .lien { color: var(--wa-bleu-lien); text-decoration: underline; word-break: break-all; }
   .bulle .ussd { font-family: ui-monospace, Menlo, monospace; background: #f0f2f5; border-radius: 5px; padding: 1px 6px; }
-  .bulle.sortante .ussd { background: #c7ecc0; }
+  .citation {
+    border-left: 4px solid var(--wa-vert); background: rgba(7,94,84,.07);
+    border-radius: 5px; padding: 5px 8px; font-size: .76rem; color: #5b6a72;
+    margin-bottom: 6px; max-height: 56px; overflow: hidden;
+  }
+  .citation b { color: var(--wa-vert-fonce); display: block; font-size: .7rem; }
+  .reaction {
+    position: absolute; bottom: -12px; left: 8px; background: #fff; border-radius: 12px;
+    padding: 1px 6px; font-size: .8rem; box-shadow: 0 1px 3px rgba(0,0,0,.25); animation: pop .3s ease-out;
+  }
+  .bulle.sortante .reaction { left: auto; right: 8px; }
+  .bulle.avec-reaction { margin-bottom: 12px; }
 
   .boutons-rep { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
   .boutons-rep button {
     background: #fff; border: none; border-top: 1px solid #e6e6e6; color: var(--wa-bleu-lien);
-    font-size: .86rem; font-weight: 600; padding: 9px 6px 7px; cursor: pointer;
-    border-radius: 0 0 7px 7px; width: 100%;
+    font-size: .85rem; font-weight: 600; padding: 9px 6px 7px; cursor: pointer; width: 100%;
   }
-  .boutons-rep button:not(:last-child) { border-radius: 0; }
   .boutons-rep button:disabled { color: #9fb2bb; cursor: default; }
   .boutons-rep button:not(:disabled):hover { background: #f4f8fa; }
+  .boutons-rep button.cta::before { content: "⧉ "; }
+  .boutons-rep button.loc::before { content: "📍 "; }
 
-  .photo {
-    width: 236px; height: 176px; border-radius: 7px; display: grid; place-items: center;
-    font-size: 56px; margin-bottom: 4px; position: relative; overflow: hidden;
-  }
-  .photo.bandeau { height: 118px; margin: -7px -9px 6px; width: calc(100% + 18px); border-radius: 7px 7px 0 0; }
+  .photo { width: 236px; height: 170px; border-radius: 7px; display: grid; place-items: center; font-size: 54px; margin-bottom: 4px; position: relative; overflow: hidden; }
+  .photo.bandeau { height: 112px; margin: -7px -9px 6px; width: calc(100% + 18px); border-radius: 7px 7px 0 0; }
   .v-pagne { background: repeating-conic-gradient(#c2410c 0 25%, #f59e0b 0 50%) 0 0/44px 44px; }
   .v-sac { background: linear-gradient(140deg, #b45309, #78350f); }
   .v-huile { background: linear-gradient(140deg, #65a30d, #14532d); }
@@ -112,94 +96,109 @@
   .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.35)); }
   .photo span { z-index: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,.4)); }
 
-  .carte-vitrine {
-    width: 246px; border-radius: 10px; overflow: hidden; background: #fff;
-    border: 1px solid #e5e0d8; margin-bottom: 4px;
+  .vocal { display: flex; align-items: center; gap: 8px; min-width: 190px; padding: 4px 2px; }
+  .vocal .lecture { width: 30px; height: 30px; border-radius: 50%; background: var(--wa-vert); color: #fff; display: grid; place-items: center; font-size: .8rem; flex: none; }
+  .vocal .onde { flex: 1; height: 22px; background: repeating-linear-gradient(90deg, #9fd3a8 0 3px, transparent 3px 6px); border-radius: 3px; position: relative; }
+  .vocal .onde::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 38%; background: repeating-linear-gradient(90deg, #128c7e 0 3px, transparent 3px 6px); }
+  .vocal small { color: #7d8b92; font-size: .68rem; }
+
+  .carte-localisation { width: 226px; border-radius: 8px; overflow: hidden; margin-bottom: 4px; }
+  .carte-localisation .plan {
+    height: 110px; position: relative;
+    background: linear-gradient(115deg, #cfe6cf 0 30%, #e8e4d5 30% 32%, #cfe6cf 32% 60%, #e8e4d5 60% 62%, #cfe6cf 62%),
+                linear-gradient(25deg, #dcecdc, #cfe0ef);
   }
+  .carte-localisation .plan::before { content: ""; position: absolute; left: 12%; right: 20%; top: 46%; height: 7px; background: #f7f3e8; border-radius: 4px; transform: rotate(-8deg); }
+  .carte-localisation .plan::after { content: "📍"; position: absolute; left: 50%; top: 34%; font-size: 30px; transform: translateX(-50%); filter: drop-shadow(0 3px 3px rgba(0,0,0,.3)); }
+  .carte-localisation .adresse { background: #f6f6f6; font-size: .74rem; padding: 6px 9px; color: #444; }
+
+  .contact-carte { display: flex; gap: 10px; align-items: center; background: #f7f8fa; border-radius: 8px; padding: 9px 10px; margin-bottom: 4px; min-width: 210px; }
+  .contact-carte .cc-avatar { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #f472b6, #9d174d); display: grid; place-items: center; font-size: 20px; color: #fff; flex: none; }
+  .contact-carte div b { display: block; font-size: .85rem; }
+  .contact-carte div span { font-size: .72rem; color: #667781; }
+
+  .carrousel { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; margin: 2px 0 4px; width: 252px; scroll-snap-type: x mandatory; }
+  .carrousel .carte-p { flex: 0 0 158px; background: #fff; border: 1px solid #eee; border-radius: 9px; overflow: hidden; scroll-snap-align: start; }
+  .carrousel .carte-p .cp-img { height: 96px; display: grid; place-items: center; font-size: 34px; position: relative; }
+  .carrousel .carte-p .cp-corps { padding: 7px 8px 4px; font-size: .76rem; line-height: 1.3; }
+  .carrousel .carte-p .cp-corps b { display: block; }
+  .carrousel .carte-p button { width: 100%; border: none; border-top: 1px solid #eee; background: #fff; color: var(--wa-bleu-lien); font-weight: 600; font-size: .78rem; padding: 7px 4px; cursor: pointer; }
+  .carrousel .carte-p button:hover { background: #f4f8fa; }
+
+  .recu-carte { width: 238px; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #e8e4da; margin-bottom: 4px; }
+  .recu-carte .rc-haut { background: linear-gradient(120deg, #0b7a63, #128c7e); color: #fff; padding: 10px 12px; }
+  .recu-carte .rc-haut b { font-size: .92rem; display: flex; align-items: center; gap: 6px; }
+  .recu-carte .rc-haut span { font-size: .68rem; opacity: .9; }
+  .recu-carte .rc-corps { padding: 9px 12px; font-size: .76rem; line-height: 1.5; color: #333; border-bottom: 1px dashed #d8d4ca; }
+  .recu-carte .rc-corps b { font-size: .9rem; }
+  .recu-carte .rc-bas { display: flex; align-items: center; gap: 9px; padding: 9px 12px; }
+  .recu-carte .qr { width: 46px; height: 46px; border-radius: 4px; flex: none; background: conic-gradient(#111 0 25%, #fff 0 50%, #111 0 75%, #fff 0) 0 0/9px 9px; outline: 3px solid #111; outline-offset: -3px; }
+  .recu-carte .rc-bas small { font-size: .66rem; color: #666; line-height: 1.35; }
+
+  .carte-vitrine { width: 246px; border-radius: 10px; overflow: hidden; background: #fff; border: 1px solid #e5e0d8; margin-bottom: 4px; }
   .carte-vitrine .haut { background: linear-gradient(120deg, #075e54, #128c7e); color: #fff; padding: 12px 12px 10px; }
   .carte-vitrine .haut b { font-size: 1.02rem; display: block; }
   .carte-vitrine .haut span { font-size: .72rem; opacity: .9; }
   .carte-vitrine .produits { display: flex; gap: 4px; padding: 8px; }
-  .carte-vitrine .produits i {
-    flex: 1; height: 54px; border-radius: 6px; display: grid; place-items: center;
-    font-style: normal; font-size: 26px;
-  }
+  .carte-vitrine .produits i { flex: 1; height: 54px; border-radius: 6px; display: grid; place-items: center; font-style: normal; font-size: 26px; }
   .carte-vitrine .bas { display: flex; align-items: center; gap: 8px; padding: 0 10px 10px; }
-  .carte-vitrine .qr {
-    width: 44px; height: 44px; border-radius: 4px; flex: none;
-    background: conic-gradient(#111 0 25%, #fff 0 50%, #111 0 75%, #fff 0) 0 0/10px 10px;
-    outline: 3px solid #111; outline-offset: -3px;
-  }
+  .carte-vitrine .qr { width: 44px; height: 44px; border-radius: 4px; flex: none; background: conic-gradient(#111 0 25%, #fff 0 50%, #111 0 75%, #fff 0) 0 0/10px 10px; outline: 3px solid #111; outline-offset: -3px; }
   .carte-vitrine .bas small { font-size: .68rem; color: #555; line-height: 1.3; word-break: break-all; }
 
-  .note {
-    align-self: center; background: var(--note-fond); color: var(--note);
-    border: 1px dashed #d9b834; border-radius: 8px; font-size: .7rem;
-    padding: 4px 10px; max-width: 88%; text-align: center; margin: 2px 0;
-  }
+  .rebours { display: inline-flex; align-items: center; gap: 5px; background: #fdf3d7; border: 1px solid #eedc9a; color: #7a5b00; border-radius: 14px; padding: 2px 9px; font-size: .74rem; font-weight: 600; margin-top: 5px; }
+  .badge-or { display: inline-flex; align-items: center; gap: 4px; background: linear-gradient(120deg, #f7d774, #d9a72c); color: #5b4300; border-radius: 12px; padding: 1px 8px; font-size: .72rem; font-weight: 700; }
+
+  .note { align-self: center; background: var(--note-fond); color: var(--note); border: 1px dashed #d9b834; border-radius: 8px; font-size: .7rem; padding: 4px 10px; max-width: 90%; text-align: center; margin: 1px 0; }
   body.sans-notes .note { display: none; }
-  .systeme {
-    align-self: center; background: #d4e7f0; color: #3b5560; border-radius: 8px;
-    font-size: .7rem; padding: 4px 12px; margin: 4px 0; text-align: center;
-  }
-  .fin-chapitre {
-    align-self: center; text-align: center; margin: 10px 0 4px;
-  }
-  .fin-chapitre button {
-    background: var(--wa-vert); color: #fff; border: none; border-radius: 20px;
-    padding: 10px 18px; font-size: .85rem; font-weight: 600; cursor: pointer;
-  }
+  .systeme { align-self: center; background: #d4e7f0; color: #3b5560; border-radius: 8px; font-size: .7rem; padding: 4px 12px; margin: 4px 0; text-align: center; max-width: 92%; }
+  .fin-chapitre { align-self: center; text-align: center; margin: 10px 0 4px; }
+  .fin-chapitre button { background: var(--wa-vert); color: #fff; border: none; border-radius: 20px; padding: 10px 18px; font-size: .85rem; font-weight: 600; cursor: pointer; }
   .frappe { align-self: flex-start; background: #fff; border-radius: 9px; padding: 10px 14px; box-shadow: 0 1px 1px rgba(0,0,0,.12); }
   .frappe i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #9aa8af; margin: 0 1.5px; animation: saute 1s infinite; font-style: normal; }
   .frappe i:nth-child(2) { animation-delay: .15s; } .frappe i:nth-child(3) { animation-delay: .3s; }
   @keyframes saute { 30% { transform: translateY(-4px); } 60% { transform: none; } }
 
-  .composeur {
-    background: #f0f2f5; padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; z-index: 2;
-  }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-height: 0; }
-  .chips button {
-    background: #fff; border: 1.5px solid var(--wa-vert); color: var(--wa-vert-fonce);
-    border-radius: 18px; padding: 7px 13px; font-size: .8rem; font-weight: 600; cursor: pointer;
-    animation: pop .2s ease-out;
-  }
+  .composeur { background: #f0f2f5; padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; z-index: 2; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .chips button { background: #fff; border: 1.5px solid var(--wa-vert); color: var(--wa-vert-fonce); border-radius: 18px; padding: 7px 13px; font-size: .8rem; font-weight: 600; cursor: pointer; animation: pop .2s ease-out; }
   .chips button:hover { background: #e7f7ee; }
-  .chips button.photo-chip { border-style: dashed; }
-  .faux-champ {
-    background: #fff; border-radius: 20px; padding: 9px 14px; color: #8696a0;
-    font-size: .82rem; display: flex; justify-content: space-between; align-items: center;
-  }
-  .faux-champ span:last-child { font-size: 1rem; }
+  .chips button.photo-chip, .chips button.vocal-chip, .chips button.loc-chip { border-style: dashed; }
+  .faux-champ { background: #fff; border-radius: 20px; padding: 9px 14px; color: #8696a0; font-size: .82rem; display: flex; justify-content: space-between; align-items: center; }
 
-  .liste-voile {
-    position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 5;
-    display: none; align-items: flex-end;
-  }
-  .liste-voile.ouverte { display: flex; }
-  .feuille {
-    background: #fff; width: 100%; border-radius: 14px 14px 0 0; padding: 14px 0 18px;
-    max-height: 72%; overflow-y: auto; animation: monte .22s ease-out;
-  }
+  .voile { position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 5; display: none; align-items: flex-end; }
+  .voile.ouverte { display: flex; }
+  .feuille { background: #fff; width: 100%; border-radius: 14px 14px 0 0; padding: 0 0 18px; max-height: 78%; overflow-y: auto; animation: monte .22s ease-out; }
   @keyframes monte { from { transform: translateY(40%); } }
-  .feuille h3 { font-size: .9rem; text-align: center; margin-bottom: 8px; color: #111; }
-  .feuille .ligne {
-    display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer;
-    border: none; background: none; width: 100%; text-align: left;
-  }
+  .feuille .poignee { width: 38px; height: 4px; border-radius: 2px; background: #d5dbdf; margin: 8px auto 4px; }
+  .feuille h3 { font-size: .9rem; text-align: center; margin: 6px 0 8px; color: #111; }
+  .feuille .ligne { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; border: none; background: none; width: 100%; text-align: left; }
   .feuille .ligne:hover { background: #f5f6f6; }
   .feuille .ligne .rond { width: 20px; height: 20px; border: 2px solid #8696a0; border-radius: 50%; flex: none; }
   .feuille .ligne div b { display: block; font-size: .88rem; color: #111; }
   .feuille .ligne div span { font-size: .76rem; color: #667781; }
+  .flow-entete { background: var(--wa-vert-fonce); color: #fff; padding: 12px 16px; font-size: .85rem; font-weight: 600; display: flex; justify-content: space-between; border-radius: 14px 14px 0 0; }
+  .flow-corps { padding: 12px 16px 4px; display: flex; flex-direction: column; gap: 10px; }
+  .flow-corps label { font-size: .72rem; color: #667781; display: block; margin-bottom: 3px; }
+  .flow-corps .champ { border: 1px solid #d6dbdf; border-radius: 8px; padding: 9px 11px; font-size: .85rem; color: #111; background: #fafbfc; }
+  .flow-corps .etoiles { display: flex; gap: 8px; font-size: 1.5rem; }
+  .flow-pied { padding: 12px 16px 2px; }
+  .flow-pied button { width: 100%; background: var(--wa-vert); border: none; color: #fff; font-size: .9rem; font-weight: 700; border-radius: 22px; padding: 11px; cursor: pointer; }
 </style>
 </head>
 <body>
 <header class="page">
-  <h1>Catalog — le bot cible, cliquable</h1>
-  <p>Quatre chapitres couvrent le pipeline entier : ouvrir une boutique, acheter, prouver, contre-signer et noter.
-  Appuyez sur les boutons des messages et les pastilles vertes du bas — chaque geste est celui du vrai WhatsApp.</p>
+  <h1>Catalog — le bot ultra premium, cliquable</h1>
+  <p>Six chapitres. Chaque capacité de l'API est exploitée : boutons-lien, localisation native, fiches
+  contact, réactions, réponses citées, notes vocales, carrousels, Flows, reçu-image à QR — plus les
+  mécaniques que personne ne fait en conversationnel : réservation à rebours, demi-gros, cadeau
+  diaspora, digest vendeuse, délégation, palier Pro.</p>
+  <div class="legende">
+    <span>🟢 possible dès maintenant (fenêtre libre)</span><span>🟣 gabarit / WABA</span>
+    <span>✦ WhatsApp Flow</span><span>⚙️ ingénierie</span><span>⚖️ décision porteur / ADR</span>
+  </div>
   <div class="chapitres" id="chapitres"></div>
   <div class="outils">
-    <label><input type="checkbox" id="basc-notes" checked /> Annotations (quoi de neuf, et d'où ça vient)</label>
+    <label><input type="checkbox" id="basc-notes" checked /> Annotations</label>
     <button type="button" id="rejouer">↻ Rejouer le chapitre</button>
   </div>
 </header>
@@ -208,8 +207,8 @@
 
 <div class="telephone">
   <div class="barre">
-    <div class="avatar">🏷️</div>
-    <div class="qui"><b>Catalog <span class="coche-verte">✔</span></b><span>en ligne</span></div>
+    <div class="avatar" id="avatar">🏷️</div>
+    <div class="qui"><b id="nom-fil">Catalog <span class="coche-verte">✔</span></b><span id="sous-fil">en ligne</span></div>
     <span style="font-size:18px">📞 ⋮</span>
   </div>
   <div class="fil" id="fil"></div>
@@ -217,181 +216,223 @@
     <div class="chips" id="chips"></div>
     <div class="faux-champ"><span id="indice">Suivez le scénario…</span><span>🎤</span></div>
   </div>
-  <div class="liste-voile" id="voile"><div class="feuille" id="feuille"></div></div>
+  <div class="voile" id="voile"><div class="feuille" id="feuille"></div></div>
 </div>
 
 <script>
-/* ══════════════ les scénarios ══════════════
-   Chaque étape :
-   in / out : une bulle. attend:true → on s'arrête jusqu'au clic.
-   note / systeme / fin : hors conversation.                       */
-
 const V = { pagne: ["v-pagne","🧵"], sac: ["v-sac","👜"], huile: ["v-huile","🧴"], savon: ["v-savon","🧼"], vitrine: ["v-vitrine","🏪"] };
 
 const CHAPITRES = [
 {
-  id: 0, titre: "1 · Béa ouvre sa boutique", porteur: "📱 Téléphone de Béa — future vendeuse (Yaoundé)",
+  titre: "1 · Béa ouvre en 90 s", porteur: "📱 Téléphone de Béa — future vendeuse (Yaoundé)",
   etapes: [
-    { systeme: "Béa a reçu le lien de parrainage de son amie Amina, posté en Statut." },
+    { systeme: "Béa touche le Statut d'Amina. Tout ce chapitre tient dans la fenêtre libre — sauf mention 🟣." },
     { chip: "Vendre avec chez-amina" },
-    { note: "Parrainage attribué par le lien — aucune récompense calculée (ADR 0034)" },
-    { in: { corps: "Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même.\n\n*Comment s'appelle votre boutique ?*\nExemple : Chez Amina" } },
-    { chip: "Chez Béa" },
-    { in: { corps: "*Chez Béa* — c'est noté.\n\n*Dans quelle ville vendez-vous ?*\nExemple : Douala" } },
-    { chip: "Yaoundé" },
-    { in: { corps: "Et le *quartier* ? Vos clientes sauront où vous trouver.", boutons: [{ t: "Passer" }] , attendBouton: "Mvog-Ada (tapé)" } , chipAvant: "Mvog-Ada" },
-    { note: "🆕 P1 — le quartier existait en base, il n'était jamais demandé" },
-    { in: { corps: "Une *photo pour votre vitrine* ? C'est elle que vos clientes verront en premier. (Facultatif)", boutons: [{ t: "Sans photo" }] }, chipPhotoAvant: { legende: "", visuel: "vitrine" } },
-    { note: "🆕 P1 — l'identité visuelle de la boutique : Seller.imageKey" },
-    { in: { corps: "✅ *Chez Béa* est ouverte.\n\nVotre carte de boutique — postez-la en Statut, imprimez-la pour l'étal :" } },
+    { in: { corps: "Bienvenue ! Ouvrons votre boutique — ici même.\nDeux façons, au choix :", boutons: [{ t: "✦ Formulaire rapide" }, { t: "Répondre message par message" }], attendreBoutonIndex: 0 } },
+    { note: "✦ L'inscription en UN écran natif (Flow, 🟣 WABA). Le chemin question-par-question reste — 🟢 déjà en préproduction" },
+    { flow: { titre: "Ouvrir ma boutique", champs: [
+      { l: "Nom de la boutique", v: "Chez Béa" }, { l: "Ville", v: "Yaoundé" },
+      { l: "Quartier", v: "Mvog-Ada" }, { l: "Photo de vitrine", v: "📷 vitrine-bea.jpg" } ], bouton: "Créer ma boutique" } },
+    { out: "✦ Formulaire envoyé — Chez Béa, Yaoundé, Mvog-Ada" },
+    { in: { corps: "✅ *Chez Béa* est ouverte. Votre carte de boutique — postez-la en Statut, imprimez-la pour l'étal :" } },
     { in: { carte: { nom: "Chez Béa", ville: "Yaoundé · Mvog-Ada", produits: ["pagne","sac","huile"] } } },
-    { note: "🆕 P1 — la carte-vitrine générée : le lien wa.me n'a pas d'aperçu riche, l'image EST l'aperçu" },
-    { in: { corps: "Votre lien : catalog.wa/chez-bea\nVotre espace vendeuse (chiffres, reversement) : app.catalog.cm\nVotre lien de parrainage : « vendre avec chez-bea »" } },
-    { note: "Correctif acté — l'URL de l'app enfin donnée (analyse transversale, T1)" },
-    { in: { corps: "Ajoutons votre premier article ?\n\n💡 Le plus simple : envoyez une *photo avec sa légende* — nom puis prix.\nExemple : une photo légendée « Pagne wax 6 yards 15 000 »", boutons: [{ t: "Plus tard" }] }, chipPhotoAvant: { legende: "Pagne wax 6 yards 15 000", visuel: "pagne" } },
-    { note: "🆕 P1 phare — photo légendée = article : le geste que Béa fait déjà dans son Statut" },
-    { in: { corps: "J'ai lu : *Pagne wax 6 yards* — *15 000 F CFA*. C'est bon ?", boutons: [{ t: "Publier ✓" }, { t: "Corriger" }] } },
-    { note: "§7.7 AGENTS.md — on confirme ce qu'on a extrait, on ne devine pas en silence" },
-    { in: { corps: "✅ *Pagne wax 6 yards* — 15 000 F CFA est en ligne.", boutons: [{ t: "Autre article" }, { t: "Ma boutique" }] }, attendreBoutonIndex: 1 },
-    { in: { corps: "*Chez Béa* — 1 article en ligne\n\n1. Pagne wax 6 yards — 15 000 F\n\nPour modifier : « prix pagne 12 000 » · « retirer pagne »\nPour être payée d'avance : posez votre numéro Mobile Money sur app.catalog.cm — il a sa propre vérification." } },
-    { note: "🆕 P1 — « ma boutique » : voir et modifier son catalogue sans quitter le fil. Le reversement, lui, reste derrière son OTP (AGENTS.md §2)" },
-    { fin: "Boutique ouverte, article en ligne, cartes en poche. Demain à 9 h, une relance rappellera le reversement (pg-boss, fenêtre ouverte)." },
+    { note: "🟢 La carte-vitrine générée : le wa.me n'a pas d'aperçu riche — l'image EST l'aperçu. Déclinaison 9:16 fournie pour le Statut" },
+    { in: { corps: "Votre espace vendeuse — chiffres, reversement (il a sa propre vérification) :", boutons: [{ t: "Ouvrir mon espace", cta: true }] } },
+    { note: "🟢 Le bouton-lien natif (interactive cta_url) : fini les URL nues dans le texte" },
+    { in: { corps: "Premier article ? *Envoyez simplement une photo avec sa légende* — nom puis prix.\nUne *note vocale* marche aussi : dites l'article et son prix." } },
+    { chipPhoto: { legende: "Pagne wax 6 yards 15 000", visuel: "pagne" } },
+    { reaction: "👍" },
+    { note: "🟢 Le bot RÉAGIT à la photo au lieu d'empiler un message — accusé sans bruit" },
+    { in: { citer: true, corps: "J'ai lu : *Pagne wax 6 yards* — *15 000 F CFA*. C'est bon ?", boutons: [{ t: "Publier ✓" }, { t: "Corriger" }], attendreBoutonIndex: 0 } },
+    { note: "🟢 Photo légendée = article, en citant SA photo (réponse contextuelle). §7.7 : on confirme l'extrait, on ne devine pas" },
+    { chipVocal: "« Sac en raphia tressé… huit mille francs »" },
+    { in: { citer: true, corps: "J'ai entendu : *Sac en raphia tressé* — *8 000 F CFA*. Publier ?", boutons: [{ t: "Publier ✓" }, { t: "Corriger" }], attendreBoutonIndex: 0 } },
+    { note: "🟢 La note vocale — LE geste du terrain — transcrite puis CONFIRMÉE, jamais publiée sur une devinette. ⚙️ transcription hors trace, l'audio n'est jamais conservé" },
+    { in: { corps: "✅ 2 articles en ligne. Demain matin, je vous enverrai votre *résumé du jour* — ventes, encaissements, stock bas.\nÀ tout moment : « ma boutique », « ajouter », « solde »." } },
+    { fin: "90 secondes, deux articles, zéro navigateur. La relance reversement partira demain (pg-boss, fenêtre ouverte)." },
   ],
 },
 {
-  id: 1, titre: "2 · Clara découvre et commande", porteur: "📱 Téléphone de Clara — acheteuse (a cliqué le Statut d'Amina)",
+  titre: "2 · Clara explore", porteur: "📱 Téléphone de Clara — acheteuse (Statut d'Amina)",
   etapes: [
-    { systeme: "Clara a touché la carte-vitrine de CHEZ AMINA dans un Statut. WhatsApp s'ouvre, pré-rempli." },
     { chip: "Voir la boutique chez-amina" },
-    { in: { entete: "vitrine", corps: "*Chez Amina* — Douala · Bonapriso\n★ 4,8 · 12 ventes prouvées (avis vérifiés)\n\nCommandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.", boutons: [{ t: "Voir les articles" }, { t: "Voir en photos" }, { t: "Parler à la vendeuse" }], attendreBoutonIndex: 1 } },
-    { note: "🆕 P0 — l'accueil porte la vitrine, le quartier, la réputation. « Voir en photos » : la rafale" },
-    { in: { image: "pagne", legende: "Pagne wax 6 yards — 15 000 F" } },
-    { in: { image: "sac", legende: "Sac en raphia tressé — 8 000 F · Plus que 2 !" } },
-    { in: { image: "huile", legende: "Huile de coco pressée à froid — 3 500 F" } },
-    { note: "🆕 P0 — la rafale d'images : le catalogue redevient aussi visuel que le Statut qui a attiré Clara" },
-    { in: { liste: { corps: "*Chez Amina* — 4 articles", bouton: "Voir les articles", lignes: [
-      { t: "Sac en raphia tressé", d: "8 000 FCFA · Plus que 2 !" },
-      { t: "Pagne wax 6 yards", d: "15 000 FCFA" },
-      { t: "Huile de coco", d: "3 500 FCFA" },
-      { t: "Savon noir artisanal", d: "1 500 FCFA" } ], choisir: 0 } } },
+    { in: { entete: "vitrine", corps: "*Chez Amina* — Douala · Bonapriso <span class=\"badge-or\">🥇 Boutique Or</span>\n★ 4,8 · 52 ventes prouvées · répond en ~10 min\n\nChaque paiement prouvé donne un reçu vérifiable.", boutons: [{ t: "Explorer" }, { t: "Voir en photos" }, { t: "La vendeuse" }], attendreBoutonIndex: 2 } },
+    { note: "🟢 Réputation, réactivité mesurée, palier Or (50+ ventes prouvées) — la confiance AVANT le premier article. ⚖️ les seuils des paliers : décision porteur" },
+    { in: { contact: { nom: "Amina N. — Chez Amina", detail: "+237 6 77 12 34 56 · WhatsApp" }, corps: "Enregistrez-la, écrivez-lui — vous restez entre vous." } },
+    { note: "🟢 « La vendeuse » = une FICHE CONTACT native (vCard), pas un lien brut : un tap pour l'enregistrer" },
+    { chip: "Explorer" },
+    { in: { carrousel: [
+      { v: "sac", nom: "Sac en raphia tressé", prix: "8 000 F · Plus que 2 !", b: "Voir" },
+      { v: "pagne", nom: "Pagne wax 6 yards", prix: "15 000 F", b: "Voir" },
+      { v: "huile", nom: "Huile de coco", prix: "3 500 F · 3+ : 3 200 F", b: "Voir" },
+      { v: "savon", nom: "Savon noir artisanal", prix: "1 500 F", b: "Voir" } ], choisir: 0 } },
+    { note: "🟣 Le carrousel de cartes glissables (gabarit) — en fenêtre libre : la rafale d'images 🟢. Les deux existent, le meilleur des deux part selon le canal. ⚙️ un seul modèle de catalogue alimente tout" },
     { in: { image: "sac", legende: "" } },
-    { in: { corps: "*Sac en raphia tressé*\n8 000 F CFA · Plus que 2 en stock !\nTressé main à Foumban, anses cuir, 40 cm. Pièce unique.\n★ 4,9 sur cet article (7 avis)", boutons: [{ t: "Commander" }, { t: "Retour au catalogue" }], attendreBoutonIndex: 0 } },
-    { note: "🆕 P0 fiche image-first plein format · 🆕 P1 — l'avis PAR ARTICLE (Review.productId, la décision qui ne se rattrape pas)" },
-    { in: { corps: "Combien de « Sac en raphia tressé » voulez-vous ? (2 en stock)", boutons: [{ t: "1" }, { t: "2" }, { t: "Annuler" }], attendreBoutonIndex: 1 } },
-    { in: { corps: "Ajouté : Sac en raphia tressé × 2.\nPanier : *16 000 F CFA*. Et ensuite ?", boutons: [{ t: "Passer commande" }, { t: "Autre article" }, { t: "Voir le panier" }], attendreBoutonIndex: 2 } },
-    { in: { corps: "🧺 *Votre panier — Chez Amina*\nSac en raphia tressé × 2 : 8 000 F l'unité = 16 000 F\n*Total : 16 000 F CFA* (hors livraison)", boutons: [{ t: "Passer commande" }, { t: "Autre article" }, { t: "Annuler" }], attendreBoutonIndex: 1 } },
-    { note: "🆕 P1 — le panier se montre, lignes comprises. « menu » ne le vide plus en silence" },
-    { in: { liste: { corps: "*Chez Amina* — 4 articles", bouton: "Voir les articles", lignes: [
-      { t: "Huile de coco", d: "3 500 FCFA" },
-      { t: "Pagne wax 6 yards", d: "15 000 FCFA" },
-      { t: "Savon noir artisanal", d: "1 500 FCFA" } ], choisir: 0 } } },
-    { in: { corps: "Combien de « Huile de coco » voulez-vous ? (12 en stock)", boutons: [{ t: "1" }, { t: "2" }, { t: "Un autre nombre" }], attendreBoutonIndex: 0 } },
-    { in: { corps: "Ajouté : Huile de coco × 1.\nPanier : *19 500 F CFA*. Et ensuite ?", boutons: [{ t: "Passer commande" }, { t: "Autre article" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
-    { in: { corps: "Comment recevoir votre commande (19 500 F CFA) ?", boutons: [{ t: "Livraison" }, { t: "Point de retrait" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
-    { in: { corps: "Votre quartier, un repère, puis le numéro à appeler — en un seul message.\nExemple : Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33" } },
-    { chip: "Bali, derrière le collège Alfred Saker, 690 11 22 33" },
-    { in: { corps: "*Récapitulatif — Chez Amina*\nSac en raphia tressé × 2 : 8 000 F l'unité\nHuile de coco × 1 : 3 500 F l'unité\n*Total : 19 500 F CFA* — hors livraison : le prix de la course se convient avec la vendeuse\nAcompte pour confirmer : *9 750 F CFA*\nLivraison : Bali, derrière le collège Alfred Saker\nNuméro à appeler : 6 90 11 22 33\n\nRien n'est encore commandé. Vérifiez, puis confirmez.", boutons: [{ t: "Confirmer" }, { t: "Corriger" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
-    { note: "🆕 P0 — « hors livraison » enfin DIT : la source n°1 de litiges se ferme en une ligne" },
-    { in: { corps: "*Commande CT-522801 — Chez Amina*\nSac en raphia tressé × 2 : 8 000 F l'unité\nHuile de coco × 1 : 3 500 F l'unité\nTotal : *19 500 F CFA* (hors livraison)\nLivraison : Bali, derrière le collège Alfred Saker\nCode de vérification : ACDE-4679" } },
-    { in: { corps: "💳 *Acompte à envoyer : 9 750 F CFA*\nNuméro Orange Money : *6 56 74 62 15* (Amina N.)\nComposez <span class=\"ussd\">#150*50#</span> puis suivez le menu — ou ouvrez : catalog.cm/payer\n\nVotre code secret ne se tape QUE sur l'écran de votre opérateur — jamais ici.\nDès que le paiement est vu, vous serez prévenue *ici même*." } },
-    { note: "🆕 P0 — LE correctif : payer sans quitter WhatsApp. Numéro + montant + code d'entrée en texte brut (règle AGENTS.md enfin appliquée) ; le lien n'est qu'un confort. Le code #150*50# vient de la configuration, jamais du code (lot 9)" },
-    { fin: "Clara bascule sur son composeur, envoie 9 750 F, et repose son téléphone. La suite au chapitre 3 — chez Amina." },
+    { in: { corps: "*Sac en raphia tressé* — 8 000 F CFA\n🔥 Plus que 2 en stock · ⭐ 4,9 sur cet article (7 avis)\nTressé main à Foumban, anses cuir, 40 cm.\n*Demi-gros : dès 3, 7 200 F l'unité.*", boutons: [{ t: "Commander" }, { t: "Voir les avis" }, { t: "Retour" }], attendreBoutonIndex: 1 } },
+    { note: "🟢 Prix par paliers — le demi-gros est LA norme de ce marché, personne ne le structure. Avis PAR ARTICLE : Review.productId, la décision qui ne se rattrape pas" },
+    { in: { corps: "⭐ *Les avis vérifiés sur cet article*\n« Solide, encore plus beau qu'en photo » — F., achat vérifié ✓\n« Livré en 2 jours à Bali » — M., achat vérifié ✓\n\nCes avis viennent d'acheteuses dont *l'argent a laissé une trace* — aucun avis fabriqué.", boutons: [{ t: "Commander" }, { t: "Retour" }], attendreBoutonIndex: 0 } },
+    { chip: "cherche huile de coco" },
+    { in: { corps: "Trouvé : *Huile de coco pressée à froid* — 3 500 F (3+ : 3 200 F). Je l'ajoute après votre sac." } },
+    { note: "🟢 ⚙️ Recherche tolérante aux fautes (pg_trgm Postgres) — déterministe, zéro IA, conforme à l'ADR 0031" },
+    { in: { corps: "Combien de « Sac en raphia tressé » ? (2 en stock)", boutons: [{ t: "1" }, { t: "2" }, { t: "Annuler" }], attendreBoutonIndex: 1 } },
+    { in: { corps: "Ajouté : Sac × 2 — 16 000 F.\n<span class=\"rebours\">🔒 Réservés pour vous · 2 h 00</span>\nEt ensuite ?", boutons: [{ t: "Passer commande" }, { t: "Autre article" }, { t: "Voir le panier" }], attendreBoutonIndex: 0 } },
+    { note: "🟢 ⚙️ La réservation à rebours : le stock suivi se BLOQUE le temps de l'acompte — l'urgence est vraie, pas simulée. Libération automatique (pg-boss) si rien ne vient" },
+    { fin: "Le panier est réservé. Au chapitre 3 : le checkout qui ne ressemble à aucun autre." },
   ],
 },
 {
-  id: 2, titre: "3 · Amina encaisse et prouve", porteur: "📱 Téléphone d'Amina — vendeuse (Chez Amina)",
+  titre: "3 · Checkout premium", porteur: "📱 Téléphone de Clara — acheteuse",
   etapes: [
-    { systeme: "Amina a répondu à une cliente il y a 20 minutes : sa fenêtre de service est ouverte." },
-    { in: { corps: "🛍️ *Nouvelle commande CT-522801*\nSac en raphia tressé × 2, Huile de coco × 1 — *19 500 F*\nLivraison : Bali, derrière le collège Alfred Saker — 6 90 11 22 33\n\nUn SMS Orange Money de *9 750 F* devrait arriver (l'acompte). Collez-le ici dès réception : il devient le reçu." } },
-    { note: "🆕 P0 — la notification qui n'existait pas : PERMISE dès aujourd'hui en fenêtre ouverte (correction de l'analyse — pas besoin du WABA pour les vendeuses actives). Le rapprochement est préparé : elle sait quoi attendre" },
-    { systeme: "Dix minutes plus tard, le SMS d'Orange arrive sur ce même téléphone. Amina le copie, revient ici, et le colle." },
-    { chip: "Vous avez recu 9750 FCFA de CLARA T. (237690112233). ID transaction : PP250802.1447.C88231. Votre nouveau solde…" },
-    { in: { corps: "SMS Orange reconnu — je vérifie les sept contrôles…" } },
-    { in: { corps: "✅ *Paiement prouvé* — les contrôles passent.\nCT-522801 : acompte de 9 750 F reçu. Reste à encaisser à la livraison : *9 750 F*.\nLe reçu vérifiable est émis — Clara vient d'être prévenue." } },
-    { note: "Cible P1 — le verdict DANS le fil (extraction de l'orchestration de preuve, dette ADR 0031). Le SMS n'entre jamais dans l'état de conversation (ADR 0023)" },
-    { systeme: "Trois jours plus tard, la course est faite, Clara a payé le solde en main propre." },
+    { in: { corps: "🧺 *Votre panier — Chez Amina*\nSac en raphia tressé × 2 = 16 000 F\n*Total : 16 000 F CFA* (hors livraison)\n\nC'est pour vous, ou c'est un cadeau ?", boutons: [{ t: "Pour moi" }, { t: "🎁 C'est un cadeau" }], attendreBoutonIndex: 1 } },
+    { note: "🟢 Le flux DIASPORA formalisé : qui paie n'est pas qui reçoit — le cas réel découvert au premier test (numéro belge)" },
+    { in: { corps: "Qui reçoit ? Son numéro, et votre petit mot — il accompagnera la livraison." } },
+    { chip: "Maman — 677 88 99 00 — « Bon anniversaire ! »" },
+    { in: { corps: "🎁 Maman sera prévenue à l'expédition, avec votre mot — jamais le prix.\n\nOù livrer ? Partagez la position, ou écrivez quartier + repère.", boutons: [{ t: "Partager la position", loc: true }] }, chipLocAvant: true },
+    { in: { localisation: "Bali, Douala — position partagée" } , sortant: true },
+    { note: "🟢 La DEMANDE DE LOCALISATION native (location_request_message) remplace la grammaire à virgule. Le repère reste : le livreur appelle et se fait guider (ADR 0005)" },
+    { in: { corps: "Bali — c'est noté. Un *repère* pour guider le livreur ?" } },
+    { chip: "Derrière le collège Alfred Saker" },
+    { in: { corps: "*Récapitulatif — Chez Amina* 🎁\nSac en raphia tressé × 2 : 8 000 F l'unité\n*Total : 16 000 F CFA* — hors livraison : la course se convient avec la vendeuse\nAcompte pour confirmer : *8 000 F CFA*\nLivraison : Bali (position 📍), derrière le collège Alfred Saker\nReçoit : Maman — 6 77 88 99 00\n\nRien n'est encore commandé.", boutons: [{ t: "Confirmer" }, { t: "Corriger" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
+    { in: { corps: "*Commande CT-522801 — Chez Amina* 🎁\nCode de vérification : ACDE-4679\n<span class=\"rebours\">🔒 Stock réservé · 1 h 54</span>\n\n💳 *Acompte : 8 000 F CFA*\nOrange Money : *6 56 74 62 15* (Amina N.)\nComposez <span class=\"ussd\">#150*50#</span> — ou en un tap :", boutons: [{ t: "Composer le paiement", cta: true }] } },
+    { note: "🟢 Le paiement SANS quitter le fil : numéro + montant + code opérateur en texte brut (la règle d'AGENTS.md), le composeur pré-rempli en bouton-lien. Dès que le paiement est vu, vous êtes prévenue ICI" },
+    { fin: "Clara compose, valide sur l'écran Orange — son code secret n'approche jamais Catalog. Chapitre 4 : la preuve." },
+  ],
+},
+{
+  titre: "4 · La preuve, mise en scène", porteur: "📱 Téléphone d'Amina — vendeuse",
+  etapes: [
+    { systeme: "Amina a répondu à une cliente il y a 20 min : fenêtre ouverte." },
+    { in: { corps: "🛍️ *Nouvelle commande CT-522801* 🎁\nSac en raphia tressé × 2 — *16 000 F* (acompte 8 000 F)\nLivraison : Bali 📍, derrière le collège Alfred Saker — la destinataire : 6 77 88 99 00\n\nUn SMS Orange de *8 000 F* devrait arriver. Collez-le ici : il devient le reçu." } },
+    { note: "🟢 Notification en fenêtre ouverte + rapprochement préparé. ⚙️ file d'attente si fenêtre fermée, remise à la prochaine interaction ; FIFO par conversation, livraisons idempotentes" },
+    { chip: "Vous avez recu 8000 FCFA de CLARA T. (237690112233). ID transaction : PP250802.1447.C88231…" },
+    { reaction: "✅" },
+    { in: { citer: true, corps: "*Paiement prouvé* — les sept contrôles passent.\nCT-522801 : acompte reçu. Solde à la livraison : *8 000 F*.\nVoici le reçu — il est aussi chez Clara :" } },
+    { note: "🟢 La réaction ✅ POSE l'accusé sur le SMS même ; le verdict le CITE — le fil reste lisible des mois plus tard. Le SMS n'entre jamais dans l'état (ADR 0023)" },
+    { in: { recu: { ref: "CT-522801", montant: "8 000 F CFA", tx: "PP250802.•••.C88231", boutique: "Chez Amina" } } },
+    { note: "🟢 LE REÇU DEVIENT UN OBJET : une image générée, QR vers /v/. La capture truquée meurt — n'importe qui scanne et vérifie. C'est la valeur n°1 du produit, enfin VISIBLE et partageable" },
+    { systeme: "Trois jours plus tard — course faite, solde payé en main propre, SMS collé pareil." },
     { chip: "livrée CT-522801" },
-    { in: { corps: "📦 *CT-522801 marquée livrée.* Bravo !\nClara reçoit l'invitation à noter — chaque avis vérifié renforce votre boutique.\n\n💰 Soldes à encaisser : plus rien. Écrivez « solde » à tout moment." } },
-    { note: "🆕 P1 — « livrée » dans le fil : le geste qui déclenche l'avis vérifié, sans ouvrir l'app (la machine avancerEtape existait déjà)" },
-    { fin: "L'argent est chez Amina, la preuve est au dossier, la réputation arrive au chapitre 4 — chez Clara." },
+    { in: { corps: "📦 *CT-522801 livrée.* Maman a reçu son cadeau — Clara vient d'en être prévenue, avec l'invitation à noter.\n💰 Tout est encaissé sur cette commande." } },
+    { note: "🟢 « livrée » au mot-clé — le déclencheur de TOUTE la boucle de réputation. La machine avancerEtape existait, il ne manquait que ce fil" },
+    { fin: "L'argent est chez Amina, la preuve est infalsifiable, le cadeau est arrivé. Chapitre 5 : la boucle." },
   ],
 },
 {
-  id: 3, titre: "4 · Clara reçoit, contre-signe et note", porteur: "📱 Téléphone de Clara — acheteuse",
+  titre: "5 · Fidélité & boucle", porteur: "📱 Téléphone de Clara — acheteuse",
   etapes: [
-    { systeme: "Quelques minutes après le paiement de Clara (chapitre 2)…" },
-    { in: { corps: "✅ *Votre paiement de 9 750 F est prouvé.*\nVotre reçu vérifiable : catalog.cm/v/?c=ACDE-4679 — il porte l'identifiant de la transaction Orange. Montrez-le, personne ne peut le contrefaire.\n\nUne dernière chose : confirmez que ce paiement vient bien de vous.", boutons: [{ t: "Je confirme avoir payé ✓" }, { t: "Ce n'est pas moi" }], attendreBoutonIndex: 0 } },
-    { note: "🆕 P0/ADR — la fin de l'attente aveugle, ET la contre-signature (contrôle n° 7) DANS le fil : le wa_id qui a créé la commande vaut le jeton qui fut émis dans ce même fil. Exige l'ADR « identité du fil » — jamais un raccourci silencieux" },
-    { in: { corps: "🖋️ Contre-signé. Le reçu de CT-522801 porte maintenant les deux voix : le SMS de la vendeuse, et la vôtre." } },
+    { in: { recu: { ref: "CT-522801", montant: "8 000 F CFA", tx: "PP250802.•••.C88231", boutique: "Chez Amina" }, corps: "✅ *Votre paiement est prouvé.* Ce reçu est à vous — l'ID de transaction est celui d'Orange, personne ne peut le contrefaire.", boutons: [{ t: "Je confirme avoir payé ✓" }, { t: "Ce n'est pas moi" }], attendreBoutonIndex: 0 } },
+    { reaction: "🖋️", surDernierSortant: true },
+    { note: "🟢 ⚖️ La contre-signature (contrôle n° 7) DANS le fil — le wa_id qui a commandé vaut le jeton émis dans ce même fil. Exige l'ADR « identité du fil »" },
     { systeme: "Trois jours plus tard, après la livraison…" },
-    { in: { corps: "📦 *Votre commande CT-522801 est livrée.*\nUn mot sur Chez Amina ? Votre avis sera marqué *achat vérifié* — l'argent a laissé une trace." } },
-    { in: { liste: { corps: "Votre note, en un geste :", bouton: "Donner ma note", lignes: [
-      { t: "⭐⭐⭐⭐⭐ Excellent", d: "5 sur 5" },
-      { t: "⭐⭐⭐⭐ Très bien", d: "4 sur 5" },
-      { t: "⭐⭐⭐ Bien", d: "3 sur 5" },
-      { t: "⭐⭐ Moyen", d: "2 sur 5" },
-      { t: "⭐ Décevant", d: "1 sur 5" } ], choisir: 0 } } },
-    { note: "🆕 P1 — l'avis sollicité au bon moment, dans le fil (le formulaire web existait, personne n'y arrivait jamais). Un commentaire reste possible, jamais exigé" },
-    { in: { corps: "Merci ! Votre avis *vérifié* est en ligne.\n★ Chez Amina passe à 4,8 — 13 ventes prouvées. C'est ce que la prochaine cliente verra en arrivant.\n\nÀ bientôt 👋" } },
-    { note: "La boucle se ferme : l'avis de Clara alimente l'accueil du chapitre 2. Le volant tourne" },
-    { fin: "Le pipeline entier — de « vendre » à l'avis vérifié — sans quitter WhatsApp, sauf le composeur USSD et l'OTP du reversement." },
+    { in: { corps: "📦 *Livré !* Maman a reçu son cadeau 🎁\nUn mot sur Chez Amina ? Votre avis sera marqué *achat vérifié*.", boutons: [{ t: "✦ Donner mon avis" }], attendreBoutonIndex: 0 } },
+    { flow: { titre: "Votre avis — Chez Amina", champs: [
+      { l: "Votre note", etoiles: true },
+      { l: "Un mot (facultatif)", v: "Le sac est magnifique, maman est ravie" } ], bouton: "Publier mon avis vérifié" } },
+    { out: "✦ Avis envoyé — ⭐⭐⭐⭐⭐" },
+    { note: "✦ L'avis en un écran (Flow, 🟣) — en fenêtre libre : la liste 1-5 🟢. Sollicité au SEUL bon moment : la livraison" },
+    { in: { corps: "Merci ! Votre avis *vérifié* est en ligne — ★ Chez Amina : 4,8, 53 ventes prouvées.\n\nEnvie de suivre ses nouveautés ? (Elle n'écrira jamais sans votre accord.)", boutons: [{ t: "🔔 Suivre Chez Amina" }, { t: "Non merci" }], attendreBoutonIndex: 0 } },
+    { note: "🟢 L'opt-in EXPLICITE — la base CRM de la vendeuse se construit consentie, cliente par cliente" },
+    { systeme: "Deux semaines plus tard…" },
+    { in: { carrousel: [
+      { v: "pagne", nom: "Nouveau : Kaba brodé", prix: "22 000 F", b: "Voir" },
+      { v: "sac", nom: "Sac raphia — retour !", prix: "8 000 F", b: "Voir" } ], choisir: 1, titreAvant: "🔔 *Chez Amina* a de nouvelles arrivées" } },
+    { in: { corps: "Revoilà votre sac préféré. Reprendre votre dernière commande en un geste ?", boutons: [{ t: "🔁 Commander à nouveau" }, { t: "Voir la boutique" }], attendreBoutonIndex: 0 } },
+    { in: { corps: "🧺 Panier repris : Sac en raphia tressé × 2 — la livraison chez Maman aussi ? Tout est prérempli, vous n'avez qu'à confirmer." } },
+    { note: "🟣 La relance nouveautés (gabarit payant, voir ch. 6) + 🟢 le réachat en un tap : le coût de la 2ᵉ commande tombe à zéro" },
+    { fin: "La boucle est fermée : l'avis de Clara vend déjà pour Amina, et Clara rachète en un geste." },
+  ],
+},
+{
+  titre: "6 · Amina passe Pro", porteur: "📱 Téléphone d'Amina — vendeuse",
+  etapes: [
+    { systeme: "7 h 30 — le résumé quotidien part à toutes les vendeuses actives (fenêtre ouverte)." },
+    { in: { corps: "☀️ *Votre journée d'hier — Chez Amina*\n🛍️ 3 commandes · 💰 46 500 F encaissés (tout prouvé)\n⭐ 2 nouveaux avis vérifiés (4,9)\n⚠️ Stock bas : Sac raphia — *dernier exemplaire*\n🔔 14 clientes suivent vos nouveautés", boutons: [{ t: "Réassortir le sac" }, { t: "Prévenir mes clientes" }], attendreBoutonIndex: 1 } },
+    { note: "🟢 Le digest du matin : la comptable de poche. Chaque chiffre vient du réel — encaissé = prouvé, jamais déclaré" },
+    { in: { corps: "🔔 *Prévenir vos 14 abonnées*\nMessage : « Nouvelles arrivées chez Chez Amina ce samedi ! »\nCoût : gabarit marketing ≈ 15 F × 14 = *≈ 210 F*, décompté de votre solde Catalog.", boutons: [{ t: "Envoyer (≈ 210 F)" }, { t: "Modifier" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
+    { note: "🟣 ⚖️ La diffusion au coût DIT, à l'unité près — jamais dans l'abonnement (l'ARPU ne survivrait pas), toujours consentie côté clientes. Tarification : décision porteur" },
+    { in: { corps: "✅ Parti chez 14 abonnées. Je vous dirai qui a ouvert et commandé.\n\nAutre chose : vous partez au village la semaine prochaine ?" } },
+    { chip: "congés jusqu'à lundi" },
+    { in: { corps: "🌴 *Boutique en pause jusqu'à lundi.* Vos clientes verront : « Chez Amina revient lundi — laissez votre message ». Les commandes reprendront sans rien perdre.", boutons: [{ t: "Parfait" }], attendreBoutonIndex: 0 } },
+    { note: "🟢 Le mode congés — la vraie vie d'une vendeuse, respectée au lieu d'être punie par l'algorithme" },
+    { chip: "ajouter ma sœur 655 11 22 33" },
+    { in: { corps: "👥 *Djamila (655 11 22 33) peut désormais :* marquer les commandes livrées, répondre aux clientes, ajouter des articles.\n*Jamais :* toucher au numéro de reversement, ni voir vos totaux.\nElle reçoit l'invitation à l'instant.", boutons: [{ t: "C'est bien ça" }, { t: "Retirer l'accès" }], attendreBoutonIndex: 0 } },
+    { note: "🟢 ⚖️ La délégation BORNÉE — la boutique est familiale, le reversement reste à la seule titulaire (AGENTS.md §2). Périmètre exact : ADR" },
+    { in: { corps: "🥇 *Chez Amina dépasse 50 ventes prouvées.*\nLe palier *Catalog Pro* s'ouvre : votre PROPRE numéro WhatsApp — votre nom, votre photo, votre catalogue natif à vous. Vos clientes vous enregistrent comme contact, à côté de la famille.", boutons: [{ t: "Découvrir Pro", cta: true }, { t: "Plus tard" }] } },
+    { note: "⚖️ L'étage 3 : un numéro dédié SOUS le WABA Catalog — aucun RCCM demandé à la vendeuse, c'est notre entité. Le vrai « catalogue individuel », en palier d'abonnement — pricing : décision porteur (ADR)" },
+    { fin: "Fin de la visite. Tout ce qui est 🟢 se construit dès maintenant ; 🟣 attend le WABA ; ⚖️ attend VOS décisions." },
   ],
 },
 ];
 
-/* ══════════════ le moteur ══════════════ */
+/* ══════════════ moteur ══════════════ */
 const fil = document.getElementById("fil");
 const chips = document.getElementById("chips");
 const indice = document.getElementById("indice");
 const voile = document.getElementById("voile");
 const feuille = document.getElementById("feuille");
 const porteur = document.getElementById("porteur");
-let chapitre = 0, curseur = 0, occupe = false;
+let chapitre = 0, curseur = 0, occupe = false, dernierSortant = null, dernierEntrant = null, dernierTexteSortant = "";
 
-const heure = () => "14:" + String(30 + curseur).padStart(2, "0");
+const heure = () => "14:" + String((10 + curseur) % 60).padStart(2, "0");
+const gras = (t) => t.split("\n").map((l) => l.replace(/\*([^*]+)\*/g, "<b>$1</b>")).join("\n");
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/* Le gras WhatsApp : *texte* → <b>texte</b>, ligne par ligne — le code USSD
-   (#150*50#, une seule etoile par ligne) reste intact faute de paire. */
-const gras = (t) =>
-  t.split("\n").map((l) => l.replace(/\*([^*]+)\*/g, "<b>$1</b>")).join("\n");
-
-function bulleHtml(contenu, sortante) {
+function bulle(html, sortante) {
   const b = document.createElement("div");
   b.className = "bulle " + (sortante ? "sortante" : "entrante");
-  b.innerHTML = contenu + '<span class="heure">' + heure() + "</span>";
-  fil.appendChild(b);
-  fil.scrollTop = fil.scrollHeight;
+  b.innerHTML = html + '<span class="heure">' + heure() + "</span>";
+  fil.appendChild(b); fil.scrollTop = fil.scrollHeight;
+  if (sortante) { dernierSortant = b; } else { dernierEntrant = b; }
   return b;
 }
 function photoHtml(visuel, legende, bandeau) {
   const [cls, emoji] = V[visuel];
   return '<div class="photo ' + cls + (bandeau ? " bandeau" : "") + '"><span>' + emoji + "</span></div>" + gras(legende || "");
 }
-function pause(ms) { return new Promise((r) => setTimeout(r, ms)); }
-
 async function frappe(ms) {
   const f = document.createElement("div");
   f.className = "frappe"; f.innerHTML = "<i></i><i></i><i></i>";
   fil.appendChild(f); fil.scrollTop = fil.scrollHeight;
   await pause(ms); f.remove();
 }
-
-function poserChip(label, photo, surClic) {
+function poserReaction(cible, emoji) {
+  if (!cible) return;
+  cible.classList.add("avec-reaction");
+  const r = document.createElement("span");
+  r.className = "reaction"; r.textContent = emoji;
+  cible.appendChild(r); fil.scrollTop = fil.scrollHeight;
+}
+function citationHtml() {
+  if (!dernierTexteSortant) return "";
+  const court = dernierTexteSortant.replace(/<[^>]+>/g, "").slice(0, 90);
+  return '<div class="citation"><b>Vous</b>' + court + "</div>";
+}
+function poserChip(spec, surClic) {
   const b = document.createElement("button");
   b.type = "button";
-  if (photo) { b.className = "photo-chip"; b.textContent = "📷 " + (label ? "Photo · « " + label + " »" : "Envoyer une photo"); }
-  else b.textContent = label;
+  if (spec.genre === "photo") { b.className = "photo-chip"; b.textContent = "📷 Photo · « " + spec.label + " »"; }
+  else if (spec.genre === "vocal") { b.className = "vocal-chip"; b.textContent = "🎤 Note vocale " + spec.label; }
+  else if (spec.genre === "loc") { b.className = "loc-chip"; b.textContent = "📍 Partager ma position"; }
+  else b.textContent = spec.label;
   b.onclick = () => { chips.innerHTML = ""; surClic(); };
   chips.appendChild(b);
 }
-
-function ouvrirFeuille(l, surChoix) {
-  feuille.innerHTML = "<h3>" + l.bouton + "</h3>" + l.lignes.map((x, i) =>
+function ouvrirFeuilleListe(l, surChoix) {
+  feuille.innerHTML = '<div class="poignee"></div><h3>' + l.bouton + "</h3>" + l.lignes.map((x, i) =>
     '<button type="button" class="ligne" data-i="' + i + '"><span class="rond"></span><div><b>' + x.t + "</b><span>" + (x.d || "") + "</span></div></button>").join("");
   voile.classList.add("ouverte");
   feuille.querySelectorAll(".ligne").forEach((el) => {
     el.onclick = () => { voile.classList.remove("ouverte"); surChoix(l.lignes[Number(el.dataset.i)].t); };
   });
+}
+function ouvrirFlow(f, surFin) {
+  feuille.innerHTML = '<div class="flow-entete"><span>✦ ' + f.titre + "</span><span>✕</span></div>" +
+    '<div class="flow-corps">' + f.champs.map((c) =>
+      "<div><label>" + c.l + "</label>" +
+      (c.etoiles ? '<div class="etoiles">⭐⭐⭐⭐⭐</div>' : '<div class="champ">' + c.v + "</div>") + "</div>").join("") +
+    '</div><div class="flow-pied"><button type="button">' + f.bouton + "</button></div>";
+  voile.classList.add("ouverte");
+  feuille.querySelector(".flow-pied button").onclick = () => { voile.classList.remove("ouverte"); surFin(); };
 }
 
 async function jouer() {
@@ -402,66 +443,103 @@ async function jouer() {
 
     if (e.systeme) { const d = document.createElement("div"); d.className = "systeme"; d.textContent = e.systeme; fil.appendChild(d); curseur++; continue; }
     if (e.note) { const d = document.createElement("div"); d.className = "note"; d.textContent = e.note; fil.appendChild(d); fil.scrollTop = fil.scrollHeight; curseur++; continue; }
+    if (e.reaction) { await pause(350); poserReaction(e.surDernierSortant === false ? dernierEntrant : dernierSortant, e.reaction); curseur++; continue; }
+    if (e.out) { bulle(gras(e.out), true); dernierTexteSortant = e.out; curseur++; continue; }
     if (e.fin) {
       const d = document.createElement("div"); d.className = "fin-chapitre";
       const suivant = chapitre + 1 < CHAPITRES.length;
       d.innerHTML = "<div class='systeme' style='margin-bottom:8px'>" + e.fin + "</div>" +
-        (suivant ? '<button type="button">Chapitre suivant →</button>' : '<button type="button">↻ Tout rejouer</button>');
+        '<button type="button">' + (suivant ? "Chapitre suivant →" : "↻ Tout rejouer") + "</button>";
       d.querySelector("button").onclick = () => charger(suivant ? chapitre + 1 : 0);
       fil.appendChild(d); fil.scrollTop = fil.scrollHeight;
       indice.textContent = "Chapitre terminé";
       curseur++; occupe = false; return;
     }
-    if (e.chip) {
-      indice.textContent = "Appuyez sur la pastille pour envoyer";
-      poserChip(e.chip, false, () => { bulleHtml(e.chip, true); curseur++; occupe = false; jouer(); });
+    if (e.chip || e.chipPhoto || e.chipVocal) {
+      indice.textContent = "Appuyez sur la pastille";
+      if (e.chip) poserChip({ label: e.chip }, () => { bulle(gras(e.chip), true); dernierTexteSortant = e.chip; curseur++; occupe = false; jouer(); });
+      if (e.chipPhoto) poserChip({ genre: "photo", label: e.chipPhoto.legende }, () => {
+        bulle(photoHtml(e.chipPhoto.visuel, e.chipPhoto.legende), true);
+        dernierTexteSortant = e.chipPhoto.legende; curseur++; occupe = false; jouer();
+      });
+      if (e.chipVocal) poserChip({ genre: "vocal", label: e.chipVocal }, () => {
+        bulle('<div class="vocal"><span class="lecture">▶</span><span class="onde"></span><small>0:06</small></div>', true);
+        dernierTexteSortant = e.chipVocal; curseur++; occupe = false; jouer();
+      });
+      occupe = false; return;
+    }
+    if (e.flow) {
+      indice.textContent = "Remplissez le Flow";
+      ouvrirFlow(e.flow, () => { curseur++; occupe = false; jouer(); });
       occupe = false; return;
     }
 
     if (e.in) {
       const m = e.in;
-      /* pastilles alternatives AVANT le message qui attend (répondre en tapant plutôt qu'au bouton) */
-      await frappe(650);
+      await frappe(620);
+      if (m.localisation) {
+        bulle('<div class="carte-localisation"><div class="plan"></div><div class="adresse">' + m.localisation + "</div></div>", e.sortant === true);
+        curseur++; continue;
+      }
       let html = "";
+      if (m.citer) html += citationHtml();
       if (m.entete) html += photoHtml(m.entete, "", true);
       if (m.image !== undefined) html += photoHtml(m.image, m.legende || "");
+      if (m.contact) html += '<div class="contact-carte"><span class="cc-avatar">👩🏾</span><div><b>' + m.contact.nom + "</b><span>" + m.contact.detail + "</span></div></div>";
       if (m.carte) {
         const c = m.carte;
         html += '<div class="carte-vitrine"><div class="haut"><b>' + c.nom + "</b><span>" + c.ville + ' · Boutique vérifiée Catalog</span></div><div class="produits">' +
           c.produits.map((p) => '<i class="' + V[p][0] + '">' + V[p][1] + "</i>").join("") +
           '</div><div class="bas"><div class="qr"></div><small>catalog.wa/chez-bea<br/>Commandez sur WhatsApp — reçu vérifiable</small></div></div>';
       }
-      if (m.corps) html += gras(m.corps);
-      if (m.liste) {
-        const bloc = bulleHtml(gras(m.liste.corps || "") + '<div class="boutons-rep"><button type="button">▤ ' + m.liste.bouton + "</button></div>", false);
-        indice.textContent = "Ouvrez la liste";
-        const bt = bloc.querySelector("button");
-        bt.onclick = () => ouvrirFeuille(m.liste, (choix) => {
-          bt.disabled = true; bulleHtml(choix, true); curseur++; occupe = false; jouer();
+      if (m.recu) {
+        const r = m.recu;
+        html += '<div class="recu-carte"><div class="rc-haut"><b>🧾 Reçu Catalog <span class="coche-verte">✔</span></b><span>' + r.boutique + " · paiement prouvé</span></div>" +
+          '<div class="rc-corps">Commande ' + r.ref + "<br/><b>" + r.montant + "</b> · Orange Money<br/>Transaction : " + r.tx + "</div>" +
+          '<div class="rc-bas"><div class="qr"></div><small>Scannez pour vérifier —<br/>catalog.cm/v/ · infalsifiable</small></div></div>';
+      }
+      if (m.carrousel) {
+        const bloc = bulle((m.titreAvant ? gras(m.titreAvant) : "") + '<div class="carrousel">' + m.carrousel.map((c, i) =>
+          '<div class="carte-p"><div class="cp-img ' + V[c.v][0] + '">' + V[c.v][1] + '</div><div class="cp-corps"><b>' + c.nom + "</b>" + c.prix + '</div><button type="button" data-i="' + i + '">' + c.b + "</button></div>").join("") + "</div>", false);
+        indice.textContent = "Glissez le carrousel, choisissez une carte";
+        bloc.querySelectorAll(".carte-p button").forEach((bt) => {
+          bt.onclick = () => {
+            bloc.querySelectorAll("button").forEach((x) => { x.disabled = true; });
+            bulle(m.carrousel[Number(bt.dataset.i)].nom, true);
+            dernierTexteSortant = m.carrousel[Number(bt.dataset.i)].nom;
+            curseur++; occupe = false; jouer();
+          };
         });
         occupe = false; return;
       }
-      const bloc = bulleHtml(html + (m.boutons ? '<div class="boutons-rep">' + m.boutons.map((b) => '<button type="button">' + b.t + "</button>").join("") + "</div>" : ""), false);
+      if (m.liste) {
+        const bloc = bulle(gras(m.liste.corps || "") + '<div class="boutons-rep"><button type="button">▤ ' + m.liste.bouton + "</button></div>", false);
+        indice.textContent = "Ouvrez la liste";
+        const bt = bloc.querySelector("button");
+        bt.onclick = () => ouvrirFeuilleListe(m.liste, (choix) => {
+          bt.disabled = true; bulle(choix, true); dernierTexteSortant = choix; curseur++; occupe = false; jouer();
+        });
+        occupe = false; return;
+      }
+      if (m.corps) html += gras(m.corps);
+      const bloc = bulle(html + (m.boutons ? '<div class="boutons-rep">' + m.boutons.map((b, i) =>
+        '<button type="button"' + (m.attendreBoutonIndex !== undefined && i !== m.attendreBoutonIndex ? " disabled" : "") +
+        ' class="' + (b.cta ? "cta" : "") + (b.loc ? "loc" : "") + '">' + b.t + "</button>").join("") + "</div>" : ""), false);
 
       if (m.boutons) {
-        indice.textContent = "Répondez avec un bouton" + (e.chipAvant || e.chipPhotoAvant ? " — ou la pastille" : "");
+        const chipLoc = e.chipLocAvant === true;
+        indice.textContent = chipLoc ? "Bouton — ou la pastille position" : "Répondez avec un bouton";
         const btns = bloc.querySelectorAll(".boutons-rep button");
         const avance = (texteSortant) => {
           btns.forEach((x) => { x.disabled = true; });
           chips.innerHTML = "";
-          if (texteSortant) bulleHtml(texteSortant, true);
+          if (texteSortant) { bulle(gras(texteSortant), true); dernierTexteSortant = texteSortant; }
           curseur++; occupe = false; jouer();
         };
-        const idx = m.attendreBoutonIndex ?? 0;
-        btns.forEach((bt, i) => {
-          bt.onclick = () => avance(i === idx || m.attendBouton === undefined ? bt.textContent : bt.textContent);
+        btns.forEach((bt) => {
+          bt.onclick = () => avance(bt.classList.contains("cta") || bt.classList.contains("loc") ? null : bt.textContent);
         });
-        if (e.chipAvant) poserChip(e.chipAvant, false, () => avance(e.chipAvant));
-        if (e.chipPhotoAvant) poserChip(e.chipPhotoAvant.legende, true, () => {
-          btns.forEach((x) => { x.disabled = true; });
-          bulleHtml(photoHtml(e.chipPhotoAvant.visuel, e.chipPhotoAvant.legende), true);
-          curseur++; occupe = false; jouer();
-        });
+        if (chipLoc) poserChip({ genre: "loc" }, () => avance(null));
         occupe = false; return;
       }
       curseur++; continue;
@@ -472,23 +550,19 @@ async function jouer() {
 }
 
 function charger(i) {
-  chapitre = i; curseur = 0; occupe = false;
+  chapitre = i; curseur = 0; occupe = false; dernierSortant = null; dernierEntrant = null; dernierTexteSortant = "";
   fil.innerHTML = ""; chips.innerHTML = "";
   porteur.textContent = CHAPITRES[i].porteur;
   indice.textContent = "Suivez le scénario…";
-  document.querySelectorAll("#chapitres button").forEach((b, j) => {
-    b.classList.toggle("actif", j === i);
-  });
+  document.querySelectorAll("#chapitres button").forEach((b, j) => { b.classList.toggle("actif", j === i); });
   jouer();
 }
-
-const barreChapitres = document.getElementById("chapitres");
+const barre = document.getElementById("chapitres");
 CHAPITRES.forEach((c, i) => {
   const b = document.createElement("button");
-  b.type = "button";
-  b.textContent = c.titre;
+  b.type = "button"; b.textContent = c.titre;
   b.onclick = () => charger(i);
-  barreChapitres.appendChild(b);
+  barre.appendChild(b);
 });
 document.getElementById("basc-notes").onchange = (ev) => document.body.classList.toggle("sans-notes", !ev.target.checked);
 document.getElementById("rejouer").onclick = () => charger(chapitre);
