@@ -35,7 +35,12 @@ test.describe("catalogue vendeuse", () => {
     const grosse = pngDeBruit(1000, 800, graine);
     expect(grosse.length).toBeGreaterThan(2_000_000);
 
-    await page.getByRole("link", { name: "Gerer mes articles" }).click();
+    // Depuis la refonte (ADR 0030), le catalogue s'ouvre par la barre de
+    // navigation inferieure, plus par une carte-menu du tableau de bord.
+    await page
+      .getByRole("navigation", { name: "Navigation principale" })
+      .getByRole("link", { name: "Articles" })
+      .click();
     await page.getByRole("link", { name: "Ajouter mon premier article" }).click();
 
     await page

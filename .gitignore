@@ -22,4 +22,14 @@ apps/api/coverage/
 # Artefact de construction, produit dans dist/ par scripts/entetes.mjs.
 # Il dependait de PUBLIC_API_BASE et du catalogue seme : le versionner rendait
 # la garde CI impossible a satisfaire. Voir le commentaire du script.
+# NB : `apps/seller/public/vercel.json` est l'inverse — un fichier SOURCE,
+# versionne : son contenu ne depend d'aucun artefact de build.
 apps/shop/vercel.json
+
+# Liaison locale du CLI Vercel (identifiants de projet) — jamais versionnee.
+.vercel/
+
+# Copie temporaire du CA du proxy sandbox, posee dans le contexte de build le
+# temps d'un `docker build` local (runbook deploiement, « bâtisseur refusé »).
+# La chaine de deploiement la supprime elle-meme ; elle ne se committe jamais.
+.ca-proxy-local.crt

@@ -40,6 +40,27 @@ export default defineConfig({
         display: "standalone",
         background_color: "#f4f6f5",
         theme_color: "#0e7a5f",
+        // Les `maskable` sont a part : Android decoupe l'icone dans un cercle
+        // ou un carre arrondi selon le lanceur, et le motif vit dans la zone
+        // sure de 80 %. Une seule icone `any` etiree en maskable perdrait ses
+        // coins — c'est l'installation PWA qui fait de l'app « une vraie
+        // app » sur le telephone d'une vendeuse.
+        icons: [
+          { src: "/icones/icone-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icones/icone-512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "/icones/maskable-192.png",
+            sizes: "192x192",
+            type: "image/png",
+            purpose: "maskable",
+          },
+          {
+            src: "/icones/maskable-512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
+        ],
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],

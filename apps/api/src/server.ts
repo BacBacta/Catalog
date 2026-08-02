@@ -6,12 +6,16 @@ import { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
 import { resolveChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
+import { EnvoyeurWhatsappBot } from "./adapters/whatsapp-bot.ts";
 import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
+import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
+import { traiterLivraisonBot } from "./bot.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
 import { reglesDepuisEnv } from "./domain/securite/debit.ts";
+import { type ChargeRelance, demarrerJobsBot } from "./jobs/relance-acompte.ts";
 import { gardeDeCohorte } from "./middleware/cohorte.ts";
 import { limiterDebit, MemoireDeDebit } from "./middleware/debit.ts";
 import { monterAvecGardes, TAILLE_JSON_MAX } from "./middleware/securite.ts";
@@ -29,6 +33,7 @@ import { recuRoutes, suiviRoutes } from "./routes/recu.ts";
 import { sellerRoutes } from "./routes/seller.ts";
 import { statsRoutes } from "./routes/stats.ts";
 import { statutRoutes } from "./routes/statut.ts";
+import { whatsappEntrantRoutes } from "./routes/whatsapp-entrant.ts";
 
 /**
  * Point d'entree. C'est ici que les dependances concretes sont branchees :
@@ -39,7 +44,15 @@ const sms = smsSenderDepuisEnv();
 const otpStore = new PrismaOtpAttemptStore(prisma);
 const storage = resolveStorage();
 const limits = limitesDepuisEnv(process.env);
-const auth = createAuth({ prisma, sms });
+const auth = createAuth({
+  prisma,
+  sms,
+  wabaNumero: process.env.WHATSAPP_WABA_NUMERO?.trim(),
+  passkeyRpId: process.env.PASSKEY_RP_ID?.trim(),
+  passkeyOrigin: process.env.PASSKEY_ORIGIN?.trim(),
+  googleClientId: process.env.GOOGLE_CLIENT_ID?.trim(),
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET?.trim(),
+});
 const session = {
   prisma,
   session: (req: Request) => auth.api.getSession({ headers: req.headers }),
@@ -112,6 +125,72 @@ app.route(
  */
 const secretAccuse = process.env.SMS_ACCUSE_SECRET?.trim();
 if (secretAccuse) app.route("/api/sms", accuseLivraisonRoutes({ secret: secretAccuse }));
+
+/**
+ * Le webhook WhatsApp entrant (ADR 0027) — meme refus par defaut que l'accuse :
+ * il faut LES DEUX secrets, celui du chemin et celui de la signature Meta.
+ * L'un sans l'autre serait une porte a moitie fermee, donc pas de route.
+ */
+const secretEntrant = process.env.WHATSAPP_ENTRANT_SECRET?.trim();
+const secretAppMeta = process.env.WHATSAPP_APP_SECRET?.trim();
+if (secretEntrant && secretAppMeta) {
+  /**
+   * Le bot (ADR 0031), EN DORMANCE sans sa cle : les defis de connexion
+   * continuent seuls. Avec la cle et la base, chaque livraison passe aussi
+   * par lui — il saute les defis et ignore ce qu'il ne comprend pas.
+   */
+  const cleBot = process.env.WABOT_API_KEY?.trim();
+  const baseBot = process.env.WABOT_BASE_URL?.trim();
+  const bot =
+    cleBot && baseBot
+      ? {
+          envoyeur: new EnvoyeurWhatsappBot({ apiKey: cleBot, baseUrl: baseBot }),
+          baseBoutique: process.env.BASE_BOUTIQUE_PUBLIQUE?.trim() ?? "",
+          baseApp: process.env.BASE_APP_VENDEUSE?.trim() ?? "",
+          storage,
+        }
+      : null;
+
+  /**
+   * La relance d'acompte (ADR 0033) — premiere utilisation reelle de pg-boss.
+   * Elle ne demarre QU'AVEC le bot : sans lui, personne ne cree de commande
+   * par WhatsApp, donc rien a relancer. Et si la file ne demarre pas, le bot
+   * vit sans relance plutot que de ne pas vivre du tout.
+   */
+  if (bot && process.env.DATABASE_URL) {
+    demarrerJobsBot({
+      connexion: process.env.DATABASE_URL,
+      prisma,
+      envoyeur: bot.envoyeur,
+    })
+      .then((jobs) => {
+        (bot as { planifierRelance?: (c: ChargeRelance) => Promise<void> }).planifierRelance =
+          jobs.planifierRelance;
+      })
+      .catch(() => console.warn("jobs bot : demarrage refuse — le bot continue sans relance"));
+  }
+
+  app.route(
+    "/api/whatsapp",
+    whatsappEntrantRoutes({
+      secret: secretEntrant,
+      appSecret: secretAppMeta,
+      authEnTete: process.env.WABOT_WEBHOOK_AUTH?.trim() || undefined,
+      surMessage: async (message) => {
+        const contexte = await auth.$context;
+        await appliquerMessageEntrant(contexte.internalAdapter as unknown as MagasinDefis, {
+          ...message,
+          maintenant: new Date(),
+        });
+      },
+      ...(bot
+        ? {
+            surLivraison: (corps: unknown) => traiterLivraisonBot({ prisma, ...bot }, corps),
+          }
+        : {}),
+    }),
+  );
+}
 
 // Uniquement quand le fournisseur factice est actif — donc jamais en production,
 // ou `ConsoleSmsSender` refuse de se construire.

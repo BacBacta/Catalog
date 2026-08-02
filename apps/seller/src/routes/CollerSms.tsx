@@ -239,11 +239,7 @@ function Ecrans() {
     <Ecran
       titre={titre}
       surtitre={`Commande ${commande.ref}`}
-      actions={
-        <Button tone="ghost" render={<Link to="/" />}>
-          Retour
-        </Button>
-      }
+      retour={{ vers: "/commandes", libelle: "Mes commandes" }}
     >
       <Card>
         <CardTitle>Ce qui est attendu</CardTitle>
@@ -280,7 +276,7 @@ function Ecrans() {
             {erreur}
           </p>
 
-          <Button type="submit" size="lg" disabled={envoi}>
+          <Button type="submit" size="lg" loading={envoi}>
             {envoi ? "Vérification…" : "Vérifier ce paiement"}
           </Button>
         </form>

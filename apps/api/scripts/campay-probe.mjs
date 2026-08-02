@@ -42,7 +42,7 @@ function show(o) {
     C.d +
       JSON.stringify(o, null, 2)
         .split("\n")
-        .map((l) => "  " + l)
+        .map((l) => `  ${l}`)
         .join("\n") +
       C.x,
   );
@@ -147,8 +147,8 @@ show(bal.json);
 log(
   `  → le solde est-il ventilé par opérateur ? ${
     bal.json && ("mtn_balance" in bal.json || "orange_balance" in bal.json)
-      ? C.g + "oui"
-      : C.y + "non"
+      ? `${C.g}oui`
+      : `${C.y}non`
   }${C.x}`,
 );
 
@@ -187,7 +187,7 @@ if (!msisdn) {
   show(col.json);
   const ref = col.json?.reference;
   log(
-    `  → ussd_code renvoyé ? ${col.json?.ussd_code ? C.g + col.json.ussd_code : C.y + "non"}${C.x}`,
+    `  → ussd_code renvoyé ? ${col.json?.ussd_code ? C.g + col.json.ussd_code : `${C.y}non`}${C.x}`,
   );
 
   if (ref) {

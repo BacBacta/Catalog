@@ -1,0 +1,359 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette — Connexion par passkey (empreinte)</title>
+<style>
+  :root {
+    --brand-50:#e6f4f0; --brand-100:#cfe9e1; --brand-500:#0e7a5f; --brand-700:#0a5c48;
+    --surface:#ffffff; --surface-2:#f4f7f6; --ink:#14201c; --ink-2:#5a6b65;
+    --danger:#c93636; --danger-soft:#fdecec; --wa:#075e54;
+    --radius-card:14px; --radius-field:12px; --radius-pill:999px;
+    --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --brand-50:#123c31; --brand-100:#16483b; --surface:#1a1a19; --surface-2:#232322;
+            --ink:#ffffff; --ink-2:#c3c2b7; --danger-soft:#3a1f1f; }
+    .tel { box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: var(--font); background: var(--surface-2); color: var(--ink); padding: 24px 16px 64px; }
+  .page { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin-bottom: 4px; }
+  .sous { color: var(--ink-2); margin-bottom: 20px; font-size: .95rem; }
+  .colonnes { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; justify-content: center; }
+
+  .tel { width: 340px; border-radius: 34px; background: var(--surface); border: 6px solid #14201c;
+         box-shadow: 0 12px 40px rgba(20,32,28,.18); overflow: hidden; flex-shrink: 0; position: relative; }
+  .tel-encoche { height: 22px; background: #14201c; }
+  .ecran { min-height: 600px; display: flex; flex-direction: column; }
+  .app-entete { padding: 18px 20px 6px; display:flex; justify-content:space-between; align-items:center; }
+  .marque { font-weight: 700; color: var(--brand-500); font-size: 1.05rem; }
+  .app-corps { padding: 10px 20px 24px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+  h2 { font-size: 1.15rem; }
+  .note { color: var(--ink-2); font-size: .88rem; line-height: 1.5; }
+  .btn { font: inherit; font-weight: 600; padding: 14px 16px; min-height: 48px; width: 100%;
+         border-radius: var(--radius-field); border: none; cursor: pointer;
+         background: var(--brand-500); color: #fff; display:flex; gap:10px; align-items:center; justify-content:center; }
+  .btn:focus-visible, button:focus-visible { outline: 3px solid var(--brand-500); outline-offset: 2px; }
+  .btn-contour { background: transparent; color: var(--brand-500); border: 1.5px solid var(--brand-500); }
+  .btn-discret { background: transparent; color: var(--ink-2); border: none; min-height:44px; }
+  .btn-wa { background: var(--wa); }
+  .separateur { display: flex; align-items: center; gap: 10px; color: var(--ink-2); font-size: .8rem; }
+  .separateur::before, .separateur::after { content: ""; flex: 1; height: 1px; background: var(--brand-100); }
+  .pastille { background: var(--brand-50); color: var(--brand-700); border-radius: var(--radius-card);
+              padding: 12px 14px; font-size: .85rem; line-height: 1.5; }
+  @media (prefers-color-scheme: dark) { .pastille { color: var(--brand-100); } }
+  .avert { background: var(--danger-soft); color: var(--danger); border-radius: var(--radius-card);
+           padding: 12px 14px; font-size: .86rem; line-height: 1.5; }
+  .centre { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+            gap:16px; padding:24px; text-align:center; }
+  .coche { width: 54px; height: 54px; border-radius: 50%; background: var(--brand-500);
+           display: grid; place-items: center; color: #fff; font-size: 1.6rem; }
+
+  /* la feuille biometrique Android */
+  .voile { position:absolute; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-end;
+           opacity:0; pointer-events:none; transition: opacity .25s ease; }
+  .voile.montre { opacity:1; pointer-events:auto; }
+  @media (prefers-reduced-motion: reduce) { .voile, .feuille, .voile.montre .feuille { transition:none; } }
+  .feuille { background: var(--surface); width:100%; border-radius: 22px 22px 0 0; padding: 22px 20px 26px;
+             display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center;
+             transform: translateY(12px); transition: transform .25s ease; }
+  .voile.montre .feuille { transform: translateY(0); }
+  .empreinte { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--brand-500);
+               display:grid; place-items:center; color: var(--brand-500); }
+  .empreinte.valide { background: var(--brand-500); color:#fff; }
+  .feuille small { color: var(--ink-2); }
+
+  /* liste des cles (reglages) */
+  .cle { display:flex; gap:12px; align-items:center; border:1.5px solid var(--brand-100);
+         border-radius: var(--radius-card); padding: 12px 14px; }
+  .cle .ic { width:38px; height:38px; border-radius:50%; background:var(--brand-50); color:var(--brand-700);
+             display:grid; place-items:center; flex-shrink:0; }
+  .cle .infos { flex:1; min-width:0; }
+  .cle .infos strong { font-size:.92rem; display:block; }
+  .cle .infos span { font-size:.78rem; color:var(--ink-2); }
+  .cle .actuel { font-size:.7rem; background:var(--brand-50); color:var(--brand-700);
+                 border-radius:var(--radius-pill); padding:3px 8px; }
+  .cle button { background:none; border:none; color:var(--danger); font:inherit; font-size:.82rem;
+                cursor:pointer; min-height:44px; }
+
+  /* panneau */
+  .panneau { flex: 1 1 400px; min-width: 320px; max-width: 560px; display: flex; flex-direction: column; gap: 16px; }
+  .etapes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .etape-btn { font: inherit; font-size: .84rem; padding: 9px 13px; min-height: 44px; border-radius: var(--radius-pill);
+               border: 1.5px solid var(--brand-100); background: var(--surface); color: var(--ink); cursor: pointer; }
+  .etape-btn[aria-current="step"] { background: var(--brand-500); border-color: var(--brand-500); color: #fff; }
+  .carte { background: var(--surface); border-radius: var(--radius-card); padding: 18px;
+           box-shadow: 0 2px 10px rgba(20,32,28,.07); }
+  .carte h3 { font-size: .95rem; margin-bottom: 8px; }
+  .carte p, .carte li { font-size: .88rem; color: var(--ink-2); line-height: 1.55; }
+  .carte ul { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+  .journal { font-family: var(--mono); font-size: .76rem; line-height: 1.6; background: #14201c; color: #d7e4df;
+             border-radius: var(--radius-card); padding: 16px; overflow-x: auto; min-height: 170px; }
+  .journal .l { display:block; white-space: pre; }
+  .journal .sortant { color:#7cc2b0; } .journal .os { color:#ffd479; } .journal .ok { color:#8be08b; }
+  .journal .att { color:#8a9a94; }
+  .variantes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .variantes button { font: inherit; font-size: .8rem; padding: 8px 12px; min-height: 44px; border-radius: var(--radius-pill);
+                      border: 1.5px dashed var(--ink-2); background: transparent; color: var(--ink-2); cursor: pointer; }
+</style>
+
+<div class="page">
+  <h1>Connexion par passkey — maquette</h1>
+  <p class="sous">Après une première preuve du numéro, le téléphone devient la clé :
+     <strong>empreinte ou schéma, plus aucun code, plus aucun réseau opérateur.</strong>
+     L'OTP ne sert plus qu'aux nouveaux appareils. Cliquez les étapes.</p>
+
+  <div class="colonnes">
+    <section class="tel" aria-label="Simulation du téléphone de la vendeuse">
+      <div class="tel-encoche"></div>
+
+      <!-- 1. proposition d'enrolement, apres connexion -->
+      <div class="ecran" id="e1">
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="app-corps">
+          <h2>Bonjour&nbsp;!</h2>
+          <p class="note">Vous êtes connectée. Une proposition, une seule fois&nbsp;:</p>
+          <div class="pastille">
+            <strong>Se reconnecter sans code&nbsp;?</strong><br>
+            La prochaine fois, votre empreinte ou votre schéma suffira. Plus besoin
+            d'attendre un SMS — même sans crédit, même sans réseau opérateur.
+          </div>
+          <button type="button" class="btn" onclick="feuille(3)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 11c0 3-1 5-2.5 7M15.5 9.5a4 4 0 0 0-7 2.7c0 2.3-.6 4-1.7 5.6M18 8a7.5 7.5 0 0 0-13 3.2c0 1.7-.3 3.2-.9 4.5M20.5 12c0-1-.1-2-.4-2.9"/></svg>
+            Activer — deux secondes
+          </button>
+          <button type="button" class="btn-discret" onclick="aller(4)">Plus tard</button>
+        </div>
+      </div>
+
+      <!-- 3. confirmation -->
+      <div class="ecran" id="e3" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="centre">
+          <div class="coche" aria-hidden="true">✓</div>
+          <h2>C'est activé</h2>
+          <p class="note">Votre clé est enregistrée <strong>et sauvegardée avec votre compte
+             Google</strong> : si vous changez de téléphone, elle vous suit.</p>
+          <div class="pastille" style="text-align:left">Gérez vos appareils connectés dans
+             <strong>Réglages&nbsp;› Sécurité</strong>. Le numéro de reversement, lui, reste
+             protégé par son propre code — l'empreinte ne suffit pas à le changer.</div>
+          <button type="button" class="btn" onclick="aller(4)">Continuer</button>
+        </div>
+      </div>
+
+      <!-- 4. ecran de connexion, version passkey-first -->
+      <div class="ecran" id="e4" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="app-corps">
+          <h2>Connexion</h2>
+          <button type="button" class="btn" onclick="feuille(5)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 11c0 3-1 5-2.5 7M15.5 9.5a4 4 0 0 0-7 2.7c0 2.3-.6 4-1.7 5.6M18 8a7.5 7.5 0 0 0-13 3.2c0 1.7-.3 3.2-.9 4.5M20.5 12c0-1-.1-2-.4-2.9"/></svg>
+            Se connecter avec l'empreinte
+          </button>
+          <p class="note" style="text-align:center">Ce téléphone est reconnu.</p>
+          <div class="separateur">ou</div>
+          <button type="button" class="btn btn-wa" onclick="hors()">Continuer avec WhatsApp</button>
+          <button type="button" class="btn-contour btn" onclick="hors()">Recevoir un code par SMS</button>
+        </div>
+      </div>
+
+      <!-- 5. connectee -->
+      <div class="ecran" id="e5" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="centre">
+          <div class="coche" aria-hidden="true">✓</div>
+          <h2>Bonjour&nbsp;!</h2>
+          <p class="note">Connectée en une seconde — sans SMS, sans code, sans réseau
+             opérateur. <strong>Ça marche aussi quand le crédit est à zéro.</strong></p>
+          <button type="button" class="btn" onclick="aller(6)">Voir Réglages › Sécurité</button>
+        </div>
+      </div>
+
+      <!-- 6. reglages : appareils connectes -->
+      <div class="ecran" id="e6" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="app-corps">
+          <h2>Appareils connectés</h2>
+          <p class="note">Chaque appareil a sa propre clé. En retirer un le déconnecte
+             définitivement.</p>
+          <div class="cle">
+            <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></div>
+            <div class="infos"><strong>Tecno Spark 20</strong><span>ajoutée le 01/08/2026 · sauvegardée Google</span></div>
+            <span class="actuel">cet appareil</span>
+          </div>
+          <div class="cle">
+            <div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></div>
+            <div class="infos"><strong>Itel A70 — boutique</strong><span>ajoutée le 03/08/2026</span></div>
+            <button type="button" onclick="this.closest('.cle').remove()">Retirer</button>
+          </div>
+          <div class="pastille">Téléphone perdu&nbsp;? Connectez-vous par SMS ou WhatsApp depuis
+             le nouveau, puis retirez l'ancien ici.</div>
+          <button type="button" class="btn-contour btn" onclick="aller(1)">Rejouer la maquette</button>
+        </div>
+      </div>
+
+      <!-- variante : pas de verrouillage d'ecran -->
+      <div class="ecran" id="eVer" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="app-corps">
+          <h2>Un réglage d'abord</h2>
+          <div class="avert">Votre téléphone n'a pas de verrouillage d'écran (empreinte,
+             schéma ou code). C'est lui qui protège votre clé — sans lui, on ne peut pas
+             l'activer.</div>
+          <p class="note">Réglages du téléphone › Sécurité › Verrouillage de l'écran, puis
+             revenez ici. En attendant, le code SMS et WhatsApp continuent de marcher.</p>
+          <button type="button" class="btn-contour btn" onclick="aller(4)">Continuer sans activer</button>
+        </div>
+      </div>
+
+      <!-- variante : nouveau telephone -->
+      <div class="ecran" id="eNouv" hidden>
+        <div class="app-entete"><span class="marque">Catalog</span></div>
+        <div class="app-corps">
+          <h2>Nouveau téléphone&nbsp;?</h2>
+          <div class="pastille">Si votre compte Google a été restauré sur cet appareil,
+             <strong>votre clé Catalog est déjà là</strong> — appuyez sur « Se connecter avec
+             l'empreinte », c'est tout.</div>
+          <p class="note">Sinon : une connexion par SMS ou WhatsApp, et cet appareil pourra
+             enregistrer sa propre clé.</p>
+          <button type="button" class="btn" onclick="feuille(5)">Se connecter avec l'empreinte</button>
+          <button type="button" class="btn-contour btn" onclick="aller(4)">Retour</button>
+        </div>
+      </div>
+
+      <!-- feuille biometrique -->
+      <div class="voile" id="voile" aria-hidden="true">
+        <div class="feuille">
+          <div class="empreinte" id="emp">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 11c0 3-1 5-2.5 7M15.5 9.5a4 4 0 0 0-7 2.7c0 2.3-.6 4-1.7 5.6M18 8a7.5 7.5 0 0 0-13 3.2c0 1.7-.3 3.2-.9 4.5M20.5 12c0-1-.1-2-.4-2.9"/></svg>
+          </div>
+          <strong>Catalog</strong>
+          <small id="feuille-texte">Touchez le capteur d'empreinte</small>
+          <button type="button" class="btn-discret" onclick="annulerFeuille()">Annuler</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- panneau -->
+    <div class="panneau">
+      <nav class="etapes" aria-label="Étapes de la maquette">
+        <button type="button" class="etape-btn" id="b1" aria-current="step" onclick="aller(1)">1 · Proposition</button>
+        <button type="button" class="etape-btn" id="b3" onclick="feuille(3)">2 · Empreinte</button>
+        <button type="button" class="etape-btn" id="b4" onclick="aller(4)">3 · Connexion</button>
+        <button type="button" class="etape-btn" id="b5" onclick="feuille(5)">4 · Connectée</button>
+        <button type="button" class="etape-btn" id="b6" onclick="aller(6)">5 · Appareils</button>
+      </nav>
+      <div class="variantes">
+        <button type="button" onclick="montrer('eVer')">Voir&nbsp;: pas de verrouillage</button>
+        <button type="button" onclick="montrer('eNouv')">Voir&nbsp;: nouveau téléphone</button>
+      </div>
+
+      <div class="carte">
+        <h3>Les coulisses — ce que WebAuthn échange</h3>
+        <div class="journal" id="journal" aria-live="polite"></div>
+        <p style="font-size:.78rem;color:var(--ink-2);margin-top:8px">
+          <span style="color:#0e7a5f">▸ app → API</span> ·
+          <span style="color:#b8860b">◂ système Android</span></p>
+      </div>
+
+      <div class="carte">
+        <h3>Ce que cette maquette affirme</h3>
+        <ul>
+          <li><strong>Zéro dépendance opérateur à la connexion.</strong> Ni SMS, ni WhatsApp,
+              ni crédit : la clé vit dans le téléphone, la vérification est locale puis
+              cryptographique.</li>
+          <li><strong>Résiste au SIM swap</strong> — voler le numéro ne vole pas la clé — et
+              au hameçonnage : la clé ne répond qu'au domaine <code>catalog.cm</code>,
+              jamais à un site imitateur.</li>
+          <li>La clé est <strong>sauvegardée avec le compte Google</strong> : changer de
+              téléphone ne la perd pas. Le repli SMS/WhatsApp reste à l'écran pour tous les
+              autres cas.</li>
+          <li>Le <strong>numéro de reversement</strong> garde son propre code : l'empreinte
+              connecte, elle ne suffit pas au geste le plus sensible.</li>
+          <li>Deux préconditions avant de construire&nbsp;: le domaine final
+              (<code>rpID</code> y est épinglé) et un canal OTP vivant comme filet.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ecrans = ["e1","e3","e4","e5","e6","eVer","eNouv"];
+  const J = document.getElementById("journal");
+  let apres = null;
+
+  function log(t, c) { const l = document.createElement("span"); l.className = "l " + (c||"");
+    l.textContent = t; J.appendChild(l); J.scrollTop = J.scrollHeight; }
+  function reset() { J.innerHTML = ""; }
+
+  function montrer(id) {
+    for (const e of ecrans) document.getElementById(e).hidden = (e !== id);
+    for (const b of ["b1","b3","b4","b5","b6"]) {
+      const el = document.getElementById(b);
+      if (el) { if (b === "b"+id.slice(1) && id.startsWith("e")) el.setAttribute("aria-current","step");
+                else el.removeAttribute("aria-current"); }
+    }
+  }
+
+  function aller(n) {
+    montrer("e"+n);
+    if (n === 1) { reset(); log("── session ouverte ; aucune passkey sur ce compte ──","att"); }
+    if (n === 4) { reset();
+      log("▸ passkey connue localement : oui (indice navigateur)","sortant");
+      log("── bouton empreinte affiché en premier ──","att"); }
+    if (n === 6) {
+      log("▸ GET /api/auth/passkey/list-user-passkeys","sortant");
+      log("  ← [Tecno Spark 20 (backedUp:true), Itel A70]","sortant"); }
+  }
+
+  function feuille(destination) {
+    const enrole = destination === 3;
+    if (enrole) { reset();
+      log("▸ POST /passkey/generate-register-options","sortant");
+      log('  ← défi + rp: { id: "catalog.cm", name: "Catalog" }',"sortant");
+      log("◂ navigator.credentials.create(…)","os");
+      log("◂ Android : feuille biométrique","os");
+    } else { reset();
+      log("▸ POST /passkey/generate-authenticate-options","sortant");
+      log("  ← défi (usage unique, 60 s)","sortant");
+      log("◂ navigator.credentials.get(…)","os");
+      log("◂ Android : feuille biométrique","os");
+    }
+    apres = destination;
+    document.getElementById("feuille-texte").textContent = "Touchez le capteur d'empreinte";
+    document.getElementById("emp").classList.remove("valide");
+    document.getElementById("voile").classList.add("montre");
+    setTimeout(() => {
+      document.getElementById("emp").classList.add("valide");
+      document.getElementById("feuille-texte").textContent = "Empreinte reconnue";
+      setTimeout(() => {
+        document.getElementById("voile").classList.remove("montre");
+        if (apres === 3) {
+          log("▸ POST /passkey/verify-registration (attestation)","sortant");
+          log("  ← passkey enregistrée · credentialID Qm3… · backedUp: true","ok");
+          aller(3);
+        } else {
+          log("▸ POST /passkey/verify-authentication (assertion signée)","sortant");
+          log("  ← signature valide · compteur avancé · session créée","ok");
+          aller(5);
+        }
+      }, 700);
+    }, 1300);
+  }
+
+  function annulerFeuille() {
+    document.getElementById("voile").classList.remove("montre");
+    log("◂ geste annulé par la vendeuse","os");
+    log("── repli : les boutons WhatsApp et SMS restent là ──","att");
+    aller(4);
+  }
+
+  function hors() {
+    log("── ce chemin est celui des maquettes précédentes (OTP / WhatsApp) ──","att");
+  }
+
+  Object.assign(window, { aller, montrer, feuille, annulerFeuille, hors });
+  aller(1);
+</script>

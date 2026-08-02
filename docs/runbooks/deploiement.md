@@ -108,6 +108,40 @@ fly secrets set --app catalog-api-preprod \
 > de transaction, donc la matière du reçu. À sauvegarder ailleurs que sur Fly,
 > le jour où elle est créée.
 
+### Le stockage : Tigris pose les mauvais noms
+
+`fly storage create` provisionne un bucket Tigris **et pose lui-même cinq
+secrets** — sous des noms qui ne sont pas ceux que l'application lit :
+
+| Ce que Tigris pose | Ce que l'application lit |
+|---|---|
+| `AWS_ENDPOINT_URL_S3` | `S3_ENDPOINT` |
+| `BUCKET_NAME` | `S3_BUCKET` |
+| `AWS_ACCESS_KEY_ID` | `S3_ACCESS_KEY` |
+| `AWS_SECRET_ACCESS_KEY` | `S3_SECRET_KEY` |
+| `AWS_REGION` | `S3_REGION` |
+
+**Sans ce mappage, la machine ne démarre pas** — le garde de §2 lève, alors que
+`fly secrets list` montre cinq secrets de stockage bien présents. C'est
+exactement la fausse piste que le message d'erreur évite désormais : il nomme
+les quatre variables *attendues*, pas celles qui existent.
+
+```bash
+fly storage create --name catalog-media-preprod --app catalog-api-preprod --yes
+# puis, en recopiant les valeurs affichées :
+fly secrets set --app catalog-api-preprod \
+  S3_ENDPOINT="https://fly.storage.tigris.dev" S3_BUCKET="catalog-media-preprod" \
+  S3_ACCESS_KEY="tid_…" S3_SECRET_KEY="tsec_…" S3_REGION="auto"
+```
+
+> `--yes` vaut **acceptation des conditions de service de Tigris Data**. Ce
+> n'est pas un drapeau de confort : c'est un engagement contractuel, et il n'y a
+> pas d'autre moyen de créer le bucket sans terminal interactif.
+>
+> `flyctl` **affiche les clés en clair** à la création. Elles passent donc par le
+> terminal, l'historique du shell et, en session assistée, le transcript. Les
+> régénérer depuis la console Tigris une fois le déploiement stabilisé.
+
 Côté dépôt GitHub, pour le workflow :
 
 | Secret | Sert à |
@@ -194,11 +228,50 @@ fly releases --app catalog-api-preprod          # relever la version qui marchai
 fly deploy --image <image de cette version> --strategy immediate
 ```
 
-Vérifier :
+### Si le bâtisseur distant refuse un jeton de déploiement
+
+Constaté le 01/08/2026 avec un jeton `fly tokens create deploy` (scopé à l'app,
+24 h) : le **registre** l'accepte (`docker login registry.fly.io`, utilisateur
+`x`, jeton en mot de passe), les **machines** aussi — y compris celles de
+l'app bâtisseur —, mais le canal de construction de `fly deploy` sort en
+`unauthorized`, bâtisseur hérité comme Depot, builder démarré ou pas.
+
+Le contournement qui marche : construire localement, pousser au registre,
+déployer par image — le bâtisseur n'est plus dans la boucle.
 
 ```bash
-curl -sS https://api-preprod.catalog.cm/api/statut | jq
+docker build -f apps/api/Dockerfile -t registry.fly.io/catalog-api-preprod:<etiquette> .
+cat <jeton> | docker login registry.fly.io -u x --password-stdin
+docker push registry.fly.io/catalog-api-preprod:<etiquette>
+fly deploy --app catalog-api-preprod --image registry.fly.io/catalog-api-preprod:<etiquette>
 ```
+
+Le `release_command` (migrations puis contraintes) s'exécute normalement : il
+tourne sur une machine Fly, pas chez le bâtisseur. Les secrets mis en attente
+(`--stage`) partent avec ce déploiement comme avec un autre.
+
+### `fly deploy` réussit sur un service mort — vérifier, toujours
+
+**Ce n'est pas une précaution, c'est une observation.** Au premier déploiement
+réel, `fly deploy` a rendu **0** et affiché `Visit your newly deployed app`
+pendant que la machine bouclait en redémarrage sur un garde de boot. Ni le code
+de sortie, ni le message, ni le `[[http_service.checks]]` de `fly.toml` n'ont
+arrêté quoi que ce soit : la sonde existe, mais rien dans la commande ne bloque
+sur son résultat.
+
+Le job `api` du workflow attrape ce cas — son pas « Le service répond »
+interroge `/api/statut` en boucle. Le `fly deploy` lancé à la main, non. D'où
+ces trois lignes, à exécuter systématiquement après un déploiement manuel :
+
+```bash
+fly status -a catalog-api-preprod        # STATE doit dire "started", pas "stopped"
+curl -sS https://api-preprod.catalog.cm/api/statut | jq
+fly logs -a catalog-api-preprod --no-tail | tail -30   # si le statut ne répond pas
+```
+
+`/api/statut` doit rendre `{"niveau":"ok","base":"joignable",…}`. Un service qui
+répond mais dont la base ne l'est pas rend `niveau: "degrade"` — c'est une
+information différente d'un silence, et c'est pour cela que la page existe.
 
 ### La boutique
 
@@ -216,8 +289,16 @@ donner `DATABASE_URL` pour l'instantané, ce qui n'a aucune raison d'être.
 pnpm db:generate                      # le client Prisma, que l'instantané importe
 pnpm shop:snapshot                    # a besoin de DATABASE_URL
 PUBLIC_API_BASE=https://api-preprod.catalog.cm pnpm --filter @catalog/shop build
-npx vercel deploy apps/shop/dist --yes --prod
+cd apps/shop/dist && VERCEL_PROJECT_ID=… VERCEL_ORG_ID=… npx vercel deploy --yes --prod
 ```
+
+> **Cibler le projet par son identifiant, pas par le répertoire.** Un
+> `vercel deploy apps/shop/dist` écrit un `.vercel/project.json` **dans `dist/`**
+> et lie le déploiement à un projet nommé d'après le répertoire — `dist`. Le
+> déploiement suivant part alors dans ce projet parasite, et le vrai continue de
+> servir l'ancienne version, **au vert**. Constaté : deux projets créés, dont un
+> nommé `dist`. Les variables `VERCEL_PROJECT_ID` / `VERCEL_ORG_ID` lèvent
+> l'ambiguïté — c'est déjà ce que fait le workflow.
 
 > **`--prod`, même en préproduction.** Sans lui, Vercel crée une
 > *prévisualisation* : une URL jetable. `preprod.catalog.cm` continue de servir
@@ -237,6 +318,73 @@ curl -sI https://preprod.catalog.cm/ | grep -i "content-security-policy\|referre
 curl -sI https://preprod.catalog.cm/v/ACDE-4679 | head -1   # 200, pas 404
 curl -sI https://preprod.catalog.cm/suivi/xxxx | head -1    # 200, pas 404
 ```
+
+> **Les deux dernières lignes ont déjà attrapé un vrai défaut**, sur le premier
+> déploiement réel du 31/07/2026. Les en-têtes passaient — donc `vercel.json`
+> était bien lu — mais `/v/ACDE-4679` rendait **404**. Cause : `cleanUrls: true`
+> fait de `/v/index.html` une URL non canonique, à laquelle Vercel répond 308
+> vers `/v`. Une réécriture qui pointe dessus ne sert rien. La destination est
+> désormais `/v`, et `public/_redirects` garde `/v/index.html` parce que Netlify
+> et Cloudflare, eux, servent ce chemin tel quel.
+>
+> Vérifié après correction : `/v/ACDE-4679` → 200, et le corps servi porte bien
+> `<title>Vérifier un reçu — Catalog</title>`. **Ne pas se contenter du code de
+> statut** : une page d'accueil rendue à la place du reçu répondrait 200 aussi.
+
+### L'app vendeuse
+
+Déployée le 01/08/2026 : projet Vercel `catalog-vendeuse-preprod`, servi sur
+`https://catalog-vendeuse-preprod.vercel.app`. Même modèle que la boutique —
+aucune commande de construction côté Vercel, on déploie `dist/` :
+
+```bash
+pnpm --filter @catalog/seller build
+cd apps/seller/dist && npx vercel deploy --yes --prod
+```
+
+Trois différences avec la boutique, toutes trois voulues :
+
+1. **Son `vercel.json` est un fichier SOURCE, versionné** :
+   `apps/seller/public/vercel.json`, que Vite copie tel quel dans `dist/` à
+   chaque build. L'inverse de la boutique, et pour la raison inverse : rien
+   dans son contenu ne dépend du build — pas d'empreintes de scripts en ligne
+   (le HTML construit n'en contient aucun), pas d'origine d'API injectée par
+   l'environnement.
+
+2. **La réécriture `/api/*` vers l'API Fly est le « serveur de tête » annoncé
+   par `apps/seller/vite.config.ts`.** Le cookie de session posé par Better
+   Auth doit être de MÊME ORIGINE : un appel direct du navigateur vers
+   `fly.dev` en ferait un cookie tiers, jeté par défaut sur les navigateurs
+   mobiles — la vendeuse serait déconnectée à chaque ouverture, sans erreur.
+   Le renvoi Vercel fait voyager requêtes ET `Set-Cookie` sous l'origine de
+   l'app. **L'ordre des règles compte** : `/api/*` d'abord, le repli SPA
+   (`/* → /index.html`) ensuite ; les fichiers réels (`/assets`, `/sw.js`)
+   gagnent de toute façon, Vercel servant le système de fichiers avant les
+   réécritures.
+
+3. **Le cache est réparti selon ce que porte le nom du fichier** : `/assets/*`
+   (noms hachés) en `immutable` un an ; `sw.js` et `registerSW.js` en
+   `no-cache`, sinon l'`autoUpdate` du service worker mettrait un cache CDN
+   de retard à chaque livraison.
+
+Vérifié au premier déploiement — la liste à rejouer à chaque livraison :
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://catalog-vendeuse-preprod.vercel.app/connexion   # 200 via repli SPA
+curl -s https://catalog-vendeuse-preprod.vercel.app/api/statut                                   # JSON de l'API Fly
+curl -sI https://catalog-vendeuse-preprod.vercel.app/ | grep -i content-security-policy
+curl -sI https://catalog-vendeuse-preprod.vercel.app/sw.js | grep -i cache-control               # no-cache
+```
+
+Deux choses à savoir pour la suite :
+
+- **`TRUSTED_ORIGINS` sur l'API doit contenir l'origine de l'app** dès qu'un
+  parcours d'authentification pose un cookie depuis elle :
+  `fly secrets set --app catalog-api-preprod TRUSTED_ORIGINS="https://catalog-vendeuse-preprod.vercel.app"`.
+- **Le jour où la cérémonie Google s'active** (ADR 0029), l'URL de base de
+  Better Auth doit être l'origine de l'APP, pas celle de l'API : c'est elle
+  qui entre dans le `redirect_uri` OAuth, et le retour de Google doit passer
+  par le renvoi `/api/*` pour que le cookie atterrisse sur la bonne origine.
 
 ---
 

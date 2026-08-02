@@ -148,7 +148,11 @@ describe("cleOpaque", () => {
 });
 
 describe("declinaisons", () => {
-  it("derive AVIF et WebP de la meme cle de base", () => {
-    expect(declinaisons("img/ab/cd")).toEqual({ avif: "img/ab/cd.avif", webp: "img/ab/cd.webp" });
+  it("derive AVIF, WebP et JPEG de la meme cle de base", () => {
+    expect(declinaisons("img/ab/cd")).toEqual({
+      avif: "img/ab/cd.avif",
+      webp: "img/ab/cd.webp",
+      jpg: "img/ab/cd.jpg",
+    });
   });
 });

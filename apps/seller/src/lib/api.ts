@@ -130,6 +130,7 @@ export interface Article {
   name: string;
   priceXaf: number;
   stock: number;
+  description: string | null;
   position: number;
   archive: boolean;
   image: ImageArticle | null;
@@ -181,10 +182,41 @@ export const api = {
       corps: { phoneNumber, code, disableSession: false },
     }),
 
+  /* ── connexion par WhatsApp entrant — ADR 0027 ── */
+
+  etatConnexionWhatsapp: () =>
+    appeler<{ disponible: boolean; google?: boolean }>("/api/auth/connexion-whatsapp/etat"),
+
+  /* ── ceremonie Google — ADR 0029 : redirection OAuth, aucun client en plus ── */
+
+  commencerGoogle: (callbackURL: string) =>
+    appeler<{ url?: string }>("/api/auth/sign-in/social", {
+      corps: { provider: "google", callbackURL },
+    }),
+
+  creerDefiWhatsapp: () =>
+    appeler<{ jeton: string; suivi: string; code: string; lien: string; expireDansS: number }>(
+      "/api/auth/connexion-whatsapp/defi",
+      { corps: {} },
+    ),
+
+  attenteDefiWhatsapp: (suivi: string) =>
+    appeler<{ statut: "en_attente" | "verifie" | "inconnu" }>(
+      `/api/auth/connexion-whatsapp/attente?suivi=${encodeURIComponent(suivi)}`,
+    ),
+
+  echangerDefiWhatsapp: (jeton: string) =>
+    appeler<{ statut: "connecte" | "en_attente" | "inconnu" }>(
+      "/api/auth/connexion-whatsapp/echanger",
+      { corps: { jeton } },
+    ),
+
   moi: () => appeler<Vendeuse>("/api/vendeuse/moi"),
 
-  creerProfil: (businessName: string, city: string) =>
-    appeler("/api/vendeuse/profil", { corps: { businessName, city } }),
+  creerProfil: (businessName: string, city: string, contactPhone?: string) =>
+    appeler("/api/vendeuse/profil", {
+      corps: { businessName, city, ...(contactPhone ? { contactPhone } : {}) },
+    }),
 
   envoyerCodeReversement: (nouveauNumero: string) =>
     appeler("/api/reversement/code", { corps: { nouveauNumero } }),
@@ -201,11 +233,15 @@ export const api = {
   articles: (avecArchives = false) =>
     appeler<{ articles: Article[] }>(`/api/articles${avecArchives ? "?archives=1" : ""}`),
 
-  creerArticle: (name: string, priceXaf: number) =>
-    appeler<Article>("/api/articles", { corps: { name, priceXaf } }),
+  creerArticle: (name: string, priceXaf: number, description?: string) =>
+    appeler<Article>("/api/articles", {
+      corps: { name, priceXaf, ...(description ? { description } : {}) },
+    }),
 
-  modifierArticle: (id: string, champs: { name?: string; priceXaf?: number; stock?: number }) =>
-    appeler<Article>(`/api/articles/${id}`, { methode: "PATCH", corps: champs }),
+  modifierArticle: (
+    id: string,
+    champs: { name?: string; priceXaf?: number; stock?: number; description?: string },
+  ) => appeler<Article>(`/api/articles/${id}`, { methode: "PATCH", corps: champs }),
 
   archiverArticle: (id: string) => appeler<Article>(`/api/articles/${id}/archiver`, { corps: {} }),
   restaurerArticle: (id: string) =>

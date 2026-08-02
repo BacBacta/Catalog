@@ -40,7 +40,7 @@ beforeAll(async () => {
 });
 
 describe("reencoderImage — ce qui est accepte", () => {
-  it("ramene le plus grand cote a 640 et produit AVIF ET WebP", async () => {
+  it("ramene le plus grand cote a 640 et produit AVIF, WebP ET JPEG", async () => {
     const r = await reencoderImage(grande);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -49,10 +49,13 @@ describe("reencoderImage — ce qui est accepte", () => {
     expect(r.image.hauteur).toBe(480);
     expect(r.image.avif.length).toBeGreaterThan(0);
     expect(r.image.webp.length).toBeGreaterThan(0);
+    expect(r.image.jpeg.length).toBeGreaterThan(0);
 
-    // Les deux declinaisons portent bien leur format, verifie par sharp.
+    // Les declinaisons portent bien leur format, verifie par sharp. Le JPEG
+    // existe pour les canaux sans AVIF ni WebP — le bot WhatsApp (ADR 0032).
     expect((await sharp(Buffer.from(r.image.avif)).metadata()).format).toBe("heif");
     expect((await sharp(Buffer.from(r.image.webp)).metadata()).format).toBe("webp");
+    expect((await sharp(Buffer.from(r.image.jpeg)).metadata()).format).toBe("jpeg");
   });
 
   it("l'objet stocke tient sous 100 Ko — c'est le critere du lot", async () => {
@@ -63,6 +66,7 @@ describe("reencoderImage — ce qui est accepte", () => {
     if (!r.ok) throw new Error("re-encodage refuse");
     expect(r.image.avif.length).toBeLessThanOrEqual(CIBLE_OCTETS);
     expect(r.image.webp.length).toBeLessThanOrEqual(CIBLE_OCTETS);
+    expect(r.image.jpeg.length).toBeLessThanOrEqual(CIBLE_OCTETS);
   });
 
   it("ne recommence PAS l'encodage quand la premiere qualite tient deja", async () => {
@@ -105,6 +109,7 @@ describe("reencoderImage — ce qui est accepte", () => {
     for (const [nom, buf] of [
       ["avif", r.image.avif],
       ["webp", r.image.webp],
+      ["jpeg", r.image.jpeg],
     ] as const) {
       const m = await sharp(Buffer.from(buf)).metadata();
       expect(m.exif, nom).toBeUndefined();

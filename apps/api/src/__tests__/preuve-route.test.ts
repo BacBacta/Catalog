@@ -40,6 +40,17 @@ const chiffreur = new ChiffreurInerte({ NODE_ENV: "test" });
  * raison, au mauvais endroit.
  */
 const TX = `176${RUN.toString().padStart(8, "0")}`;
+
+/**
+ * Compte les preuves DE CETTE COMMANDE, jamais de toute la table.
+ *
+ * Un `count()` global est une course entre fichiers de test : Vitest les execute
+ * en parallele contre la MEME base, et une preuve ecrite par un autre fichier
+ * entre la mesure et l'assertion fait echouer celle-ci pour une raison etrangere
+ * a ce qu'elle verifie. Ce que le test veut dire est « rien n'a ete ecrit POUR
+ * CETTE COMMANDE » — c'est desormais ce qu'il mesure.
+ */
+const comptePour = (v: Vendeuse) => prisma.paymentProof.count({ where: { orderId: v.orderId } });
 const MTN_UNIQUE = MTN_RECEPTION.replace("17600000002", TX);
 
 interface Vendeuse {
@@ -219,23 +230,25 @@ describeDb("controle n° 5 — l'unicite est RESEAU-LARGE", () => {
 
 describeDb("ce qui est refuse SANS rien ecrire", () => {
   it("un texte libre est refuse, et n'ecrit aucune ligne", async () => {
-    const avant = await prisma.paymentProof.count();
+    const avant = await comptePour(autre);
     const r = await coller(autre, TEXTE_LIBRE);
     expect(r.status).toBe(422);
     const corps = (await r.json()) as { checks: Array<{ n: number; state: string }> };
     expect(corps.checks[0]).toMatchObject({ n: 1, state: "fail" });
-    expect(await prisma.paymentProof.count()).toBe(avant);
+    expect(await comptePour(autre)).toBe(avant);
   });
 
   it("un montant qui ne correspond pas n'ecrit rien — l'identifiant reste libre", async () => {
     // Reserver un identifiant pour une preuve refusee empecherait la vraie
     // preuve de passer plus tard.
-    const avant = await prisma.paymentProof.count();
+    const avant = await comptePour(autre);
     const r = await coller(autre, ORANGE_RECEPTION_RECONSTITUE);
     expect(r.status).toBe(422);
-    expect(await prisma.paymentProof.count()).toBe(avant);
+    expect(await comptePour(autre)).toBe(avant);
     expect(
-      await prisma.paymentProof.count({ where: { operatorTxId: "MP260623.1403.C73941" } }),
+      await prisma.paymentProof.count({
+        where: { orderId: autre.orderId, operatorTxId: "MP260623.1403.C73941" },
+      }),
     ).toBe(0);
   });
 

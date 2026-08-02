@@ -103,6 +103,9 @@ model Product {
   priceXaf Int    @map("price_xaf")
   stock    Int    @default(0)
   variants Json?
+  /// Facultative, 300 caracteres au plus (ADR 0033). Elle vend sur la fiche
+  /// article du bot ; la boutique publique ne la montre pas encore.
+  description String?
 
   /// Cle de BASE de l'image, sans extension. Les deux declinaisons stockees en
   /// derivent : `<cle>.avif` et `<cle>.webp`. La cle est opaque — ni identifiant
@@ -411,6 +414,7 @@ model AuthUser {
 
   sessions AuthSession[]
   accounts AuthAccount[]
+  passkeys AuthPasskey[]
   seller   Seller?
 
   @@map("user")
@@ -463,6 +467,33 @@ model AuthVerification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Cles WebAuthn (passkeys) — ADR 0028.
+///
+/// Une ligne par appareil enroye. `credentialID` identifie la cle aupres du
+/// navigateur ; `publicKey` verifie ses signatures ; `counter` detecte le
+/// clonage ; `backedUp` dit si la cle est synchronisee (compte Google) — c'est
+/// ce qui permet a l'ecran « Appareils » d'annoncer qu'un nouveau telephone la
+/// retrouvera. Les champs suivent le schema du plugin @better-auth/passkey.
+model AuthPasskey {
+  id           String    @id @default(uuid(7))
+  name         String?
+  publicKey    String    @map("public_key")
+  userId       String    @map("user_id")
+  credentialID String    @map("credential_id")
+  counter      Int
+  deviceType   String    @map("device_type")
+  backedUp     Boolean   @map("backed_up")
+  transports   String?
+  aaguid       String?
+  createdAt    DateTime? @default(now()) @map("created_at")
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkey")
 }
 
 /// Journal d'audit au niveau de la vendeuse, EN AJOUT SEUL.
@@ -545,4 +576,25 @@ model PayoutOtp {
   @@index([sellerId, createdAt])
   @@index([expiresAt])
   @@map("payout_otp")
+}
+
+/// L'etat de conversation du bot WhatsApp — ADR 0031. Une ligne par numero.
+/// Ne contient JAMAIS de texte libre : uniquement la position dans le menu et
+/// des identifiants (slug, article, quantite). Un SMS colle n'y entre pas —
+/// il part en verification et disparait (meme regle que les traces, ADR 0023).
+model BotConversation {
+  phone     String   @id
+  etat      Json
+  /// La langue du fil ACHETEUSE (ADR 0033) : « english » la change, « français »
+  /// la ramene. Le fil vendeuse reste en francais pour l'instant.
+  langue    String   @default("fr")
+  /// La derniere commande creee depuis ce fil — ce qui permet de repondre a
+  /// « ou est ma commande ? » sans reconcilier par numero de telephone (le
+  /// numero de livraison n'est pas forcement celui du fil : diaspora).
+  /// Volontairement SANS cle etrangere : une commande purgee ne doit pas
+  /// empecher la conversation d'exister, et inversement.
+  derniereCommandeId String? @map("derniere_commande_id")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("bot_conversation")
 }
