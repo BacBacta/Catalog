@@ -39,6 +39,13 @@ export interface MessageBoutons {
   type: "interactive";
   interactive: {
     type: "button";
+    /**
+     * En-tete image optionnel — la vitrine d'une boutique, la photo d'un
+     * article. Le lien doit etre lisible par les serveurs de Meta AU MOMENT de
+     * l'envoi : un lien mort fait refuser le message entier, pas seulement
+     * l'image. C'est l'appelant qui garantit l'existence de l'objet.
+     */
+    header?: { type: "image"; image: { link: string } };
     body: { text: string };
     action: { buttons: BoutonReponse[] };
   };
@@ -91,6 +98,7 @@ export function boutons(
   vers: string,
   corps: string,
   choix: ReadonlyArray<{ id: string; titre: string }>,
+  options: { image?: string } = {},
 ): MessageBoutons {
   if (choix.length === 0) throw new Error("un message a boutons exige au moins un bouton");
   if (choix.length > BOUTONS_MAX)
@@ -108,6 +116,9 @@ export function boutons(
     type: "interactive",
     interactive: {
       type: "button",
+      ...(options.image
+        ? { header: { type: "image" as const, image: { link: options.image } } }
+        : {}),
       body: { text: corpsOuLeve(corps) },
       action: {
         buttons: choix.map((c) => ({

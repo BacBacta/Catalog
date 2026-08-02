@@ -188,6 +188,30 @@ export function mesurerLivraisonSms(point: {
   livraisons().add(1, { operateur: point.operateur, etat: point.etat, statut: point.statut });
 }
 
+/* ────────────────────────── 6. l'entonnoir du bot ────────────────────────── */
+
+const transitionsBot = () =>
+  metre().createCounter("catalog.bot.transition", {
+    description:
+      "Transitions de la machine de conversation du bot. L'entonnoir d'achat, sans aucun texte.",
+  });
+
+/**
+ * Une transition d'etat de la machine de conversation (ADR 0032).
+ *
+ * **Aucun texte, aucun numero, aucun montant** : les etiquettes sont les NOMS
+ * d'etat de `EtatConv` — une demi-douzaine de valeurs — et le type d'effet.
+ * C'est ce qui rend l'entonnoir mesurable (ou perd-on les acheteuses :
+ * quantite ? details ? recap ?) sans rien confier au systeme de metriques.
+ *
+ * `de === vers` est un point INTERESSANT, pas du bruit : un etat qui boucle
+ * sur lui-meme est une acheteuse qui n'arrive pas a se faire comprendre —
+ * c'est exactement la ou la copie d'aide doit s'ameliorer.
+ */
+export function mesurerTransitionBot(de: string, vers: string, effet?: string): void {
+  transitionsBot().add(1, { de, vers, ...(effet ? { effet } : {}) });
+}
+
 /* ────────────────────────── le filet, en metrique ────────────────────────── */
 
 /**

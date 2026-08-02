@@ -582,6 +582,12 @@ model PayoutOtp {
 model BotConversation {
   phone     String   @id
   etat      Json
+  /// La derniere commande creee depuis ce fil — ce qui permet de repondre a
+  /// « ou est ma commande ? » sans reconcilier par numero de telephone (le
+  /// numero de livraison n'est pas forcement celui du fil : diaspora).
+  /// Volontairement SANS cle etrangere : une commande purgee ne doit pas
+  /// empecher la conversation d'exister, et inversement.
+  derniereCommandeId String? @map("derniere_commande_id")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("bot_conversation")

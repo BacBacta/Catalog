@@ -356,6 +356,8 @@ export function productRoutes(deps: ProductDeps) {
     await Promise.all([
       deps.storage.put({ cle: d.avif, corps: resultat.image.avif, contentType: "image/avif" }),
       deps.storage.put({ cle: d.webp, corps: resultat.image.webp, contentType: "image/webp" }),
+      // La declinaison des canaux sans AVIF ni WebP — le bot WhatsApp (ADR 0032).
+      deps.storage.put({ cle: d.jpg, corps: resultat.image.jpeg, contentType: "image/jpeg" }),
     ]);
 
     // L'ancienne image part APRES que la nouvelle est en place : l'inverse
@@ -380,6 +382,7 @@ export function productRoutes(deps: ProductDeps) {
       await Promise.allSettled([
         deps.storage.supprimer(vieux.avif),
         deps.storage.supprimer(vieux.webp),
+        deps.storage.supprimer(vieux.jpg),
       ]);
     }
 

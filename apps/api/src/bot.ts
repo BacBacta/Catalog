@@ -9,23 +9,30 @@ import {
   confirmationCommande,
   ETAT_INITIAL,
   type EtatConv,
+  etatApresInactivite,
   extraireSlugBoutique,
   reagirAcheteuse,
   reagirVendeuse,
+  type StatutDerniereCommande,
 } from "./domain/bot/conversation.ts";
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import { texte } from "./domain/bot/messages.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
+import { type CommandePourCycle, etapesDuSuivi, soldeAEncaisser } from "./domain/order/cycle.ts";
 import { echeance } from "./domain/order/expiration.ts";
 import { planDePaiement } from "./domain/order/paiement.ts";
 import { analyserSms } from "./domain/proof/motifs.ts";
 import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
+import { reputation } from "./domain/review/reputation.ts";
+import type { ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
+import { mesurerTransitionBot } from "./observabilite/mesures.ts";
 
 /**
- * Le service du bot — ADR 0031. Il charge l'etat et les donnees, appelle la
- * machine PURE de `domain/bot`, execute l'effet, persiste, envoie.
+ * Le service du bot — ADR 0031, revise par l'ADR 0032. Il charge l'etat et les
+ * donnees, appelle la machine PURE de `domain/bot`, execute l'effet, persiste,
+ * envoie.
  *
  * C'est ici que nait la PREMIERE creation de commande du produit : jusqu'au
  * bot, la boutique fabriquait un message wa.me et rien n'etait persiste. Le
@@ -47,6 +54,11 @@ export interface BotDeps {
   baseBoutique: string;
   /** Origine publique de l'app vendeuse (ecran de preuve). Vide : pas de lien. */
   baseApp: string;
+  /**
+   * Stockage d'objets, pour les en-tetes image (declinaison JPEG, ADR 0032).
+   * Absent : les messages partent sans image, jamais avec un lien mort.
+   */
+  storage?: ObjectStorage;
   maintenant?: () => Date;
   aleatoire?: (n: number) => Uint8Array;
 }
@@ -97,18 +109,49 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
 /* ────────────────────────── fil acheteuse ───────────────────────────────── */
 
 async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Promise<void> {
+  const maintenant = deps.maintenant?.() ?? new Date();
   const enregistrement = await deps.prisma.botConversation.findUnique({ where: { phone } });
+
+  /* Un etat de flux abandonne depuis plus de 24 h retombe sur le catalogue :
+     le message d'aujourd'hui re-oriente au lieu d'etre avale (ADR 0032). */
   let etat = (enregistrement?.etat as EtatConv | undefined) ?? ETAT_INITIAL;
+  if (enregistrement) {
+    etat = etatApresInactivite(etat, maintenant.getTime() - enregistrement.updatedAt.getTime());
+  }
+  const etatAvant = etat.nom;
 
   /* Le slug vient du texte (lien d'entree) ou de l'etat courant. */
-  const slug =
-    (entree.genre === "texte" ? extraireSlugBoutique(entree.texte) : null) ??
-    ("slug" in etat ? etat.slug : null);
-  const boutique = slug ? await chargerBoutique(deps, slug) : null;
+  const slugDuTexte = entree.genre === "texte" ? extraireSlugBoutique(entree.texte) : null;
+  const slug = slugDuTexte ?? ("slug" in etat ? etat.slug : null);
+  const charge = slug ? await chargerBoutique(deps, slug) : null;
+  const boutique = charge?.boutique ?? null;
 
-  const reaction = reagirAcheteuse(etat, entree, entree.de, boutique);
+  /* L'en-tete image, seulement la ou il s'affiche : l'accueil (entree par
+     lien) et la fiche article. Jamais d'URL non verifiee — un lien mort fait
+     refuser le message entier par l'API. */
+  if (boutique && charge) {
+    const articleVise =
+      entree.genre !== "texte" && entree.id.startsWith("art:") ? entree.id.slice(4) : null;
+    const cibleId = articleVise ?? (slugDuTexte ? boutique.articles[0]?.id : null) ?? null;
+    if (cibleId) {
+      const cle = charge.clesImage.get(cibleId);
+      const url = cle ? await urlJpegVerifiee(deps, cle) : null;
+      const cible = boutique.articles.find((a) => a.id === cibleId);
+      if (cible && url) cible.imageUrl = url;
+    }
+  }
+
+  /* La memoire post-achat : « ou est ma commande ? » se repond sans
+     reconcilier par numero — la conversation connait SA derniere commande. */
+  const derniereCommande =
+    entree.genre === "texte" && enregistrement?.derniereCommandeId
+      ? await statutDerniereCommande(deps, enregistrement.derniereCommandeId)
+      : null;
+
+  const reaction = reagirAcheteuse(etat, entree, entree.de, boutique, derniereCommande);
   etat = reaction.etat;
   const messages = [...reaction.messages];
+  let commandeCreeeId: string | null = null;
 
   if (reaction.effet?.type === "creer_commande" && boutique) {
     const b = reaction.effet.brouillon;
@@ -118,12 +161,13 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
       messages.push(
         texte(
           entree.de,
-          "Cette commande n'a pas pu etre enregistree. Reprenez au catalogue — rien n'a ete perdu.",
+          "Cette commande n'a pas pu être enregistrée. Reprenez au catalogue — rien n'a été perdu.",
         ),
       );
       etat = ETAT_INITIAL;
     } else {
       const commande = await creerCommande(deps, boutique, article, b.quantite, livraison.data);
+      commandeCreeeId = commande.id;
       messages.push(
         ...confirmationCommande(entree.de, {
           reference: commande.ref,
@@ -134,7 +178,8 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
           prixUnitaireXaf: article.prixXaf,
           totalXaf: commande.totalXaf,
           duAvantXaf: commande.duAvantXaf,
-          lienPaiement:
+          livraison: b.livraison,
+          lienSuivi:
             deps.baseBoutique && commande.buyerToken
               ? lienDeSuivi(deps.baseBoutique, commande.buyerToken)
               : null,
@@ -145,32 +190,113 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
 
   await deps.prisma.botConversation.upsert({
     where: { phone },
-    create: { phone, etat },
-    update: { etat },
+    create: { phone, etat, ...(commandeCreeeId ? { derniereCommandeId: commandeCreeeId } : {}) },
+    update: { etat, ...(commandeCreeeId ? { derniereCommandeId: commandeCreeeId } : {}) },
   });
+  mesurerTransitionBot(etatAvant, etat.nom, reaction.effet?.type);
   for (const m of messages) await deps.envoyeur.envoyer(m);
 }
 
-async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueBot | null> {
+interface BoutiqueChargee {
+  boutique: BoutiqueBot;
+  /** Cle de base d'image par article — detail de stockage, hors du domaine. */
+  clesImage: Map<string, string>;
+}
+
+async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueChargee | null> {
   const seller = await deps.prisma.seller.findUnique({
     where: { slug },
     include: {
       products: {
         where: { archivedAt: null },
         orderBy: { position: "asc" },
-        select: { id: true, name: true, priceXaf: true },
+        select: { id: true, name: true, priceXaf: true, imageKey: true },
       },
+      reviews: { select: { rating: true, verified: true } },
     },
   });
   if (!seller) return null;
+  const rep = reputation(seller.reviews.map((a) => ({ note: a.rating, verifie: a.verified })));
+  const clesImage = new Map<string, string>();
+  for (const p of seller.products) {
+    if (p.imageKey) clesImage.set(p.id, p.imageKey);
+  }
   return {
-    id: seller.id,
-    slug: seller.slug,
-    nom: seller.businessName,
-    ville: seller.city,
-    whatsappVendeuse: seller.phone,
-    reversementPose: seller.payoutPhone !== null,
-    articles: seller.products.map((p) => ({ id: p.id, nom: p.name, prixXaf: p.priceXaf })),
+    boutique: {
+      id: seller.id,
+      slug: seller.slug,
+      nom: seller.businessName,
+      ville: seller.city,
+      whatsappVendeuse: seller.phone,
+      reversementPose: seller.payoutPhone !== null,
+      reputation: { note: rep.note, nbVerifies: rep.nbVerifies },
+      articles: seller.products.map((p) => ({ id: p.id, nom: p.name, prixXaf: p.priceXaf })),
+    },
+    clesImage,
+  };
+}
+
+/**
+ * L'URL signee de la declinaison JPEG — VERIFIEE avant d'etre promise.
+ *
+ * Les objets anterieurs a l'ADR 0032 n'ont qu'AVIF et WebP, que les serveurs
+ * de Meta n'acceptent pas ; et un en-tete au lien mort fait refuser le message
+ * entier. Donc : existence d'abord, URL ensuite, et toute erreur de stockage
+ * degrade en « pas d'image » — jamais en message perdu.
+ */
+async function urlJpegVerifiee(deps: BotDeps, cleDeBase: string): Promise<string | null> {
+  if (!deps.storage) return null;
+  const cle = `${cleDeBase}.jpg`;
+  try {
+    if ((await deps.storage.taille(cle)) === null) return null;
+    return await deps.storage.urlSignee(cle, 600);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Le statut de la derniere commande du fil, dit avec les libelles du cycle de
+ * vie (lot 11). AUCUN jeton n'est relu ici : le lien de suivi ne se re-projette
+ * jamais (garde du lot 10) — la reponse renvoie au message de confirmation.
+ */
+async function statutDerniereCommande(
+  deps: BotDeps,
+  commandeId: string,
+): Promise<StatutDerniereCommande | null> {
+  const o = await deps.prisma.order.findUnique({
+    where: { id: commandeId },
+    select: {
+      ref: true,
+      step: true,
+      proofState: true,
+      totalXaf: true,
+      amountPaidXaf: true,
+      balanceXaf: true,
+      cancelledAt: true,
+      delivery: true,
+      seller: { select: { businessName: true } },
+    },
+  });
+  if (!o) return null;
+  const cycle: CommandePourCycle = {
+    etape: o.step,
+    modeLivraison:
+      (o.delivery as { mode?: string } | null)?.mode === "retrait" ? "retrait" : "livraison",
+    totalXaf: o.totalXaf,
+    amountPaidXaf: o.amountPaidXaf,
+    balanceXaf: o.balanceXaf,
+    etatPreuve: o.proofState,
+    annuleeA: o.cancelledAt,
+  };
+  const libelle = o.cancelledAt
+    ? "Commande annulée."
+    : (etapesDuSuivi(cycle).find((e) => e.courante)?.libelle ?? "En cours.");
+  return {
+    reference: o.ref,
+    boutique: o.seller.businessName,
+    libelle,
+    resteXaf: soldeAEncaisser(cycle),
   };
 }
 
@@ -181,6 +307,7 @@ async function creerCommande(
   quantite: number,
   livraison: unknown,
 ): Promise<{
+  id: string;
   ref: string;
   verificationCode: string;
   buyerToken: string | null;
@@ -245,6 +372,7 @@ async function creerCommande(
         return commande;
       });
       return {
+        id: cree.id,
         ref: cree.ref,
         verificationCode: cree.verificationCode,
         buyerToken: jetonSuivi,
@@ -289,9 +417,9 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
       const cible = commandesOuvertes.length === 1 ? commandesOuvertes[0] : null;
       const lien = (chemin: string) => (deps.baseApp ? `${deps.baseApp}${chemin}` : chemin);
       const corps = cible
-        ? `SMS ${analyse.pattern.operateur} reconnu. Pour verifier les sept controles et emettre le recu de ${cible.reference}, collez-le ici : ${lien(`/commandes/${cible.id}/preuve`)}`
+        ? `SMS ${analyse.pattern.operateur} reconnu. Pour vérifier les sept contrôles et émettre le reçu de ${cible.reference}, collez-le ici : ${lien(`/commandes/${cible.id}/preuve`)}`
         : commandesOuvertes.length === 0
-          ? "SMS reconnu, mais aucune commande n'a de solde ouvert. Verifiez vos commandes dans l'app."
+          ? "SMS reconnu, mais aucune commande n'a de solde ouvert. Vérifiez vos commandes dans l'app."
           : `SMS ${analyse.pattern.operateur} reconnu. Plusieurs commandes ont un solde ouvert (${commandesOuvertes
               .slice(0, 3)
               .map((c) => c.reference)

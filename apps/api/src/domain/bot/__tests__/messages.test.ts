@@ -52,6 +52,18 @@ describe("boutons", () => {
     });
   });
 
+  it("porte un en-tete image quand une URL est fournie, rien sinon", () => {
+    const avec = boutons("2376", "x", [{ id: "a", titre: "A" }], {
+      image: "https://o.test/p.jpg",
+    });
+    expect(avec.interactive.header).toEqual({
+      type: "image",
+      image: { link: "https://o.test/p.jpg" },
+    });
+    const sans = boutons("2376", "x", [{ id: "a", titre: "A" }]);
+    expect("header" in sans.interactive).toBe(false);
+  });
+
   it("refuse zero bouton et refuse plus de trois — la limite API est dure", () => {
     expect(() => boutons("2376", "x", [])).toThrow(/bouton/);
     const quatre = Array.from({ length: 4 }, (_, i) => ({ id: `b${i}`, titre: `B${i}` }));

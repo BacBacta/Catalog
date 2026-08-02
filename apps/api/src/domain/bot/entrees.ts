@@ -38,35 +38,33 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
     }
   }
   for (const messages of paquets as unknown[][]) {
-    {
-      for (const message of messages) {
-        const m = message as {
-          from?: unknown;
+    for (const message of messages) {
+      const m = message as {
+        from?: unknown;
+        type?: unknown;
+        text?: { body?: unknown };
+        interactive?: {
           type?: unknown;
-          text?: { body?: unknown };
-          interactive?: {
-            type?: unknown;
-            button_reply?: { id?: unknown };
-            list_reply?: { id?: unknown };
-          };
-        } | null;
-        if (typeof m?.from !== "string") continue;
+          button_reply?: { id?: unknown };
+          list_reply?: { id?: unknown };
+        };
+      } | null;
+      if (typeof m?.from !== "string") continue;
 
-        if (m.type === "text" && typeof m.text?.body === "string") {
-          sortie.push({ de: m.from, genre: "texte", texte: m.text.body });
-          continue;
-        }
-        if (m.type === "interactive") {
-          const i = m.interactive;
-          if (i?.type === "button_reply" && typeof i.button_reply?.id === "string") {
-            sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id });
-          } else if (i?.type === "list_reply" && typeof i.list_reply?.id === "string") {
-            sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id });
-          }
-        }
-        /* images, stickers, audios, accuses : ignores ici — le service peut
-           repondre un message d'aide, mais ce n'est pas le travail du parseur. */
+      if (m.type === "text" && typeof m.text?.body === "string") {
+        sortie.push({ de: m.from, genre: "texte", texte: m.text.body });
+        continue;
       }
+      if (m.type === "interactive") {
+        const i = m.interactive;
+        if (i?.type === "button_reply" && typeof i.button_reply?.id === "string") {
+          sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id });
+        } else if (i?.type === "list_reply" && typeof i.list_reply?.id === "string") {
+          sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id });
+        }
+      }
+      /* images, stickers, audios, accuses : ignores ici — le service peut
+         repondre un message d'aide, mais ce n'est pas le travail du parseur. */
     }
   }
   return sortie;

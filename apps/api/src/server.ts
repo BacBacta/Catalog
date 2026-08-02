@@ -146,6 +146,7 @@ if (secretEntrant && secretAppMeta) {
           envoyeur: new EnvoyeurWhatsappBot({ apiKey: cleBot, baseUrl: baseBot }),
           baseBoutique: process.env.BASE_BOUTIQUE_PUBLIQUE?.trim() ?? "",
           baseApp: process.env.BASE_APP_VENDEUSE?.trim() ?? "",
+          storage,
         }
       : null;
 
