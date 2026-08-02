@@ -7,13 +7,18 @@ Mis à jour le 02/08/2026, après le P0 de l'ADR 0035.
 - **Le sortant marche** : tout message émis par le bot arrive en vrai sur le
   téléphone enregistré au sandbox (celui qui a envoyé `START` au numéro
   360dialog).
-- **Le relais entrant est en panne** (ticket 360dialog ouvert) : ce que vous
-  tapez sur votre téléphone n'atteint pas notre webhook.
+- **L'entrant marche AUSSI — tant que la session sandbox est vivante.** Ce
+  qui avait été pris pour un relais en panne était une session expirée :
+  renvoyer `START` au numéro sandbox la réveille (vérifié le 02/08/2026 à
+  20 h 01 — `menu` tapé au téléphone, accueil reçu dans la seconde). La clé
+  est restée identique ce jour-là ; si un `START` futur en rend une autre,
+  le webhook se re-pose avec elle (`POST /v1/configs/webhook`, URL entrante
+  + en-tête `Authorization`) et `WABOT_API_KEY` se met à jour sur Fly.
 
-Conséquence : **on simule le pouce, on observe l'écran.** L'entrant se
-fabrique avec `apps/api/scripts/sandbox-entrant.mjs`, le sortant se lit sur
-votre téléphone. C'est exactement le trafic réel — même webhook, même forme
-de livraison — au relais près.
+**Premier réflexe si le bot ne répond plus : renvoyer `START`.** Le
+simulateur ci-dessous reste utile pour deux choses : rejouer un scénario
+scripté à l'identique, et jouer un SECOND personnage (une acheteuse dont le
+numéro n'est pas enregistré au sandbox).
 
 ## Préparer le simulateur
 
