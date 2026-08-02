@@ -11,13 +11,13 @@ import {
   reagirVendeuse,
 } from "../conversation.ts";
 import type { MessageBoutons, MessageTexte } from "../messages.ts";
-import { langueDemandee, TEXTES } from "../textes.ts";
+import { langueDemandee, PIDGIN_RELU, TEXTES } from "../textes.ts";
 
 /**
  * Le balayage systematique — deux objectifs, distincts des tests de
  * comportement de `conversation.test.ts` :
  *
- * 1. **Chaque texte des deux catalogues est produit et non vide.** La parite
+ * 1. **Chaque texte des trois catalogues est produit et non vide.** La parite
  *    des cles est tenue par le typage ; celle du CONTENU (une fonction qui
  *    rendrait une chaine vide) ne peut l'etre que par execution.
  * 2. **Les chemins defensifs de la machine** — etats persistes difformes,
@@ -47,8 +47,8 @@ const corpsTexte = (m: unknown) => (m as MessageTexte).text.body;
 const idsBoutons = (m: unknown) =>
   (m as MessageBoutons).interactive.action.buttons.map((b) => b.reply.id);
 
-describe("textes — les deux catalogues produisent, en entier", () => {
-  it("chaque entree des deux langues rend une chaine non vide", () => {
+describe("textes — les trois catalogues produisent, en entier", () => {
+  it("chaque entree des trois langues rend une chaine non vide", () => {
     for (const [langue, t] of Object.entries(TEXTES)) {
       const produits: string[] = [
         t.boutiqueIntrouvable,
@@ -133,6 +133,9 @@ describe("textes — les deux catalogues produisent, en entier", () => {
     expect(langueDemandee("francais")).toBe("fr");
     expect(langueDemandee("french")).toBe("fr");
     expect(langueDemandee("bonjour")).toBeNull();
+    /* Le pidgin est RECONNU mais pas rendu tant qu'il n'est pas relu — c'est
+       `pidgin.test.ts` qui tient les deux cotes de cette bascule. */
+    expect(langueDemandee("pidgin")).toBe(PIDGIN_RELU ? "wes" : null);
   });
 });
 

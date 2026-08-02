@@ -3,7 +3,7 @@ import { type Job, PgBoss } from "pg-boss";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import { texte } from "../domain/bot/messages.ts";
 import { decisionRelance, RELANCE_APRES_S } from "../domain/bot/relance.ts";
-import { type Langue, TEXTES } from "../domain/bot/textes.ts";
+import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
 
 /**
  * La relance d'acompte, portee par pg-boss — ADR 0033.
@@ -94,7 +94,9 @@ async function executerRelance(deps: JobsBotDeps, charge: ChargeRelance): Promis
   );
   if (!decision.relancer) return;
 
-  const t = TEXTES[charge.langue] ?? TEXTES.fr;
+  /* La charge d'un job a pu etre ecrite par une generation precedente, ou dans
+     une langue qui n'est plus servie : elle se normalise comme la colonne. */
+  const t = TEXTES[normaliserLangue(charge.langue)];
   await deps.envoyeur.envoyer(
     texte(charge.phone, t.relanceAcompte(commande.ref, decision.acompteXaf)),
   );
