@@ -17,14 +17,28 @@ export type EntreeBot =
 
 export function lireEntreesBot(corps: unknown): EntreeBot[] {
   const sortie: EntreeBot[] = [];
-  const entrees = (corps as { entry?: unknown } | null)?.entry;
-  if (!Array.isArray(entrees)) return sortie;
-  for (const entree of entrees) {
-    const changements = (entree as { changes?: unknown } | null)?.changes;
-    if (!Array.isArray(changements)) continue;
-    for (const changement of changements) {
-      const messages = (changement as { value?: { messages?: unknown } } | null)?.value?.messages;
-      if (!Array.isArray(messages)) continue;
+  /**
+   * DEUX formes de livraison, toutes deux mesurees le 02/08/2026 :
+   * - l'enveloppe Cloud API (`entry[].changes[].value.messages[]`) — Meta
+   *   directe et production 360dialog ;
+   * - la forme PLATE v1 (`messages[]` a la racine) — le sandbox 360dialog.
+   * Le parseur lit les deux ; tout le reste du bot n'en sait rien.
+   */
+  const paquets: unknown[] = [];
+  const racine = corps as { entry?: unknown; messages?: unknown } | null;
+  if (Array.isArray(racine?.messages)) paquets.push(racine.messages);
+  if (Array.isArray(racine?.entry)) {
+    for (const entree of racine.entry) {
+      const changements = (entree as { changes?: unknown } | null)?.changes;
+      if (!Array.isArray(changements)) continue;
+      for (const changement of changements) {
+        const messages = (changement as { value?: { messages?: unknown } } | null)?.value?.messages;
+        if (Array.isArray(messages)) paquets.push(messages);
+      }
+    }
+  }
+  for (const messages of paquets as unknown[][]) {
+    {
       for (const message of messages) {
         const m = message as {
           from?: unknown;

@@ -64,6 +64,14 @@ describe("lireEntreesBot", () => {
     expect(e).toEqual([]);
   });
 
+  it("lit la forme PLATE v1 du sandbox 360dialog — messages a la racine", () => {
+    const e = lireEntreesBot({
+      contacts: [{ wa_id: "237690112233" }],
+      messages: [{ from: "237690112233", type: "text", text: { body: "boutique chez-amina" } }],
+    });
+    expect(e).toEqual([{ de: "237690112233", genre: "texte", texte: "boutique chez-amina" }]);
+  });
+
   it("rend une liste vide sur un corps difforme, jamais une levee", () => {
     for (const corps of [null, {}, { entry: "x" }, { entry: [{}] }, 42]) {
       expect(lireEntreesBot(corps)).toEqual([]);
