@@ -77,7 +77,39 @@ publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans résea
 lot 8 (analyseurs de SMS, sept contrôles, écran de collage), lot 9 (rampe de
 paiement), lot 10 (reçu vérifiable et contre-signature), lot 11 (cycle de vie des
 commandes), lot 12 (avis vérifiés et réputation), lot 13 (écran statistiques),
-lot 14 (observabilité, canari de formats, runbooks, sauvegardes).
+lot 14 (observabilité, canari de formats, runbooks, sauvegardes). Puis, hors
+séquence `PROMPTS.md` : durcissement et mise en production (ADR 0024),
+canaux du code de connexion et passerelle MboaSMS (0025–0027), architecture
+d'authentification cible et cérémonie Google (0028–0029), refonte UI vendeuse
+(0030), et le bot WhatsApp (0031 à 0033).
+
+### Le bot WhatsApp — trois points ouverts, et ils le restent
+
+Le cap du bot est posé par l'ADR 0031, révisé par le 0032 (sprint A —
+récapitulatif de confirmation, boutons vivants, sorties de secours,
+mémoire d'après-achat) et le 0033 (sprint B — panier multi-articles, stock,
+description, relance d'acompte, FR/EN). **Trois points sont vus, décidés, et
+volontairement NON faits.** Les rouvrir en silence est la dérive que le §7.7
+d'`AGENTS.md` interdit :
+
+1. **`product.variants` reste une colonne morte.** Aucune forme définie, aucun
+   chemin d'écriture, aucune interface. La vendre par le bot exigerait
+   d'inventer le modèle — tailles ? couleurs ? écarts de prix ? stock par
+   variante ? C'est une décision produit à prendre, pas un champ à remplir.
+   D'ici là, la question « taille / couleur / modèle » renvoie à la vendeuse,
+   et c'est le palliatif assumé.
+2. **Le pidgin est reporté, pas oublié.** L'extraction des messages sortants
+   est faite et FR/EN sont complets ; le pidgin s'écrira après relecture par
+   une locutrice. Une traduction fabriquée par la machine ne se promeut pas
+   silencieusement en langue de sortie.
+3. **Tout ce qui exige des gabarits utilitaires attend le WABA** : relances
+   suivantes (24 h, post-expiration), notification de la vendeuse, Flows,
+   catalogue natif, click-to-WhatsApp. L'adaptateur d'envoi est dormant —
+   sans `WABOT_API_KEY`, rien n'est monté.
+
+Deux reports mineurs de la même famille : le retrait d'une ligne du panier
+(« annuler » vide tout, « corriger » revient au panier) et la description sur
+la boutique publique attendent un besoin constaté.
 
 Quatre choses à savoir du lot 14, toutes dans l'ADR 0023 :
 
