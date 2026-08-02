@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { boutons, liste, texte } from "../messages.ts";
+import { boutons, image, liste, texte } from "../messages.ts";
 
 /**
  * Les constructeurs de messages sortants — ADR 0031.
@@ -125,5 +125,28 @@ describe("liste", () => {
       { id: "a", titre: "Pagne", description: `15 000 FCFA — ${"x".repeat(100)}` },
     ]);
     expect(m.interactive.action.sections[0]?.rows[0]?.description).toMatch(/^15 000 FCFA/);
+  });
+});
+
+describe("image — la photo pleine largeur (ADR 0035)", () => {
+  it("porte le lien et la legende, sans champ vide", () => {
+    const m = image("237690112233", "https://o/p.jpg", "Pagne — 15 000 FCFA");
+    expect(m.type).toBe("image");
+    expect(m.image.link).toBe("https://o/p.jpg");
+    expect(m.image.caption).toBe("Pagne — 15 000 FCFA");
+
+    const sans = image("237690112233", "https://o/p.jpg");
+    expect(sans.image.caption).toBeUndefined();
+  });
+
+  it("tronque une legende de vendeuse au plafond de l'API, sans lever", () => {
+    const longue = "x".repeat(2000);
+    const m = image("237690112233", "https://o/p.jpg", longue);
+    expect((m.image.caption ?? "").length).toBeLessThanOrEqual(1024);
+    expect(m.image.caption?.endsWith("…")).toBe(true);
+  });
+
+  it("refuse un lien vide : un message image sans image n'existe pas", () => {
+    expect(() => image("237690112233", "  ")).toThrow();
   });
 });

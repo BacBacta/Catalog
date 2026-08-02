@@ -3,9 +3,12 @@
 
 import { randomBytes } from "node:crypto";
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
+import { formatPhone } from "@catalog/contracts/phone";
+import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
 import { emailTechnique } from "./auth.ts";
+import { livrerNotificationsEnAttente, notifier, notifierLivree } from "./bot-notifications.ts";
 import { aiguiller } from "./domain/bot/aiguillage.ts";
 import {
   type ArticleBot,
@@ -18,6 +21,7 @@ import {
   extraireSlugBoutique,
   type LignePanier,
   normaliserEtat,
+  RAFALE_MAX,
   reagirAcheteuse,
   reagirVendeuse,
   type StatutDerniereCommande,
@@ -35,9 +39,19 @@ import {
 } from "./domain/bot/inscription.ts";
 import type { LecteurMedia } from "./domain/bot/media.ts";
 import { texte } from "./domain/bot/messages.ts";
+import {
+  corpsLivraisonMarquee,
+  corpsLivraisonRefusee,
+  corpsNouvelleCommande,
+} from "./domain/bot/notifications.ts";
 import { type Langue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
-import { type CommandePourCycle, etapesDuSuivi, soldeAEncaisser } from "./domain/order/cycle.ts";
+import {
+  avancerEtape,
+  type CommandePourCycle,
+  etapesDuSuivi,
+  soldeAEncaisser,
+} from "./domain/order/cycle.ts";
 import { echeance } from "./domain/order/expiration.ts";
 import { planDePaiement } from "./domain/order/paiement.ts";
 import { analyserSms } from "./domain/proof/motifs.ts";
@@ -91,6 +105,17 @@ export interface BotDeps {
    * relance — la commande vit, seule la piqure de rappel manque.
    */
   planifierRelance?: (charge: ChargeRelance) => Promise<void>;
+  /**
+   * Relance « posez votre reversement » ~20 h apres l'ouverture (ADR 0035).
+   * Meme regle : absente, la boutique vit sans rappel.
+   */
+  planifierRelanceReversement?: (charge: { sellerId: string; phone: string }) => Promise<void>;
+  /**
+   * La configuration de la rampe (lot 9) : le bloc paiement du fil en lit le
+   * nom d'operateur et le code d'entree — jamais une constante (AGENTS.md).
+   * Absente : le bloc part sans ligne de code, il reste vrai.
+   */
+  rampe?: RampeConfig;
   maintenant?: () => Date;
   aleatoire?: (n: number) => Uint8Array;
 }
@@ -136,16 +161,30 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   const phone = cleConversation(entree.de);
   if (!phone) return;
 
+  /* Le message entrant vient d'OUVRIR la fenetre de service : les
+     notifications en attente partent d'abord (ADR 0035), la reponse suit. */
+  await livrerNotificationsEnAttente(deps, phone);
+
+  /**
+   * La vendeuse se reconnait par `authUser.phoneNumber` OU par `seller.phone` :
+   * une vendeuse nee de la ceremonie Google n'a pas de numero de connexion —
+   * son numero de contact est un attribut du profil (ADR 0029). Sans la
+   * seconde recherche, elle serait traitee en acheteuse et son SMS colle
+   * recevrait une reponse d'acheteuse (T4).
+   */
   const utilisateur = await deps.prisma.authUser.findUnique({
     where: { phoneNumber: phone },
     include: { seller: true },
   });
+  const vendeuse =
+    utilisateur?.seller ??
+    (await deps.prisma.seller.findUnique({ where: { phone }, select: { id: true } }));
   const enregistrement = await deps.prisma.botConversation.findUnique({ where: { phone } });
   const etatVendeuse = normaliserEtatVendeuse(enregistrement?.etat);
   const etatAchat = etatVendeuse ? ETAT_INITIAL : normaliserEtat(enregistrement?.etat);
 
   const smsReconnu =
-    utilisateur?.seller != null && entree.genre === "texte" && analyserSms(entree.texte).reconnu;
+    vendeuse != null && entree.genre === "texte" && analyserSms(entree.texte).reconnu;
 
   const fil = aiguiller(
     {
@@ -154,7 +193,7 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
       ...(entree.genre === "bouton" || entree.genre === "liste" ? { id: entree.id } : {}),
     },
     {
-      estVendeuse: utilisateur?.seller != null,
+      estVendeuse: vendeuse != null,
       etatVendeuseEnCours: etatVendeuse !== null,
       smsReconnu,
       achatEnCours: etatAchat.nom !== "accueil",
@@ -162,11 +201,11 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   );
 
   if (fil === "inscription") {
-    await filInscription(deps, entree, phone, etatVendeuse, utilisateur?.seller?.id ?? null);
+    await filInscription(deps, entree, phone, etatVendeuse, vendeuse?.id ?? null);
     return;
   }
-  if (fil === "vendeuse" && utilisateur?.seller) {
-    await filVendeuse(deps, entree, utilisateur.seller.id);
+  if (fil === "vendeuse" && vendeuse) {
+    await filVendeuse(deps, entree, vendeuse.id);
     return;
   }
   await filAcheteuse(deps, entree, phone);
@@ -225,6 +264,13 @@ async function filInscription(
     const cree = await creerBoutique(deps, phone, reaction.effet);
     if (cree.ok) {
       messages.push(...messageBoutiqueCreee(entree.de, cree.messagerie));
+      /* La relance « posez votre reversement » a ~20 h (ADR 0035) : le
+         travail re-decide sur l'etat reel — posee entre-temps, silence. */
+      if (deps.planifierRelanceReversement) {
+        await deps
+          .planifierRelanceReversement({ sellerId: cree.id, phone })
+          .catch(() => console.warn("bot : relance reversement non planifiee (details retenus)"));
+      }
     } else {
       messages.push(texte(entree.de, cree.message));
     }
@@ -291,7 +337,16 @@ async function creerBoutique(
   phone: string,
   demande: { nomBoutique: string; ville: string; parrain?: string },
 ): Promise<
-  | { ok: true; messagerie: { nom: string; lienBoutique: string; lienParrainage: string } }
+  | {
+      ok: true;
+      id: string;
+      messagerie: {
+        nom: string;
+        lienBoutique: string;
+        lienParrainage: string;
+        lienEspace: string | null;
+      };
+    }
   | { ok: false; message: string }
 > {
   /* La marraine est resolue AVANT la transaction : un slug inconnu n'empeche
@@ -329,16 +384,18 @@ async function creerBoutique(
           canalOuverture: "bot",
           ...(parrain ? { parrainId: parrain.id } : {}),
         },
-        select: { businessName: true, slug: true },
+        select: { id: true, businessName: true, slug: true },
       });
     });
 
     return {
       ok: true,
+      id: seller.id,
       messagerie: {
         nom: seller.businessName,
         lienBoutique: lienBot(deps, `boutique ${seller.slug}`),
         lienParrainage: lienBot(deps, `vendre avec ${seller.slug}`),
+        lienEspace: deps.baseApp || null,
       },
     };
   } catch (e) {
@@ -459,18 +516,30 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
   const charge = slug ? await chargerBoutique(deps, slug) : null;
   const boutique = charge?.boutique ?? null;
 
-  /* L'en-tete image, seulement la ou il s'affiche : l'accueil (entree par
-     lien) et la fiche article. Jamais d'URL non verifiee — un lien mort fait
-     refuser le message entier par l'API. */
+  /* L'image, seulement la ou elle s'affiche : l'accueil (entree par lien), la
+     fiche article, et la rafale « voir en photos » (ADR 0035). Jamais d'URL
+     non verifiee — un lien mort fait refuser le message entier par l'API. */
   if (boutique && charge) {
     const idGeste = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
-    const articleVise = idGeste?.startsWith("art:") ? idGeste.slice(4) : null;
-    const cibleId = articleVise ?? (slugDuTexte ? boutique.articles[0]?.id : null) ?? null;
-    if (cibleId) {
-      const cle = charge.clesImage.get(cibleId);
-      const url = cle ? await urlJpegVerifiee(deps, cle) : null;
-      const cible = boutique.articles.find((a) => a.id === cibleId);
-      if (cible && url) cible.imageUrl = url;
+    if (idGeste === "photos") {
+      /* La rafale : autant d'URL verifiees que d'images qui partiront. */
+      const illustres = boutique.articles.filter((a) => charge.clesImage.has(a.id));
+      await Promise.all(
+        illustres.slice(0, RAFALE_MAX).map(async (a) => {
+          const cle = charge.clesImage.get(a.id);
+          const url = cle ? await urlJpegVerifiee(deps, cle) : null;
+          if (url) a.imageUrl = url;
+        }),
+      );
+    } else {
+      const articleVise = idGeste?.startsWith("art:") ? idGeste.slice(4) : null;
+      const cibleId = articleVise ?? (slugDuTexte ? boutique.articles[0]?.id : null) ?? null;
+      if (cibleId) {
+        const cle = charge.clesImage.get(cibleId);
+        const url = cle ? await urlJpegVerifiee(deps, cle) : null;
+        const cible = boutique.articles.find((a) => a.id === cibleId);
+        if (cible && url) cible.imageUrl = url;
+      }
     }
   }
 
@@ -503,6 +572,30 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     } else {
       const commande = await creerCommande(deps, boutique, resolution.articles, livraison.data);
       commandeCreeeId = commande.id;
+      /**
+       * Le bloc paiement DANS le fil (ADR 0035) : le numero de reversement de
+       * la vendeuse, l'operateur et son code d'entree lus de la CONFIGURATION
+       * de la rampe — jamais une constante. `/payer` reste le confort.
+       */
+      const operateur =
+        charge?.reversement?.operateur && deps.rampe
+          ? (deps.rampe.operateurs.find((o) => o.id === charge.reversement?.operateur) ?? null)
+          : null;
+      const paiement =
+        commande.duAvantXaf > 0 && charge?.reversement
+          ? {
+              montantXaf: commande.duAvantXaf,
+              numeroAffiche: formatPhone(charge.reversement.numero),
+              operateurNom: operateur?.nom ?? null,
+              codeEntree: operateur?.codeEntree.modele ?? null,
+              lienPayer: deps.baseBoutique
+                ? `${deps.baseBoutique}/payer?numero=${encodeURIComponent(
+                    charge.reversement.numero,
+                  )}&montant=${commande.duAvantXaf}`
+                : null,
+            }
+          : null;
+      const chiffresVendeuse = boutique.whatsappVendeuse?.replace(/\D/g, "") ?? "";
       messages.push(
         ...confirmationCommande(
           entree.de,
@@ -522,10 +615,30 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
               deps.baseBoutique && commande.buyerToken
                 ? lienDeSuivi(deps.baseBoutique, commande.buyerToken)
                 : null,
+            paiement,
+            waVendeuse: chiffresVendeuse ? `https://wa.me/${chiffresVendeuse}` : null,
           },
           langue,
         ),
       );
+      /* La vendeuse apprend la commande DANS son fil (ADR 0035) — envoi
+         immediat si sa fenetre est sure, mise en attente sinon. */
+      if (boutique.whatsappVendeuse) {
+        await notifier(
+          deps,
+          boutique.whatsappVendeuse,
+          corpsNouvelleCommande({
+            reference: commande.ref,
+            lignes: resolution.articles.map((a) => ({
+              nom: a.article.nom,
+              quantite: a.quantite,
+            })),
+            totalXaf: commande.totalXaf,
+            duAvantXaf: commande.duAvantXaf,
+            telephoneLivraison: formatPhone((b.livraison as { phone?: string }).phone ?? ""),
+          }),
+        );
+      }
       /* La relance d'acompte (ADR 0033) : planifiee seulement quand un
          acompte est attendu — le travail redecide de toute facon sur l'etat
          reel au moment de partir. */
@@ -559,6 +672,8 @@ interface BoutiqueChargee {
   boutique: BoutiqueBot;
   /** Cle de base d'image par article — detail de stockage, hors du domaine. */
   clesImage: Map<string, string>;
+  /** Le reversement pour le bloc paiement (ADR 0035) — jamais montre ailleurs. */
+  reversement: { numero: string; operateur: string | null } | null;
 }
 
 async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueChargee | null> {
@@ -595,6 +710,8 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
       whatsappVendeuse: seller.phone,
       reversementPose: seller.payoutPhone !== null,
       reputation: { note: rep.note, nbVerifies: rep.nbVerifies },
+      /* « Voir en photos » n'apparait que s'il y a au moins une photo (ADR 0035). */
+      aDesPhotos: clesImage.size > 0,
       articles: seller.products.map((p) => ({
         id: p.id,
         nom: p.name,
@@ -605,6 +722,9 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
       })),
     },
     clesImage,
+    reversement: seller.payoutPhone
+      ? { numero: seller.payoutPhone, operateur: seller.payoutOperator ?? null }
+      : null,
   };
 }
 
@@ -809,6 +929,12 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
   });
   const messages = [...reaction.messages];
 
+  if (reaction.effet?.type === "marquer_livree") {
+    messages.push(
+      texte(entree.de, await marquerLivree(deps, sellerIdent, reaction.effet.reference)),
+    );
+  }
+
   if (reaction.effet?.type === "verifier_sms") {
     /* V1 : reconnaissance et aiguillage — pas de verdict dans le fil (voir
        l'en-tete du fichier). Le SMS n'est ni persiste ni retranscrit : seuls
@@ -834,4 +960,69 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
   }
 
   for (const m of messages) await deps.envoyeur.envoyer(m);
+}
+
+/**
+ * « livree CT-XXXXXX » — ADR 0035. La MEME machine d'etapes que la route web
+ * decide (`avancerEtape`), le meme journal ecrit, le meme refus se journalise.
+ * Deux sources de verite sur une etape seraient pires qu'aucune.
+ */
+async function marquerLivree(
+  deps: BotDeps,
+  sellerIdent: string,
+  reference: string,
+): Promise<string> {
+  const commande = await deps.prisma.order.findFirst({
+    where: { ref: reference, sellerId: sellerIdent },
+    select: {
+      id: true,
+      step: true,
+      totalXaf: true,
+      amountPaidXaf: true,
+      balanceXaf: true,
+      proofState: true,
+      delivery: true,
+      cancelledAt: true,
+      createdAt: true,
+    },
+  });
+  if (!commande) return corpsLivraisonRefusee(reference, "commande_introuvable");
+
+  const cycle: CommandePourCycle = {
+    etape: commande.step,
+    modeLivraison:
+      (commande.delivery as { mode?: string } | null)?.mode === "retrait" ? "retrait" : "livraison",
+    totalXaf: commande.totalXaf,
+    amountPaidXaf: commande.amountPaidXaf,
+    balanceXaf: commande.balanceXaf,
+    etatPreuve: commande.proofState,
+    annuleeA: commande.cancelledAt,
+  };
+  const maintenant = deps.maintenant?.() ?? new Date();
+  const decision = avancerEtape(cycle, "livree", maintenant);
+
+  await deps.prisma.$transaction(async (tx) => {
+    if (decision.ok) {
+      await tx.order.update({ where: { id: commande.id }, data: { step: decision.etape } });
+    }
+    await tx.orderEvent.create({
+      data: {
+        orderId: commande.id,
+        sellerId: sellerIdent,
+        kind: decision.journal.kind,
+        actor: "vendeuse",
+        at: decision.journal.at,
+        payload: {
+          de: decision.journal.de,
+          vers: decision.journal.vers,
+          canal: "bot_whatsapp",
+          ...(decision.ok ? {} : { raison: decision.raison }),
+        },
+      },
+    });
+  });
+
+  if (!decision.ok) return corpsLivraisonRefusee(reference, decision.raison);
+  await notifierLivree(deps, commande.id);
+  return corpsLivraisonMarquee(reference);
 }

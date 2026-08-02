@@ -80,6 +80,8 @@ export interface TextesAcheteuse {
   ligneCode: (code: string) => string;
   suiteAcompte: (lien: string) => string;
   suiteSansAcompte: (lien: string) => string;
+  /** Le lien de suivi seul, quand le bloc paiement a deja tout dit du paiement. */
+  suiteSuivi: (lien: string) => string;
   commandeRatee: string;
   stockInsuffisant: (nomArticle: string) => string;
 
@@ -93,6 +95,33 @@ export interface TextesAcheteuse {
   faqVariante: string;
 
   relanceAcompte: (reference: string, acompteXaf: number) => string;
+
+  /** « Voir en photos » — la rafale d'images (ADR 0035). */
+  btnVoirPhotos: string;
+  rafaleAucunePhoto: string;
+  /** Changer de boutique laisse l'ancien panier — et on le DIT (T7). */
+  panierAbandonneAilleurs: string;
+  /** En mode livraison, le total ne comprend jamais la course. */
+  ligneHorsLivraison: string;
+  /** Apres la confirmation : la conversation continue chez la vendeuse. */
+  apresConfirmation: (nomBoutique: string, lien: string) => string;
+  /**
+   * Le bloc paiement en texte brut, autosuffisant (AGENTS.md) : montant,
+   * numero, code d'entree venu de la CONFIGURATION — jamais d'une constante.
+   * `lienPayer` est un confort, jamais le seul porteur.
+   */
+  blocPaiement: (b: {
+    montantXaf: number;
+    numeroAffiche: string;
+    operateurNom: string | null;
+    codeEntree: string | null;
+    lienPayer: string | null;
+  }) => string;
+
+  /** Paiement prouve — la notification de l'acheteuse. Aucun jeton re-projete. */
+  notifPaiementProuve: (reference: string, resteXaf: number) => string;
+  /** Commande livree — l'invitation a noter, via le lien deja recu. */
+  notifLivree: (reference: string, nomBoutique: string) => string;
 }
 
 const fr: TextesAcheteuse = {
@@ -173,6 +202,8 @@ const fr: TextesAcheteuse = {
     `Pour payer l'acompte, ouvrez : ${lien}\nAprès le paiement, votre reçu vérifiable vous attend au même endroit.\nVotre code secret ne se tape QUE sur l'écran de votre opérateur — jamais ici.`,
   suiteSansAcompte: (lien) =>
     `Rien à payer d'avance — vous payez à la réception.\nSuivez votre commande ici : ${lien}`,
+  suiteSuivi: (lien) =>
+    `Votre suivi et votre reçu vérifiable vivent ici — gardez ce lien : ${lien}`,
   commandeRatee:
     "Cette commande n'a pas pu être enregistrée. Reprenez au catalogue — rien n'a été perdu.",
   stockInsuffisant: (nom) =>
@@ -194,6 +225,38 @@ const fr: TextesAcheteuse = {
 
   relanceAcompte: (ref, acompte) =>
     `Votre commande ${ref} attend son acompte de *${formatXaf(acompte)}* pour être confirmée. Le lien de paiement est dans votre message de confirmation, juste au-dessus. Sans acompte, la commande expirera d'elle-même.`,
+
+  btnVoirPhotos: "Voir en photos",
+  rafaleAucunePhoto:
+    "Cette boutique n'a pas encore mis de photos — les articles sont dans la liste.",
+  panierAbandonneAilleurs:
+    "Nouveau départ ici : le panier commencé dans l'autre boutique n'a pas été gardé.",
+  ligneHorsLivraison: "(hors livraison — le prix de la course se convient avec la vendeuse)",
+  apresConfirmation: (nom, lien) =>
+    `Pour la suite — livraison, questions, précisions — écrivez directement à ${nom} :\n${lien}`,
+  blocPaiement: (b) =>
+    [
+      `💳 *À payer maintenant : ${formatXaf(b.montantXaf)}*`,
+      `${b.operateurNom ?? "Mobile Money"} : ${b.numeroAffiche}`,
+      ...(b.codeEntree
+        ? [`Composez ${b.codeEntree}, puis suivez le menu de transfert d'argent.`]
+        : []),
+      "Votre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.",
+      ...(b.lienPayer ? [`En un tap, le clavier pré-rempli : ${b.lienPayer}`] : []),
+      "Dès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici.",
+    ].join("\n"),
+
+  notifPaiementProuve: (ref, reste) =>
+    [
+      `✅ *Votre paiement sur ${ref} est prouvé* — le reçu vérifiable est émis.`,
+      reste > 0 ? `Reste à payer à la remise : ${formatXaf(reste)}.` : "Tout est réglé.",
+      "Votre lien de suivi est dans le message de confirmation, plus haut dans ce fil.",
+    ].join("\n"),
+  notifLivree: (ref, nom) =>
+    [
+      `📦 *${ref} est marquée livrée* par ${nom}.`,
+      "Un mot sur la boutique ? Déposez votre avis depuis votre lien de suivi (message de confirmation) — un paiement prouvé le marque « achat vérifié ».",
+    ].join("\n"),
 };
 
 const en: TextesAcheteuse = {
@@ -272,6 +335,8 @@ const en: TextesAcheteuse = {
     `To pay the deposit, open: ${lien}\nAfter payment, your verifiable receipt is waiting at the same place.\nYour secret code is typed ONLY on your operator's screen — never here.`,
   suiteSansAcompte: (lien) =>
     `Nothing to pay upfront — you pay on delivery.\nFollow your order here: ${lien}`,
+  suiteSuivi: (lien) =>
+    `Your tracking and your verifiable receipt live here — keep this link: ${lien}`,
   commandeRatee: "This order could not be saved. Start again from the list — nothing was lost.",
   stockInsuffisant: (nom) =>
     `The stock of “${nom}” changed in the meantime and is no longer enough. Start again from the list — nothing was ordered.`,
@@ -288,6 +353,34 @@ const en: TextesAcheteuse = {
 
   relanceAcompte: (ref, acompte) =>
     `Your order ${ref} is waiting for its *${formatXaf(acompte)}* deposit to be confirmed. The payment link is in your confirmation message, just above. Without the deposit, the order will expire on its own.`,
+
+  btnVoirPhotos: "See photos",
+  rafaleAucunePhoto: "This shop has no photos yet — the items are in the list.",
+  panierAbandonneAilleurs: "Fresh start here: the cart begun in the other shop was not kept.",
+  ligneHorsLivraison: "(delivery not included — the fare is agreed with the seller)",
+  apresConfirmation: (nom, lien) =>
+    `For what comes next — delivery, questions, details — write to ${nom} directly:\n${lien}`,
+  blocPaiement: (b) =>
+    [
+      `💳 *To pay now: ${formatXaf(b.montantXaf)}*`,
+      `${b.operateurNom ?? "Mobile Money"}: ${b.numeroAffiche}`,
+      ...(b.codeEntree ? [`Dial ${b.codeEntree}, then follow the money-transfer menu.`] : []),
+      "Your secret code is typed ONLY on your operator's screen — never here.",
+      ...(b.lienPayer ? [`One tap, keypad pre-filled: ${b.lienPayer}`] : []),
+      "As soon as the seller pastes her reception SMS, your verifiable receipt is issued — you will be notified here.",
+    ].join("\n"),
+
+  notifPaiementProuve: (ref, reste) =>
+    [
+      `✅ *Your payment on ${ref} is proven* — the verifiable receipt is issued.`,
+      reste > 0 ? `Left to pay on delivery: ${formatXaf(reste)}.` : "All settled.",
+      "Your tracking link is in the confirmation message, earlier in this thread.",
+    ].join("\n"),
+  notifLivree: (ref, nom) =>
+    [
+      `📦 *${ref} is marked delivered* by ${nom}.`,
+      "A word about the shop? Leave your review from your tracking link (confirmation message) — a proven payment marks it “verified purchase”.",
+    ].join("\n"),
 };
 
 export const TEXTES: Record<Langue, TextesAcheteuse> = { fr, en };

@@ -119,6 +119,29 @@ describe("textes — les deux catalogues produisent, en entier", () => {
         t.faqPhoto,
         t.faqVariante,
         t.relanceAcompte("CT-104312", 7500),
+        t.btnVoirPhotos,
+        t.rafaleAucunePhoto,
+        t.panierAbandonneAilleurs,
+        t.ligneHorsLivraison,
+        t.apresConfirmation("Chez Amina", "https://wa.me/237677123456"),
+        t.suiteSuivi("https://x.test/s"),
+        t.blocPaiement({
+          montantXaf: 8000,
+          numeroAffiche: "6 56 74 62 15",
+          operateurNom: "Orange Money",
+          codeEntree: "#150*50#",
+          lienPayer: "https://x.test/payer",
+        }),
+        t.blocPaiement({
+          montantXaf: 8000,
+          numeroAffiche: "6 56 74 62 15",
+          operateurNom: null,
+          codeEntree: null,
+          lienPayer: null,
+        }),
+        t.notifPaiementProuve("CT-104312", 7500),
+        t.notifPaiementProuve("CT-104312", 0),
+        t.notifLivree("CT-104312", "Chez Amina"),
       ];
       for (const p of produits) {
         expect(p, langue).toBeTypeOf("string");

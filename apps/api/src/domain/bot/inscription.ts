@@ -140,7 +140,17 @@ export const PREMIERE_QUESTION =
 
 export function messageBoutiqueCreee(
   vers: string,
-  b: { nom: string; lienBoutique: string; lienParrainage: string },
+  b: {
+    nom: string;
+    lienBoutique: string;
+    lienParrainage: string;
+    /**
+     * L'URL de l'espace vendeuse (ADR 0035, T1) : reversement, chiffres,
+     * photos suivantes. `null` quand la base n'est pas configuree — on ne
+     * fabrique jamais une URL fausse, la phrase reste vraie sans lien.
+     */
+    lienEspace: string | null;
+  },
 ): MessageSortant[] {
   return [
     texte(
@@ -149,7 +159,7 @@ export function messageBoutiqueCreee(
     ),
     texte(
       vers,
-      `Pour être payée d'avance, ajoutez votre numéro Mobile Money dans votre espace vendeuse — il demande sa propre vérification, c'est le numéro qui reçoit votre argent.\n\nVotre lien de parrainage, si une consœur veut ouvrir la sienne :\n${b.lienParrainage}`,
+      `Pour être payée d'avance, ajoutez votre numéro Mobile Money dans votre espace vendeuse — il demande sa propre vérification, c'est le numéro qui reçoit votre argent.${b.lienEspace ? `\nVotre espace vendeuse : ${b.lienEspace}` : ""}\n\nVotre lien de parrainage, si une consœur veut ouvrir la sienne :\n${b.lienParrainage}`,
     ),
     boutons(vers, "Ajoutons votre premier article ?", [
       { id: "article", titre: "Premier article" },

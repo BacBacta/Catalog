@@ -18,6 +18,7 @@ const BOUTONS_MAX = 3;
 const LISTE_LIGNES_MAX = 10;
 const LIGNE_TITRE_MAX = 24;
 const LIGNE_DESCRIPTION_MAX = 72;
+const LEGENDE_MAX = 1024;
 
 export interface MessageTexte {
   messaging_product: "whatsapp";
@@ -69,7 +70,21 @@ export interface MessageListe {
   };
 }
 
-export type MessageSortant = MessageTexte | MessageBoutons | MessageListe;
+/**
+ * Une photo pleine largeur, avec sa legende — la fiche article « image
+ * d'abord » et la rafale « voir en photos » (ADR 0035). Comme l'en-tete des
+ * messages a boutons : le lien doit etre lisible par les serveurs de Meta AU
+ * MOMENT de l'envoi, et c'est l'appelant qui le garantit.
+ */
+export interface MessageImage {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "image";
+  image: { link: string; caption?: string };
+}
+
+export type MessageSortant = MessageTexte | MessageBoutons | MessageListe | MessageImage;
 
 /** Troncature propre : jamais plus de `max`, ellipse comprise. */
 function tronquer(texte: string, max: number): string {
@@ -91,6 +106,20 @@ export function texte(vers: string, corps: string): MessageTexte {
     to: vers,
     type: "text",
     text: { body: corpsOuLeve(corps), preview_url: false },
+  };
+}
+
+export function image(vers: string, lien: string, legende?: string): MessageImage {
+  if (!lien.trim()) throw new Error("un message image exige un lien");
+  const nette = legende?.trim();
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: vers,
+    type: "image",
+    /* La legende vient des DONNEES (nom d'article, prix) : troncature propre,
+       jamais de levee — une vendeuse au nom trop long vend quand meme. */
+    image: { link: lien, ...(nette ? { caption: tronquer(nette, LEGENDE_MAX) } : {}) },
   };
 }
 

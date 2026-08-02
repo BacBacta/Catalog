@@ -366,10 +366,17 @@ describe("aucun etat n'est un piege — mots-cles globaux", () => {
     expect(r.etat).toEqual({ nom: "catalogue", slug: "chez-amina", page: 0 });
   });
 
-  it("« menu » tape en plein recap revient a l'accueil sans rien creer", () => {
+  it("« menu » tape en plein recap revient a l'accueil sans rien creer — et GARDE le panier", () => {
+    /* ADR 0035 (T7) : seul « annuler » vide le panier, et il le dit. « menu »
+       est une navigation, pas un abandon. */
     const r = reagirAcheteuse(RECAP, { genre: "texte", texte: "menu" }, ctx());
     expect(r.effet).toBeUndefined();
-    expect(r.etat).toEqual({ nom: "catalogue", slug: "chez-amina", page: 0 });
+    expect(r.etat).toEqual({
+      nom: "catalogue",
+      slug: "chez-amina",
+      page: 0,
+      panier: [{ articleId: "a1", quantite: 2 }],
+    });
   });
 
   it("« aide » repond les gestes disponibles sans perdre l'etat", () => {
@@ -690,5 +697,191 @@ describe("confirmation et verdict", () => {
     expect(
       corpsTexte(messageVerdict(VERS, { verdict: "accepte_sous_reserve", reference: null })),
     ).toMatch(/réserve/);
+  });
+});
+
+/**
+ * ADR 0035 — le P0 de la cible premium : rafale d'images, fiche image
+ * d'abord, panier qui survit a la navigation, bloc paiement dans le fil,
+ * « livree » au mot-cle.
+ */
+describe("ADR 0035 — la cible premium, fenetre libre", () => {
+  const AVEC_PHOTOS: BoutiqueBot = {
+    ...BOUTIQUE,
+    aDesPhotos: true,
+    articles: [
+      {
+        id: "a1",
+        nom: "Pagne wax 6 yards",
+        prixXaf: 15000,
+        stock: null,
+        imageUrl: "https://o/p.jpg",
+      },
+      { id: "a2", nom: "Sac en raphia", prixXaf: 8000, stock: 2, imageUrl: "https://o/s.jpg" },
+      { id: "a3", nom: "Huile de coco", prixXaf: 3500, stock: null },
+    ],
+  };
+
+  it("l'accueil offre « Voir en photos » quand la boutique a des photos — jamais sinon", () => {
+    const avec = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "boutique chez-amina" },
+      ctx({ boutique: AVEC_PHOTOS }),
+    );
+    expect(idsBoutons(avec.messages[0])).toEqual(["catalogue", "photos", "vendeuse"]);
+
+    const sans = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "boutique chez-amina" },
+      ctx(),
+    );
+    expect(idsBoutons(sans.messages[0])).toEqual(["catalogue", "vendeuse"]);
+  });
+
+  it("la rafale envoie chaque article illustre en photo legendee, puis la liste", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "photos" },
+      ctx({ boutique: AVEC_PHOTOS }),
+    );
+    const images = r.messages.filter((m) => (m as { type?: string }).type === "image");
+    expect(images).toHaveLength(2);
+    const premiere = images[0] as { image: { link: string; caption?: string } };
+    expect(premiere.image.link).toBe("https://o/p.jpg");
+    expect(premiere.image.caption).toBe(`Pagne wax 6 yards — ${formatXaf(15000)}`);
+    /* La liste reprend la main derriere la rafale — jamais de cul-de-sac. */
+    expect((r.messages.at(-1) as { type?: string }).type).toBe("interactive");
+  });
+
+  it("sans aucune photo enrichie, la rafale le dit au lieu de se taire", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "photos" },
+      ctx(),
+    );
+    expect(corpsTexte(r.messages[0])).toMatch(/photo/i);
+  });
+
+  it("la fiche part image d'abord : la photo pleine largeur, puis les boutons", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a2" },
+      ctx({ boutique: AVEC_PHOTOS }),
+    );
+    expect(r.messages).toHaveLength(2);
+    expect((r.messages[0] as { type?: string }).type).toBe("image");
+    expect(idsBoutons(r.messages[1])).toEqual(["cmd:a2", "cat:0"]);
+  });
+
+  it("changer de boutique laisse le panier — et le DIT", () => {
+    const autre: BoutiqueBot = { ...BOUTIQUE, slug: "chez-bea", nom: "Chez Bea" };
+    const r = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 1 }] },
+      { genre: "texte", texte: "boutique chez-bea" },
+      ctx({ boutique: autre }),
+    );
+    expect(corpsTexte(r.messages[0])).toMatch(/panier/);
+    expect(r.etat).toEqual({ nom: "catalogue", slug: "chez-bea", page: 0 });
+  });
+
+  it("revenir a la MEME boutique par son lien garde le panier, sans avertissement", () => {
+    const r = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 1 }] },
+      { genre: "texte", texte: "boutique chez-amina" },
+      ctx(),
+    );
+    expect(r.etat).toEqual({
+      nom: "catalogue",
+      slug: "chez-amina",
+      page: 0,
+      panier: [{ articleId: "a1", quantite: 1 }],
+    });
+  });
+
+  it("le recap en mode livraison dit « hors livraison » ; le retrait, non", () => {
+    const livraison = reagirAcheteuse(
+      {
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a2", quantite: 1 }],
+        mode: "livraison",
+      },
+      { genre: "texte", texte: "Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33" },
+      ctx(),
+    );
+    expect(corpsBoutons(livraison.messages[0])).toMatch(/hors livraison/);
+
+    const retrait = reagirAcheteuse(
+      {
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a2", quantite: 1 }],
+        mode: "retrait",
+      },
+      { genre: "texte", texte: "Marche central, entree B, 690 11 22 33" },
+      ctx(),
+    );
+    expect(corpsBoutons(retrait.messages[0])).not.toMatch(/hors livraison/);
+  });
+
+  it("la confirmation porte le bloc paiement en texte brut — code venu de la CONFIGURATION", () => {
+    const messages = confirmationCommande(VERS, {
+      reference: "CT-1050",
+      codeVerification: "ACDE-4679",
+      boutique: "Chez Amina",
+      lignes: [{ nom: "Sac en raphia", quantite: 2, prixUnitaireXaf: 8000 }],
+      totalXaf: 16000,
+      duAvantXaf: 8000,
+      livraison: LIVRAISON,
+      lienSuivi: "https://exemple.test/suivi?j=abc",
+      paiement: {
+        montantXaf: 8000,
+        numeroAffiche: "6 56 74 62 15",
+        operateurNom: "Orange Money",
+        codeEntree: "#150*50#",
+        lienPayer: "https://exemple.test/payer?numero=%2B237656746215&montant=8000",
+      },
+      waVendeuse: "https://wa.me/237677123456",
+    });
+    expect(messages).toHaveLength(4);
+    const bloc = corpsTexte(messages[1]);
+    expect(bloc).toContain(formatXaf(8000));
+    expect(bloc).toContain("6 56 74 62 15");
+    expect(bloc).toContain("Orange Money");
+    expect(bloc).toContain("#150*50#");
+    expect(bloc).toMatch(/code secret/i);
+    expect(bloc).toContain("/payer?");
+    /* Le lien de suivi redevient ce qu'il est : le suivi et le recu. */
+    expect(corpsTexte(messages[2])).toContain("suivi?j=abc");
+    expect(corpsTexte(messages[3])).toContain("https://wa.me/237677123456");
+  });
+
+  it("sans reversement, pas de bloc paiement — la copie historique reprend", () => {
+    const messages = confirmationCommande(VERS, {
+      reference: "CT-1051",
+      codeVerification: "ACDE-4679",
+      boutique: "Chez Bea",
+      lignes: [{ nom: "Pagne", quantite: 1, prixUnitaireXaf: 15000 }],
+      totalXaf: 15000,
+      duAvantXaf: 0,
+      livraison: LIVRAISON,
+      lienSuivi: "https://exemple.test/suivi?j=abc",
+      paiement: null,
+      waVendeuse: null,
+    });
+    expect(messages).toHaveLength(2);
+    expect(corpsTexte(messages[1])).toMatch(/réception/);
+  });
+
+  it("« livrée CT-522801 » sort l'effet marquer_livree — accents et prefixe tolerants", () => {
+    const contexte = { smsReconnu: false, commandesOuvertes: [], soldesXaf: 0 };
+    const complet = reagirVendeuse({ genre: "texte", texte: "Livrée CT-522801" }, VERS, contexte);
+    expect(complet.effet).toEqual({ type: "marquer_livree", reference: "CT-522801" });
+
+    const nu = reagirVendeuse({ genre: "texte", texte: "livree 522801" }, VERS, contexte);
+    expect(nu.effet).toEqual({ type: "marquer_livree", reference: "CT-522801" });
+
+    const pasUneRef = reagirVendeuse({ genre: "texte", texte: "livree bientot" }, VERS, contexte);
+    expect(pasUneRef.effet).toBeUndefined();
   });
 });

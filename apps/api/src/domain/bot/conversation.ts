@@ -1,7 +1,7 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { planDePaiement } from "../order/paiement.ts";
-import { boutons, liste, type MessageSortant, texte } from "./messages.ts";
+import { boutons, image, liste, type MessageSortant, texte } from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
 
 /**
@@ -62,6 +62,12 @@ export interface BoutiqueBot {
    * pas dire « 0 vente » a une vendeuse qui debute.
    */
   reputation?: { note: number | null; nbVerifies: number };
+  /**
+   * Vrai quand au moins un article a une photo STOCKEE — pose par le service,
+   * qui seul connait les cles d'objets. C'est ce qui fait apparaitre « Voir en
+   * photos » a l'accueil (ADR 0035) sans jamais promettre une rafale vide.
+   */
+  aDesPhotos?: boolean;
   articles: ArticleBot[];
 }
 
@@ -215,7 +221,9 @@ export interface BrouillonCommande {
 
 export type EffetBot =
   | { type: "creer_commande"; brouillon: BrouillonCommande }
-  | { type: "verifier_sms"; texte: string };
+  | { type: "verifier_sms"; texte: string }
+  /** « livrée CT-XXXXXX » — la vendeuse marque la remise depuis le fil (ADR 0035). */
+  | { type: "marquer_livree"; reference: string };
 
 export interface Reaction {
   etat: EtatConv;
@@ -287,6 +295,14 @@ const PAR_PAGE = 8; // 8 articles + « voir la suite » restent sous les 10 lign
 /** Plafond absolu par article — au-dela, ce n'est plus une conversation. */
 const QUANTITE_MAX = 99;
 
+/**
+ * La rafale « voir en photos » : six images au plus. Au-dela, ce n'est plus
+ * une vitrine, c'est une inondation — et chaque image coute une verification
+ * d'existence au service. Exportee : le service enrichit exactement autant
+ * d'articles qu'il en partira.
+ */
+export const RAFALE_MAX = 6;
+
 function panierDe(etat: EtatConv): LignePanier[] {
   return "panier" in etat && etat.panier ? etat.panier : [];
 }
@@ -331,7 +347,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     const demande = langueDemandee(entree.texte);
     if (demande && demande !== langue) {
       const tNouveau = TEXTES[demande];
-      const suite = boutique ? accueilBoutique(vers, boutique, tNouveau) : null;
+      const suite = boutique ? accueilBoutique(vers, boutique, tNouveau, panierDe(etat)) : null;
       return {
         etat: suite?.etat ?? etat,
         messages: [texte(vers, tNouveau.langueChangee), ...(suite?.messages ?? [])],
@@ -341,12 +357,23 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   }
 
   /* Un slug dans le texte remet TOUJOURS la conversation sur la boutique :
-     c'est le geste du lien partage, il prime sur tout etat anterieur. */
+     c'est le geste du lien partage, il prime sur tout etat anterieur. Le
+     panier suit si c'est la MEME boutique ; sinon il est laisse — et on le
+     DIT, au lieu de le faire disparaitre en silence (ADR 0035). */
   if (entree.genre === "texte" && extraireSlugBoutique(entree.texte)) {
     if (!boutique) {
       return { etat: ETAT_INITIAL, messages: [texte(vers, t.boutiqueIntrouvable)] };
     }
-    return accueilBoutique(vers, boutique, t);
+    const panier = panierDe(etat);
+    const memeBoutique = "slug" in etat && etat.slug === boutique.slug;
+    const accueil = accueilBoutique(vers, boutique, t, memeBoutique ? panier : []);
+    if (!memeBoutique && panier.length > 0) {
+      return {
+        etat: accueil.etat,
+        messages: [texte(vers, t.panierAbandonneAilleurs), ...accueil.messages],
+      };
+    }
+    return accueil;
   }
 
   const mot = entree.genre === "texte" ? motCleGlobal(entree.texte) : null;
@@ -372,8 +399,9 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
 
   const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
 
-  /* Les gestes globaux, valables dans tout etat — bouton OU mot-cle. */
-  if (id === "menu" || mot === "menu") return accueilBoutique(vers, boutique, t);
+  /* Les gestes globaux, valables dans tout etat — bouton OU mot-cle.
+     « menu » GARDE le panier : seul « annuler » le vide, et il le dit. */
+  if (id === "menu" || mot === "menu") return accueilBoutique(vers, boutique, t, panierDe(etat));
   if (id === "annuler" || mot === "annuler") {
     const accueil = accueilBoutique(vers, boutique, t);
     return {
@@ -395,6 +423,22 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   if (id === "catalogue" || id?.startsWith("cat:")) {
     const page = id?.startsWith("cat:") ? Number(id.slice(4)) || 0 : 0;
     return pageCatalogue(vers, boutique, page, panierDe(etat), t);
+  }
+  if (id === "photos") {
+    /* La rafale : chaque article illustre part en photo pleine largeur,
+       legendee nom et prix, puis la liste reprend la main. Le service n'a
+       enrichi que les URL VERIFIEES — une rafale ne promet jamais un lien
+       mort (regle de l'ADR 0032). */
+    const suite = pageCatalogue(vers, boutique, 0, panierDe(etat), t);
+    const photos = boutique.articles
+      .slice(0, RAFALE_MAX)
+      .flatMap((a) =>
+        a.imageUrl ? [image(vers, a.imageUrl, `${a.nom} — ${formatXaf(a.prixXaf)}`)] : [],
+      );
+    if (photos.length === 0) {
+      return { etat: suite.etat, messages: [texte(vers, t.rafaleAucunePhoto), ...suite.messages] };
+    }
+    return { etat: suite.etat, messages: [...photos, ...suite.messages] };
   }
   if (id?.startsWith("art:")) {
     const page = etat.nom === "catalogue" ? etat.page : 0;
@@ -572,7 +616,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     }
 
     default:
-      return accueilBoutique(vers, boutique, t);
+      return accueilBoutique(vers, boutique, t, panierDe(etat));
   }
 }
 
@@ -626,7 +670,12 @@ function noteAffichee(note: number, langue: "fr" | "point"): string {
   return langue === "fr" ? String(note).replace(".", ",") : String(note);
 }
 
-function accueilBoutique(vers: string, b: BoutiqueBot, t: TextesAcheteuse): Reaction {
+function accueilBoutique(
+  vers: string,
+  b: BoutiqueBot,
+  t: TextesAcheteuse,
+  panier: LignePanier[] = [],
+): Reaction {
   const rep = b.reputation;
   const note = rep?.note != null ? noteAffichee(rep.note, t === TEXTES.fr ? "fr" : "point") : null;
   const lignes = [
@@ -634,14 +683,16 @@ function accueilBoutique(vers: string, b: BoutiqueBot, t: TextesAcheteuse): Reac
     ...(rep && rep.nbVerifies > 0 ? [t.accueilReputation(note, rep.nbVerifies)] : []),
     t.accueilPitch,
   ];
+  /* Trois boutons au plus (limite API) : la vitrine, les photos, l'humaine. */
   const choix = [
     { id: "catalogue", titre: t.btnVoirArticles },
+    ...(b.aDesPhotos ? [{ id: "photos", titre: t.btnVoirPhotos }] : []),
     ...(b.whatsappVendeuse ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }] : []),
   ];
-  const image = b.articles.find((a) => a.imageUrl)?.imageUrl;
+  const enTete = b.articles.find((a) => a.imageUrl)?.imageUrl;
   return {
-    etat: { nom: "catalogue", slug: b.slug, page: 0 },
-    messages: [boutons(vers, lignes.join("\n"), choix, image ? { image } : {})],
+    etat: { nom: "catalogue", slug: b.slug, page: 0, ...(panier.length > 0 ? { panier } : {}) },
+    messages: [boutons(vers, lignes.join("\n"), choix, enTete ? { image: enTete } : {})],
   };
 }
 
@@ -694,21 +745,22 @@ function ficheArticle(
     ...(article.stock != null ? [t.stockRestant(article.stock)] : []),
     ...(article.description ? ["", article.description] : []),
   ];
+  const actions = [
+    { id: `cmd:${article.id}`, titre: t.btnCommander },
+    { id: `cat:${page}`, titre: t.btnRetourCatalogue },
+  ];
   return {
     /* La page courante est conservee : « Retour au catalogue » y ramene, au
        lieu de renvoyer une acheteuse de la page 3 a la page 0. */
     etat: { nom: "catalogue", slug: b.slug, page, ...(panier.length > 0 ? { panier } : {}) },
-    messages: [
-      boutons(
-        vers,
-        lignes.join("\n"),
-        [
-          { id: `cmd:${article.id}`, titre: t.btnCommander },
-          { id: `cat:${page}`, titre: t.btnRetourCatalogue },
-        ],
-        article.imageUrl ? { image: article.imageUrl } : {},
-      ),
-    ],
+    /* Image d'ABORD, pleine largeur (ADR 0035) : la photo vend, le texte
+       precise. Sans photo, la fiche reste un seul message a boutons. */
+    messages: article.imageUrl
+      ? [
+          image(vers, article.imageUrl, `${article.nom} — ${formatXaf(article.prixXaf)}`),
+          boutons(vers, lignes.join("\n"), actions),
+        ]
+      : [boutons(vers, lignes.join("\n"), actions)],
   };
 }
 
@@ -781,6 +833,9 @@ function messageRecap(
     t.recapTitre(b.nom),
     ...lignesArticles,
     t.ligneTotal(total),
+    /* Le total ne comprend JAMAIS la course : le dire au recap evite de le
+       decouvrir a la remise (ADR 0035). */
+    ...(livraison.mode === "livraison" ? [t.ligneHorsLivraison] : []),
     ...(plan.duAvantXaf > 0 && plan.duAvantXaf < total ? [t.ligneAcompte(plan.duAvantXaf)] : []),
     ligneLivraison(livraison, t),
     t.ligneTelephone(formatPhone(livraison.phone)),
@@ -832,6 +887,21 @@ export function confirmationCommande(
      * ne dit jamais « payer » quand il n'y a rien a payer d'avance.
      */
     lienSuivi: string | null;
+    /**
+     * Le bloc paiement DANS le fil (ADR 0035) : monte par le service depuis le
+     * reversement de la vendeuse et la CONFIGURATION de la rampe — le code
+     * d'entree n'est jamais une constante (AGENTS.md). Absent : la copie
+     * historique reprend la main, rien ne casse.
+     */
+    paiement?: {
+      montantXaf: number;
+      numeroAffiche: string;
+      operateurNom: string | null;
+      codeEntree: string | null;
+      lienPayer: string | null;
+    } | null;
+    /** Le wa.me de la vendeuse : la conversation continue chez elle. */
+    waVendeuse?: string | null;
   },
   langue: Langue = "fr",
 ): MessageSortant[] {
@@ -840,15 +910,27 @@ export function confirmationCommande(
     t.confirmationTitre(c.reference, c.boutique),
     ...c.lignes.map((l) => t.ligneArticle(l.nom, l.quantite, l.prixUnitaireXaf)),
     t.ligneTotal(c.totalXaf),
+    ...(c.livraison.mode === "livraison" ? [t.ligneHorsLivraison] : []),
     ...(c.duAvantXaf > 0 && c.duAvantXaf < c.totalXaf ? [t.ligneAcompte(c.duAvantXaf)] : []),
     ligneLivraison(c.livraison, t),
     t.ligneTelephone(formatPhone(c.livraison.phone)),
     t.ligneCode(c.codeVerification),
   ];
-  const corps = lignes.join("\n");
-  if (!c.lienSuivi) return [texte(vers, corps)];
-  const suite = c.duAvantXaf > 0 ? t.suiteAcompte(c.lienSuivi) : t.suiteSansAcompte(c.lienSuivi);
-  return [texte(vers, corps), texte(vers, suite)];
+  const messages: MessageSortant[] = [texte(vers, lignes.join("\n"))];
+
+  if (c.duAvantXaf > 0 && c.paiement) {
+    /* Le paiement se dit ICI, en texte brut autosuffisant ; le lien de suivi
+       redevient ce qu'il est — le suivi et le recu. */
+    messages.push(texte(vers, t.blocPaiement(c.paiement)));
+    if (c.lienSuivi) messages.push(texte(vers, t.suiteSuivi(c.lienSuivi)));
+  } else if (c.lienSuivi) {
+    messages.push(
+      texte(vers, c.duAvantXaf > 0 ? t.suiteAcompte(c.lienSuivi) : t.suiteSansAcompte(c.lienSuivi)),
+    );
+  }
+
+  if (c.waVendeuse) messages.push(texte(vers, t.apresConfirmation(c.boutique, c.waVendeuse)));
+  return messages;
 }
 
 /* ────────────────────────── le fil vendeuse ─────────────────────────────── */
@@ -880,6 +962,22 @@ export function reagirVendeuse(
       messages: [],
       effet: { type: "verifier_sms", texte: entree.texte },
     };
+  }
+
+  /* « livree CT-522801 » — la remise se marque depuis le fil (ADR 0035). La
+     MEME machine d'etapes que la route decide ; ici on ne fait que reconnaitre
+     le geste. « CT- » se tolere absent : six chiffres suffisent. */
+  if (entree.genre === "texte") {
+    const livree = /^livree\s+(?:ct-?)?(\d{6})$/.exec(
+      sansAccents(entree.texte.trim().toLowerCase()),
+    );
+    if (livree?.[1]) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [],
+        effet: { type: "marquer_livree", reference: `CT-${livree[1]}` },
+      };
+    }
   }
 
   const mot = entree.genre === "texte" ? entree.texte.trim().toLowerCase() : "";

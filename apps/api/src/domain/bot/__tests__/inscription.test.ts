@@ -176,6 +176,7 @@ describe("les messages de publication", () => {
       nom: "Chez Bea",
       lienBoutique: "https://wa.me/237600?text=boutique%20chez-bea",
       lienParrainage: "https://wa.me/237600?text=vendre%20avec%20chez-bea",
+      lienEspace: null,
     });
     expect(corps(messages[0])).toContain("Chez Bea");
     expect(corps(messages[0])).toContain("boutique%20chez-bea");

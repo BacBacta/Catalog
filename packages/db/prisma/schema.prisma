@@ -383,6 +383,11 @@ model Review {
   id        String   @id @default(uuid(7))
   orderId   String   @unique @map("order_id")
   sellerId  String   @map("seller_id")
+  /// L'article note (ADR 0035, expand) : pose quand la commande ne porte
+  /// qu'un seul article — l'ecrasante majorite. Nul sur un panier mixte : on
+  /// n'attribue pas un avis global a un article au hasard. Sans cle etrangere,
+  /// comme `derniereCommandeId` : un article retire ne doit pas retenir l'avis.
+  productId String?  @map("product_id")
   rating    Int
   body      String?
   /// « achat verifie » : vrai uniquement si la preuve est `prouve` ou
@@ -395,6 +400,7 @@ model Review {
   seller Seller @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId, verified])
+  @@index([productId])
   @@map("review")
 }
 
@@ -608,5 +614,21 @@ model BotConversation {
   derniereCommandeId String? @map("derniere_commande_id")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([derniereCommandeId])
   @@map("bot_conversation")
+}
+
+/// Une notification qui attend sa fenetre de service (ADR 0035). AJOUT SEUL :
+/// la remise se DATE, elle n'efface rien. Le corps est le texte exact a
+/// envoyer — deja redige, sans SMS colle ni jeton (les deux interdits de
+/// l'etat de conversation valent ici aussi).
+model BotNotification {
+  id      String    @id @default(uuid(7))
+  phone   String
+  corps   String
+  creeLe  DateTime  @default(now()) @map("cree_le")
+  remisLe DateTime? @map("remis_le")
+
+  @@index([phone, remisLe])
+  @@map("bot_notification")
 }
