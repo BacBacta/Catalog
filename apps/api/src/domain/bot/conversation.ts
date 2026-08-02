@@ -203,7 +203,9 @@ export function etatApresInactivite(etat: EtatConv, ageMs: number): EtatConv {
 export type Entree =
   | { genre: "texte"; texte: string }
   | { genre: "bouton"; id: string }
-  | { genre: "liste"; id: string };
+  | { genre: "liste"; id: string }
+  /** Une photo. Le fil acheteuse ne la lit pas — seule l'inscription le fait. */
+  | { genre: "image"; mediaId: string };
 
 export interface BrouillonCommande {
   slug: string;
@@ -356,10 +358,19 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
         messages: [messageStatut(vers, ctx.derniereCommande ?? null, t)],
       };
     }
-    return { etat: ETAT_INITIAL, messages: [texte(vers, t.aideAcheteuse)] };
+    /**
+     * L'aide OFFRE une sortie vendeuse — ADR 0034. Sans ce bouton, une
+     * personne qui a entendu parler de Catalog et qui ecrit au numero
+     * s'entend repondre d'ouvrir le lien d'une boutique qu'elle n'a pas :
+     * l'entonnoir fuyait au premier message.
+     */
+    return {
+      etat: ETAT_INITIAL,
+      messages: [boutons(vers, t.aideAcheteuse, [{ id: "vendre", titre: t.btnVendre }])],
+    };
   }
 
-  const id = entree.genre === "texte" ? null : entree.id;
+  const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
 
   /* Les gestes globaux, valables dans tout etat — bouton OU mot-cle. */
   if (id === "menu" || mot === "menu") return accueilBoutique(vers, boutique, t);

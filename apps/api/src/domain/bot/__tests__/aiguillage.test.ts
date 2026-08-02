@@ -1,0 +1,81 @@
+import { describe, expect, it } from "vitest";
+import { aiguiller, type ContexteAiguillage } from "../aiguillage.ts";
+
+/**
+ * L'aiguillage par geste — ADR 0034. Deux defauts a ne jamais laisser
+ * revenir : une vendeuse qui ne peut pas acheter, et une prospect qu'on
+ * renvoie au catalogue.
+ */
+
+const REPOS: ContexteAiguillage = {
+  estVendeuse: false,
+  etatVendeuseEnCours: false,
+  smsReconnu: false,
+  achatEnCours: false,
+};
+const VENDEUSE: ContexteAiguillage = { ...REPOS, estVendeuse: true };
+const txt = (texte: string) => ({ genre: "texte" as const, texte });
+
+describe("aiguiller", () => {
+  it("une inscription en cours prime sur TOUT — meme sur un nom qui ressemble a un slug", () => {
+    const ctx = { ...REPOS, etatVendeuseEnCours: true };
+    expect(aiguiller(txt("chez-amina"), ctx)).toBe("inscription");
+    expect(aiguiller(txt("boutique chez-amina"), ctx)).toBe("inscription");
+    expect(aiguiller({ genre: "image", texte: undefined }, ctx)).toBe("inscription");
+  });
+
+  it("« vendre » ouvre l'inscription d'une prospect", () => {
+    for (const mot of [
+      "vendre",
+      "je veux vendre",
+      "ouvrir ma boutique",
+      "vendre avec chez-amina",
+    ]) {
+      expect(aiguiller(txt(mot), REPOS), mot).toBe("inscription");
+    }
+  });
+
+  it("« vendre » d'une vendeuse installee ne rouvre pas une boutique", () => {
+    // Un numero, une boutique : `Seller.phone` est UNIQUE.
+    expect(aiguiller(txt("vendre"), VENDEUSE)).toBe("vendeuse");
+  });
+
+  it("UNE VENDEUSE PEUT ACHETER — le lien d'une consoeur l'emporte sur son statut", () => {
+    expect(aiguiller(txt("boutique chez-amina"), VENDEUSE)).toBe("acheteuse");
+    expect(
+      aiguiller({ genre: "bouton", id: "catalogue" }, { ...VENDEUSE, achatEnCours: true }),
+    ).toBe("acheteuse");
+  });
+
+  it("« ma boutique » ramene une vendeuse chez elle, meme en plein achat", () => {
+    expect(aiguiller(txt("ma boutique"), { ...VENDEUSE, achatEnCours: true })).toBe("vendeuse");
+  });
+
+  it("« ajouter » et le bouton « article » mènent a l'ajout d'article", () => {
+    expect(aiguiller(txt("ajouter un article"), VENDEUSE)).toBe("inscription");
+    expect(aiguiller(txt("ajouter"), VENDEUSE)).toBe("inscription");
+    expect(aiguiller({ genre: "bouton", id: "article" }, VENDEUSE)).toBe("inscription");
+    expect(aiguiller({ genre: "bouton", id: "ma_boutique" }, VENDEUSE)).toBe("vendeuse");
+  });
+
+  it("un SMS reconnu part au fil vendeuse, meme si un achat trainait", () => {
+    expect(
+      aiguiller(txt("Vous avez recu 7500 FCFA…"), {
+        ...VENDEUSE,
+        smsReconnu: true,
+        achatEnCours: true,
+      }),
+    ).toBe("vendeuse");
+  });
+
+  it("les gestes vendeuse n'existent pas pour qui n'est pas vendeuse", () => {
+    expect(aiguiller(txt("ma boutique"), REPOS)).toBe("acheteuse");
+    expect(aiguiller(txt("ajouter"), REPOS)).toBe("acheteuse");
+    expect(aiguiller({ genre: "bouton", id: "article" }, REPOS)).toBe("acheteuse");
+  });
+
+  it("au repos : la vendeuse chez elle, l'inconnue au fil acheteuse", () => {
+    expect(aiguiller(txt("bonjour"), VENDEUSE)).toBe("vendeuse");
+    expect(aiguiller(txt("bonjour"), REPOS)).toBe("acheteuse");
+  });
+});

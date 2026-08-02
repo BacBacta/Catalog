@@ -19,6 +19,8 @@ export type Langue = "fr" | "en";
 export interface TextesAcheteuse {
   boutiqueIntrouvable: string;
   aideAcheteuse: string;
+  /** Le bouton qui ouvre l'inscription vendeuse — ADR 0034. */
+  btnVendre: string;
   aideGestes: string;
   annule: string;
   langueChangee: string;
@@ -96,7 +98,8 @@ export interface TextesAcheteuse {
 const fr: TextesAcheteuse = {
   boutiqueIntrouvable: "Cette boutique est introuvable. Vérifiez le lien reçu.",
   aideAcheteuse:
-    "Je suis le catalogue Catalog. Ouvrez le lien d'une boutique, ou écrivez « boutique » suivi de son nom court (ex. : boutique chez-amina).",
+    "Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes.",
+  btnVendre: "Vendre avec Catalog",
   aideGestes:
     "Trois mots marchent partout : « menu » (accueil de la boutique), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler à la vendeuse » est à l'accueil. Write « english » for English.",
   annule: "C'est annulé — le panier est vide, rien n'a été commandé.",
@@ -196,7 +199,8 @@ const fr: TextesAcheteuse = {
 const en: TextesAcheteuse = {
   boutiqueIntrouvable: "This shop could not be found. Check the link you received.",
   aideAcheteuse:
-    "I am the Catalog storefront. Open a shop link, or write “boutique” followed by its short name (e.g.: boutique chez-amina).",
+    "I am Catalog. Open a shop link to order — or open your own, right here, in two minutes.",
+  btnVendre: "Sell with Catalog",
   aideGestes:
     "Three words work everywhere: “menu” (shop home), “cancel” (drop the current order), “status” (your last order). For a human, the “Talk to the seller” button is on the home screen. Écrivez « français » pour le français.",
   annule: "Cancelled — your cart is empty, nothing was ordered.",

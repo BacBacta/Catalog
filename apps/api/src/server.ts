@@ -7,6 +7,7 @@ import { resolveChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
 import { EnvoyeurWhatsappBot } from "./adapters/whatsapp-bot.ts";
+import { LecteurMediaWhatsapp } from "./adapters/whatsapp-media.ts";
 import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
 import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
@@ -148,6 +149,13 @@ if (secretEntrant && secretAppMeta) {
           baseBoutique: process.env.BASE_BOUTIQUE_PUBLIQUE?.trim() ?? "",
           baseApp: process.env.BASE_APP_VENDEUSE?.trim() ?? "",
           storage,
+          /* Les photos entrantes de l'inscription (ADR 0034) — meme cle, meme
+             base que l'envoi : c'est le meme canal. */
+          media: new LecteurMediaWhatsapp({ apiKey: cleBot, baseUrl: baseBot }),
+          /* Le numero du bot, pour composer les liens de boutique et de
+             parrainage. Absent : les liens ne se fabriquent pas, et la
+             machine le dit plutot que d'ecrire une URL fausse. */
+          numeroCatalog: process.env.WHATSAPP_WABA_NUMERO?.trim() ?? "",
         }
       : null;
 

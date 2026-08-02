@@ -53,6 +53,7 @@ describe("textes — les deux catalogues produisent, en entier", () => {
       const produits: string[] = [
         t.boutiqueIntrouvable,
         t.aideAcheteuse,
+        t.btnVendre,
         t.aideGestes,
         t.annule,
         t.langueChangee,
@@ -225,6 +226,16 @@ describe("les chemins defensifs de la machine", () => {
       ctx(),
     );
     expect(r.etat).toMatchObject({ nom: "catalogue", page: 0 });
+  });
+
+  it("l'aide sans boutique OFFRE d'ouvrir une boutique — jamais un cul-de-sac", () => {
+    // ADR 0034 : c'est ici que l'entonnoir vendeuse fuyait.
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "bonjour" },
+      ctx({ boutique: null }),
+    );
+    expect(idsBoutons(r.messages[0])).toEqual(["vendre"]);
   });
 
   it("changer de langue sans boutique en contexte marche aussi", () => {

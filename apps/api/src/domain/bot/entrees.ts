@@ -13,7 +13,14 @@
 export type EntreeBot =
   | { de: string; genre: "texte"; texte: string }
   | { de: string; genre: "bouton"; id: string }
-  | { de: string; genre: "liste"; id: string };
+  | { de: string; genre: "liste"; id: string }
+  /**
+   * Une PHOTO — ADR 0034. C'est le geste le plus naturel du canal : une
+   * vendeuse photographie l'article qu'elle a en main. On ne retient que
+   * l'identifiant du media et sa legende ; les octets se telechargent
+   * ailleurs, et n'entrent jamais dans l'etat de conversation.
+   */
+  | { de: string; genre: "image"; mediaId: string; legende?: string };
 
 export function lireEntreesBot(corps: unknown): EntreeBot[] {
   const sortie: EntreeBot[] = [];
@@ -43,6 +50,7 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
         from?: unknown;
         type?: unknown;
         text?: { body?: unknown };
+        image?: { id?: unknown; caption?: unknown };
         interactive?: {
           type?: unknown;
           button_reply?: { id?: unknown };
@@ -55,6 +63,15 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
         sortie.push({ de: m.from, genre: "texte", texte: m.text.body });
         continue;
       }
+      if (m.type === "image" && typeof m.image?.id === "string") {
+        sortie.push({
+          de: m.from,
+          genre: "image",
+          mediaId: m.image.id,
+          ...(typeof m.image.caption === "string" ? { legende: m.image.caption } : {}),
+        });
+        continue;
+      }
       if (m.type === "interactive") {
         const i = m.interactive;
         if (i?.type === "button_reply" && typeof i.button_reply?.id === "string") {
@@ -63,7 +80,7 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
           sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id });
         }
       }
-      /* images, stickers, audios, accuses : ignores ici — le service peut
+      /* stickers, audios, accuses : ignores ici — le service peut
          repondre un message d'aide, mais ce n'est pas le travail du parseur. */
     }
   }

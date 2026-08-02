@@ -58,6 +58,18 @@ model Seller {
   /// possede la sienne et qu'on ne la lui prend pas.
   userId String? @unique @map("user_id")
 
+  /// La vendeuse qui a parraine celle-ci — ADR 0034. Attribution SEULE :
+  /// aucune recompense n'est calculee ici, et il n'y en a pas ailleurs. Le
+  /// jour ou le porteur du produit en decidera une, elle s'appuiera sur ce
+  /// champ ; l'inventer maintenant serait deviner un modele economique.
+  /// Sans cle etrangere reflexive obligatoire : une marraine peut disparaitre.
+  parrainId String? @map("parrain_id")
+
+  /// Canal d'ouverture de la boutique. « bot » = nee dans le fil WhatsApp
+  /// (ADR 0034), « web » = espace vendeuse. Sert a mesurer l'entonnoir
+  /// d'acquisition, jamais a autoriser quoi que ce soit.
+  canalOuverture String @default("web") @map("canal_ouverture")
+
   status             SellerStatus       @default(active)
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   createdAt          DateTime           @default(now()) @map("created_at")

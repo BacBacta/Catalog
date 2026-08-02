@@ -52,10 +52,23 @@ describe("lireEntreesBot", () => {
     expect(e).toEqual([{ de: "237690112233", genre: "liste", id: "art:art-2" }]);
   });
 
-  it("ignore sans lever ce qu'il ne connait pas — images, stickers, accuses", () => {
+  it("lit une photo par son identifiant de media, legende comprise", () => {
     const e = lireEntreesBot(
       enveloppe([
-        { from: "2376", type: "image", image: { id: "m1" } },
+        { from: "237690112233", type: "image", image: { id: "m1", caption: "Pagne wax" } },
+        { from: "237690112233", type: "image", image: { id: "m2" } },
+      ]),
+    );
+    expect(e).toEqual([
+      { de: "237690112233", genre: "image", mediaId: "m1", legende: "Pagne wax" },
+      { de: "237690112233", genre: "image", mediaId: "m2" },
+    ]);
+  });
+
+  it("ignore sans lever ce qu'il ne connait pas — stickers, accuses, images sans id", () => {
+    const e = lireEntreesBot(
+      enveloppe([
+        { from: "2376", type: "image", image: {} },
         { from: "2376", type: "sticker" },
         { pas: "un message" },
         null,

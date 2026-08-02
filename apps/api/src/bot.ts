@@ -4,10 +4,14 @@
 import { randomBytes } from "node:crypto";
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
 import type { PrismaClient } from "@catalog/db";
+import { reencoderImage } from "./adapters/image-pipeline.ts";
+import { emailTechnique } from "./auth.ts";
+import { aiguiller } from "./domain/bot/aiguillage.ts";
 import {
   type ArticleBot,
   type BoutiqueBot,
   confirmationCommande,
+  type Entree as EntreeMachine,
   ETAT_INITIAL,
   type EtatConv,
   etatApresInactivite,
@@ -20,6 +24,16 @@ import {
 } from "./domain/bot/conversation.ts";
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
+import {
+  demandeInscription,
+  type EtatVendeuse,
+  messageArticlePublie,
+  messageBoutiqueCreee,
+  normaliserEtatVendeuse,
+  PREMIERE_QUESTION,
+  reagirInscription,
+} from "./domain/bot/inscription.ts";
+import type { LecteurMedia } from "./domain/bot/media.ts";
 import { texte } from "./domain/bot/messages.ts";
 import { type Langue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
@@ -29,10 +43,11 @@ import { planDePaiement } from "./domain/order/paiement.ts";
 import { analyserSms } from "./domain/proof/motifs.ts";
 import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
 import { reputation } from "./domain/review/reputation.ts";
-import type { ObjectStorage } from "./domain/storage.ts";
+import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeRelance } from "./jobs/relance-acompte.ts";
 import { mesurerTransitionBot } from "./observabilite/mesures.ts";
+import { slugifier, slugLibre } from "./routes/seller.ts";
 
 /**
  * Le service du bot — ADR 0031, revise par les ADR 0032 et 0033. Il charge
@@ -64,6 +79,13 @@ export interface BotDeps {
    * Absent : les messages partent sans image, jamais avec un lien mort.
    */
   storage?: ObjectStorage;
+  /**
+   * Lecture des photos entrantes (ADR 0034). Absent : l'inscription marche,
+   * les articles se publient sans photo — jamais de blocage.
+   */
+  media?: LecteurMedia;
+  /** Le numero WhatsApp de Catalog, pour composer les liens `wa.me` partages. */
+  numeroCatalog?: string;
   /**
    * Planification de la relance d'acompte (ADR 0033). Absente : pas de
    * relance — la commande vit, seule la piqure de rappel manque.
@@ -101,6 +123,15 @@ function cleConversation(waId: string): string | null {
   return /^\d{6,15}$/.test(chiffres) ? `+${chiffres}` : null;
 }
 
+/**
+ * L'aiguillage — ADR 0034.
+ *
+ * On route sur le GESTE, plus sur l'identite. Deux defauts corriges d'un
+ * coup : une vendeuse peut desormais acheter chez une consoeur (le demi-gros
+ * est la norme sur ce marche), et une prospect qui ecrit au numero se voit
+ * proposer d'ouvrir sa boutique au lieu d'etre renvoyee a un lien qu'elle
+ * n'a pas.
+ */
 async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   const phone = cleConversation(entree.de);
   if (!phone) return;
@@ -109,11 +140,301 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
     where: { phoneNumber: phone },
     include: { seller: true },
   });
-  if (utilisateur?.seller) {
+  const enregistrement = await deps.prisma.botConversation.findUnique({ where: { phone } });
+  const etatVendeuse = normaliserEtatVendeuse(enregistrement?.etat);
+  const etatAchat = etatVendeuse ? ETAT_INITIAL : normaliserEtat(enregistrement?.etat);
+
+  const smsReconnu =
+    utilisateur?.seller != null && entree.genre === "texte" && analyserSms(entree.texte).reconnu;
+
+  const fil = aiguiller(
+    {
+      genre: entree.genre,
+      ...(entree.genre === "texte" ? { texte: entree.texte } : {}),
+      ...(entree.genre === "bouton" || entree.genre === "liste" ? { id: entree.id } : {}),
+    },
+    {
+      estVendeuse: utilisateur?.seller != null,
+      etatVendeuseEnCours: etatVendeuse !== null,
+      smsReconnu,
+      achatEnCours: etatAchat.nom !== "accueil",
+    },
+  );
+
+  if (fil === "inscription") {
+    await filInscription(deps, entree, phone, etatVendeuse, utilisateur?.seller?.id ?? null);
+    return;
+  }
+  if (fil === "vendeuse" && utilisateur?.seller) {
     await filVendeuse(deps, entree, utilisateur.seller.id);
     return;
   }
   await filAcheteuse(deps, entree, phone);
+}
+
+/* ────────────────────────── fil inscription ─────────────────────────────── */
+
+/**
+ * L'inscription d'une vendeuse et l'ajout d'article — ADR 0034.
+ *
+ * Le numero est ATTESTE par le message entrant : Meta nous donne le `wa_id`,
+ * personne ne peut l'usurper. C'est la meme force de preuve que le defi de
+ * l'ADR 0027, dans l'autre sens — donc aucun code a ressaisir.
+ *
+ * **Le numero de reversement n'est jamais touche ici** (AGENTS.md §2). Une
+ * boutique nee dans le fil vend en `sans_prepaiement` jusqu'a ce que sa
+ * vendeuse pose son reversement, avec son OTP propre, dans l'espace vendeuse.
+ */
+async function filInscription(
+  deps: BotDeps,
+  entree: EntreeBot,
+  phone: string,
+  etatCourant: EtatVendeuse | null,
+  sellerId: string | null,
+): Promise<void> {
+  /* L'entree dans le fil : « vendre », « vendre avec <marraine> », le bouton
+     de l'aide acheteuse, ou « ajouter » pour une vendeuse installee. */
+  let etat: EtatVendeuse;
+  if (etatCourant) {
+    etat = etatCourant;
+  } else if (sellerId) {
+    etat = { nom: "article_nom" };
+  } else {
+    const demande = entree.genre === "texte" ? demandeInscription(entree.texte) : {};
+    etat = { nom: "inscription_nom", ...(demande?.parrain ? { parrain: demande.parrain } : {}) };
+    await poserEtat(deps, phone, etat);
+    await deps.envoyeur.envoyer(texte(entree.de, PREMIERE_QUESTION));
+    return;
+  }
+
+  /* Une vendeuse installee qui vient d'appuyer sur « Autre article » entre
+     directement dans l'etat — sans que son appui soit lu comme un nom. */
+  if (!etatCourant && sellerId) {
+    await poserEtat(deps, phone, etat);
+    await deps.envoyeur.envoyer(
+      texte(entree.de, "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards"),
+    );
+    return;
+  }
+
+  const reaction = reagirInscription(etat, entreePourMachine(entree), entree.de);
+  const messages = [...reaction.messages];
+  let etatSuivant: EtatVendeuse | EtatConv = reaction.etat ?? ETAT_INITIAL;
+
+  if (reaction.effet?.type === "creer_boutique") {
+    const cree = await creerBoutique(deps, phone, reaction.effet);
+    if (cree.ok) {
+      messages.push(...messageBoutiqueCreee(entree.de, cree.messagerie));
+    } else {
+      messages.push(texte(entree.de, cree.message));
+    }
+  }
+
+  if (reaction.effet?.type === "creer_article" && sellerId) {
+    const article = await creerArticleDepuisFil(deps, sellerId, reaction.effet);
+    messages.push(
+      article
+        ? messageArticlePublie(entree.de, article)
+        : texte(
+            entree.de,
+            "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
+          ),
+    );
+    etatSuivant = ETAT_INITIAL;
+  }
+
+  await poserEtat(deps, phone, etatSuivant);
+  for (const m of messages) await deps.envoyeur.envoyer(m);
+}
+
+/**
+ * Une entree de livraison, ramenee a ce que les machines pures attendent :
+ * le geste, sans l'expediteur. Les deux machines acceptent cette union — le
+ * fil acheteuse l'a typee, l'inscription lui est structurellement compatible.
+ */
+function entreePourMachine(entree: EntreeBot): EntreeMachine {
+  switch (entree.genre) {
+    case "texte":
+      return { genre: "texte", texte: entree.texte };
+    case "image":
+      return { genre: "image", mediaId: entree.mediaId };
+    default:
+      return { genre: entree.genre, id: entree.id };
+  }
+}
+
+async function poserEtat(
+  deps: BotDeps,
+  phone: string,
+  etat: EtatVendeuse | EtatConv,
+): Promise<void> {
+  const valeur = etat as unknown as object;
+  await deps.prisma.botConversation.upsert({
+    where: { phone },
+    create: { phone, etat: valeur },
+    update: { etat: valeur },
+  });
+}
+
+/**
+ * Le compte ET la boutique, en une transaction.
+ *
+ * Le compte suit le patron de l'ADR 0027 (`signUpOnVerification` du plugin
+ * `phoneNumber`) : recherche par numero, creation au premier passage,
+ * `phoneNumberVerified` a vrai — le message entrant EST la verification.
+ *
+ * `Seller.phone` est UNIQUE, et c'est l'anti-squat des boutiques : une
+ * collision se dit clairement, elle ne devient jamais une exception.
+ */
+async function creerBoutique(
+  deps: BotDeps,
+  phone: string,
+  demande: { nomBoutique: string; ville: string; parrain?: string },
+): Promise<
+  | { ok: true; messagerie: { nom: string; lienBoutique: string; lienParrainage: string } }
+  | { ok: false; message: string }
+> {
+  /* La marraine est resolue AVANT la transaction : un slug inconnu n'empeche
+     pas d'ouvrir la boutique, il perd seulement l'attribution. */
+  const parrain = demande.parrain
+    ? await deps.prisma.seller.findUnique({
+        where: { slug: demande.parrain },
+        select: { id: true },
+      })
+    : null;
+
+  const slug = await slugLibre(deps.prisma, slugifier(demande.nomBoutique));
+
+  try {
+    const seller = await deps.prisma.$transaction(async (tx) => {
+      const compte =
+        (await tx.authUser.findUnique({ where: { phoneNumber: phone }, select: { id: true } })) ??
+        (await tx.authUser.create({
+          data: {
+            email: emailTechnique(phone),
+            name: phone,
+            phoneNumber: phone,
+            phoneNumberVerified: true,
+          },
+          select: { id: true },
+        }));
+
+      return tx.seller.create({
+        data: {
+          userId: compte.id,
+          phone,
+          businessName: demande.nomBoutique,
+          slug,
+          city: demande.ville,
+          canalOuverture: "bot",
+          ...(parrain ? { parrainId: parrain.id } : {}),
+        },
+        select: { businessName: true, slug: true },
+      });
+    });
+
+    return {
+      ok: true,
+      messagerie: {
+        nom: seller.businessName,
+        lienBoutique: lienBot(deps, `boutique ${seller.slug}`),
+        lienParrainage: lienBot(deps, `vendre avec ${seller.slug}`),
+      },
+    };
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2002") {
+      return {
+        ok: false,
+        message:
+          "Une boutique existe déjà sur ce numéro. Écrivez « ma boutique » pour la retrouver.",
+      };
+    }
+    throw e;
+  }
+}
+
+/** Un lien `wa.me` vers le bot, texte pre-rempli. Sans numero : pas de lien. */
+function lienBot(deps: BotDeps, texteInitial: string): string {
+  const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
+  return chiffres
+    ? `https://wa.me/${chiffres}?text=${encodeURIComponent(texteInitial)}`
+    : texteInitial;
+}
+
+/**
+ * L'article publie depuis le fil, photo comprise.
+ *
+ * La photo passe par le MEME pipeline que l'espace vendeuse — validation de
+ * signature binaire, rotation EXIF, retrait des metadonnees (donc des
+ * coordonnees GPS du domicile), re-encodage sous 100 Ko (ADR 0016). Rien
+ * n'est allege parce que l'origine est WhatsApp : le client n'est jamais cru,
+ * et WhatsApp est un client comme un autre.
+ *
+ * Une photo illisible ne fait pas echouer l'article : il se publie sans, et
+ * la vendeuse peut la renvoyer. Un article sans photo vaut mieux qu'aucun.
+ */
+async function creerArticleDepuisFil(
+  deps: BotDeps,
+  sellerId: string,
+  demande: { nom: string; prixXaf: number; mediaId?: string },
+): Promise<{ nom: string; prixXaf: number; avecPhoto: boolean } | null> {
+  const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
+
+  let image: {
+    cle: string;
+    largeur: number;
+    hauteur: number;
+    octets: number;
+  } | null = null;
+
+  if (demande.mediaId && deps.media && deps.storage) {
+    const media = await deps.media.lire(demande.mediaId);
+    if (media) {
+      const resultat = await reencoderImage(media.octets);
+      if (resultat.ok) {
+        const base = cleOpaque(alea);
+        const d = declinaisons(base);
+        await Promise.all([
+          deps.storage.put({ cle: d.avif, corps: resultat.image.avif, contentType: "image/avif" }),
+          deps.storage.put({ cle: d.webp, corps: resultat.image.webp, contentType: "image/webp" }),
+          deps.storage.put({ cle: d.jpg, corps: resultat.image.jpeg, contentType: "image/jpeg" }),
+        ]);
+        image = {
+          cle: base,
+          largeur: resultat.image.largeur,
+          hauteur: resultat.image.hauteur,
+          octets: resultat.image.avif.length,
+        };
+      }
+    }
+  }
+
+  const dernier = await deps.prisma.product.aggregate({
+    where: { sellerId },
+    _max: { position: true },
+  });
+
+  const cree = await deps.prisma.product
+    .create({
+      data: {
+        sellerId,
+        name: demande.nom,
+        priceXaf: demande.prixXaf,
+        position: (dernier._max.position ?? -1) + 1,
+        ...(image
+          ? {
+              imageKey: image.cle,
+              imageWidth: image.largeur,
+              imageHeight: image.hauteur,
+              imageBytes: image.octets,
+            }
+          : {}),
+      },
+      select: { name: true, priceXaf: true },
+    })
+    .catch(() => null);
+
+  return cree ? { nom: cree.name, prixXaf: cree.priceXaf, avecPhoto: image !== null } : null;
 }
 
 /* ────────────────────────── fil acheteuse ───────────────────────────────── */
@@ -142,8 +463,8 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
      lien) et la fiche article. Jamais d'URL non verifiee — un lien mort fait
      refuser le message entier par l'API. */
   if (boutique && charge) {
-    const articleVise =
-      entree.genre !== "texte" && entree.id.startsWith("art:") ? entree.id.slice(4) : null;
+    const idGeste = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+    const articleVise = idGeste?.startsWith("art:") ? idGeste.slice(4) : null;
     const cibleId = articleVise ?? (slugDuTexte ? boutique.articles[0]?.id : null) ?? null;
     if (cibleId) {
       const cle = charge.clesImage.get(cibleId);
@@ -160,7 +481,7 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
       ? await statutDerniereCommande(deps, enregistrement.derniereCommandeId)
       : null;
 
-  const reaction = reagirAcheteuse(etat, entree, {
+  const reaction = reagirAcheteuse(etat, entreePourMachine(entree), {
     vers: entree.de,
     boutique,
     derniereCommande,
@@ -481,7 +802,11 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
   const soldesXaf = commandesOuvertes.reduce((s, c) => s + c.resteXaf, 0);
 
   const smsReconnu = entree.genre === "texte" && analyserSms(entree.texte).reconnu;
-  const reaction = reagirVendeuse(entree, entree.de, { smsReconnu, commandesOuvertes, soldesXaf });
+  const reaction = reagirVendeuse(entreePourMachine(entree), entree.de, {
+    smsReconnu,
+    commandesOuvertes,
+    soldesXaf,
+  });
   const messages = [...reaction.messages];
 
   if (reaction.effet?.type === "verifier_sms") {

@@ -176,7 +176,7 @@ export function sellerRoutes(deps: SessionDeps) {
  * le rejet d'inscription pour une homonymie, qui est frequente — « chez tantine »
  * n'est pas un nom rare.
  */
-async function slugLibre(prisma: PrismaClient, base: string): Promise<string> {
+export async function slugLibre(prisma: PrismaClient, base: string): Promise<string> {
   for (let i = 0; i < 50; i++) {
     const essai = i === 0 ? base : `${base}-${i + 1}`;
     const pris = await prisma.seller.findUnique({ where: { slug: essai }, select: { id: true } });
