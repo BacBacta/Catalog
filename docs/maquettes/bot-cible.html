@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Catalog — maquette cliquable du bot cible</title>
+<style>
+  :root {
+    --wa-vert-fonce: #075e54;
+    --wa-vert: #128c7e;
+    --wa-bulle-sortante: #d9fdd3;
+    --wa-fond: #e5ddd5;
+    --wa-bleu-lien: #027eb5;
+    --encre: #1f2428;
+    --note: #8a6d00;
+    --note-fond: #fff3c2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #111b21; color: var(--encre);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 16px 8px 40px;
+  }
+  header.page {
+    color: #e9edef; text-align: center; margin-bottom: 12px; max-width: 720px;
+  }
+  header.page h1 { font-size: 1.15rem; margin-bottom: 4px; }
+  header.page p { font-size: .8rem; color: #8696a0; }
+  .chapitres {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 12px 0 4px;
+  }
+  .chapitres button {
+    border: 1px solid #2a3942; background: #202c33; color: #e9edef;
+    border-radius: 18px; padding: 8px 14px; font-size: .8rem; cursor: pointer;
+  }
+  .chapitres button.actif { background: var(--wa-vert); border-color: var(--wa-vert); font-weight: 600; }
+  .outils { display: flex; gap: 12px; align-items: center; margin: 6px 0 14px; color: #8696a0; font-size: .78rem; }
+  .outils label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .outils button {
+    border: 1px solid #2a3942; background: transparent; color: #8696a0;
+    border-radius: 14px; padding: 5px 12px; font-size: .78rem; cursor: pointer;
+  }
+  .porteur { color: #ffd772; font-size: .82rem; margin-bottom: 8px; font-weight: 600; }
+
+  .telephone {
+    width: min(392px, 96vw); height: min(760px, 78vh); background: var(--wa-fond);
+    border-radius: 26px; overflow: hidden; display: flex; flex-direction: column;
+    box-shadow: 0 18px 60px rgba(0,0,0,.55); position: relative;
+  }
+  .telephone::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .06;
+    background-image: radial-gradient(circle at 20% 30%, #000 1px, transparent 1.6px),
+                      radial-gradient(circle at 70% 60%, #000 1px, transparent 1.6px);
+    background-size: 46px 46px, 62px 62px;
+  }
+  .barre {
+    background: var(--wa-vert-fonce); color: #fff; padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px; z-index: 2;
+  }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #ffb03a, #ff7c3a);
+    display: grid; place-items: center; font-size: 19px;
+  }
+  .barre .qui { flex: 1; line-height: 1.2; }
+  .barre .qui b { font-size: .95rem; display: flex; align-items: center; gap: 5px; }
+  .coche-verte { color: #4ad504; font-size: .8rem; }
+  .barre .qui span { font-size: .72rem; opacity: .85; }
+  .fil {
+    flex: 1; overflow-y: auto; padding: 14px 10px 10px; display: flex;
+    flex-direction: column; gap: 6px; z-index: 1; scroll-behavior: smooth;
+  }
+  .bulle {
+    max-width: 84%; border-radius: 9px; padding: 7px 9px 6px;
+    font-size: .86rem; line-height: 1.34; position: relative;
+    box-shadow: 0 1px 1px rgba(0,0,0,.12); animation: pop .18s ease-out;
+    white-space: pre-line; word-wrap: break-word;
+  }
+  @keyframes pop { from { transform: translateY(6px); opacity: .3; } }
+  .bulle.entrante { background: #fff; align-self: flex-start; border-top-left-radius: 2px; }
+  .bulle.sortante { background: var(--wa-bulle-sortante); align-self: flex-end; border-top-right-radius: 2px; }
+  .bulle .heure {
+    float: right; font-size: .64rem; color: #7d8b92; margin: 8px -2px -2px 8px;
+  }
+  .bulle.sortante .heure::after { content: " ✓✓"; color: #4fb6ec; }
+  .bulle b { font-weight: 700; }
+  .bulle .lien { color: var(--wa-bleu-lien); text-decoration: underline; word-break: break-all; }
+  .bulle .ussd { font-family: ui-monospace, Menlo, monospace; background: #f0f2f5; border-radius: 5px; padding: 1px 6px; }
+  .bulle.sortante .ussd { background: #c7ecc0; }
+
+  .boutons-rep { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .boutons-rep button {
+    background: #fff; border: none; border-top: 1px solid #e6e6e6; color: var(--wa-bleu-lien);
+    font-size: .86rem; font-weight: 600; padding: 9px 6px 7px; cursor: pointer;
+    border-radius: 0 0 7px 7px; width: 100%;
+  }
+  .boutons-rep button:not(:last-child) { border-radius: 0; }
+  .boutons-rep button:disabled { color: #9fb2bb; cursor: default; }
+  .boutons-rep button:not(:disabled):hover { background: #f4f8fa; }
+
+  .photo {
+    width: 236px; height: 176px; border-radius: 7px; display: grid; place-items: center;
+    font-size: 56px; margin-bottom: 4px; position: relative; overflow: hidden;
+  }
+  .photo.bandeau { width: 100%; height: 118px; margin: -7px -9px 6px; width: calc(100% + 18px); border-radius: 7px 7px 0 0; }
+  .v-pagne { background: repeating-conic-gradient(#c2410c 0 25%, #f59e0b 0 50%) 0 0/44px 44px; }
+  .v-sac { background: linear-gradient(140deg, #b45309, #78350f); }
+  .v-huile { background: linear-gradient(140deg, #65a30d, #14532d); }
+  .v-savon { background: linear-gradient(140deg, #a8a29e, #57534e); }
+  .v-vitrine { background: linear-gradient(140deg, #7c3aed, #312e81); }
+  .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.35)); }
+  .photo span { z-index: 1; filter: drop-shadow(0 4px 8px rgba(0,0,0,.4)); }
+
+  .carte-vitrine {
+    width: 246px; border-radius: 10px; overflow: hidden; background: #fff;
+    border: 1px solid #e5e0d8; margin-bottom: 4px;
+  }
+  .carte-vitrine .haut { background: linear-gradient(120deg, #075e54, #128c7e); color: #fff; padding: 12px 12px 10px; }
+  .carte-vitrine .haut b { font-size: 1.02rem; display: block; }
+  .carte-vitrine .haut span { font-size: .72rem; opacity: .9; }
+  .carte-vitrine .produits { display: flex; gap: 4px; padding: 8px; }
+  .carte-vitrine .produits i {
+    flex: 1; height: 54px; border-radius: 6px; display: grid; place-items: center;
+    font-style: normal; font-size: 26px;
+  }
+  .carte-vitrine .bas { display: flex; align-items: center; gap: 8px; padding: 0 10px 10px; }
+  .carte-vitrine .qr {
+    width: 44px; height: 44px; border-radius: 4px; flex: none;
+    background: conic-gradient(#111 0 25%, #fff 0 50%, #111 0 75%, #fff 0) 0 0/10px 10px;
+    outline: 3px solid #111; outline-offset: -3px;
+  }
+  .carte-vitrine .bas small { font-size: .68rem; color: #555; line-height: 1.3; word-break: break-all; }
+
+  .note {
+    align-self: center; background: var(--note-fond); color: var(--note);
+    border: 1px dashed #d9b834; border-radius: 8px; font-size: .7rem;
+    padding: 4px 10px; max-width: 88%; text-align: center; margin: 2px 0;
+  }
+  body.sans-notes .note { display: none; }
+  .systeme {
+    align-self: center; background: #d4e7f0; color: #3b5560; border-radius: 8px;
+    font-size: .7rem; padding: 4px 12px; margin: 4px 0; text-align: center;
+  }
+  .fin-chapitre {
+    align-self: center; text-align: center; margin: 10px 0 4px;
+  }
+  .fin-chapitre button {
+    background: var(--wa-vert); color: #fff; border: none; border-radius: 20px;
+    padding: 10px 18px; font-size: .85rem; font-weight: 600; cursor: pointer;
+  }
+  .frappe { align-self: flex-start; background: #fff; border-radius: 9px; padding: 10px 14px; box-shadow: 0 1px 1px rgba(0,0,0,.12); }
+  .frappe i { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #9aa8af; margin: 0 1.5px; animation: saute 1s infinite; font-style: normal; }
+  .frappe i:nth-child(2) { animation-delay: .15s; } .frappe i:nth-child(3) { animation-delay: .3s; }
+  @keyframes saute { 30% { transform: translateY(-4px); } 60% { transform: none; } }
+
+  .composeur {
+    background: #f0f2f5; padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; z-index: 2;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-height: 0; }
+  .chips button {
+    background: #fff; border: 1.5px solid var(--wa-vert); color: var(--wa-vert-fonce);
+    border-radius: 18px; padding: 7px 13px; font-size: .8rem; font-weight: 600; cursor: pointer;
+    animation: pop .2s ease-out;
+  }
+  .chips button:hover { background: #e7f7ee; }
+  .chips button.photo-chip { border-style: dashed; }
+  .faux-champ {
+    background: #fff; border-radius: 20px; padding: 9px 14px; color: #8696a0;
+    font-size: .82rem; display: flex; justify-content: space-between; align-items: center;
+  }
+  .faux-champ span:last-child { font-size: 1rem; }
+
+  .liste-voile {
+    position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 5;
+    display: none; align-items: flex-end;
+  }
+  .liste-voile.ouverte { display: flex; }
+  .feuille {
+    background: #fff; width: 100%; border-radius: 14px 14px 0 0; padding: 14px 0 18px;
+    max-height: 72%; overflow-y: auto; animation: monte .22s ease-out;
+  }
+  @keyframes monte { from { transform: translateY(40%); } }
+  .feuille h3 { font-size: .9rem; text-align: center; margin-bottom: 8px; color: #111; }
+  .feuille .ligne {
+    display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer;
+    border: none; background: none; width: 100%; text-align: left;
+  }
+  .feuille .ligne:hover { background: #f5f6f6; }
+  .feuille .ligne .rond { width: 20px; height: 20px; border: 2px solid #8696a0; border-radius: 50%; flex: none; }
+  .feuille .ligne div b { display: block; font-size: .88rem; color: #111; }
+  .feuille .ligne div span { font-size: .76rem; color: #667781; }
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Catalog — le bot cible, cliquable</h1>
+  <p>Quatre chapitres couvrent le pipeline entier : ouvrir une boutique, acheter, prouver, contre-signer et noter.
+  Appuyez sur les boutons des messages et les pastilles vertes du bas — chaque geste est celui du vrai WhatsApp.</p>
+  <div class="chapitres" id="chapitres"></div>
+  <div class="outils">
+    <label><input type="checkbox" id="basc-notes" checked /> Annotations (quoi de neuf, et d'où ça vient)</label>
+    <button id="rejouer">↻ Rejouer le chapitre</button>
+  </div>
+</header>
+
+<div class="porteur" id="porteur"></div>
+
+<div class="telephone">
+  <div class="barre">
+    <div class="avatar">🏷️</div>
+    <div class="qui"><b>Catalog <span class="coche-verte">✔</span></b><span>en ligne</span></div>
+    <span style="font-size:18px">📞 ⋮</span>
+  </div>
+  <div class="fil" id="fil"></div>
+  <div class="composeur">
+    <div class="chips" id="chips"></div>
+    <div class="faux-champ"><span id="indice">Suivez le scénario…</span><span>🎤</span></div>
+  </div>
+  <div class="liste-voile" id="voile"><div class="feuille" id="feuille"></div></div>
+</div>
+
+<script>
+/* ══════════════ les scénarios ══════════════
+   Chaque étape :
+   in / out : une bulle. attend:true → on s'arrête jusqu'au clic.
+   note / systeme / fin : hors conversation.                       */
+
+const V = { pagne: ["v-pagne","🧵"], sac: ["v-sac","👜"], huile: ["v-huile","🧴"], savon: ["v-savon","🧼"], vitrine: ["v-vitrine","🏪"] };
+
+const CHAPITRES = [
+{
+  id: 0, titre: "1 · Béa ouvre sa boutique", porteur: "📱 Téléphone de Béa — future vendeuse (Yaoundé)",
+  etapes: [
+    { systeme: "Béa a reçu le lien de parrainage de son amie Amina, posté en Statut." },
+    { chip: "Vendre avec chez-amina" },
+    { note: "Parrainage attribué par le lien — aucune récompense calculée (ADR 0034)" },
+    { in: { corps: "Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même.\n\n*Comment s'appelle votre boutique ?*\nExemple : Chez Amina" } },
+    { chip: "Chez Béa" },
+    { in: { corps: "*Chez Béa* — c'est noté.\n\n*Dans quelle ville vendez-vous ?*\nExemple : Douala" } },
+    { chip: "Yaoundé" },
+    { in: { corps: "Et le *quartier* ? Vos clientes sauront où vous trouver.", boutons: [{ t: "Passer" }] , attendBouton: "Mvog-Ada (tapé)" } , chipAvant: "Mvog-Ada" },
+    { note: "🆕 P1 — le quartier existait en base, il n'était jamais demandé" },
+    { in: { corps: "Une *photo pour votre vitrine* ? C'est elle que vos clientes verront en premier. (Facultatif)", boutons: [{ t: "Sans photo" }] }, chipPhotoAvant: { legende: "", visuel: "vitrine" } },
+    { note: "🆕 P1 — l'identité visuelle de la boutique : Seller.imageKey" },
+    { in: { corps: "✅ *Chez Béa* est ouverte.\n\nVotre carte de boutique — postez-la en Statut, imprimez-la pour l'étal :" } },
+    { in: { carte: { nom: "Chez Béa", ville: "Yaoundé · Mvog-Ada", produits: ["pagne","sac","huile"] } } },
+    { note: "🆕 P1 — la carte-vitrine générée : le lien wa.me n'a pas d'aperçu riche, l'image EST l'aperçu" },
+    { in: { corps: "Votre lien : catalog.wa/chez-bea\nVotre espace vendeuse (chiffres, reversement) : app.catalog.cm\nVotre lien de parrainage : « vendre avec chez-bea »" } },
+    { note: "Correctif acté — l'URL de l'app enfin donnée (analyse transversale, T1)" },
+    { in: { corps: "Ajoutons votre premier article ?\n\n💡 Le plus simple : envoyez une *photo avec sa légende* — nom puis prix.\nExemple : une photo légendée « Pagne wax 6 yards 15 000 »", boutons: [{ t: "Plus tard" }] }, chipPhotoAvant: { legende: "Pagne wax 6 yards 15 000", visuel: "pagne" } },
+    { note: "🆕 P1 phare — photo légendée = article : le geste que Béa fait déjà dans son Statut" },
+    { in: { corps: "J'ai lu : *Pagne wax 6 yards* — *15 000 F CFA*. C'est bon ?", boutons: [{ t: "Publier ✓" }, { t: "Corriger" }] } },
+    { note: "§7.7 AGENTS.md — on confirme ce qu'on a extrait, on ne devine pas en silence" },
+    { in: { corps: "✅ *Pagne wax 6 yards* — 15 000 F CFA est en ligne.", boutons: [{ t: "Autre article" }, { t: "Ma boutique" }] }, attendreBoutonIndex: 1 },
+    { in: { corps: "*Chez Béa* — 1 article en ligne\n\n1. Pagne wax 6 yards — 15 000 F\n\nPour modifier : « prix pagne 12 000 » · « retirer pagne »\nPour être payée d'avance : posez votre numéro Mobile Money sur app.catalog.cm — il a sa propre vérification." } },
+    { note: "🆕 P1 — « ma boutique » : voir et modifier son catalogue sans quitter le fil. Le reversement, lui, reste derrière son OTP (AGENTS.md §2)" },
+    { fin: "Boutique ouverte, article en ligne, cartes en poche. Demain à 9 h, une relance rappellera le reversement (pg-boss, fenêtre ouverte)." },
+  ],
+},
+{
+  id: 1, titre: "2 · Clara découvre et commande", porteur: "📱 Téléphone de Clara — acheteuse (a cliqué le Statut d'Amina)",
+  etapes: [
+    { systeme: "Clara a touché la carte-vitrine de CHEZ AMINA dans un Statut. WhatsApp s'ouvre, pré-rempli." },
+    { chip: "Voir la boutique chez-amina" },
+    { in: { entete: "vitrine", corps: "*Chez Amina* — Douala · Bonapriso\n★ 4,8 · 12 ventes prouvées (avis vérifiés)\n\nCommandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.", boutons: [{ t: "Voir les articles" }, { t: "Voir en photos" }, { t: "Parler à la vendeuse" }], attendreBoutonIndex: 1 } },
+    { note: "🆕 P0 — l'accueil porte la vitrine, le quartier, la réputation. « Voir en photos » : la rafale" },
+    { in: { image: "pagne", legende: "Pagne wax 6 yards — 15 000 F" } },
+    { in: { image: "sac", legende: "Sac en raphia tressé — 8 000 F · Plus que 2 !" } },
+    { in: { image: "huile", legende: "Huile de coco pressée à froid — 3 500 F" } },
+    { note: "🆕 P0 — la rafale d'images : le catalogue redevient aussi visuel que le Statut qui a attiré Clara" },
+    { in: { liste: { corps: "*Chez Amina* — 4 articles", bouton: "Voir les articles", lignes: [
+      { t: "Sac en raphia tressé", d: "8 000 FCFA · Plus que 2 !" },
+      { t: "Pagne wax 6 yards", d: "15 000 FCFA" },
+      { t: "Huile de coco", d: "3 500 FCFA" },
+      { t: "Savon noir artisanal", d: "1 500 FCFA" } ], choisir: 0 } } },
+    { in: { image: "sac", legende: "" } },
+    { in: { corps: "*Sac en raphia tressé*\n8 000 F CFA · Plus que 2 en stock !\nTressé main à Foumban, anses cuir, 40 cm. Pièce unique.\n★ 4,9 sur cet article (7 avis)", boutons: [{ t: "Commander" }, { t: "Retour au catalogue" }], attendreBoutonIndex: 0 } },
+    { note: "🆕 P0 fiche image-first plein format · 🆕 P1 — l'avis PAR ARTICLE (Review.productId, la décision qui ne se rattrape pas)" },
+    { in: { corps: "Combien de « Sac en raphia tressé » voulez-vous ? (2 en stock)", boutons: [{ t: "1" }, { t: "2" }, { t: "Annuler" }], attendreBoutonIndex: 1 } },
+    { in: { corps: "Ajouté : Sac en raphia tressé × 2.\nPanier : *16 000 F CFA*. Et ensuite ?", boutons: [{ t: "Passer commande" }, { t: "Autre article" }, { t: "Voir le panier" }], attendreBoutonIndex: 2 } },
+    { in: { corps: "🧺 *Votre panier — Chez Amina*\nSac en raphia tressé × 2 : 8 000 F l'unité = 16 000 F\n*Total : 16 000 F CFA* (hors livraison)", boutons: [{ t: "Passer commande" }, { t: "Autre article" }, { t: "Annuler" }], attendreBoutonIndex: 1 } },
+    { note: "🆕 P1 — le panier se montre, lignes comprises. « menu » ne le vide plus en silence" },
+    { in: { liste: { corps: "*Chez Amina* — 4 articles", bouton: "Voir les articles", lignes: [
+      { t: "Huile de coco", d: "3 500 FCFA" },
+      { t: "Pagne wax 6 yards", d: "15 000 FCFA" },
+      { t: "Savon noir artisanal", d: "1 500 FCFA" } ], choisir: 0 } } },
+    { in: { corps: "Combien de « Huile de coco » voulez-vous ? (12 en stock)", boutons: [{ t: "1" }, { t: "2" }, { t: "Un autre nombre" }], attendreBoutonIndex: 0 } },
+    { in: { corps: "Ajouté : Huile de coco × 1.\nPanier : *19 500 F CFA*. Et ensuite ?", boutons: [{ t: "Passer commande" }, { t: "Autre article" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
+    { in: { corps: "Comment recevoir votre commande (19 500 F CFA) ?", boutons: [{ t: "Livraison" }, { t: "Point de retrait" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
+    { in: { corps: "Votre quartier, un repère, puis le numéro à appeler — en un seul message.\nExemple : Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33" } },
+    { chip: "Bali, derrière le collège Alfred Saker, 690 11 22 33" },
+    { in: { corps: "*Récapitulatif — Chez Amina*\nSac en raphia tressé × 2 : 8 000 F l'unité\nHuile de coco × 1 : 3 500 F l'unité\n*Total : 19 500 F CFA* — hors livraison : le prix de la course se convient avec la vendeuse\nAcompte pour confirmer : *9 750 F CFA*\nLivraison : Bali, derrière le collège Alfred Saker\nNuméro à appeler : 6 90 11 22 33\n\nRien n'est encore commandé. Vérifiez, puis confirmez.", boutons: [{ t: "Confirmer" }, { t: "Corriger" }, { t: "Annuler" }], attendreBoutonIndex: 0 } },
+    { note: "🆕 P0 — « hors livraison » enfin DIT : la source n°1 de litiges se ferme en une ligne" },
+    { in: { corps: "*Commande CT-522801 — Chez Amina*\nSac en raphia tressé × 2 : 8 000 F l'unité\nHuile de coco × 1 : 3 500 F l'unité\nTotal : *19 500 F CFA* (hors livraison)\nLivraison : Bali, derrière le collège Alfred Saker\nCode de vérification : ACDE-4679" } },
+    { in: { corps: "💳 *Acompte à envoyer : 9 750 F CFA*\nNuméro Orange Money : *6 56 74 62 15* (Amina N.)\nComposez <span class=\"ussd\">#150*50#</span> puis suivez le menu — ou ouvrez : catalog.cm/payer\n\nVotre code secret ne se tape QUE sur l'écran de votre opérateur — jamais ici.\nDès que le paiement est vu, vous serez prévenue *ici même*." } },
+    { note: "🆕 P0 — LE correctif : payer sans quitter WhatsApp. Numéro + montant + code d'entrée en texte brut (règle AGENTS.md enfin appliquée) ; le lien n'est qu'un confort. Le code #150*50# vient de la configuration, jamais du code (lot 9)" },
+    { fin: "Clara bascule sur son composeur, envoie 9 750 F, et repose son téléphone. La suite au chapitre 3 — chez Amina." },
+  ],
+},
+{
+  id: 2, titre: "3 · Amina encaisse et prouve", porteur: "📱 Téléphone d'Amina — vendeuse (Chez Amina)",
+  etapes: [
+    { systeme: "Amina a répondu à une cliente il y a 20 minutes : sa fenêtre de service est ouverte." },
+    { in: { corps: "🛍️ *Nouvelle commande CT-522801*\nSac en raphia tressé × 2, Huile de coco × 1 — *19 500 F*\nLivraison : Bali, derrière le collège Alfred Saker — 6 90 11 22 33\n\nUn SMS Orange Money de *9 750 F* devrait arriver (l'acompte). Collez-le ici dès réception : il devient le reçu." } },
+    { note: "🆕 P0 — la notification qui n'existait pas : PERMISE dès aujourd'hui en fenêtre ouverte (correction de l'analyse — pas besoin du WABA pour les vendeuses actives). Le rapprochement est préparé : elle sait quoi attendre" },
+    { systeme: "Dix minutes plus tard, le SMS d'Orange arrive sur ce même téléphone. Amina le copie, revient ici, et le colle." },
+    { chip: "Vous avez recu 9750 FCFA de CLARA T. (237690112233). ID transaction : PP250802.1447.C88231. Votre nouveau solde…" },
+    { in: { corps: "SMS Orange reconnu — je vérifie les sept contrôles…" } },
+    { in: { corps: "✅ *Paiement prouvé* — les contrôles passent.\nCT-522801 : acompte de 9 750 F reçu. Reste à encaisser à la livraison : *9 750 F*.\nLe reçu vérifiable est émis — Clara vient d'être prévenue." } },
+    { note: "Cible P1 — le verdict DANS le fil (extraction de l'orchestration de preuve, dette ADR 0031). Le SMS n'entre jamais dans l'état de conversation (ADR 0023)" },
+    { systeme: "Trois jours plus tard, la course est faite, Clara a payé le solde en main propre." },
+    { chip: "livrée CT-522801" },
+    { in: { corps: "📦 *CT-522801 marquée livrée.* Bravo !\nClara reçoit l'invitation à noter — chaque avis vérifié renforce votre boutique.\n\n💰 Soldes à encaisser : plus rien. Écrivez « solde » à tout moment." } },
+    { note: "🆕 P1 — « livrée » dans le fil : le geste qui déclenche l'avis vérifié, sans ouvrir l'app (la machine avancerEtape existait déjà)" },
+    { fin: "L'argent est chez Amina, la preuve est au dossier, la réputation arrive au chapitre 4 — chez Clara." },
+  ],
+},
+{
+  id: 3, titre: "4 · Clara reçoit, contre-signe et note", porteur: "📱 Téléphone de Clara — acheteuse",
+  etapes: [
+    { systeme: "Quelques minutes après le paiement de Clara (chapitre 2)…" },
+    { in: { corps: "✅ *Votre paiement de 9 750 F est prouvé.*\nVotre reçu vérifiable : catalog.cm/v/?c=ACDE-4679 — il porte l'identifiant de la transaction Orange. Montrez-le, personne ne peut le contrefaire.\n\nUne dernière chose : confirmez que ce paiement vient bien de vous.", boutons: [{ t: "Je confirme avoir payé ✓" }, { t: "Ce n'est pas moi" }], attendreBoutonIndex: 0 } },
+    { note: "🆕 P0/ADR — la fin de l'attente aveugle, ET la contre-signature (contrôle n° 7) DANS le fil : le wa_id qui a créé la commande vaut le jeton qui fut émis dans ce même fil. Exige l'ADR « identité du fil » — jamais un raccourci silencieux" },
+    { in: { corps: "🖋️ Contre-signé. Le reçu de CT-522801 porte maintenant les deux voix : le SMS de la vendeuse, et la vôtre." } },
+    { systeme: "Trois jours plus tard, après la livraison…" },
+    { in: { corps: "📦 *Votre commande CT-522801 est livrée.*\nUn mot sur Chez Amina ? Votre avis sera marqué *achat vérifié* — l'argent a laissé une trace." } },
+    { in: { liste: { corps: "Votre note, en un geste :", bouton: "Donner ma note", lignes: [
+      { t: "⭐⭐⭐⭐⭐ Excellent", d: "5 sur 5" },
+      { t: "⭐⭐⭐⭐ Très bien", d: "4 sur 5" },
+      { t: "⭐⭐⭐ Bien", d: "3 sur 5" },
+      { t: "⭐⭐ Moyen", d: "2 sur 5" },
+      { t: "⭐ Décevant", d: "1 sur 5" } ], choisir: 0 } } },
+    { note: "🆕 P1 — l'avis sollicité au bon moment, dans le fil (le formulaire web existait, personne n'y arrivait jamais). Un commentaire reste possible, jamais exigé" },
+    { in: { corps: "Merci ! Votre avis *vérifié* est en ligne.\n★ Chez Amina passe à 4,8 — 13 ventes prouvées. C'est ce que la prochaine cliente verra en arrivant.\n\nÀ bientôt 👋" } },
+    { note: "La boucle se ferme : l'avis de Clara alimente l'accueil du chapitre 2. Le volant tourne" },
+    { fin: "Le pipeline entier — de « vendre » à l'avis vérifié — sans quitter WhatsApp, sauf le composeur USSD et l'OTP du reversement." },
+  ],
+},
+];
+
+/* ══════════════ le moteur ══════════════ */
+const fil = document.getElementById("fil");
+const chips = document.getElementById("chips");
+const indice = document.getElementById("indice");
+const voile = document.getElementById("voile");
+const feuille = document.getElementById("feuille");
+const porteur = document.getElementById("porteur");
+let chapitre = 0, curseur = 0, occupe = false;
+
+const heure = () => "14:" + String(30 + curseur).padStart(2, "0");
+
+/* Le gras WhatsApp : *texte* → <b>texte</b>, ligne par ligne — le code USSD
+   (#150*50#, une seule etoile par ligne) reste intact faute de paire. */
+const gras = (t) =>
+  t.split("\n").map((l) => l.replace(/\*([^*]+)\*/g, "<b>$1</b>")).join("\n");
+
+function bulleHtml(contenu, sortante) {
+  const b = document.createElement("div");
+  b.className = "bulle " + (sortante ? "sortante" : "entrante");
+  b.innerHTML = contenu + '<span class="heure">' + heure() + "</span>";
+  fil.appendChild(b);
+  fil.scrollTop = fil.scrollHeight;
+  return b;
+}
+function photoHtml(visuel, legende, bandeau) {
+  const [cls, emoji] = V[visuel];
+  return '<div class="photo ' + cls + (bandeau ? " bandeau" : "") + '"><span>' + emoji + "</span></div>" + gras(legende || "");
+}
+function pause(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+async function frappe(ms) {
+  const f = document.createElement("div");
+  f.className = "frappe"; f.innerHTML = "<i></i><i></i><i></i>";
+  fil.appendChild(f); fil.scrollTop = fil.scrollHeight;
+  await pause(ms); f.remove();
+}
+
+function poserChip(label, photo, surClic) {
+  const b = document.createElement("button");
+  if (photo) { b.className = "photo-chip"; b.textContent = "📷 " + (label ? "Photo · « " + label + " »" : "Envoyer une photo"); }
+  else b.textContent = label;
+  b.onclick = () => { chips.innerHTML = ""; surClic(); };
+  chips.appendChild(b);
+}
+
+function ouvrirFeuille(l, surChoix) {
+  feuille.innerHTML = "<h3>" + l.bouton + "</h3>" + l.lignes.map((x, i) =>
+    '<button class="ligne" data-i="' + i + '"><span class="rond"></span><div><b>' + x.t + "</b><span>" + (x.d || "") + "</span></div></button>").join("");
+  voile.classList.add("ouverte");
+  feuille.querySelectorAll(".ligne").forEach((el) => {
+    el.onclick = () => { voile.classList.remove("ouverte"); surChoix(l.lignes[Number(el.dataset.i)].t); };
+  });
+}
+
+async function jouer() {
+  if (occupe) return; occupe = true;
+  const etapes = CHAPITRES[chapitre].etapes;
+  while (curseur < etapes.length) {
+    const e = etapes[curseur];
+
+    if (e.systeme) { const d = document.createElement("div"); d.className = "systeme"; d.textContent = e.systeme; fil.appendChild(d); curseur++; continue; }
+    if (e.note) { const d = document.createElement("div"); d.className = "note"; d.textContent = e.note; fil.appendChild(d); fil.scrollTop = fil.scrollHeight; curseur++; continue; }
+    if (e.fin) {
+      const d = document.createElement("div"); d.className = "fin-chapitre";
+      const suivant = chapitre + 1 < CHAPITRES.length;
+      d.innerHTML = "<div class='systeme' style='margin-bottom:8px'>" + e.fin + "</div>" +
+        (suivant ? "<button>Chapitre suivant →</button>" : "<button>↻ Tout rejouer</button>");
+      d.querySelector("button").onclick = () => charger(suivant ? chapitre + 1 : 0);
+      fil.appendChild(d); fil.scrollTop = fil.scrollHeight;
+      indice.textContent = "Chapitre terminé";
+      curseur++; occupe = false; return;
+    }
+    if (e.chip) {
+      indice.textContent = "Appuyez sur la pastille pour envoyer";
+      poserChip(e.chip, false, () => { bulleHtml(e.chip, true); curseur++; occupe = false; jouer(); });
+      occupe = false; return;
+    }
+
+    if (e.in) {
+      const m = e.in;
+      /* pastilles alternatives AVANT le message qui attend (répondre en tapant plutôt qu'au bouton) */
+      await frappe(650);
+      let html = "";
+      if (m.entete) html += photoHtml(m.entete, "", true);
+      if (m.image !== undefined) html += photoHtml(m.image, m.legende || "");
+      if (m.carte) {
+        const c = m.carte;
+        html += '<div class="carte-vitrine"><div class="haut"><b>' + c.nom + "</b><span>" + c.ville + ' · Boutique vérifiée Catalog</span></div><div class="produits">' +
+          c.produits.map((p) => '<i class="' + V[p][0] + '">' + V[p][1] + "</i>").join("") +
+          '</div><div class="bas"><div class="qr"></div><small>catalog.wa/chez-bea<br/>Commandez sur WhatsApp — reçu vérifiable</small></div></div>';
+      }
+      if (m.corps) html += gras(m.corps);
+      if (m.liste) {
+        const bloc = bulleHtml(gras(m.liste.corps || "") + '<div class="boutons-rep"><button>▤ ' + m.liste.bouton + "</button></div>", false);
+        indice.textContent = "Ouvrez la liste";
+        const bt = bloc.querySelector("button");
+        bt.onclick = () => ouvrirFeuille(m.liste, (choix) => {
+          bt.disabled = true; bulleHtml(choix, true); curseur++; occupe = false; jouer();
+        });
+        occupe = false; return;
+      }
+      const bloc = bulleHtml(html + (m.boutons ? '<div class="boutons-rep">' + m.boutons.map((b) => "<button>" + b.t + "</button>").join("") + "</div>" : ""), false);
+
+      if (m.boutons) {
+        indice.textContent = "Répondez avec un bouton" + (e.chipAvant || e.chipPhotoAvant ? " — ou la pastille" : "");
+        const btns = bloc.querySelectorAll(".boutons-rep button");
+        const avance = (texteSortant) => {
+          btns.forEach((x) => { x.disabled = true; });
+          chips.innerHTML = "";
+          if (texteSortant) bulleHtml(texteSortant, true);
+          curseur++; occupe = false; jouer();
+        };
+        const idx = m.attendreBoutonIndex ?? 0;
+        btns.forEach((bt, i) => {
+          bt.onclick = () => avance(i === idx || m.attendBouton === undefined ? bt.textContent : bt.textContent);
+        });
+        if (e.chipAvant) poserChip(e.chipAvant, false, () => avance(e.chipAvant));
+        if (e.chipPhotoAvant) poserChip(e.chipPhotoAvant.legende, true, () => {
+          btns.forEach((x) => { x.disabled = true; });
+          bulleHtml(photoHtml(e.chipPhotoAvant.visuel, e.chipPhotoAvant.legende), true);
+          curseur++; occupe = false; jouer();
+        });
+        occupe = false; return;
+      }
+      curseur++; continue;
+    }
+    curseur++;
+  }
+  occupe = false;
+}
+
+function charger(i) {
+  chapitre = i; curseur = 0; occupe = false;
+  fil.innerHTML = ""; chips.innerHTML = "";
+  porteur.textContent = CHAPITRES[i].porteur;
+  indice.textContent = "Suivez le scénario…";
+  document.querySelectorAll("#chapitres button").forEach((b, j) => b.classList.toggle("actif", j === i));
+  jouer();
+}
+
+const barreChapitres = document.getElementById("chapitres");
+CHAPITRES.forEach((c, i) => {
+  const b = document.createElement("button");
+  b.textContent = c.titre;
+  b.onclick = () => charger(i);
+  barreChapitres.appendChild(b);
+});
+document.getElementById("basc-notes").onchange = (ev) => document.body.classList.toggle("sans-notes", !ev.target.checked);
+document.getElementById("rejouer").onclick = () => charger(chapitre);
+charger(0);
+</script>
+</body>
+</html>
