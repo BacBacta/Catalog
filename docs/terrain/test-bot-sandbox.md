@@ -129,6 +129,21 @@ s'ouvre photo d'abord.
   rappel ~20 h après, avec le lien de l'espace vendeuse. Reversement posé
   entre-temps : silence.
 
+## Recommencer un test à zéro
+
+Trois écritures sur la préprod, pour qu'un numéro redevienne une inconnue —
+via `flyctl ssh console --app catalog-api-preprod`, puis un script node qui :
+
+1. **détache** toute boutique née de ce numéro (`seller.phone` → numéro
+   factice unique, `userId` → nul) — l'historique reste, rien n'est détruit ;
+2. **efface** la ligne `bot_conversation` du numéro (état, langue, mémoire de
+   commande) ;
+3. **purge** les `bot_notification` en attente qui le visent.
+
+Les commandes passées comme acheteuse peuvent rester : une conversation
+neuve ne les connaît plus. Après la remise à zéro, le premier message du
+téléphone rouvre le parcours prospect complet (« vendre avec <slug> »…).
+
 ## Vérifier côté base (quand le téléphone ne suffit pas)
 
 ```bash
