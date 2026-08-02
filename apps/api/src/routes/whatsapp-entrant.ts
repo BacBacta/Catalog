@@ -83,6 +83,12 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
       deps.authEnTete != null &&
       egalConstant(c.req.header("authorization"), deps.authEnTete);
     if (!parSignature && !parEnTete) {
+      /* Trace SANS CONTENU : uniquement la forme du refus. C'est ce qui permet
+         de distinguer « le relais n'envoie rien » de « le relais envoie sans
+         le verrou attendu » — la panne muette du 02/08/2026. */
+      console.warn(
+        `livraison entrante refusee : signature=${fournie != null} en-tete=${c.req.header("authorization") != null}`,
+      );
       return c.json({ erreur: "signature absente ou invalide" }, 401);
     }
 
