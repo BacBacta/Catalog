@@ -1,5 +1,10 @@
 import { extraireSlugBoutique } from "./conversation.ts";
-import { demandeAjoutArticle, demandeEspaceVendeuse, demandeInscription } from "./inscription.ts";
+import {
+  demandeAjoutArticle,
+  demandeConges,
+  demandeEspaceVendeuse,
+  demandeInscription,
+} from "./inscription.ts";
 
 /**
  * Vers quel fil part un message — ADR 0034.
@@ -75,6 +80,14 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     }
     if (entree.genre === "texte" && demandeAjoutArticle(t)) return "inscription";
     if (entree.genre === "texte" && demandeEspaceVendeuse(t)) return "vendeuse";
+    /* Fermer ou rouvrir sa boutique — ADR 0039. Ce geste doit passer AVANT la
+       regle 4 : une vendeuse qui teste sa propre boutique, ou qui achete a une
+       consoeur, a un achat en cours, et son « congés » partirait au fil
+       acheteuse ou il ne veut rien dire. */
+    if (entree.genre === "texte" && demandeConges(t) !== null) return "vendeuse";
+    if (entree.genre === "bouton" && (entree.id === "conges" || entree.id === "rouvrir")) {
+      return "vendeuse";
+    }
     if (ctx.smsReconnu) return "vendeuse";
   }
 

@@ -133,6 +133,24 @@ export function demandeEspaceVendeuse(texteBrut: string): boolean {
   return /^(?:ma boutique|espace vendeuse|vendeuse)$/.test(net);
 }
 
+/**
+ * Le mode conges — ADR 0039. `true` = fermer, `false` = rouvrir, `null` = ni
+ * l'un ni l'autre.
+ *
+ * Il vit ICI, avec les autres gestes de vendeuse, et non dans la machine :
+ * l'aiguilleur doit le reconnaitre AVANT de router. Sans cela, une vendeuse
+ * qui a un achat en cours — le cas normal quand elle teste sa propre boutique,
+ * ou qu'elle achete a une consoeur — verrait son « congés » partir au fil
+ * ACHETEUSE, ou il ne veut rien dire. Le mot serait annonce par le menu et
+ * inoperant la moitie du temps.
+ */
+export function demandeConges(texteBrut: string): boolean | null {
+  const net = sansAccents(texteBrut.trim().toLowerCase());
+  if (/^(?:conges|vacances|je pars|fermer|fermee|fermer la boutique)$/.test(net)) return true;
+  if (/^(?:je reprends|reprendre|rouvrir|ouvrir|ouverte|de retour)$/.test(net)) return false;
+  return null;
+}
+
 /** « Ma carte » — la carte-vitrine a poster en Statut (ADR 0037). */
 export function demandeCarteVitrine(texteBrut: string): boolean {
   const net = sansAccents(texteBrut.trim().toLowerCase());

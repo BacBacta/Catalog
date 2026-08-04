@@ -1,7 +1,7 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { planDePaiement } from "../order/paiement.ts";
-import { demandeCarteVitrine } from "./inscription.ts";
+import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
 import { boutons, image, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
 
@@ -1269,16 +1269,19 @@ export function reagirVendeuse(
    * bouton comme au mot tape. La bascule n'est pas confirmee : elle est
    * REVERSIBLE d'un mot, et rien ne se perd — ni commande, ni reputation.
    */
-  const veutFermer =
-    id === "conges" || /^(conges|vacances|je pars|fermer|fermee)$/.test(sansAccents(mot));
-  const veutRouvrir =
-    id === "rouvrir" ||
-    /^(rouvrir|je reprends|reprendre|ouvrir|ouverte|de retour)$/.test(sansAccents(mot));
-  if (veutFermer || veutRouvrir) {
+  const bascule =
+    id === "conges"
+      ? true
+      : id === "rouvrir"
+        ? false
+        : entree.genre === "texte"
+          ? demandeConges(entree.texte)
+          : null;
+  if (bascule !== null) {
     return {
       etat: ETAT_INITIAL,
       messages: [],
-      effet: { type: "basculer_conges", fermer: veutFermer },
+      effet: { type: "basculer_conges", fermer: bascule },
     };
   }
 

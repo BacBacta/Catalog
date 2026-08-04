@@ -51,6 +51,23 @@ describe("aiguiller", () => {
     expect(aiguiller(txt("ma boutique"), { ...VENDEUSE, achatEnCours: true })).toBe("vendeuse");
   });
 
+  it("« congés » et « je reprends » ramenent au fil vendeuse, meme en plein achat", () => {
+    /* ADR 0039. C'est le cas NORMAL et non le cas limite : une vendeuse qui
+       teste sa propre boutique — ou qui achete a une consoeur — a un achat en
+       cours. Sans cette regle, le mot annonce par le menu partirait au fil
+       acheteuse, ou il ne veut rien dire. */
+    for (const mot of ["congés", "vacances", "je pars", "je reprends", "de retour"]) {
+      expect(aiguiller(txt(mot), { ...VENDEUSE, achatEnCours: true }), mot).toBe("vendeuse");
+    }
+    for (const id of ["conges", "rouvrir"]) {
+      expect(aiguiller({ genre: "bouton", id }, { ...VENDEUSE, achatEnCours: true }), id).toBe(
+        "vendeuse",
+      );
+    }
+    /* Et pour qui n'est pas vendeuse, ces mots n'existent pas. */
+    expect(aiguiller(txt("congés"), REPOS)).toBe("acheteuse");
+  });
+
   it("« ajouter » et le bouton « article » mènent a l'ajout d'article", () => {
     expect(aiguiller(txt("ajouter un article"), VENDEUSE)).toBe("inscription");
     expect(aiguiller(txt("ajouter"), VENDEUSE)).toBe("inscription");
