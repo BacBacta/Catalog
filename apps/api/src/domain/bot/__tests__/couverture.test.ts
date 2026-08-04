@@ -163,6 +163,8 @@ describe("textes — les deux catalogues produisent, en entier", () => {
         t.avisImpossible,
         t.avisDejaDepose,
         t.apresAchatSansCommande,
+        t.boutiqueFermeeAccueil,
+        t.boutiqueFermee("Chez Amina"),
       ];
       for (const p of produits) {
         expect(p, langue).toBeTypeOf("string");

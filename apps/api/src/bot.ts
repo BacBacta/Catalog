@@ -70,7 +70,7 @@ import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeRelance } from "./jobs/relance-acompte.ts";
 import { mesurerEtatPreuve, mesurerTransitionBot } from "./observabilite/mesures.ts";
-import { slugifier, slugLibre } from "./routes/seller.ts";
+import { basculerConges, slugifier, slugLibre } from "./routes/seller.ts";
 
 /**
  * Le service du bot — ADR 0031, revise par les ADR 0032 et 0033. Il charge
@@ -626,7 +626,15 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     const b = reaction.effet.brouillon;
     const livraison = deliverySchema.safeParse(b.livraison);
     const resolution = resoudreLignes(boutique, b.lignes);
-    if (!livraison.success || !resolution.ok) {
+    /**
+     * Mode conges — ADR 0039. Le verrou est RELU ici, pas seulement dans la
+     * machine : entre l'affichage du recapitulatif et l'appui sur « Confirmer »,
+     * la vendeuse a pu partir. La base fait foi, comme pour le stock.
+     */
+    if (boutique.enConges) {
+      messages.push(texte(entree.de, t.boutiqueFermee(boutique.nom)));
+      etat = { nom: "catalogue", slug: boutique.slug, page: 0 };
+    } else if (!livraison.success || !resolution.ok) {
       messages.push(
         texte(entree.de, resolution.ok ? t.commandeRatee : t.stockInsuffisant(resolution.nom)),
       );
@@ -1027,6 +1035,7 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
       ville: seller.city,
       whatsappVendeuse: seller.phone,
       reversementPose: seller.payoutPhone !== null,
+      ...(seller.congesDepuis ? { enConges: true } : {}),
       reputation: { note: rep.note, nbVerifies: rep.nbVerifies },
       /* « Voir en photos » n'apparait que s'il y a au moins une photo (ADR 0035). */
       aDesPhotos: clesImage.size > 0,
@@ -1260,6 +1269,7 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
       select: {
         businessName: true,
         slug: true,
+        congesDepuis: true,
         _count: { select: { products: { where: { archivedAt: null } } } },
       },
     }),
@@ -1282,6 +1292,7 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
           nbArticles: profil._count.products,
           lienBoutique: lienBot(deps, `boutique ${profil.slug}`),
           lienEspace: deps.baseApp || null,
+          ...(profil.congesDepuis ? { enConges: true } : {}),
         }
       : null,
   });
@@ -1295,6 +1306,32 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
 
   if (reaction.effet?.type === "envoyer_carte") {
     messages.push(...(await carteVitrine(deps, sellerIdent)));
+  }
+
+  if (reaction.effet?.type === "basculer_conges") {
+    const fermer = reaction.effet.fermer;
+    await basculerConges(
+      deps.prisma,
+      sellerIdent,
+      fermer,
+      "bot_whatsapp",
+      deps.maintenant?.() ?? new Date(),
+    );
+    /* Ce que ça change ET ce que ça ne change pas : sans la seconde moitié, une
+       vendeuse peut croire qu'elle vient d'annuler ses commandes en cours. */
+    const n = commandesOuvertes.length;
+    messages.push(
+      texte(
+        entree.de,
+        fermer
+          ? `🌴 C'est noté. Votre boutique reste en ligne — lien, articles, avis — mais n'accepte plus de nouvelle commande.${
+              n > 0
+                ? ` Vos ${n} commande${n > 1 ? "s" : ""} en cours continue${n > 1 ? "nt" : ""} normalement : paiement, preuve, remise.`
+                : ""
+            }\nÉcrivez « je reprends » quand vous revenez.`
+          : "☀️ C'est reparti — votre boutique accepte de nouveau les commandes. Bon retour !",
+      ),
+    );
   }
 
   if (reaction.effet?.type === "verifier_sms") {

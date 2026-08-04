@@ -58,6 +58,13 @@ export interface BoutiqueBot {
   /** Sans reversement pose, on peut commander mais pas payer d'avance. */
   reversementPose: boolean;
   /**
+   * Mode conges — ADR 0039. La boutique reste ENTIEREMENT visible : accueil,
+   * catalogue, fiches, photos, reputation. Seule la commande est suspendue, et
+   * la conversation avec la vendeuse reste offerte partout ou elle l'etait.
+   * Les commandes deja passees ne sont pas concernees.
+   */
+  enConges?: boolean;
+  /**
    * La reputation du lot 12 — l'argument de confiance du produit, dit a
    * l'accueil. `nbVerifies` a zero : la ligne ne s'affiche pas ; on ne fait
    * pas dire « 0 vente » a une vendeuse qui debute.
@@ -250,6 +257,8 @@ export type EffetBot =
   | { type: "marquer_livree"; reference: string }
   /** « ma carte » — la carte-vitrine à poster en Statut (ADR 0037). */
   | { type: "envoyer_carte" }
+  /** « congés » / « je reprends » — la boutique se ferme et se rouvre (ADR 0039). */
+  | { type: "basculer_conges"; fermer: boolean }
   /* ─── l'apres-achat, autorise par l'identite du fil — ADR 0036 ─── */
   | { type: "contresigner" }
   | { type: "contester" }
@@ -467,6 +476,30 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       messages: messageAjout(vers, boutique, contenu, t),
     };
   }
+  /**
+   * Mode conges — ADR 0039. Le refus se pose sur les TROIS gestes qui font
+   * avancer vers une commande, et pas seulement sur le premier : un fil ouvert
+   * avant le depart en conges porte encore ses anciens boutons, et WhatsApp les
+   * laisse appuyer. `confirmer` est le dernier verrou avant `creer_commande`.
+   *
+   * Tout le reste marche : catalogue, fiches, photos, panier, suivi, avis. Une
+   * boutique fermee reste une vitrine, et la vendeuse reste joignable.
+   */
+  if (
+    boutique.enConges &&
+    (id === "commander" || id === "confirmer" || (id?.startsWith("cmd:") ?? false))
+  ) {
+    return {
+      etat,
+      messages: [
+        boutons(vers, t.boutiqueFermee(boutique.nom), [
+          ...(boutique.whatsappVendeuse ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }] : []),
+          { id: "catalogue", titre: t.btnVoirArticles },
+        ]),
+      ],
+    };
+  }
+
   if (id === "vendeuse") {
     if (!boutique.whatsappVendeuse) return accueilBoutique(vers, boutique, t);
     const chiffres = boutique.whatsappVendeuse.replace(/\D/g, "");
@@ -891,7 +924,10 @@ function accueilBoutique(
   const lignes = [
     `*${b.nom}* — ${b.ville}`,
     ...(rep && rep.nbVerifies > 0 ? [t.accueilReputation(note, rep.nbVerifies)] : []),
-    t.accueilPitch,
+    /* Fermee, on le dit A L'ACCUEIL : laisser choisir un article puis refuser
+       a la fin serait la meme faute que la course de livraison decouverte a la
+       remise (ADR 0035). */
+    b.enConges ? t.boutiqueFermeeAccueil : t.accueilPitch,
   ];
   /* Trois boutons au plus (limite API) : la vitrine, les photos, l'humaine. */
   const choix = [
@@ -966,7 +1002,14 @@ function ficheArticle(
     ...(article.description ? ["", article.description] : []),
   ];
   const actions = [
-    { id: `cmd:${article.id}`, titre: t.btnCommander },
+    /* En conges, « Commander » ne s'affiche pas du tout : proposer un bouton
+       dont on sait qu'il refusera est une promesse qu'on ne tient pas. La
+       vendeuse prend sa place — elle seule sait quand elle reprend. */
+    ...(b.enConges
+      ? b.whatsappVendeuse
+        ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }]
+        : []
+      : [{ id: `cmd:${article.id}`, titre: t.btnCommander }]),
     { id: `cat:${page}`, titre: t.btnRetourCatalogue },
     /* Trois boutons au maximum : celui-ci ne prend sa place que lorsqu'il a
        quelque chose a montrer. */
@@ -1167,6 +1210,8 @@ export interface BoutiqueVendeuse {
   lienBoutique: string;
   /** L'URL de l'espace vendeuse. `null` quand la base n'est pas configuree. */
   lienEspace: string | null;
+  /** Mode conges — ADR 0039. Le menu dit l'etat et propose l'inverse. */
+  enConges?: boolean;
 }
 
 /**
@@ -1219,6 +1264,24 @@ export function reagirVendeuse(
     return { etat: ETAT_INITIAL, messages: [], effet: { type: "envoyer_carte" } };
   }
 
+  /**
+   * Le mode conges depuis le fil — ADR 0039. Deux gestes symetriques, en
+   * bouton comme au mot tape. La bascule n'est pas confirmee : elle est
+   * REVERSIBLE d'un mot, et rien ne se perd — ni commande, ni reputation.
+   */
+  const veutFermer =
+    id === "conges" || /^(conges|vacances|je pars|fermer|fermee)$/.test(sansAccents(mot));
+  const veutRouvrir =
+    id === "rouvrir" ||
+    /^(rouvrir|je reprends|reprendre|ouvrir|ouverte|de retour)$/.test(sansAccents(mot));
+  if (veutFermer || veutRouvrir) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [],
+      effet: { type: "basculer_conges", fermer: veutFermer },
+    };
+  }
+
   if (mot === "solde" || mot === "soldes" || id === "solde") {
     const n = contexte.commandesOuvertes.length;
     const corps =
@@ -1250,6 +1313,9 @@ export function reagirVendeuse(
   }
   const lignes = [
     `*${b.nom}*`,
+    ...(b.enConges
+      ? ["🌴 *En congés* — votre boutique reste en ligne, mais ne prend pas de nouvelle commande."]
+      : []),
     b.nbArticles > 0
       ? `${b.nbArticles} article${b.nbArticles > 1 ? "s" : ""} en ligne`
       : "Aucun article en ligne pour l'instant — ajoutez le premier !",
@@ -1261,15 +1327,33 @@ export function reagirVendeuse(
     ...(b.lienEspace ? [`Vos chiffres et votre reversement : ${b.lienEspace}`] : []),
     "",
     "Un paiement reçu ? Collez ici le SMS de votre opérateur — il devient le reçu. Une commande remise ? Écrivez « livrée CT-… ».",
+    /* Le geste est ANNONCE : un mot-clé que personne ne connaît n'existe pas. */
+    ...(b.enConges
+      ? ["Prête à reprendre ? Écrivez « je reprends »."]
+      : [
+          "Vous partez ? Écrivez « congés » : votre boutique reste en ligne, sans prendre de commande.",
+        ]),
   ];
   return {
     etat: ETAT_INITIAL,
     messages: [
-      boutons(vers, lignes.join("\n"), [
-        { id: "article", titre: "Ajouter un article" },
-        ...(b.nbArticles > 0 ? [{ id: "carte", titre: "Ma carte à partager" }] : []),
-        { id: "solde", titre: "Mes soldes" },
-      ]),
+      /* Trois boutons au plus. En congés, « Je reprends » prend la place de la
+         carte à partager — c'est le geste du moment, et mettre en avant une
+         boutique qui ne prend pas commande n'en est pas un. « Ajouter un
+         article » reste : préparer sa rentrée est exactement ce qu'on fait
+         pendant des congés. */
+      boutons(
+        vers,
+        lignes.join("\n"),
+        [
+          ...(b.enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
+          { id: "article", titre: "Ajouter un article" },
+          ...(!b.enConges && b.nbArticles > 0
+            ? [{ id: "carte", titre: "Ma carte à partager" }]
+            : []),
+          { id: "solde", titre: "Mes soldes" },
+        ].slice(0, 3),
+      ),
     ],
   };
 }

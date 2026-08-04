@@ -40,6 +40,7 @@ export interface BoutiqueBrute {
   pointDeRetrait: string | null;
   whatsapp: string;
   reversementVerifie: boolean;
+  enConges?: boolean;
   notes: number[];
   articles: ArticleBrut[];
 }
@@ -79,6 +80,12 @@ export interface BoutiquePublique {
   /** Numero WhatsApp : le numero de CONNEXION, jamais celui de reversement. */
   whatsapp: string;
   verifiee: boolean;
+  /**
+   * Mode conges — ADR 0039. La boutique reste publiee et lisible ; elle
+   * n'invite simplement plus a commander. Le verrou qui compte est dans le bot,
+   * qui lit la base a chaque message : ces pages sont figees a la construction.
+   */
+  enConges: boolean;
   note: { moyenne: number; nombre: number } | null;
   articles: ArticlePublic[];
 }
@@ -173,6 +180,16 @@ export function versBoutiquePublique(
      * qu'on puisse afficher a ce stade.
      */
     verifiee: b.reversementVerifie,
+    /**
+     * Mode conges — ADR 0039.
+     *
+     * L'instantane est fige a la CONSTRUCTION : une vendeuse qui ferme a midi
+     * ne change pas ces pages avant la prochaine publication. Ce n'est pas un
+     * defaut a rattraper ici — c'est pourquoi le verrou qui compte est dans le
+     * bot, qui lit la base a chaque message. Ce drapeau-ci evite d'inviter a
+     * commander pour rien ; il ne garantit rien a lui seul.
+     */
+    enConges: b.enConges === true,
     note: noteMoyenne(b.notes ?? []),
     articles: (b.articles ?? []).map((a) => ({
       id: a.id,

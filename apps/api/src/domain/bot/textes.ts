@@ -155,6 +155,18 @@ export interface TextesAcheteuse {
   avisDejaDepose: string;
   /** Aucune commande dans ce fil : on le dit, on n'invente pas. */
   apresAchatSansCommande: string;
+
+  /* ─── le mode conges — ADR 0039 ─── */
+  /**
+   * Dit A L'ACCUEIL, a la place de l'argument de vente : une acheteuse doit
+   * l'apprendre avant de choisir, pas apres avoir tout saisi.
+   *
+   * Aucune date de retour n'est promise nulle part. La vendeuse n'en saisit
+   * pas, et une date depassee en silence serait un mensonge de plus.
+   */
+  boutiqueFermeeAccueil: string;
+  /** Le refus, quand un ancien bouton du fil tente encore de commander. */
+  boutiqueFermee: (nomBoutique: string) => string;
 }
 
 const fr: TextesAcheteuse = {
@@ -324,6 +336,11 @@ const fr: TextesAcheteuse = {
   avisDejaDepose: "Vous avez déjà donné votre avis sur cette commande. Merci encore !",
   apresAchatSansCommande:
     "Aucune commande enregistrée sur ce numéro. Ouvrez le lien d'une boutique pour commander.",
+
+  boutiqueFermeeAccueil:
+    "🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — elle vous dira quand elle reprend.",
+  boutiqueFermee: (nom) =>
+    `🌴 *${nom}* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez à la vendeuse : elle seule sait quand elle reprend.`,
 };
 
 const en: TextesAcheteuse = {
@@ -479,6 +496,11 @@ const en: TextesAcheteuse = {
   avisImpossible: "Reviews open once the order is delivered — the seller will mark it as such.",
   avisDejaDepose: "You already reviewed this order. Thanks again!",
   apresAchatSansCommande: "No order recorded for this number. Open a shop link to order.",
+
+  boutiqueFermeeAccueil:
+    "🌴 The seller is not taking new orders right now. You can still browse the items and write to her — she will tell you when she is back.",
+  boutiqueFermee: (nom) =>
+    `🌴 *${nom}* is not taking new orders right now. Nothing was ordered. Write to the seller: only she knows when she is back.`,
 };
 
 export const TEXTES: Record<Langue, TextesAcheteuse> = { fr, en };

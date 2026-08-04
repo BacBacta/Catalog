@@ -484,6 +484,124 @@ describe("aucun etat n'est un piege — mots-cles globaux", () => {
   });
 });
 
+describe("le mode congés — la boutique reste une vitrine (ADR 0039)", () => {
+  const FERMEE: BoutiqueBot = { ...BOUTIQUE, enConges: true };
+  const ctxF = (s: Partial<ContexteAcheteuse> = {}): ContexteAcheteuse => ({
+    vers: VERS,
+    boutique: FERMEE,
+    ...s,
+  });
+
+  it("le dit A L'ACCUEIL, avant qu'on ait choisi quoi que ce soit", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "Voir la boutique chez-amina" },
+      ctxF(),
+    );
+    const corps = corpsBoutons(r.messages[0]);
+    expect(corps).toMatch(/nouvelle commande/);
+    /* La vitrine reste entière : catalogue, photos, vendeuse. */
+    expect(idsBoutons(r.messages[0])).toContain("catalogue");
+    expect(idsBoutons(r.messages[0])).toContain("vendeuse");
+  });
+
+  it("la fiche n'offre PAS « Commander » — elle offre la vendeuse", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a1" },
+      ctxF(),
+    );
+    const ids = idsBoutons(r.messages.at(-1));
+    expect(ids).not.toContain("cmd:a1");
+    expect(ids).toEqual(["vendeuse", "cat:0"]);
+  });
+
+  it("refuse les TROIS gestes qui mènent à une commande, sans rien créer", () => {
+    /* Un fil ouvert avant le départ porte encore ses anciens boutons, et
+       WhatsApp laisse les appuyer. « confirmer » est le dernier verrou. */
+    for (const id of ["cmd:a1", "commander", "confirmer"]) {
+      const r = reagirAcheteuse(RECAP, { genre: "bouton", id }, ctxF());
+      expect(r.effet, id).toBeUndefined();
+      expect(corpsBoutons(r.messages[0]), id).toMatch(/nouvelle commande/);
+      /* L'état ne bouge pas : le panier survit, la commande n'existe pas. */
+      expect(r.etat, id).toEqual(RECAP);
+    }
+  });
+
+  it("laisse tout le reste marcher — catalogue, panier, suivi", () => {
+    const catalogue = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "catalogue" },
+      ctxF(),
+    );
+    expect(
+      (catalogue.messages[0] as MessageListe).interactive.action.sections[0]?.rows.length,
+    ).toBe(2);
+
+    const panier = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 2 }] },
+      { genre: "texte", texte: "panier" },
+      ctxF(),
+    );
+    expect(corpsBoutons(panier.messages[0])).toContain("Pagne wax 6 yards × 2");
+  });
+
+  it("ouverte, rien ne change : « Commander » est là et la commande passe", () => {
+    const fiche = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a1" },
+      ctx(),
+    );
+    expect(idsBoutons(fiche.messages.at(-1))).toContain("cmd:a1");
+
+    const creation = reagirAcheteuse(RECAP, { genre: "bouton", id: "confirmer" }, ctx());
+    expect(creation.effet?.type).toBe("creer_commande");
+  });
+});
+
+describe("le fil vendeuse en congés (ADR 0039)", () => {
+  const vendeuse = (enConges: boolean, entree: Parameters<typeof reagirVendeuse>[0]) =>
+    reagirVendeuse(entree, VERS, {
+      smsReconnu: false,
+      commandesOuvertes: [{ id: "o1", reference: "CT-104312", resteXaf: 7500 }],
+      soldesXaf: 7500,
+      boutique: {
+        nom: "Chez Amina",
+        nbArticles: 3,
+        lienBoutique: "https://wa.me/237600000000?text=boutique%20chez-amina",
+        lienEspace: "https://app.test",
+        ...(enConges ? { enConges: true } : {}),
+      },
+    });
+
+  it("« congés » ferme, « je reprends » rouvre — deux gestes symétriques", () => {
+    expect(vendeuse(false, { genre: "texte", texte: "Congés" }).effet).toEqual({
+      type: "basculer_conges",
+      fermer: true,
+    });
+    expect(vendeuse(true, { genre: "bouton", id: "rouvrir" }).effet).toEqual({
+      type: "basculer_conges",
+      fermer: false,
+    });
+    expect(vendeuse(true, { genre: "texte", texte: "je reprends" }).effet).toEqual({
+      type: "basculer_conges",
+      fermer: false,
+    });
+  });
+
+  it("le menu dit l'état, et propose le geste inverse", () => {
+    const ouverte = vendeuse(false, { genre: "texte", texte: "ma boutique" });
+    expect(corpsBoutons(ouverte.messages[0])).toMatch(/Écrivez « congés »/);
+    expect(idsBoutons(ouverte.messages[0])).not.toContain("rouvrir");
+
+    const fermee = vendeuse(true, { genre: "texte", texte: "ma boutique" });
+    expect(corpsBoutons(fermee.messages[0])).toMatch(/En congés/);
+    /* Trois boutons au maximum : la carte à partager cède la place. */
+    const ids = idsBoutons(fermee.messages[0]);
+    expect(ids).toEqual(["rouvrir", "article", "solde"]);
+  });
+});
+
 describe("la langue du fil", () => {
   it("« english » bascule le fil et re-ouvre l'accueil en anglais", () => {
     const r = reagirAcheteuse(

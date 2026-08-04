@@ -53,6 +53,7 @@ try {
       pickupPoint: true,
       phone: true,
       payoutPhoneVerifiedAt: true,
+      congesDepuis: true,
       products: {
         where: { archivedAt: null },
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
@@ -85,6 +86,11 @@ try {
       // la vendeuse discute, et le reversement ne se publie jamais.
       whatsapp: v.phone,
       reversementVerifie: v.payoutPhoneVerifiedAt !== null,
+      // Mode conges — ADR 0039. La boutique reste PUBLIEE : ses pages, ses
+      // photos et ses avis continuent d'exister, seule la commande se tait.
+      // Une boutique retiree de l'instantane perdrait son referencement et le
+      // lien deja partage en Statut renverrait sur une page absente.
+      enConges: v.congesDepuis !== null,
       notes: v.reviews.map((r) => r.rating),
       articles: v.products.map((p) => ({
         id: p.id,

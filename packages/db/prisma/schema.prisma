@@ -74,6 +74,13 @@ model Seller {
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   createdAt          DateTime           @default(now()) @map("created_at")
 
+  /// Mode conges — ADR 0039. Non nul = la boutique n'accepte plus de NOUVELLE
+  /// commande. Elle reste en ligne, ses commandes en cours continuent leur
+  /// course : paiement, preuve, remise, avis. C'est pour cela que ce n'est PAS
+  /// `status`, dont la valeur `closed` ferme le compte et retire la boutique de
+  /// l'instantane public.
+  congesDepuis DateTime? @map("conges_depuis")
+
   user        AuthUser?          @relation(fields: [userId], references: [id])
   products    Product[]
   orders      Order[]

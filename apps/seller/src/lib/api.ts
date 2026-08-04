@@ -114,6 +114,8 @@ export interface Vendeuse {
     city: string;
     payoutPhone: string | null;
     payoutOperator: string | null;
+    /** Mode conges — ADR 0039. `null` = la boutique prend les commandes. */
+    congesDepuis: string | null;
   } | null;
 }
 
@@ -217,6 +219,10 @@ export const api = {
     appeler("/api/vendeuse/profil", {
       corps: { businessName, city, ...(contactPhone ? { contactPhone } : {}) },
     }),
+
+  /** Mode conges — ADR 0039. Aucun OTP : rien ne bouge d'argent, et ça se défait. */
+  basculerConges: (fermer: boolean) =>
+    appeler<{ congesDepuis: string | null }>("/api/vendeuse/conges", { corps: { fermer } }),
 
   envoyerCodeReversement: (nouveauNumero: string) =>
     appeler("/api/reversement/code", { corps: { nouveauNumero } }),
