@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@catalog/db";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
-import { texte } from "./domain/bot/messages.ts";
+import { boutons, type MessageSortant, texte } from "./domain/bot/messages.ts";
 import { decisionRemise } from "./domain/bot/notifications.ts";
 import { TEXTES } from "./domain/bot/textes.ts";
 
@@ -24,15 +24,39 @@ export interface NotificateurDeps {
 /** Le `to` de l'API est un wa_id — la cle de conversation, sans son `+`. */
 const versWhatsapp = (phone: string) => phone.replace(/^\+/, "");
 
+/** Les boutons d'une notification — portes jusqu'a la remise (ADR 0036). */
+export type BoutonsNotification = ReadonlyArray<{ id: string; titre: string }>;
+
+function messageDe(phone: string, corps: string, choix?: BoutonsNotification): MessageSortant {
+  return choix && choix.length > 0
+    ? boutons(versWhatsapp(phone), corps, choix)
+    : texte(versWhatsapp(phone), corps);
+}
+
+/** Relit des boutons persistes. Tout ce qui ne se relit pas vaut « aucun ». */
+function boutonsPersistes(brut: unknown): BoutonsNotification {
+  if (!Array.isArray(brut)) return [];
+  const sortie: Array<{ id: string; titre: string }> = [];
+  for (const b of brut) {
+    const c = b as { id?: unknown; titre?: unknown } | null;
+    if (typeof c?.id === "string" && typeof c.titre === "string" && c.id && c.titre) {
+      sortie.push({ id: c.id, titre: c.titre });
+    }
+  }
+  return sortie.slice(0, 3);
+}
+
 /**
  * Envoie maintenant si la fenetre est sure, sinon met en attente. L'echec
  * d'envoi retombe lui aussi en attente : le message partira au prochain
- * message entrant, il ne se perd pas.
+ * message entrant, il ne se perd pas — **ses boutons compris** (ADR 0036),
+ * sinon la contre-signature disparaitrait pour les acheteuses inactives.
  */
 export async function notifier(
   deps: NotificateurDeps,
   phone: string,
   corps: string,
+  choix?: BoutonsNotification,
 ): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
   try {
@@ -42,13 +66,19 @@ export async function notifier(
     });
     if (decisionRemise(conversation?.updatedAt ?? null, maintenant) === "envoyer") {
       try {
-        await deps.envoyeur.envoyer(texte(versWhatsapp(phone), corps));
+        await deps.envoyeur.envoyer(messageDe(phone, corps, choix));
         return;
       } catch {
         /* L'envoi a echoue : la notification attend, elle ne disparait pas. */
       }
     }
-    await deps.prisma.botNotification.create({ data: { phone, corps } });
+    await deps.prisma.botNotification.create({
+      data: {
+        phone,
+        corps,
+        ...(choix && choix.length > 0 ? { boutons: choix as unknown as object } : {}),
+      },
+    });
   } catch {
     console.warn("bot : notification perdue (details retenus)");
   }
@@ -73,7 +103,7 @@ export async function livrerNotificationsEnAttente(
       take: REMISES_MAX,
     });
     for (const n of enAttente) {
-      await deps.envoyeur.envoyer(texte(versWhatsapp(phone), n.corps));
+      await deps.envoyeur.envoyer(messageDe(phone, n.corps, boutonsPersistes(n.boutons)));
       await deps.prisma.botNotification.update({
         where: { id: n.id },
         data: { remisLe: deps.maintenant?.() ?? new Date() },
@@ -113,10 +143,16 @@ export async function notifierPaiementProuve(
     ]);
     if (!commande || !conversation) return;
     const t = TEXTES[conversation.langue === "en" ? "en" : "fr"];
+    /* Les deux boutons de la contre-signature (ADR 0036) : le « oui » qui
+       porte la preuve a deux voix, et son pendant honnete. */
     await notifier(
       deps,
       conversation.phone,
       t.notifPaiementProuve(commande.ref, commande.balanceXaf),
+      [
+        { id: "contresigner", titre: t.btnContresigner },
+        { id: "contester", titre: t.btnPasMoi },
+      ],
     );
   } catch {
     console.warn("bot : notification de preuve non envoyee (details retenus)");
@@ -135,10 +171,12 @@ export async function notifierLivree(deps: NotificateurDeps, orderId: string): P
     ]);
     if (!commande || !conversation) return;
     const t = TEXTES[conversation.langue === "en" ? "en" : "fr"];
+    /* L'invitation a noter part au SEUL bon moment, et elle est cliquable. */
     await notifier(
       deps,
       conversation.phone,
       t.notifLivree(commande.ref, commande.seller.businessName),
+      [{ id: "avis", titre: t.btnDonnerAvis }],
     );
   } catch {
     console.warn("bot : notification de livraison non envoyee (details retenus)");

@@ -938,3 +938,152 @@ describe("le fil vendeuse premium (ADR 0035)", () => {
     expect(corpsTexte(r.messages[0])).toMatch(/SMS de votre opérateur/);
   });
 });
+
+/**
+ * ADR 0036 — l'identité du fil : contre-signer et noter sans quitter WhatsApp.
+ * L'autorisation vient de `derniereCommande`, jamais d'une référence tapée, et
+ * la machine ne redit AUCUNE règle métier : elle propose ce que le service a
+ * calculé avec les machines du lot 7 et du lot 12.
+ */
+describe("l'après-achat dans le fil (ADR 0036)", () => {
+  const COMMANDE = {
+    reference: "CT-522801",
+    boutique: "Chez Amina",
+    libelle: "Payée, en préparation.",
+    resteXaf: 8000,
+    contresignable: true,
+    avisPossible: false,
+    avisVerifie: false,
+    avisDejaDepose: false,
+  };
+  const avecCommande = (surcharge: Partial<typeof COMMANDE> = {}) =>
+    ctx({ derniereCommande: { ...COMMANDE, ...surcharge } });
+
+  it("« Je confirme » contre-signe la commande du fil, et le dit", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contresigner" },
+      avecCommande(),
+    );
+    expect(r.effet).toEqual({ type: "contresigner" });
+    expect(corpsTexte(r.messages[0])).toContain("CT-522801");
+    expect(corpsTexte(r.messages[0])).toMatch(/deux voix/);
+  });
+
+  it("le mot « confirmer » fait la même chose que le bouton", () => {
+    const r = reagirAcheteuse(ETAT_INITIAL, { genre: "texte", texte: "Confirmer" }, avecCommande());
+    expect(r.effet).toEqual({ type: "contresigner" });
+  });
+
+  it("sans preuve préalable, la contre-signature n'a pas d'objet — et rien ne bouge", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contresigner" },
+      avecCommande({ contresignable: false }),
+    );
+    expect(r.effet).toBeUndefined();
+    expect(corpsTexte(r.messages[0])).toMatch(/plus d'objet/);
+  });
+
+  it("SANS commande dans le fil, aucun geste n'est autorisé — on le dit", () => {
+    for (const id of ["contresigner", "contester", "avis", "note:5"]) {
+      const r = reagirAcheteuse(ETAT_INITIAL, { genre: "bouton", id }, ctx());
+      expect(r.effet, id).toBeUndefined();
+      expect(corpsTexte(r.messages[0]), id).toMatch(/Aucune commande/);
+    }
+  });
+
+  it("la contestation se CONFIRME avant de geler quoi que ce soit", () => {
+    const demande = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contester" },
+      avecCommande(),
+    );
+    expect(demande.effet).toBeUndefined();
+    expect(corpsBoutons(demande.messages[0])).toMatch(/gèle la commande/);
+    expect(idsBoutons(demande.messages[0])).toEqual(["contester:oui", "menu"]);
+
+    const confirme = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contester:oui" },
+      avecCommande(),
+    );
+    expect(confirme.effet).toEqual({ type: "contester" });
+  });
+
+  it("l'avis n'ouvre qu'après livraison, et une seule fois", () => {
+    const avant = reagirAcheteuse(ETAT_INITIAL, { genre: "bouton", id: "avis" }, avecCommande());
+    expect(avant.effet).toBeUndefined();
+    expect(corpsTexte(avant.messages[0])).toMatch(/livrée/);
+
+    const deja = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "avis" },
+      avecCommande({ avisPossible: true, avisDejaDepose: true }),
+    );
+    expect(deja.effet).toBeUndefined();
+    expect(corpsTexte(deja.messages[0])).toMatch(/déjà donné/);
+  });
+
+  it("« Donner mon avis » propose les cinq notes, la plus haute d'abord", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "avis" },
+      avecCommande({ avisPossible: true }),
+    );
+    const m = r.messages[0] as MessageListe;
+    const lignes = m.interactive.action.sections[0]?.rows ?? [];
+    expect(lignes.map((l) => l.id)).toEqual(["note:5", "note:4", "note:3", "note:2", "note:1"]);
+    expect(lignes[0]?.title).toBe("⭐⭐⭐⭐⭐");
+  });
+
+  it("la note s'enregistre TOUT DE SUITE, le mot vient ensuite", () => {
+    const note = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "liste", id: "note:5" },
+      avecCommande({ avisPossible: true, avisVerifie: true }),
+    );
+    expect(note.effet).toEqual({ type: "deposer_avis", note: 5 });
+    expect(note.etat).toEqual({ nom: "avis_mot" });
+    expect(corpsBoutons(note.messages[0])).toMatch(/achat vérifié/);
+
+    const mot = reagirAcheteuse(
+      { nom: "avis_mot" },
+      { genre: "texte", texte: "Le sac est magnifique" },
+      avecCommande({ avisPossible: true }),
+    );
+    expect(mot.effet).toEqual({ type: "completer_avis", texte: "Le sac est magnifique" });
+    expect(mot.etat).toEqual(ETAT_INITIAL);
+  });
+
+  it("un paiement sans preuve donne un avis publié mais NON vérifié — et le dit", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "liste", id: "note:4" },
+      avecCommande({ avisPossible: true, avisVerifie: false }),
+    );
+    expect(corpsBoutons(r.messages[0])).toMatch(/pas marqué/);
+  });
+
+  it("« Sans commentaire » clôt sans effet, et l'attente périme sans rien perdre", () => {
+    const sans = reagirAcheteuse(
+      { nom: "avis_mot" },
+      { genre: "bouton", id: "avis:sans_mot" },
+      avecCommande({ avisPossible: true }),
+    );
+    expect(sans.effet).toBeUndefined();
+    expect(sans.etat).toEqual(ETAT_INITIAL);
+    /* La note est deja en base : l'expiration ne perd que le mot. */
+    expect(etatApresInactivite({ nom: "avis_mot" }, INACTIVITE_MAX_MS)).toEqual(ETAT_INITIAL);
+    expect(normaliserEtat({ nom: "avis_mot" })).toEqual({ nom: "avis_mot" });
+  });
+
+  it("une note hors échelle est refusée, jamais ramenée au bord", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "liste", id: "note:9" },
+      avecCommande({ avisPossible: true }),
+    );
+    expect(r.effet).toBeUndefined();
+  });
+});

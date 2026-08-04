@@ -626,6 +626,11 @@ model BotNotification {
   id      String    @id @default(uuid(7))
   phone   String
   corps   String
+  /// Les boutons a poser sur la notification (ADR 0036) : `[{id,titre}]`.
+  /// Une notification mise en attente doit porter ses boutons jusqu'a sa
+  /// remise — sans eux, la contre-signature disparaitrait pour toutes les
+  /// acheteuses dont la fenetre etait fermee.
+  boutons Json?
   creeLe  DateTime  @default(now()) @map("cree_le")
   remisLe DateTime? @map("remis_le")
 

@@ -122,6 +122,31 @@ export interface TextesAcheteuse {
   notifPaiementProuve: (reference: string, resteXaf: number) => string;
   /** Commande livree — l'invitation a noter, via le lien deja recu. */
   notifLivree: (reference: string, nomBoutique: string) => string;
+
+  /* ─── l'apres-achat DANS le fil — ADR 0036 ─── */
+  btnContresigner: string;
+  btnPasMoi: string;
+  btnDonnerAvis: string;
+  /** Le « oui » de l'acheteuse : la preuve passe a deux voix. */
+  contresigneMerci: (reference: string) => string;
+  /** La contre-signature n'a pas d'objet (preuve absente, deja contresignee…). */
+  contresigneImpossible: string;
+  /** La contestation se CONFIRME : un appui malheureux gelerait la commande. */
+  contesterConfirmation: (reference: string) => string;
+  btnContesterOui: string;
+  contesteEnregistre: (reference: string) => string;
+  /** L'invitation a noter, avec sa liste d'etoiles. */
+  avisInvitation: (nomBoutique: string) => string;
+  btnNoter: string;
+  avisLigne: (etoiles: number) => string;
+  /** La note est enregistree ; le mot vient ensuite (ADR 0036, decision 5). */
+  avisNoteEnregistree: (verifie: boolean) => string;
+  btnSansMot: string;
+  avisMotMerci: string;
+  avisImpossible: string;
+  avisDejaDepose: string;
+  /** Aucune commande dans ce fil : on le dit, on n'invente pas. */
+  apresAchatSansCommande: string;
 }
 
 const fr: TextesAcheteuse = {
@@ -253,10 +278,35 @@ const fr: TextesAcheteuse = {
       "Votre lien de suivi est dans le message de confirmation, plus haut dans ce fil.",
     ].join("\n"),
   notifLivree: (ref, nom) =>
-    [
-      `📦 *${ref} est marquée livrée* par ${nom}.`,
-      "Un mot sur la boutique ? Déposez votre avis depuis votre lien de suivi (message de confirmation) — un paiement prouvé le marque « achat vérifié ».",
-    ].join("\n"),
+    [`📦 *${ref} est marquée livrée* par ${nom}.`, "Un mot sur la boutique ?"].join("\n"),
+
+  btnContresigner: "Je confirme ✓",
+  btnPasMoi: "Ce n'est pas moi",
+  btnDonnerAvis: "Donner mon avis",
+  contresigneMerci: (ref) =>
+    `🖋️ *Merci — votre confirmation est enregistrée.*\n${ref} porte désormais deux voix : celle de la vendeuse et la vôtre. C'est la preuve la plus solide que Catalog sache produire.`,
+  contresigneImpossible:
+    "Cette confirmation n'a plus d'objet : ou le paiement n'est pas encore prouvé, ou vous l'avez déjà confirmé. Rien n'a changé.",
+  contesterConfirmation: (ref) =>
+    `⚠️ Vous dites ne pas reconnaître ce paiement sur ${ref}.\nConfirmer *gèle la commande* jusqu'à ce qu'un humain tranche — la vendeuse ne pourra plus l'avancer. À n'utiliser que si c'est bien le cas.`,
+  btnContesterOui: "Oui, je conteste",
+  contesteEnregistre: (ref) =>
+    `${ref} est signalée. Elle n'avance plus tant que le désaccord n'est pas réglé — parlez-en directement à la vendeuse, c'est le plus rapide.`,
+  avisInvitation: (nom) =>
+    `Comment s'est passée votre commande chez *${nom}* ?\nVotre avis aide les prochaines acheteuses.`,
+  btnNoter: "Noter la boutique",
+  avisLigne: (n) => "⭐".repeat(n),
+  avisNoteEnregistree: (verifie) =>
+    verifie
+      ? "Merci ! Votre avis est en ligne, marqué *achat vérifié* — parce que votre paiement a laissé une trace.\n\nUn mot à ajouter ? Écrivez-le maintenant."
+      : "Merci ! Votre avis est en ligne.\nIl n'est pas marqué « achat vérifié » : ce paiement n'a pas de preuve enregistrée.\n\nUn mot à ajouter ? Écrivez-le maintenant.",
+  btnSansMot: "Sans commentaire",
+  avisMotMerci: "C'est ajouté. Merci d'avoir pris le temps.",
+  avisImpossible:
+    "L'avis s'ouvre une fois la commande livrée — la vendeuse la marquera comme telle.",
+  avisDejaDepose: "Vous avez déjà donné votre avis sur cette commande. Merci encore !",
+  apresAchatSansCommande:
+    "Aucune commande enregistrée sur ce numéro. Ouvrez le lien d'une boutique pour commander.",
 };
 
 const en: TextesAcheteuse = {
@@ -377,10 +427,33 @@ const en: TextesAcheteuse = {
       "Your tracking link is in the confirmation message, earlier in this thread.",
     ].join("\n"),
   notifLivree: (ref, nom) =>
-    [
-      `📦 *${ref} is marked delivered* by ${nom}.`,
-      "A word about the shop? Leave your review from your tracking link (confirmation message) — a proven payment marks it “verified purchase”.",
-    ].join("\n"),
+    [`📦 *${ref} is marked delivered* by ${nom}.`, "A word about the shop?"].join("\n"),
+
+  btnContresigner: "I confirm ✓",
+  btnPasMoi: "That is not me",
+  btnDonnerAvis: "Leave a review",
+  contresigneMerci: (ref) =>
+    `🖋️ *Thank you — your confirmation is recorded.*\n${ref} now carries two voices: the seller's and yours. It is the strongest proof Catalog can produce.`,
+  contresigneImpossible:
+    "This confirmation no longer applies: either the payment is not proven yet, or you already confirmed it. Nothing changed.",
+  contesterConfirmation: (ref) =>
+    `⚠️ You say you do not recognise this payment on ${ref}.\nConfirming *freezes the order* until a human settles it — the seller will not be able to move it forward. Use this only if it is really the case.`,
+  btnContesterOui: "Yes, I dispute it",
+  contesteEnregistre: (ref) =>
+    `${ref} is flagged. It will not move until the disagreement is settled — talking to the seller directly is the fastest way.`,
+  avisInvitation: (nom) =>
+    `How did your order with *${nom}* go?\nYour review helps the next buyers.`,
+  btnNoter: "Rate the shop",
+  avisLigne: (n) => "⭐".repeat(n),
+  avisNoteEnregistree: (verifie) =>
+    verifie
+      ? "Thank you! Your review is online, marked *verified purchase* — because your payment left a trace.\n\nAnything to add? Write it now."
+      : "Thank you! Your review is online.\nIt is not marked “verified purchase”: this payment has no recorded proof.\n\nAnything to add? Write it now.",
+  btnSansMot: "No comment",
+  avisMotMerci: "Added. Thank you for taking the time.",
+  avisImpossible: "Reviews open once the order is delivered — the seller will mark it as such.",
+  avisDejaDepose: "You already reviewed this order. Thanks again!",
+  apresAchatSansCommande: "No order recorded for this number. Open a shop link to order.",
 };
 
 export const TEXTES: Record<Langue, TextesAcheteuse> = { fr, en };

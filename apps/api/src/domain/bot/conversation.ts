@@ -82,6 +82,17 @@ export interface StatutDerniereCommande {
   boutique: string;
   libelle: string;
   resteXaf: number;
+  /**
+   * Ce que l'identite du fil autorise MAINTENANT sur cette commande
+   * (ADR 0036). Calcule par le service avec les machines du domaine
+   * (`appliquerEvenement`, `droitAuDepot`) : la conversation ne redit aucune
+   * regle, elle propose ce qui est permis.
+   */
+  contresignable?: boolean;
+  avisPossible?: boolean;
+  /** Vrai quand l'avis portera le label « achat vérifié » (lot 12). */
+  avisVerifie?: boolean;
+  avisDejaDepose?: boolean;
 }
 
 /* ────────────────────────── l'etat persiste ─────────────────────────────── */
@@ -109,7 +120,13 @@ export type EtatConv =
       panier: LignePanier[];
       mode: "livraison" | "retrait";
       livraison: LivraisonBrouillon;
-    };
+    }
+  /**
+   * L'apres-achat (ADR 0036) : la note vient d'etre enregistree, on attend le
+   * mot facultatif. Seul etat qui ne porte pas de boutique — il ne detient
+   * rien d'autre que le fait qu'un avis vient d'etre depose.
+   */
+  | { nom: "avis_mot" };
 
 export const ETAT_INITIAL: EtatConv = { nom: "accueil" };
 
@@ -165,6 +182,8 @@ export function normaliserEtat(brut: unknown): EtatConv {
       }
       return { nom: "recap", slug, panier: lignes, mode, livraison };
     }
+    case "avis_mot":
+      return { nom: "avis_mot" };
     default:
       return ETAT_INITIAL;
   }
@@ -198,6 +217,9 @@ export const INACTIVITE_MAX_MS = 24 * 60 * 60 * 1000;
 export function etatApresInactivite(etat: EtatConv, ageMs: number): EtatConv {
   if (ageMs < INACTIVITE_MAX_MS) return etat;
   if (etat.nom === "accueil") return etat;
+  /* L'attente d'un mot d'avis perime sans boutique ou revenir : la note, elle,
+     est deja enregistree (ADR 0036) — rien n'est perdu. */
+  if (etat.nom === "avis_mot") return ETAT_INITIAL;
   if (etat.nom === "catalogue") {
     return { nom: "catalogue", slug: etat.slug, page: etat.page };
   }
@@ -224,7 +246,12 @@ export type EffetBot =
   | { type: "creer_commande"; brouillon: BrouillonCommande }
   | { type: "verifier_sms"; texte: string }
   /** « livrée CT-XXXXXX » — la vendeuse marque la remise depuis le fil (ADR 0035). */
-  | { type: "marquer_livree"; reference: string };
+  | { type: "marquer_livree"; reference: string }
+  /* ─── l'apres-achat, autorise par l'identite du fil — ADR 0036 ─── */
+  | { type: "contresigner" }
+  | { type: "contester" }
+  | { type: "deposer_avis"; note: number }
+  | { type: "completer_avis"; texte: string };
 
 export interface Reaction {
   etat: EtatConv;
@@ -378,6 +405,14 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   }
 
   const mot = entree.genre === "texte" ? motCleGlobal(entree.texte) : null;
+
+  /**
+   * L'apres-achat — ADR 0036. Il passe AVANT l'exigence d'une boutique : on
+   * contre-signe et on note une commande, pas un catalogue. L'autorisation
+   * vient du fil lui-meme (`derniereCommande`), jamais d'une reference tapee.
+   */
+  const apres = reagirApresAchat(etat, entree, ctx, t);
+  if (apres) return apres;
 
   if (!boutique) {
     if (entree.genre === "texte" && demandeStatut(entree.texte)) {
@@ -619,6 +654,140 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     default:
       return accueilBoutique(vers, boutique, t, panierDe(etat));
   }
+}
+
+/* ──────────────────── l'apres-achat dans le fil (ADR 0036) ──────────────── */
+
+/**
+ * Les quatre gestes que l'identite du fil autorise, et rien d'autre :
+ * contre-signer, contester, noter, ajouter un mot.
+ *
+ * Rend `null` quand l'entree n'est aucun de ces gestes — la conversation
+ * ordinaire reprend alors la main. **Aucune regle metier n'est redite ici** :
+ * ce qui est permis vient de `ctx.derniereCommande`, calcule par le service
+ * avec les machines du lot 7 et du lot 12 (decision 4 de l'ADR).
+ */
+function reagirApresAchat(
+  etat: EtatConv,
+  entree: Entree,
+  ctx: ContexteAcheteuse,
+  t: TextesAcheteuse,
+): Reaction | null {
+  const vers = ctx.vers;
+  const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+  const tape = entree.genre === "texte" ? sansAccents(entree.texte.trim().toLowerCase()) : "";
+  const commande = ctx.derniereCommande ?? null;
+
+  /* Le mot d'avis attendu : tout texte devient le commentaire. Les mots-cles
+     globaux, eux, ont deja repris la main plus haut. */
+  if (etat.nom === "avis_mot") {
+    if (id === "avis:sans_mot") {
+      return { etat: ETAT_INITIAL, messages: [texte(vers, t.avisMotMerci)] };
+    }
+    if (entree.genre === "texte" && entree.texte.trim().length > 1) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [texte(vers, t.avisMotMerci)],
+        effet: { type: "completer_avis", texte: entree.texte.trim().slice(0, 1000) },
+      };
+    }
+  }
+
+  const veutContresigner = id === "contresigner" || tape === "confirmer";
+  const veutContester = id === "contester";
+  const veutNoter = id === "avis" || tape === "avis" || tape === "noter" || tape === "review";
+  const note = id?.startsWith("note:") ? Number(id.slice(5)) : null;
+
+  if (
+    !veutContresigner &&
+    !veutContester &&
+    !veutNoter &&
+    note === null &&
+    id !== "contester:oui"
+  ) {
+    return null;
+  }
+
+  /* Aucune commande dans ce fil : on le DIT, on n'invente rien. */
+  if (!commande) {
+    return { etat: ETAT_INITIAL, messages: [texte(vers, t.apresAchatSansCommande)] };
+  }
+
+  if (veutContresigner) {
+    if (!commande.contresignable) {
+      return { etat, messages: [texte(vers, t.contresigneImpossible)] };
+    }
+    return {
+      etat,
+      messages: [texte(vers, t.contresigneMerci(commande.reference))],
+      effet: { type: "contresigner" },
+    };
+  }
+
+  if (veutContester) {
+    /* La contestation se CONFIRME : un appui malheureux gelerait la commande. */
+    return {
+      etat,
+      messages: [
+        boutons(vers, t.contesterConfirmation(commande.reference), [
+          { id: "contester:oui", titre: t.btnContesterOui },
+          { id: "menu", titre: t.btnAnnuler },
+        ]),
+      ],
+    };
+  }
+
+  if (id === "contester:oui") {
+    return {
+      etat,
+      messages: [texte(vers, t.contesteEnregistre(commande.reference))],
+      effet: { type: "contester" },
+    };
+  }
+
+  if (veutNoter) {
+    if (commande.avisDejaDepose) {
+      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+    }
+    if (!commande.avisPossible) {
+      return { etat, messages: [texte(vers, t.avisImpossible)] };
+    }
+    return {
+      etat,
+      messages: [
+        liste(
+          vers,
+          t.avisInvitation(commande.boutique),
+          t.btnNoter,
+          [5, 4, 3, 2, 1].map((n) => ({ id: `note:${n}`, titre: t.avisLigne(n) })),
+        ),
+      ],
+    };
+  }
+
+  if (note !== null) {
+    if (!Number.isInteger(note) || note < 1 || note > 5) {
+      return { etat, messages: [texte(vers, t.avisImpossible)] };
+    }
+    if (commande.avisDejaDepose) {
+      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+    }
+    if (!commande.avisPossible) {
+      return { etat, messages: [texte(vers, t.avisImpossible)] };
+    }
+    /* La note s'enregistre TOUT DE SUITE ; le mot l'enrichit ensuite. */
+    return {
+      etat: { nom: "avis_mot" },
+      messages: [
+        boutons(vers, t.avisNoteEnregistree(commande.avisVerifie === true), [
+          { id: "avis:sans_mot", titre: t.btnSansMot },
+        ]),
+      ],
+      effet: { type: "deposer_avis", note },
+    };
+  }
+
+  return null;
 }
 
 /* ────────────────────────── les messages du fil ─────────────────────────── */

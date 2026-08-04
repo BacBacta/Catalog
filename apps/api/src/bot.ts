@@ -54,13 +54,14 @@ import {
 } from "./domain/order/cycle.ts";
 import { echeance } from "./domain/order/expiration.ts";
 import { planDePaiement } from "./domain/order/paiement.ts";
+import { appliquerEvenement, type EvenementPreuve } from "./domain/proof/machine.ts";
 import { analyserSms } from "./domain/proof/motifs.ts";
 import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
-import { reputation } from "./domain/review/reputation.ts";
+import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeRelance } from "./jobs/relance-acompte.ts";
-import { mesurerTransitionBot } from "./observabilite/mesures.ts";
+import { mesurerEtatPreuve, mesurerTransitionBot } from "./observabilite/mesures.ts";
 import { slugifier, slugLibre } from "./routes/seller.ts";
 
 /**
@@ -579,12 +580,15 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     }
   }
 
-  /* La memoire post-achat : « ou est ma commande ? » se repond sans
-     reconcilier par numero — la conversation connait SA derniere commande. */
-  const derniereCommande =
-    entree.genre === "texte" && enregistrement?.derniereCommandeId
-      ? await statutDerniereCommande(deps, enregistrement.derniereCommandeId)
-      : null;
+  /**
+   * La memoire post-achat : « ou est ma commande ? » se repond sans
+   * reconcilier par numero — la conversation connait SA derniere commande.
+   * Depuis l'ADR 0036, elle porte aussi ce que l'identite du fil AUTORISE, et
+   * se charge donc pour les boutons autant que pour le texte.
+   */
+  const derniereCommande = enregistrement?.derniereCommandeId
+    ? await statutDerniereCommande(deps, enregistrement.derniereCommandeId)
+    : null;
 
   const reaction = reagirAcheteuse(etat, entreePourMachine(entree), {
     vers: entree.de,
@@ -686,6 +690,30 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     }
   }
 
+  /**
+   * L'apres-achat — ADR 0036. L'autorisation est deja tranchee : ces effets ne
+   * sortent de la machine que sur la DERNIERE commande du fil, et seulement
+   * quand le domaine l'a permis. Aucun jeton n'est relu.
+   */
+  const idApresAchat = enregistrement?.derniereCommandeId ?? null;
+  if (idApresAchat && reaction.effet?.type === "contresigner") {
+    await transitionApresAchat(deps, idApresAchat, { type: "contresignature", par: "acheteuse" });
+  }
+  if (idApresAchat && reaction.effet?.type === "contester") {
+    await transitionApresAchat(deps, idApresAchat, { type: "contestation", par: "acheteuse" });
+  }
+  if (idApresAchat && reaction.effet?.type === "deposer_avis") {
+    await deposerAvis(deps, idApresAchat, reaction.effet.note);
+  }
+  if (idApresAchat && reaction.effet?.type === "completer_avis") {
+    await deps.prisma.review
+      .update({ where: { orderId: idApresAchat }, data: { body: reaction.effet.texte } })
+      .catch(() => {
+        /* L'avis a pu etre purge, ou n'avoir jamais ete cree : le mot se perd,
+           la note reste. On ne fabrique pas un avis depuis un commentaire. */
+      });
+  }
+
   await deps.prisma.botConversation.upsert({
     where: { phone },
     create: {
@@ -702,6 +730,131 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
   });
   mesurerTransitionBot(etatAvant, etat.nom, reaction.effet?.type);
   await envoyerSequence(deps, messages);
+}
+
+/**
+ * Une transition de preuve demandee depuis le fil — ADR 0036.
+ *
+ * C'est la MEME machine que la route web (`recu.ts`), et le meme contrat :
+ * l'etat et le journal s'ecrivent dans une seule transaction, et un refus est
+ * journalise aussi solidement qu'une acceptation. La date de contre-signature
+ * vit dans `order_event`, jamais sur la preuve — `payment_proof` est en ajout
+ * seul (ADR 0021).
+ */
+async function transitionApresAchat(
+  deps: BotDeps,
+  commandeId: string,
+  evenement: EvenementPreuve,
+): Promise<void> {
+  const commande = await deps.prisma.order.findUnique({
+    where: { id: commandeId },
+    select: { id: true, proofState: true, sellerId: true },
+  });
+  if (!commande) return;
+
+  const maintenant = deps.maintenant?.() ?? new Date();
+  const resultat = appliquerEvenement(commande.proofState, evenement, maintenant);
+
+  await deps.prisma.$transaction(async (tx) => {
+    if (resultat.ok) {
+      await tx.order.update({
+        where: { id: commande.id },
+        data: { proofState: resultat.etat },
+      });
+    }
+    await tx.orderEvent.create({
+      data: {
+        orderId: commande.id,
+        sellerId: commande.sellerId,
+        kind: resultat.journal.kind,
+        actor: resultat.journal.par,
+        at: resultat.journal.at,
+        payload: {
+          de: resultat.journal.de,
+          vers: resultat.journal.vers,
+          evenement: resultat.journal.evenement,
+          canal: "bot_whatsapp",
+          ...(resultat.journal.raison ? { raison: resultat.journal.raison } : {}),
+        },
+      },
+    });
+  });
+  mesurerEtatPreuve(resultat.ok ? resultat.etat : commande.proofState);
+}
+
+/**
+ * L'avis depose depuis le fil — ADR 0036. Le droit vient de `droitAuDepot`
+ * (lot 12), l'unicite de la contrainte `UNIQUE(order_id)` : on TENTE l'insert
+ * et on traduit la violation, jamais un SELECT suivi d'un `if`.
+ *
+ * La note s'ecrit MAINTENANT ; le mot l'enrichira peut-etre ensuite.
+ */
+async function deposerAvis(deps: BotDeps, commandeId: string, note: number): Promise<void> {
+  const commande = await deps.prisma.order.findUnique({
+    where: { id: commandeId },
+    select: {
+      id: true,
+      sellerId: true,
+      step: true,
+      totalXaf: true,
+      amountPaidXaf: true,
+      balanceXaf: true,
+      proofState: true,
+      cancelledAt: true,
+      delivery: true,
+      items: true,
+    },
+  });
+  if (!commande) return;
+
+  const droit = droitAuDepot({
+    etape: commande.step,
+    modeLivraison:
+      (commande.delivery as { mode?: string } | null)?.mode === "retrait" ? "retrait" : "livraison",
+    totalXaf: commande.totalXaf,
+    amountPaidXaf: commande.amountPaidXaf,
+    balanceXaf: commande.balanceXaf,
+    etatPreuve: commande.proofState,
+    annuleeA: commande.cancelledAt,
+  });
+  if (!droit.possible) return;
+
+  /* L'article note, quand la commande n'en porte qu'un (ADR 0035). */
+  const articles = new Set(
+    (Array.isArray(commande.items) ? commande.items : [])
+      .map((l) => (l as { productId?: unknown }).productId)
+      .filter((p): p is string => typeof p === "string"),
+  );
+  const productId = articles.size === 1 ? [...articles][0] : null;
+  const maintenant = deps.maintenant?.() ?? new Date();
+
+  await deps.prisma
+    .$transaction(async (tx) => {
+      await tx.review.create({
+        data: {
+          orderId: commande.id,
+          sellerId: commande.sellerId,
+          ...(productId ? { productId } : {}),
+          rating: note,
+          verified: droit.verifie,
+          createdAt: maintenant,
+        },
+      });
+      await tx.orderEvent.create({
+        data: {
+          orderId: commande.id,
+          sellerId: commande.sellerId,
+          kind: "avis_depose",
+          actor: "acheteuse",
+          at: maintenant,
+          payload: { verifie: droit.verifie, canal: "bot_whatsapp" },
+        },
+      });
+    })
+    .catch(() => {
+      /* `Review.orderId` est UNIQUE : un second avis est refuse par la base.
+         La machine l'a deja dit a l'acheteuse ; ici on se tait. */
+    });
 }
 
 interface BoutiqueChargee {
@@ -828,6 +981,9 @@ async function statutDerniereCommande(
       cancelledAt: true,
       delivery: true,
       seller: { select: { businessName: true } },
+      /* Un avis par commande : la contrainte UNIQUE le garantit, ce compte
+         sert seulement a ne pas proposer deux fois (ADR 0036). */
+      review: { select: { id: true } },
     },
   });
   if (!o) return null;
@@ -844,11 +1000,30 @@ async function statutDerniereCommande(
   const libelle = o.cancelledAt
     ? "Commande annulée."
     : (etapesDuSuivi(cycle).find((e) => e.courante)?.libelle ?? "En cours.");
+
+  /**
+   * Ce que l'identite du fil autorise MAINTENANT (ADR 0036). Les regles
+   * viennent des machines existantes — `appliquerEvenement` du lot 7 pour la
+   * contre-signature, `droitAuDepot` du lot 12 pour l'avis. La conversation
+   * n'en redit aucune : elle propose ce que le domaine permet.
+   */
+  const maintenant = deps.maintenant?.() ?? new Date();
+  const contresignature = appliquerEvenement(
+    o.proofState,
+    { type: "contresignature", par: "acheteuse" },
+    maintenant,
+  );
+  const droit = droitAuDepot(cycle);
+
   return {
     reference: o.ref,
     boutique: o.seller.businessName,
     libelle,
     resteXaf: soldeAEncaisser(cycle),
+    contresignable: contresignature.ok,
+    avisPossible: droit.possible,
+    avisVerifie: droit.verifie,
+    avisDejaDepose: o.review !== null,
   };
 }
 
