@@ -233,9 +233,16 @@ export const api = {
   articles: (avecArchives = false) =>
     appeler<{ articles: Article[] }>(`/api/articles${avecArchives ? "?archives=1" : ""}`),
 
-  creerArticle: (name: string, priceXaf: number, description?: string) =>
+  creerArticle: (name: string, priceXaf: number, description?: string, stock?: number) =>
     appeler<Article>("/api/articles", {
-      corps: { name, priceXaf, ...(description ? { description } : {}) },
+      corps: {
+        name,
+        priceXaf,
+        ...(description ? { description } : {}),
+        /* Zero vaut « non suivi » et c'est deja le defaut en base : on ne
+           l'envoie pas pour ne pas le faire passer pour un choix. */
+        ...(stock ? { stock } : {}),
+      },
     }),
 
   modifierArticle: (

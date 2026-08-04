@@ -175,6 +175,53 @@ test.describe("catalogue vendeuse", () => {
     await expect.poll(noms).toContain("Sac en raphia");
   });
 
+  test("le stock se saisit, arrive en base, et le champ vide vaut « non suivi »", async ({
+    page,
+  }, info) => {
+    /* ADR 0038. Jusqu'ici la colonne etait LUE partout — le bot bornait les
+       quantites dessus, la boutique affichait « il n'en reste que N » — et
+       ECRITE nulle part. Ce test verifie le chemin d'ecriture entier, jusqu'a
+       ce que l'API renvoie. */
+    const graine = (Date.now() % 9000000) + 5_000_000 + info.workerIndex * 1000;
+    await connecter(page, graine, `Boutique stock ${graine}`);
+
+    await page.goto("/articles/nouveau");
+    await page.getByLabel("Nom de l'article").fill("Sac en raphia");
+    await page.getByLabel("Prix en francs").fill("8000");
+
+    /* Le champ est REPLIE : la regle des trois champs tient (photo, nom, prix). */
+    const volet = page.getByText("Description et stock (facultatif)");
+    await expect(page.getByLabel("Combien vous en avez")).toBeHidden();
+    await volet.click();
+    await page.getByLabel("Combien vous en avez").fill("4");
+    /* Ce que le nombre veut dire est ECRIT, parce qu'il ne se devine pas. */
+    await expect(page.getByText(/ne baisse pas tout seul/)).toBeVisible();
+    await page.getByRole("button", { name: "Publier l'article" }).click();
+
+    await expect(page.getByRole("heading", { name: "Mes articles", level: 1 })).toBeVisible();
+    await expect(page.getByText("4 en stock")).toBeVisible();
+
+    const lire = async () => {
+      const r = await page.request.get("/api/articles");
+      const { articles } = (await r.json()) as { articles: Array<{ name: string; stock: number }> };
+      return articles.find((a) => a.name === "Sac en raphia")?.stock;
+    };
+    expect(await lire()).toBe(4);
+
+    /* Relu, le champ porte la valeur — puis vide, il repasse a « non suivi ».
+       Zero ne s'affiche JAMAIS : la vendeuse lirait sa boutique en rupture. */
+    await page.getByRole("link", { name: "Modifier" }).first().click();
+    await expect(page.getByLabel("Combien vous en avez")).toHaveValue("4");
+    await page.getByLabel("Combien vous en avez").fill("");
+    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.getByRole("heading", { name: "Mes articles", level: 1 })).toBeVisible();
+    await expect(page.getByText("en stock")).toBeHidden();
+    expect(await lire()).toBe(0);
+
+    await page.getByRole("link", { name: "Modifier" }).first().click();
+    await expect(page.getByLabel("Combien vous en avez")).toHaveValue("");
+  });
+
   test("aucune violation axe-core bloquante sur les ecrans du catalogue", async ({
     page,
   }, info) => {

@@ -47,8 +47,16 @@ export interface TextesAcheteuse {
   quantiteTropHaute: (max: number) => string;
   plusDeStock: (nomArticle: string) => string;
 
-  ajout: (nomArticle: string, quantite: number, sousTotalXaf: number) => string;
-  panierCorps: (totalXaf: number) => string;
+  /** L'accuse de reception de l'ajout ; le total suit dans `panierCorps`. */
+  ajout: (nomArticle: string, quantite: number) => string;
+  /**
+   * Le panier montre ses LIGNES, pas seulement son total. Sans elles, la
+   * premiere fois qu'une acheteuse voit ce qu'elle a mis dedans est le
+   * recapitulatif — trop tard pour corriger sereinement.
+   */
+  panierCorps: (lignes: readonly string[], totalXaf: number) => string;
+  panierVide: string;
+  btnMonPanier: string;
   btnPasserCommande: string;
   btnAutreArticle: string;
   btnAnnuler: string;
@@ -155,7 +163,7 @@ const fr: TextesAcheteuse = {
     "Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes.",
   btnVendre: "Vendre avec Catalog",
   aideGestes:
-    "Trois mots marchent partout : « menu » (accueil de la boutique), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler à la vendeuse » est à l'accueil. Write « english » for English.",
+    "Quatre mots marchent partout : « menu » (accueil de la boutique), « panier » (ce que vous avez choisi), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler à la vendeuse » est à l'accueil. Write « english » for English.",
   annule: "C'est annulé — le panier est vide, rien n'a été commandé.",
   langueChangee: "D'accord, on continue en français. Write « english » to switch back.",
 
@@ -173,7 +181,8 @@ const fr: TextesAcheteuse = {
   listeTitre: (nom, nb) => `*${nom}* — ${nb} article${nb > 1 ? "s" : ""}`,
   voirLaSuite: "Voir la suite",
 
-  stockRestant: (n) => (n <= 3 ? `Plus que ${n} en stock !` : `${n} en stock`),
+  stockRestant: (n) =>
+    n <= 3 ? `Plus que ${n} disponible${n > 1 ? "s" : ""}` : `${n} disponibles`,
   btnCommander: "Commander",
   btnRetourCatalogue: "Retour au catalogue",
 
@@ -183,13 +192,21 @@ const fr: TextesAcheteuse = {
   quantiteAutre: "Écrivez le nombre voulu, en chiffres (ex. : 3).",
   quantiteIncomprise:
     "Je n'ai pas compris le nombre. Écrivez-le en chiffres (ex. : 3) — ou « annuler » pour abandonner.",
-  quantiteTropHaute: (max) => `Il n'en reste que ${max}. Écrivez un nombre jusqu'à ${max}.`,
+  quantiteTropHaute: (max) => `La vendeuse en annonce ${max}. Écrivez un nombre jusqu'à ${max}.`,
   plusDeStock: (nom) =>
     `« ${nom} » n'a plus d'exemplaire disponible en plus de ce qui est déjà dans votre panier.`,
 
-  ajout: (nom, q, sousTotal) =>
-    `Ajouté : ${nom} × ${q}.\nPanier : *${formatXaf(sousTotal)}*. Et ensuite ?`,
-  panierCorps: (total) => `Panier : *${formatXaf(total)}*. Et ensuite ?`,
+  ajout: (nom, q) => `✅ Ajouté : ${nom} × ${q}.`,
+  panierCorps: (lignes, total) =>
+    [
+      `🧺 *Votre panier*`,
+      ...lignes,
+      `*Total : ${formatXaf(total)}* (hors livraison)`,
+      "",
+      "Et ensuite ?",
+    ].join("\n"),
+  panierVide: "Votre panier est vide. Ouvrez « Voir les articles » pour en ajouter un.",
+  btnMonPanier: "Mon panier",
   btnPasserCommande: "Passer commande",
   btnAutreArticle: "Autre article",
   btnAnnuler: "Annuler",
@@ -315,7 +332,7 @@ const en: TextesAcheteuse = {
     "I am Catalog. Open a shop link to order — or open your own, right here, in two minutes.",
   btnVendre: "Sell with Catalog",
   aideGestes:
-    "Three words work everywhere: “menu” (shop home), “cancel” (drop the current order), “status” (your last order). For a human, the “Talk to the seller” button is on the home screen. Écrivez « français » pour le français.",
+    "Four words work everywhere: “menu” (shop home), “cart” (what you picked), “cancel” (drop the current order), “status” (your last order). For a human, the “Talk to the seller” button is on the home screen. Écrivez « français » pour le français.",
   annule: "Cancelled — your cart is empty, nothing was ordered.",
   langueChangee: "OK, English it is. Écrivez « français » pour revenir au français.",
 
@@ -332,7 +349,7 @@ const en: TextesAcheteuse = {
   listeTitre: (nom, nb) => `*${nom}* — ${nb} item${nb > 1 ? "s" : ""}`,
   voirLaSuite: "See more",
 
-  stockRestant: (n) => (n <= 3 ? `Only ${n} left!` : `${n} in stock`),
+  stockRestant: (n) => (n <= 3 ? `Only ${n} available` : `${n} available`),
   btnCommander: "Order",
   btnRetourCatalogue: "Back to the list",
 
@@ -342,12 +359,20 @@ const en: TextesAcheteuse = {
   quantiteAutre: "Write the number you want, in digits (e.g.: 3).",
   quantiteIncomprise:
     "I did not understand the number. Write it in digits (e.g.: 3) — or “cancel” to stop.",
-  quantiteTropHaute: (max) => `Only ${max} left. Write a number up to ${max}.`,
+  quantiteTropHaute: (max) => `The seller lists ${max}. Write a number up to ${max}.`,
   plusDeStock: (nom) => `“${nom}” has no more units available beyond what is already in your cart.`,
 
-  ajout: (nom, q, sousTotal) =>
-    `Added: ${nom} × ${q}.\nCart: *${formatXaf(sousTotal)}*. What next?`,
-  panierCorps: (total) => `Cart: *${formatXaf(total)}*. What next?`,
+  ajout: (nom, q) => `✅ Added: ${nom} × ${q}.`,
+  panierCorps: (lignes, total) =>
+    [
+      `🧺 *Your cart*`,
+      ...lignes,
+      `*Total: ${formatXaf(total)}* (delivery not included)`,
+      "",
+      "What next?",
+    ].join("\n"),
+  panierVide: "Your cart is empty. Open “See the items” to add one.",
+  btnMonPanier: "My cart",
   btnPasserCommande: "Check out",
   btnAutreArticle: "Add another item",
   btnAnnuler: "Cancel",

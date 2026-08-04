@@ -282,16 +282,17 @@ export function extraireSlugBoutique(texteBrut: string): string | null {
 const sansAccents = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 /**
- * Les trois mots-cles valables PARTOUT, dans les deux langues. En
- * correspondance exacte : un quartier qui s'appellerait « Menu » n'existe
- * pas, mais un repere qui CONTIENT le mot existe surement — d'ou l'egalite
- * stricte, pas la recherche.
+ * Les mots-cles valables PARTOUT, dans les deux langues. En correspondance
+ * exacte : un quartier qui s'appellerait « Menu » n'existe pas, mais un repere
+ * qui CONTIENT le mot existe surement — d'ou l'egalite stricte, pas la
+ * recherche.
  */
-function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | null {
+function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | "panier" | null {
   const net = sansAccents(texteBrut.trim().toLowerCase());
   if (net === "menu" || net === "accueil" || net === "home") return "menu";
   if (net === "annuler" || net === "stop" || net === "cancel") return "annuler";
   if (net === "aide" || net === "help") return "aide";
+  if (net === "panier" || net === "cart" || net === "mon panier") return "panier";
   return null;
 }
 
@@ -451,6 +452,21 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   if (mot === "aide") {
     return { etat, messages: [texte(vers, t.aideGestes)] };
   }
+  /**
+   * « panier » marche PARTOUT (T8) : depuis le catalogue, depuis une fiche,
+   * depuis le flux de livraison. Jusqu'ici, la premiere fois qu'une acheteuse
+   * voyait ses lignes etait le recapitulatif — trop tard pour corriger.
+   */
+  if (id === "panier" || mot === "panier") {
+    const contenu = panierDe(etat);
+    if (contenu.length === 0) {
+      return { etat, messages: [texte(vers, t.panierVide)] };
+    }
+    return {
+      etat: { nom: "ajout", slug: boutique.slug, panier: contenu },
+      messages: messageAjout(vers, boutique, contenu, t),
+    };
+  }
   if (id === "vendeuse") {
     if (!boutique.whatsappVendeuse) return accueilBoutique(vers, boutique, t);
     const chiffres = boutique.whatsappVendeuse.replace(/\D/g, "");
@@ -556,9 +572,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
         : [...etat.panier, { articleId: article.id, quantite }];
       return {
         etat: { nom: "ajout", slug: etat.slug, panier },
-        messages: [
-          boutonsAjout(vers, t.ajout(article.nom, quantite, totalPanier(boutique, panier)), t),
-        ],
+        messages: messageAjout(vers, boutique, panier, t, t.ajout(article.nom, quantite)),
       };
     }
 
@@ -821,13 +835,36 @@ function boutonsAjout(vers: string, corps: string, t: TextesAcheteuse): MessageS
   ]);
 }
 
+/**
+ * Les lignes du panier, telles qu'elles se lisent — ADR 0033, complete par la
+ * tranche P1d. Un article disparu du catalogue depuis l'ajout est simplement
+ * omis : la creation le reverifiera de toute facon (`resoudreLignes`).
+ */
+function lignesLisibles(b: BoutiqueBot, panier: LignePanier[], t: TextesAcheteuse): string[] {
+  return panier.flatMap((l) => {
+    const a = b.articles.find((x) => x.id === l.articleId);
+    return a ? [t.ligneArticle(a.nom, l.quantite, a.prixXaf)] : [];
+  });
+}
+
+/**
+ * L'etape panier telle qu'elle s'affiche. Jusqu'a la tranche P1d elle n'en
+ * montrait que le TOTAL : la premiere fois qu'une acheteuse relisait ses lignes
+ * etait le recapitulatif, une fois la livraison saisie — trop tard pour
+ * corriger sans tout reprendre. Elle les montre desormais a chaque passage.
+ *
+ * `ajoute` n'est present que lorsqu'on vient d'ajouter quelque chose : l'accuse
+ * de reception a sa valeur propre, il ne se deduit pas d'une liste.
+ */
 function messageAjout(
   vers: string,
   b: BoutiqueBot,
   panier: LignePanier[],
   t: TextesAcheteuse,
+  ajoute?: string,
 ): MessageSortant[] {
-  return [boutonsAjout(vers, t.panierCorps(totalPanier(b, panier)), t)];
+  const corps = t.panierCorps(lignesLisibles(b, panier, t), totalPanier(b, panier));
+  return [boutonsAjout(vers, ajoute ? `${ajoute}\n\n${corps}` : corps, t)];
 }
 
 function questionMode(vers: string, totalXaf: number, t: TextesAcheteuse): MessageSortant {
@@ -896,6 +933,16 @@ function pageCatalogue(
   if (b.articles.length > debut + PAR_PAGE) {
     lignes.push({ id: `cat:${page + 1}`, titre: t.voirLaSuite, description: "" });
   }
+  /* Le panier se voit sans avoir a le taper (T8) : une ligne en TETE de liste
+     des qu'il contient quelque chose. 8 articles + « voir la suite » + celle-ci
+     font exactement les 10 lignes que WhatsApp accepte. */
+  if (panier.length > 0) {
+    lignes.unshift({
+      id: "panier",
+      titre: t.btnMonPanier,
+      description: formatXaf(totalPanier(b, panier)),
+    });
+  }
   return {
     etat: { nom: "catalogue", slug: b.slug, page, ...(panier.length > 0 ? { panier } : {}) },
     messages: [liste(vers, t.listeTitre(b.nom, b.articles.length), t.btnVoirArticles, lignes)],
@@ -921,6 +968,9 @@ function ficheArticle(
   const actions = [
     { id: `cmd:${article.id}`, titre: t.btnCommander },
     { id: `cat:${page}`, titre: t.btnRetourCatalogue },
+    /* Trois boutons au maximum : celui-ci ne prend sa place que lorsqu'il a
+       quelque chose a montrer. */
+    ...(panier.length > 0 ? [{ id: "panier", titre: t.btnMonPanier }] : []),
   ];
   return {
     /* La page courante est conservee : « Retour au catalogue » y ramene, au
@@ -998,13 +1048,9 @@ function messageRecap(
 ): MessageSortant {
   const total = totalPanier(b, panier);
   const plan = planDePaiement(total, b.reversementPose ? "acompte" : "sans_prepaiement");
-  const lignesArticles = panier.flatMap((l) => {
-    const a = b.articles.find((x) => x.id === l.articleId);
-    return a ? [t.ligneArticle(a.nom, l.quantite, a.prixXaf)] : [];
-  });
   const lignes = [
     t.recapTitre(b.nom),
-    ...lignesArticles,
+    ...lignesLisibles(b, panier, t),
     t.ligneTotal(total),
     /* Le total ne comprend JAMAIS la course : le dire au recap evite de le
        decouvrir a la remise (ADR 0035). */

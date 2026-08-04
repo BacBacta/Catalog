@@ -141,7 +141,9 @@ describe("fil acheteuse — du lien a la commande", () => {
       ctx({ boutique: b }),
     );
     const corps = corpsBoutons(r.messages[0]);
-    expect(corps).toContain("Plus que 2 en stock !");
+    /* Factuel, sans rareté fabriquée : le nombre ne se décompte pas tout seul
+       (ADR 0038). */
+    expect(corps).toContain("Plus que 2 disponibles");
     expect(corps).toContain("Tressé main");
   });
 
@@ -194,6 +196,26 @@ describe("le panier — plusieurs articles, une seule commande", () => {
     expect(corps).toContain("Ajouté : Pagne wax 6 yards × 2");
     expect(corps).toContain(formatXaf(30000));
     expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "annuler"]);
+  });
+
+  it("l'ajout MONTRE les lignes, pas seulement le total", () => {
+    const r = reagirAcheteuse(
+      {
+        nom: "quantite",
+        slug: "chez-amina",
+        articleId: "a2",
+        panier: [{ articleId: "a1", quantite: 2 }],
+      },
+      { genre: "bouton", id: "qte:1" },
+      ctx(),
+    );
+    const corps = corpsBoutons(r.messages[0]);
+    /* L'accuse de reception de ce qui vient d'entrer… */
+    expect(corps).toContain("Ajouté : Sac en raphia × 1");
+    /* …et le panier ENTIER, l'article precedent compris. */
+    expect(corps).toContain("Pagne wax 6 yards × 2");
+    expect(corps).toContain("Sac en raphia × 1");
+    expect(corps).toContain(formatXaf(38000));
   });
 
   it("« Autre article » ramene au catalogue SANS perdre le panier", () => {
@@ -328,7 +350,9 @@ describe("le stock suivi borne la quantite", () => {
     const etat: EtatConv = { nom: "quantite", slug: "chez-amina", articleId: "a2", panier: [] };
     const r = reagirAcheteuse(etat, { genre: "texte", texte: "5" }, ctx());
     expect(r.etat).toEqual(etat);
-    expect(corpsTexte(r.messages[0])).toContain("que 2");
+    /* Le plafond est ATTRIBUE a la vendeuse : c'est sa declaration, pas un
+       inventaire que Catalog decompte (ADR 0038). */
+    expect(corpsTexte(r.messages[0])).toContain("La vendeuse en annonce 2");
   });
 
   it("le panier compte dans la borne : 2 en stock, 2 au panier, plus rien a commander", () => {
@@ -388,6 +412,75 @@ describe("aucun etat n'est un piege — mots-cles globaux", () => {
     const r = reagirAcheteuse(etat, { genre: "texte", texte: "aide" }, ctx());
     expect(r.etat).toEqual(etat);
     expect(corpsTexte(r.messages[0])).toMatch(/annuler/);
+    /* Le quatrieme mot est ANNONCE : un geste que personne ne connait
+       n'existe pas (tranche P1d). */
+    expect(corpsTexte(r.messages[0])).toMatch(/panier/);
+  });
+
+  it("« panier » ramene au panier depuis N'IMPORTE quel etat, lignes comprises", () => {
+    /* En plein flux de livraison — l'endroit ou l'on doute de ce qu'on a
+       choisi, et ou il fallait jusqu'ici aller jusqu'au recapitulatif. */
+    const r = reagirAcheteuse(
+      {
+        nom: "details",
+        slug: "chez-amina",
+        panier: [
+          { articleId: "a1", quantite: 2 },
+          { articleId: "a2", quantite: 1 },
+        ],
+        mode: "livraison",
+      },
+      { genre: "texte", texte: "Panier" },
+      ctx(),
+    );
+    expect(r.etat).toEqual({
+      nom: "ajout",
+      slug: "chez-amina",
+      panier: [
+        { articleId: "a1", quantite: 2 },
+        { articleId: "a2", quantite: 1 },
+      ],
+    });
+    const corps = corpsBoutons(r.messages[0]);
+    expect(corps).toContain("Pagne wax 6 yards × 2");
+    expect(corps).toContain("Sac en raphia × 1");
+    expect(corps).toContain(formatXaf(38000));
+    /* Pas d'accuse de reception : rien n'a ete ajoute. */
+    expect(corps).not.toContain("Ajouté");
+    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "annuler"]);
+  });
+
+  it("« panier » vide le DIT, et ne fabrique pas un etat de commande", () => {
+    const etat: EtatConv = { nom: "catalogue", slug: "chez-amina", page: 0 };
+    const r = reagirAcheteuse(etat, { genre: "texte", texte: "mon panier" }, ctx());
+    expect(r.etat).toEqual(etat);
+    expect(corpsTexte(r.messages[0])).toMatch(/vide/);
+  });
+
+  it("le panier a une ligne EN TETE du catalogue, et un bouton sur la fiche", () => {
+    const panier = [{ articleId: "a1", quantite: 2 }];
+    const liste = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier },
+      { genre: "bouton", id: "catalogue" },
+      ctx(),
+    );
+    const lignes = (liste.messages[0] as MessageListe).interactive.action.sections[0]?.rows;
+    expect(lignes?.[0]).toMatchObject({ id: "panier", description: formatXaf(30000) });
+
+    const fiche = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0, panier },
+      { genre: "liste", id: "art:a2" },
+      ctx(),
+    );
+    expect(idsBoutons(fiche.messages.at(-1))).toEqual(["cmd:a2", "cat:0", "panier"]);
+
+    /* Panier vide : ni ligne ni bouton — un raccourci vers rien est du bruit. */
+    const nu = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a2" },
+      ctx(),
+    );
+    expect(idsBoutons(nu.messages.at(-1))).toEqual(["cmd:a2", "cat:0"]);
   });
 });
 
