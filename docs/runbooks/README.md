@@ -33,6 +33,12 @@ diagnostic pendant que des preuves se perdent ne se rattrape pas.
 
 ## Et deux fichiers qui ne sont pas des runbooks
 
+[bascule-waba-production.md](bascule-waba-production.md) se lit une fois, le
+jour où 360dialog livre le canal de production : les quatre variables à poser,
+celle qu'on oublie (`WHATSAPP_WABA_NUMERO` fabrique TOUS les liens `wa.me`), et
+le contrôle qui atteste la chaîne média — le seul chemin que le bac à sable ne
+pouvait pas vérifier.
+
 [deploiement.md](deploiement.md) se lit avant le premier déploiement, une fois :
 secrets à poser, gardes qui empêchent la machine de démarrer, et pourquoi Vercel
 a besoin d'un `vercel.json` généré — il ne lit ni `_redirects` ni `_headers`.
