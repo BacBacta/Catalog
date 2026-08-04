@@ -133,6 +133,12 @@ export function demandeEspaceVendeuse(texteBrut: string): boolean {
   return /^(?:ma boutique|espace vendeuse|vendeuse)$/.test(net);
 }
 
+/** « Ma carte » — la carte-vitrine a poster en Statut (ADR 0037). */
+export function demandeCarteVitrine(texteBrut: string): boolean {
+  const net = sansAccents(texteBrut.trim().toLowerCase());
+  return /^(?:ma carte|carte|ma vitrine|vitrine|affiche)$/.test(net);
+}
+
 /**
  * Un prix ecrit a la main. Le franc n'a pas de sous-unite (ADR 0004) : tout ce
  * qui n'est pas un chiffre disparait, y compris les separateurs de milliers,

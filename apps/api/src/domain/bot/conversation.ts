@@ -1,6 +1,7 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { planDePaiement } from "../order/paiement.ts";
+import { demandeCarteVitrine } from "./inscription.ts";
 import { boutons, image, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
 
@@ -247,6 +248,8 @@ export type EffetBot =
   | { type: "verifier_sms"; texte: string }
   /** « livrée CT-XXXXXX » — la vendeuse marque la remise depuis le fil (ADR 0035). */
   | { type: "marquer_livree"; reference: string }
+  /** « ma carte » — la carte-vitrine à poster en Statut (ADR 0037). */
+  | { type: "envoyer_carte" }
   /* ─── l'apres-achat, autorise par l'identite du fil — ADR 0036 ─── */
   | { type: "contresigner" }
   | { type: "contester" }
@@ -1163,6 +1166,13 @@ export function reagirVendeuse(
 
   const mot = entree.genre === "texte" ? entree.texte.trim().toLowerCase() : "";
   const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+
+  /* La carte-vitrine (ADR 0037) : le service la fabrique et l'envoie — la
+     machine ne sait pas dessiner, elle sait demander. */
+  if (id === "carte" || (entree.genre === "texte" && demandeCarteVitrine(entree.texte))) {
+    return { etat: ETAT_INITIAL, messages: [], effet: { type: "envoyer_carte" } };
+  }
+
   if (mot === "solde" || mot === "soldes" || id === "solde") {
     const n = contexte.commandesOuvertes.length;
     const corps =
@@ -1211,6 +1221,7 @@ export function reagirVendeuse(
     messages: [
       boutons(vers, lignes.join("\n"), [
         { id: "article", titre: "Ajouter un article" },
+        ...(b.nbArticles > 0 ? [{ id: "carte", titre: "Ma carte à partager" }] : []),
         { id: "solde", titre: "Mes soldes" },
       ]),
     ],

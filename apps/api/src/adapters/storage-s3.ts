@@ -73,6 +73,18 @@ export class S3Storage implements ObjectStorage {
       return null;
     }
   }
+
+  async lire(cle: string): Promise<Uint8Array | null> {
+    try {
+      const r = await this.#client.send(new GetObjectCommand({ Bucket: this.#bucket, Key: cle }));
+      const octets = await r.Body?.transformToByteArray();
+      return octets ?? null;
+    } catch {
+      /* Meme regle que `taille` : un objet illisible n'est pas une panne. La
+         carte-vitrine sortira avec son aplat au lieu de la photo. */
+      return null;
+    }
+  }
 }
 
 /**
@@ -132,6 +144,10 @@ export class MemoryStorage implements ObjectStorage {
 
   async taille(cle: string): Promise<number | null> {
     return this.objets.get(cle)?.corps.length ?? null;
+  }
+
+  async lire(cle: string): Promise<Uint8Array | null> {
+    return this.objets.get(cle)?.corps ?? null;
   }
 }
 

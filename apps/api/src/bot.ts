@@ -6,10 +6,12 @@ import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@
 import { formatPhone } from "@catalog/contracts/phone";
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
+import { rendreCarte } from "./adapters/carte-vitrine.ts";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
 import { emailTechnique } from "./auth.ts";
 import { livrerNotificationsEnAttente, notifier, notifierLivree } from "./bot-notifications.ts";
 import { aiguiller } from "./domain/bot/aiguillage.ts";
+import { ARTICLES_MAX } from "./domain/bot/carte-vitrine.ts";
 import {
   type ArticleBot,
   type BoutiqueBot,
@@ -38,7 +40,13 @@ import {
   reagirInscription,
 } from "./domain/bot/inscription.ts";
 import type { LecteurMedia } from "./domain/bot/media.ts";
-import { type MessageSortant, sansCitation, texte } from "./domain/bot/messages.ts";
+import {
+  boutons as boutonsMessage,
+  image as imageMessage,
+  type MessageSortant,
+  sansCitation,
+  texte,
+} from "./domain/bot/messages.ts";
 import {
   corpsLivraisonMarquee,
   corpsLivraisonRefusee,
@@ -292,6 +300,20 @@ async function filInscription(
             "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
           ),
     );
+    /**
+     * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
+     * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
+     * sans article ne donne envie a personne — et pas aux suivants, ce serait
+     * du bruit ; « ma carte » la redonne quand on veut.
+     */
+    if (article) {
+      const nb = await deps.prisma.product.count({
+        where: { sellerId, archivedAt: null },
+      });
+      if (nb === 1) {
+        messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
+      }
+    }
     etatSuivant = ETAT_INITIAL;
   }
 
@@ -733,6 +755,113 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
 }
 
 /**
+ * La carte-vitrine — ADR 0037.
+ *
+ * Elle est REGENEREE a chaque demande : une carte montre des articles et une
+ * reputation qui changent, et une carte perimee partagee en Statut est pire
+ * que pas de carte. L'objet suit exactement le regime des photos d'articles —
+ * `reencoderImage`, trois declinaisons, sous 100 Ko, cle opaque, URL signee.
+ *
+ * Rend le message a envoyer, ou une explication : sans article la carte n'a
+ * rien a montrer, sans numero Catalog elle porterait un lien faux.
+ */
+async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSortant[]> {
+  const vers = (phone: string) => phone.replace(/^\+/, "");
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: {
+      businessName: true,
+      slug: true,
+      city: true,
+      phone: true,
+      products: {
+        where: { archivedAt: null },
+        orderBy: { position: "asc" },
+        take: ARTICLES_MAX,
+        select: { name: true, priceXaf: true, imageKey: true },
+      },
+      reviews: { select: { rating: true, verified: true } },
+    },
+  });
+  if (!seller) return [];
+  const a = vers(seller.phone ?? "");
+
+  if (seller.products.length === 0) {
+    return [
+      boutonsMessage(a, "Votre carte a besoin d'au moins un article à montrer.", [
+        { id: "article", titre: "Ajouter un article" },
+      ]),
+    ];
+  }
+  const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
+  if (!chiffres || !deps.storage) {
+    return [
+      texte(
+        a,
+        "La carte n'est pas disponible pour l'instant. Votre lien de boutique reste partageable : écrivez « ma boutique ».",
+      ),
+    ];
+  }
+
+  /* Les photos, lues depuis NOS objets pour etre composees sur le gabarit. */
+  const photos = await Promise.all(
+    seller.products.map(async (p) =>
+      p.imageKey && deps.storage
+        ? await deps.storage
+            .lire(`${p.imageKey}.jpg`)
+            .then((o) => (o ? { octets: o } : null))
+            .catch(() => null)
+        : null,
+    ),
+  );
+
+  const rep = reputation(seller.reviews.map((r) => ({ note: r.rating, verifie: r.verified })));
+  const motCle = `boutique ${seller.slug}`;
+  const png = await rendreCarte({
+    donnees: {
+      nomBoutique: seller.businessName,
+      ville: seller.city,
+      lien: lienBot(deps, motCle),
+      /* Ce qui s'ECRIT a la main : le QR porte le lien pre-rempli. */
+      lienAffiche: `wa.me/${chiffres}`,
+      motCle,
+      reputation: { note: rep.note, nbVerifies: rep.nbVerifies },
+      articles: seller.products.map((p, i) => ({
+        nom: p.name,
+        prixXaf: p.priceXaf,
+        avecPhoto: photos[i] !== null,
+      })),
+    },
+    photos,
+  });
+
+  /* Le MEME pipeline que les photos d'articles : sous 100 Ko, trois
+     declinaisons, cle opaque (ADR 0016). Pas de second chemin d'image. */
+  const resultat = await reencoderImage(png);
+  if (!resultat.ok || !deps.storage) {
+    return [texte(a, "La carte n'a pas pu être fabriquée. Réessayez dans un instant.")];
+  }
+  const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
+  const base = cleOpaque(alea, "carte");
+  const d = declinaisons(base);
+  await Promise.all([
+    deps.storage.put({ cle: d.avif, corps: resultat.image.avif, contentType: "image/avif" }),
+    deps.storage.put({ cle: d.webp, corps: resultat.image.webp, contentType: "image/webp" }),
+    deps.storage.put({ cle: d.jpg, corps: resultat.image.jpeg, contentType: "image/jpeg" }),
+  ]);
+  const url = await urlJpegVerifiee(deps, base);
+  if (!url) return [texte(a, "La carte n'a pas pu être publiée. Réessayez dans un instant.")];
+
+  return [
+    imageMessage(
+      a,
+      url,
+      `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
+    ),
+  ];
+}
+
+/**
  * Une transition de preuve demandee depuis le fil — ADR 0036.
  *
  * C'est la MEME machine que la route web (`recu.ts`), et le meme contrat :
@@ -1162,6 +1291,10 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     messages.push(
       texte(entree.de, await marquerLivree(deps, sellerIdent, reaction.effet.reference)),
     );
+  }
+
+  if (reaction.effet?.type === "envoyer_carte") {
+    messages.push(...(await carteVitrine(deps, sellerIdent)));
   }
 
   if (reaction.effet?.type === "verifier_sms") {

@@ -32,6 +32,14 @@ export interface ObjectStorage {
   supprimer(cle: string): Promise<void>;
   /** Poids de l'objet stocke, ou `null` s'il n'existe pas. */
   taille(cle: string): Promise<number | null>;
+  /**
+   * Les octets d'un objet, ou `null` s'il est illisible — ADR 0037.
+   *
+   * Lecture de NOS objets, cote serveur, pour les recomposer : la
+   * carte-vitrine pose les photos d'articles sur son gabarit. Ce n'est pas un
+   * chemin de service au navigateur : celui-la reste l'URL signee, qui expire.
+   */
+  lire(cle: string): Promise<Uint8Array | null>;
 }
 
 /**

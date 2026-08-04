@@ -920,7 +920,26 @@ describe("le fil vendeuse premium (ADR 0035)", () => {
     expect(menu).toContain(formatXaf(8000));
     expect(menu).toContain("boutique%20chez-bea");
     expect(menu).toContain("https://app.exemple.test");
-    expect(idsBoutons(r.messages[0])).toEqual(["article", "solde"]);
+    /* La carte n'est proposee qu'avec au moins un article a montrer (ADR 0037). */
+    expect(idsBoutons(r.messages[0])).toEqual(["article", "carte", "solde"]);
+
+    const vide = reagirVendeuse({ genre: "texte", texte: "bonjour" }, VERS, {
+      ...CONTEXTE_NU,
+      boutique: { ...MA_BOUTIQUE, nbArticles: 0 },
+    });
+    expect(idsBoutons(vide.messages[0])).toEqual(["article", "solde"]);
+  });
+
+  it("« ma carte » demande la carte-vitrine, au mot comme au bouton (ADR 0037)", () => {
+    for (const entree of [
+      { genre: "texte" as const, texte: "ma carte" },
+      { genre: "bouton" as const, id: "carte" },
+    ]) {
+      const r = reagirVendeuse(entree, VERS, { ...CONTEXTE_NU, boutique: MA_BOUTIQUE });
+      expect(r.effet).toEqual({ type: "envoyer_carte" });
+      /* La machine ne dessine pas : elle demande, le service fabrique. */
+      expect(r.messages).toEqual([]);
+    }
   });
 
   it("le bouton « Mes soldes » repond comme le mot « solde »", () => {
