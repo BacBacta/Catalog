@@ -1,6 +1,6 @@
 # Tester le bot sur le sandbox — guide de terrain
 
-Mis à jour le 02/08/2026, après le P0 de l'ADR 0035.
+Mis à jour le 04/08/2026, après P1a→P1e (ADR 0035 à 0039).
 
 ## L'état du sandbox, sans fard
 
@@ -49,7 +49,10 @@ Deux boutiques utiles sur la préproduction :
 - votre boutique née dans le fil (ex. `chez-bea`) — **votre numéro est la
   vendeuse** : tout ce qui lui est destiné arrive chez vous.
 
-## Les scénarios du P0
+## Les scénarios
+
+Les cinq premiers viennent du P0 ; les scénarios 6 à 8 couvrent P1d et P1e et
+se jouent **entièrement au pouce**, sans terminal ni secret.
 
 `<moi>` est votre wa_id sans `+` (ex. `32466457281`).
 
@@ -135,7 +138,70 @@ web, lui, ne passe pas par les médias WhatsApp.
 À savoir aussi : le sandbox plafonne à **200 messages** par instance — les
 longues sessions de test se comptent.
 
-### 6 · Les relances (elles demandent du temps réel)
+### 6 · Le panier se voit — P1d, ADR 0038
+
+Au pouce, sans terminal. Sur n'importe quelle boutique ayant deux articles :
+
+1. Ajoutez un premier article (`Commander` → une quantité).
+   Attendu : **« ✅ Ajouté : … »** PUIS le bloc `🧺 Votre panier` avec **la
+   ligne** et le total. Avant P1d, seul le total s'affichait.
+2. `Autre article` → la liste. Attendu : **une ligne « Mon panier » EN TÊTE**,
+   avec le total en description.
+3. Ouvrez une fiche article. Attendu : un **troisième bouton « Mon panier »**
+   (il n'apparaît que si le panier contient quelque chose).
+4. Tapez **`panier`** n'importe où — y compris en plein flux de livraison,
+   après avoir donné son quartier. Attendu : le même bloc, **sans** la ligne
+   « Ajouté », et le flux reprend au panier.
+5. Tapez `aide`. Attendu : le mot `panier` est **annoncé** parmi les gestes.
+
+Panier vide, `panier` répond « votre panier est vide » **sans** changer
+d'état — il ne fabrique pas une étape de commande.
+
+### 7 · Le stock, enfin saisissable — P1d, ADR 0038
+
+Le stock était lu partout et écrit nulle part : en production il valait `0`
+pour tout le monde, donc « non suivi », donc rien de ce code ne tournait.
+
+1. App vendeuse → un article → dépliez **« Description et stock »**, mettez
+   `4`, enregistrez. Attendu : un badge **`4 en stock`** dans la liste.
+2. Dans le fil, ouvrez la fiche de cet article. Attendu : **« 4 disponibles »**
+   — et à 3 ou moins, « Plus que N disponibles », **sans point d'exclamation** :
+   le nombre ne se décompte pas tout seul, la copie ne promet pas de rareté.
+3. Demandez une quantité supérieure. Attendu : **« La vendeuse en annonce 4 »**
+   — la déclaration est attribuée à celle qui la fait.
+4. Videz le champ, enregistrez. Attendu : le badge disparaît, la fiche ne parle
+   plus de stock, et le champ **rouvert reste vide** (jamais « 0 », qui se
+   lirait comme une rupture).
+
+### 8 · Le mode congés — P1e, ADR 0039
+
+Le scénario le plus rentable du lot : il se joue à deux personnages sur un
+seul téléphone.
+
+**Côté vendeuse**, tapez `congés` (ou `ma boutique` → le menu l'annonce).
+Attendu : « 🌴 C'est noté… reste en ligne… n'accepte plus de nouvelle
+commande », **et** le rappel des commandes en cours s'il y en a. Retapez
+`ma boutique` : le menu porte « 🌴 En congés » et le bouton **« Je reprends »**
+a pris la place de « Ma carte à partager ».
+
+**Côté acheteuse** (le simulateur, ou un second téléphone), sur cette boutique :
+
+- l'accueil dit la fermeture **avant** qu'on ait choisi quoi que ce soit ;
+- la fiche article n'a **plus** de bouton « Commander » — la vendeuse prend sa
+  place ;
+- le catalogue, les photos, le panier et le suivi marchent **toujours** ;
+- un ancien bouton `Confirmer` d'un fil ouvert avant le départ → refus, et
+  **aucune commande créée**. C'est le service qui relit la base, pas l'écran.
+
+**Ce qui ne doit PAS changer** : une commande déjà passée continue sa course —
+collez son SMS, elle se prouve ; marquez-la livrée, elle se livre ; l'avis
+s'ouvre. Si l'un de ces trois gestes échoue en congés, c'est un défaut.
+
+`je reprends` remet tout en marche. La boutique publique, elle, ne suit qu'à
+la **prochaine publication** de l'instantané : c'est voulu, et c'est pourquoi
+le verrou vit dans le bot (ADR 0039).
+
+### 9 · Les relances (elles demandent du temps réel)
 
 - **Acompte** : une commande à acompte laissée impayée → rappel dans le fil
   acheteuse ~1 h après. Payée entre-temps : silence — la décision se reprend
