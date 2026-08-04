@@ -38,6 +38,13 @@
  */
 
 const cle = process.env.WABOT_API_KEY?.trim();
+/**
+ * `WABOT_BASE_URL` porte DEJA la version : `https://waba-sandbox.360dialog.io/v1`.
+ * C'est la convention de l'adaptateur d'envoi, qui poste sur `{base}/messages`
+ * — et c'est le piege de ce script au premier essai : rajouter `/v1` donnait
+ * `/v1/v1/configs/webhook`, c'est-a-dire un 404 qui ressemble a s'y meprendre
+ * a une cle invalide. On suit donc la meme convention, sans rien deviner.
+ */
 const base = process.env.WABOT_BASE_URL?.trim()?.replace(/\/+$/, "");
 const secret = process.env.WHATSAPP_ENTRANT_SECRET?.trim();
 const auth = process.env.WABOT_WEBHOOK_AUTH?.trim();
@@ -77,7 +84,7 @@ const masquer = (u) =>
   typeof u === "string" ? u.replace(/\/entrant\/[^/?#]+/, "/entrant/<secret>") : String(u);
 
 async function lire() {
-  const r = await fetch(`${base}/v1/configs/webhook`, { headers: { "D360-API-KEY": cle } });
+  const r = await fetch(`${base}/configs/webhook`, { headers: { "D360-API-KEY": cle } });
   if (!r.ok) {
     /* Le corps d'erreur d'un fournisseur n'est jamais recopie tel quel : il a
        deja porte des identifiants ailleurs. Le statut suffit a decider. */
@@ -88,7 +95,7 @@ async function lire() {
 }
 
 if (!lireSeulement) {
-  const r = await fetch(`${base}/v1/configs/webhook`, {
+  const r = await fetch(`${base}/configs/webhook`, {
     method: "POST",
     headers: { "D360-API-KEY": cle, "Content-Type": "application/json" },
     body: JSON.stringify({
