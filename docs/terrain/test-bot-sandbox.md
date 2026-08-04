@@ -10,10 +10,34 @@ Mis à jour le 04/08/2026, après P1a→P1e (ADR 0035 à 0039).
 - **L'entrant marche AUSSI — tant que la session sandbox est vivante.** Ce
   qui avait été pris pour un relais en panne était une session expirée :
   renvoyer `START` au numéro sandbox la réveille (vérifié le 02/08/2026 à
-  20 h 01 — `menu` tapé au téléphone, accueil reçu dans la seconde). La clé
-  est restée identique ce jour-là ; si un `START` futur en rend une autre,
-  le webhook se re-pose avec elle (`POST /v1/configs/webhook`, URL entrante
-  + en-tête `Authorization`) et `WABOT_API_KEY` se met à jour sur Fly.
+  20 h 01 — `menu` tapé au téléphone, accueil reçu dans la seconde).
+
+### Un `START` peut rendre une NOUVELLE clé — et casse alors les DEUX sens
+
+Constaté le 04/08/2026 : après un `START`, la clé avait changé **et**
+`GET /v1/configs/webhook` rendait `url: null`. La configuration ne survit pas
+à la rotation.
+
+Le piège est que les deux sens tombent pour des raisons **différentes** :
+
+| Sens | Ce qui casse | Ce qui répare |
+|---|---|---|
+| Sortant | `WABOT_API_KEY` porte l'ancienne clé | `flyctl secrets set WABOT_API_KEY=<nouvelle>` |
+| Entrant | la configuration du webhook est vide | `sandbox-webhook.mjs`, dans la machine |
+
+Réparer l'un sans l'autre donne un bot à moitié muet, et le diagnostic coûte
+une soirée. Dans l'ordre :
+
+```bash
+flyctl secrets set WABOT_API_KEY=<la nouvelle clé> --app catalog-api-preprod
+flyctl ssh console --app catalog-api-preprod \
+  -C "node /app/apps/api/scripts/sandbox-webhook.mjs"
+```
+
+Le second **tourne dans la machine**, là où `WHATSAPP_ENTRANT_SECRET` et
+`WABOT_WEBHOOK_AUTH` vivent déjà : ils ne passent ni par un argument de ligne
+de commande, ni par un presse-papiers. Sa sortie masque l'URL — elle se colle
+sans précaution. `--lire` seul diagnostique sans rien écrire.
 
 **Premier réflexe si le bot ne répond plus : renvoyer `START`.** Le
 simulateur ci-dessous reste utile pour deux choses : rejouer un scénario

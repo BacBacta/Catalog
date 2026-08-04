@@ -134,6 +134,10 @@ const MENTIONS_TOLEREES = [
   // `WABOT_WEBHOOK_AUTH` — celle du canal de MESSAGERIE de l'ADR 0027,
   // pas un webhook de paiement. Meme famille que webhook-capture.mjs.
   "apps/api/scripts/sandbox-entrant.mjs",
+  // Meme raison pour l'outil qui RE-POSE ce webhook de messagerie apres une
+  // rotation de cle du bac a sable (04/08/2026). Il ne connait ni commande, ni
+  // paiement, ni etat : il ecrit une URL et un en-tete chez 360dialog.
+  "apps/api/scripts/sandbox-webhook.mjs",
   // Gardes : ces fichiers nomment « webhook » pour l'INTERDIRE. C'est le
   // contraire d'une derive, et c'est aussi ce qui reste dans packages/db une
   // fois la dette du lot 3 payee — le modele de donnees n'en porte plus trace,
