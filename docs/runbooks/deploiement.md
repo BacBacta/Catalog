@@ -418,6 +418,33 @@ Deux défauts, tous deux constatés, tous deux silencieux :
    l'instantané du catalogue que la CI regénère depuis une base semée. Cette
    garde ne pouvait pas passer, et ne passait pas.
 
+### ⚠️ Ce qui ferait disparaître ces en-têtes du jour au lendemain
+
+**Connecter l'un de ces deux projets à Git.** Le mécanisme entier ci-dessus
+repose sur `cd dist && vercel deploy` : c'est ce `cd` qui fait de `dist/` la
+racine lue par Vercel, et donc de `dist/vercel.json` sa configuration.
+
+Un projet relié à GitHub ne passe plus par là. Il construit depuis le dépôt et
+lit `vercel.json` **à son `Root Directory`** — où il n'y a rien. En-têtes et
+réécritures disparaissent, **sans une erreur, sans un avertissement**, et le
+site continue de s'afficher parfaitement.
+
+Ce n'est pas une hypothèse : c'est arrivé au site de la société le 05/08/2026.
+Il a servi plusieurs heures sans une seule ligne de CSP pendant que son ADR
+affirmait le contraire. Voir l'ADR 0045.
+
+Si un jour l'un de ces projets doit passer par Git, la contrepartie est de
+régler son `Root Directory` sur le paquet (`apps/shop`, `apps/seller`) et d'y
+placer le `vercel.json` — puis de **vérifier la réponse**, pas le fichier :
+
+```bash
+curl -sSI https://<url>/ | grep -i "content-security\|x-frame\|referrer"
+```
+
+Contrôle passé le 05/08/2026 sur les deux projets : les cinq en-têtes sortent,
+`/v/ACDE-4679` et `/suivi/<jeton>` rendent 200, et la reprise SPA de l'app
+vendeuse fonctionne. Rien à corriger — mais rien qui tienne tout seul.
+
 C'est donc un **artefact de construction**, comme `_headers` : produit dans
 `dist/`, non versionné, regénéré à chaque build avec les valeurs de
 l'environnement qui déploie. Ce que la CI vérifie n'est plus une égalité à un
