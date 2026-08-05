@@ -207,3 +207,39 @@ vérifier le CONTENU, pas le code HTTP.
 ⚠️ **Ne jamais tuer `vercel deploy` en cours** (`timeout`, Ctrl-C). Chaque
 interruption laisse un déploiement fantôme en `UNKNOWN` qu'il faut ensuite
 supprimer à la main. Le lancer en tâche de fond et attendre.
+
+## Le piège du `vercel.json` dans un sous-répertoire
+
+Constaté le 05/08/2026, sur une construction déclenchée depuis la console :
+
+```
+Error: No Output Directory named "dist" found after the Build completed.
+```
+
+**Les trois projets Vercel de ce dépôt ont `Root Directory = .`**, la racine.
+Vercel lit donc `/vercel.json` — pas `apps/site/vercel.json`, qui n'est jamais
+ouvert.
+
+Ce qui l'a rendu dangereux plutôt qu'inerte : au tout premier déploiement CLI,
+Vercel a **recopié dans les réglages du projet** le `buildCommand` et
+l'`outputDirectory` trouvés dans `apps/site/vercel.json`. Le projet s'est donc
+retrouvé avec « construis `apps/site`, cherche la sortie dans `dist` » — alors
+qu'il construit depuis la racine, où `dist` n'existe pas.
+
+Réglages corrects du projet `horizon-services-site` :
+
+| Réglage | Valeur |
+|---|---|
+| Root Directory | `.` |
+| Build Command | `pnpm --filter @catalog/site build` |
+| Output Directory | **`apps/site/dist`** |
+| Install Command | `pnpm install --frozen-lockfile` |
+
+⚠️ **Ne pas créer de `vercel.json` à la racine du dépôt.** Les trois projets
+partagent cette racine : il s'appliquerait aussi à la boutique et à l'app
+vendeuse, et casserait leurs déploiements.
+
+`apps/site/vercel.json` ne garde donc que les en-têtes, pour qui rebrancherait
+un jour une construction avec `Root Directory = apps/site`. **Les en-têtes qui
+comptent aujourd'hui sont dans `.vercel/output/config.json`**, reproduit en
+annexe.

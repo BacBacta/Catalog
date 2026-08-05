@@ -1,8 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm --filter @catalog/site build",
-  "outputDirectory": "dist",
-  "framework": null,
+  "//": "Voir docs/runbooks/deploiement-site-societe.md — ce fichier n'est PAS lu par le déploiement, et c'est important de le savoir.",
   "cleanUrls": true,
   "trailingSlash": false,
   "headers": [
