@@ -31,8 +31,18 @@ export const EDITEUR = {
    */
   site: "https://horizonservices.store",
 
-  /** La denomination sociale, telle qu'elle figure au registre. */
+  /**
+   * La denomination sociale, telle qu'elle figure au registre — en capitales.
+   * Elle sert aux MENTIONS LEGALES, ou la forme doit correspondre exactement
+   * au document depose.
+   */
   societe: "HORIZON SERVICES",
+  /**
+   * Le nom d'usage, pour la prose. « HORIZON SERVICES est une societe… » se
+   * lit comme un cri au milieu d'une phrase : une denomination de registre
+   * n'est pas une casse de lecture.
+   */
+  nom: "Horizon Services",
   /** Societe a responsabilite limitee pluripersonnelle. */
   forme: "SARL pluripersonnelle",
   capitalXaf: 1_000_000,

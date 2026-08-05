@@ -3,267 +3,99 @@ import { EDITEUR } from "@catalog/contracts/editeur";
 import Base from "../layouts/Base.astro";
 
 /**
- * La page de la SOCIETE — ADR 0042, revise le 05/08/2026.
+ * La page de la societe — ADR 0043.
  *
- * Elle a deux lecteurs, et le meme texte doit servir les deux : un
- * verificateur — 360dialog, Meta — qui cherche « est-ce une vraie entreprise,
- * et que fait-elle de WhatsApp ? », et une vendeuse qui cherche « qu'est-ce
- * que ca m'apporte ? ».
+ * ── Ce qui a ete RETIRE, et pourquoi ──────────────────────────────────────
  *
- * ── Ce qui est ecrit ici, et ce qui ne l'est pas ──────────────────────────
+ * La version precedente recopiait l'objet social du registre en huit
+ * etiquettes et racontait le produit sur trois sections. Deux defauts :
  *
- * Tout ce que la page affirme est verifiable : l'objet social et les mentions
- * legales viennent du registre de commerce ; le fonctionnement de Catalog
- * vient du code. **Aucun client, aucun chiffre d'affaires, aucun temoignage,
- * aucun effectif** — rien de tout cela n'existe sous une forme que nous
- * pourrions montrer, et une page de societe qui invente sa taille est
- * exactement ce qu'un verificateur sait reperer.
+ * 1. **Un objet social recopie n'est pas une offre.** Un registre enumere ce
+ *    qu'une societe a le DROIT de faire ; l'afficher tel quel se lit comme un
+ *    inventaire administratif et donne l'impression inverse de celle voulue.
+ *    Les domaines sont donc regroupes en quatre lignes, dans les mots du
+ *    registre, sans une promesse ajoutee.
+ * 2. **Les produits ont leur propre domaine.** Les faire entrer ici
+ *    transformait la page de societe en plaquette commerciale.
+ *
+ * Ne reste que ce qui identifie la maison. Le vide est le sujet : une page
+ * institutionnelle se juge a ce qu'elle a eu le courage de ne pas dire.
  */
-
-/** Les quatre faits qu'un verificateur cherche. Tous au registre. */
-const FAITS = [
-  { valeur: "2019", libelle: "Immatriculée à Douala" },
-  { valeur: "SARL", libelle: "Forme juridique" },
-  { valeur: `${EDITEUR.capitalXaf.toLocaleString("fr-FR")} F`, libelle: "Capital social" },
-  { valeur: "Douala", libelle: "Siège · Cameroun" },
-] as const;
 
 /**
- * L'objet social, tel qu'il est declare au registre. On le cite, on ne le
- * reformule pas en promesses de service : declarer un domaine n'est pas
- * l'exercer, et le dire franchement vaut mieux que laisser croire.
+ * Les domaines d'activite, regroupes depuis l'objet social du registre. Les
+ * libelles sont ceux du registre — on ne les enjolive pas, et on n'ajoute
+ * aucune capacite qui n'y figure pas.
  */
-const OBJET = [
-  "Prestations de services",
-  "Commerce général",
-  "Assistance comptable",
-  "Importation, exportation",
-  "Représentation commerciale et industrielle",
-  "Tourisme, voyages",
-  "Bâtiments",
-  "Booking",
-] as const;
-
-const PILIERS = [
+const DOMAINES = [
   {
     num: "01",
-    titre: "Un catalogue partageable",
-    corps:
-      "Les articles de la vendeuse, avec photo et prix, dans un lien qu'elle envoie elle-même. Ses clientes commandent sans quitter la conversation.",
+    titre: "Prestations de services",
+    corps: "Le cœur de notre activité, exercé pour le compte d'entreprises et de particuliers.",
   },
   {
     num: "02",
-    titre: "Le paiement, pré-rempli",
-    corps:
-      "Le clavier de l'acheteuse s'ouvre garni : le code de l'opérateur, le numéro de la vendeuse, le montant. Elle n'a plus qu'à appeler.",
+    titre: "Commerce général",
+    corps: "Importation, exportation, représentation commerciale et industrielle.",
   },
   {
     num: "03",
-    titre: "Un reçu vérifiable",
-    corps:
-      "Chaque paiement prouvé donne un reçu que l'acheteuse peut vérifier, portant l'identifiant de transaction de l'opérateur.",
-  },
-] as const;
-
-const CONTROLES = [
-  "Le format du message correspond à celui de l'opérateur",
-  "Le montant correspond à ce qui est attendu",
-  "La contrepartie est la bonne personne",
-  "L'horodatage est postérieur à la commande",
-  "L'identifiant de transaction n'a jamais servi, chez aucune vendeuse",
-  "L'identifiant est cohérent avec lui-même (Orange)",
-  "L'acheteuse contre-signe le paiement",
-] as const;
-
-const ENGAGEMENTS = [
-  {
-    num: "01",
-    titre: "Nous ne détenons jamais l'argent de nos clients",
-    corps:
-      "Les fonds vont du portefeuille de l'acheteuse à celui de la vendeuse, en dépôt direct. Nous n'initions aucun transfert et n'encaissons rien — nous ne pouvons donc prélever aucune commission sur les ventes.",
+    titre: "Assistance comptable",
+    corps: "Accompagnement des obligations courantes des entreprises.",
   },
   {
-    num: "02",
-    titre: "Nous collectons le minimum, et nous le disons",
-    corps:
-      "Un numéro de téléphone, une commande, une preuve de paiement. Jamais de donnée de carte bancaire, jamais le code secret Mobile Money, jamais d'adresse postale. Notre politique de confidentialité décrit le logiciel, pas une intention.",
-  },
-  {
-    num: "03",
-    titre: "Nous n'écrivons qu'à qui nous écrit",
-    corps:
-      "Aucun message non sollicité, aucune liste de diffusion, aucune publicité. Chaque échange part d'un message que la personne nous a envoyé.",
+    num: "04",
+    titre: "Tourisme et voyages",
+    corps: "Organisation, réservation et prestations associées.",
   },
 ] as const;
 ---
 <Base
   chemin="/"
-  title={`${EDITEUR.societe} — société de services, Douala`}
-  description="Horizon Services est une société de services camerounaise immatriculée à Douala depuis 2019. Elle conçoit et exploite Catalog, le commerce WhatsApp avec preuve de paiement."
+  title={`${EDITEUR.nom} — société de services à Douala`}
+  description="Horizon Services est une société de services camerounaise, immatriculée à Douala depuis 2019. Prestations de services, commerce général, assistance comptable, tourisme et voyages."
 >
-  <section class="banniere">
-    <div class="enveloppe pt-14 pb-12 sm:pt-20 sm:pb-16">
-      <div class="banniere__corps">
-        <div class="flex flex-col gap-6">
-          <p class="surtitre">Société de services · Douala, Cameroun</p>
-          <h1 class="titre-geant">
-            Nous construisons des outils pour le commerce camerounais.
-          </h1>
-          <p class="chapeau">
-            {EDITEUR.societe} est une société camerounaise immatriculée à Douala depuis 2019. Nous
-            concevons, développons et exploitons nos propres services — à commencer par{" "}
-            <strong class="text-ink">{EDITEUR.produit}</strong>, qui apporte au commerce sur
-            WhatsApp ce qui lui manquait : une preuve de paiement opposable.
-          </p>
-          <div class="flex flex-wrap gap-3 pt-1">
-            <a href="#catalog" class="bouton bouton--plein">Découvrir {EDITEUR.produit}</a>
-            <a href="/contact" class="bouton bouton--ligne">Nous écrire</a>
-          </div>
-        </div>
-
-        {/* La carte occupe le vide qui restait a droite, et elle le fait avec du
-            CONTENU : le produit qui tourne, dit en quatre lignes. */}
-        <article class="carte carte--phare flex flex-col gap-3">
-          <p class="carte__num m-0">NOTRE PRODUIT</p>
-          <h2 class="carte__titre m-0 text-[var(--t-h2)] leading-tight">{EDITEUR.produit}</h2>
-          <p class="carte__corps">
-            Le commerce sur WhatsApp, avec un reçu que l'acheteuse peut vérifier.
-          </p>
-          <ul class="liste-marquee">
-            <li>Un catalogue partageable, sans quitter la conversation</li>
-            <li>Le paiement mobile money pré-rempli</li>
-            <li>Sept contrôles sur le SMS de l'opérateur</li>
-          </ul>
-          <p class="m-0 pt-1">
-            <a href="#catalog" class="text-brand-500 font-semibold">Comment ça marche →</a>
-          </p>
-        </article>
-      </div>
-
-      <div class="faits mt-12">
-        {
-          FAITS.map((f) => (
-            <div class="fait">
-              <p class="fait__valeur m-0">{f.valeur}</p>
-              <p class="fait__libelle m-0">{f.libelle}</p>
-            </div>
-          ))
-        }
-      </div>
+  <section class="porche">
+    <div class="enveloppe flex flex-col gap-9">
+      <p class="jalon">Douala, Cameroun — depuis 2019</p>
+      <h1 class="titre-geant">
+        Une maison de services, <span class="accent">à Douala</span>.
+      </h1>
+      <p class="chapeau">
+        {EDITEUR.nom} est une société camerounaise immatriculée au registre du commerce de
+        Douala. Nous accompagnons entreprises et particuliers sur quatre domaines, et nous
+        engageons notre nom sur chacun.
+      </p>
+      <p class="m-0">
+        <a href="/contact" class="appel-ligne">
+          Nous écrire <span class="fleche" aria-hidden="true">→</span>
+        </a>
+      </p>
     </div>
   </section>
 
-  <section class="enveloppe section flex flex-col gap-6">
-    <div class="flex flex-col gap-3">
-      <p class="numero-section">01 — LA SOCIÉTÉ</p>
-      <h2 class="titre-section">Une maison de services, et un produit qui tourne</h2>
-      <p class="chapeau">
-        Notre objet social couvre plusieurs domaines, déclarés au registre du commerce à notre
-        immatriculation. Nous préférons dire lequel est réellement exploité aujourd'hui plutôt que
-        de laisser une liste faire illusion : c'est <strong class="text-ink">{EDITEUR.produit}</strong>,
-        notre plateforme de commerce sur WhatsApp.
-      </p>
-    </div>
-    <ul class="etiquettes">
-      {OBJET.map((o) => <li class="etiquette">{o}</li>)}
-    </ul>
-    <p class="m-0 text-caption text-muted">
-      Objet social déclaré au RCCM {EDITEUR.rccm}, greffe du Tribunal de Première Instance de
-      Douala-Ndokoti.
-    </p>
-  </section>
-
-  <hr class="filet" />
-
-  <section id="catalog" class="enveloppe section flex flex-col gap-7">
-    <div class="flex flex-col gap-3">
-      <p class="numero-section">02 — NOTRE PRODUIT</p>
-      <h2 class="titre-section">{EDITEUR.produit}, le commerce WhatsApp avec preuve de paiement</h2>
-      <p class="chapeau">
-        Au Cameroun, le commerce se fait déjà sur WhatsApp. Nous ne cherchons pas à le déplacer —
-        nous ajoutons par-dessus la conversation ce qui lui manque : un catalogue partageable, une
-        rampe de paiement mobile money, un suivi de commande et une réputation bâtie sur des ventes
-        réellement prouvées.
-      </p>
-    </div>
-
-    <div class="grille">
+  <section class="enveloppe">
+    <div class="index">
       {
-        PILIERS.map((p) => (
-          <article class="carte">
-            <p class="carte__num m-0">{p.num}</p>
-            <h3 class="carte__titre">{p.titre}</h3>
-            <p class="carte__corps">{p.corps}</p>
+        DOMAINES.map((d) => (
+          <article class="rang">
+            <p class="rang__num m-0">{d.num}</p>
+            <h2 class="rang__titre">{d.titre}</h2>
+            <p class="rang__corps">{d.corps}</p>
           </article>
         ))
       }
     </div>
-
-    <article class="carte carte--phare flex flex-col gap-4">
-      <div>
-        <p class="carte__num m-0">LE CŒUR DU PRODUIT</p>
-        <h3 class="carte__titre">La capture d'écran ne prouve rien</h3>
-      </div>
-      <p class="carte__corps">
-        Sur ce marché, l'arnaque la plus courante est la <strong class="text-ink"
-          >fausse capture d'écran Mobile Money</strong
-        > : un acheteur montre une image, la marchandise part, l'argent n'arrive jamais. Une capture
-        ne porte aucun identifiant contrôlable. {EDITEUR.produit} n'en accepte aucune.
-      </p>
-      <p class="carte__corps">
-        Ce qui fait foi, c'est le <strong class="text-ink"
-          >SMS que l'opérateur a envoyé à la vendeuse</strong
-        > — celle dont l'argent est en jeu. Elle le colle, et sept contrôles s'appliquent :
-      </p>
-      <ol class="liste-marquee">
-        {CONTROLES.map((c) => <li>{c}</li>)}
-      </ol>
-      <p class="carte__corps">
-        La fraude dominante disparaît structurellement : la personne qui apporte la preuve est celle
-        qui a l'argent.
-      </p>
-    </article>
   </section>
 
-  <hr class="filet" />
-
-  <section class="enveloppe section flex flex-col gap-6">
-    <div class="flex flex-col gap-3">
-      <p class="numero-section">03 — NOS ENGAGEMENTS</p>
-      <h2 class="titre-section">Ce que nous nous interdisons</h2>
-      <p class="chapeau">
-        Trois règles qui ne sont pas des slogans : elles sont inscrites dans l'architecture de nos
-        services, et c'est ce qui les rend tenables.
+  <section class="enveloppe" style="padding-block: var(--pas)">
+    <div class="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
+      <p class="credo">
+        Une société se juge à ce qu'elle tient, pas à ce qu'elle annonce.
       </p>
-    </div>
-    <div class="grille">
-      {
-        ENGAGEMENTS.map((e) => (
-          <article class="carte">
-            <p class="carte__num m-0">{e.num}</p>
-            <h3 class="carte__titre">{e.titre}</h3>
-            <p class="carte__corps">{e.corps}</p>
-          </article>
-        ))
-      }
-    </div>
-    <p class="m-0 text-caption text-muted">
-      Nous <strong>utilisons</strong> les réseaux mobile money d'Orange Money Cameroun et de MTN
-      Mobile Money ; nous n'en opérons aucun et ne détenons aucun agrément d'établissement de
-      paiement — nous n'en avons pas besoin, puisque les fonds ne transitent jamais par nos comptes.
-    </p>
-  </section>
-
-  <section class="enveloppe section pt-0">
-    <div class="appel flex flex-col gap-4">
-      <h2 class="titre-section">Parlons de votre projet</h2>
-      <p class="chapeau m-0">
-        Une question sur {EDITEUR.produit}, une boutique à ouvrir, une demande d'accès ou de
-        suppression de données : écrivez-nous, une personne vous répond.
-      </p>
-      <div class="flex flex-wrap gap-3 pt-1">
-        <a href={`mailto:${EDITEUR.contact}`} class="bouton bouton--plein">{EDITEUR.contact}</a>
-        <a href="/contact" class="bouton bouton--ligne">Toutes nos coordonnées</a>
+      <div class="flex flex-col gap-4">
+        <p class="jalon">Nous écrire</p>
+        <a href={`mailto:${EDITEUR.contact}`} class="courriel-geant">{EDITEUR.contact}</a>
       </div>
     </div>
   </section>

@@ -24,23 +24,22 @@ import Base from "../layouts/Base.astro";
 ---
 <Base
   chemin="/confidentialite"
-  title={`Confidentialité — ${EDITEUR.societe}`}
-  description="Ce que Catalog collecte, pourquoi, avec qui c'est partagé, combien de temps, et comment demander la suppression."
+  title={`Confidentialité — ${EDITEUR.nom}`}
+  description="Ce qu'Horizon Services collecte dans ses services, pourquoi, avec qui c'est partagé, combien de temps, et comment demander la suppression."
 >
-  <section class="banniere">
-    <div class="enveloppe flex flex-col gap-4 pt-12 pb-12">
-      <p class="surtitre">Données personnelles</p>
-      <h1 class="titre-geant">Confidentialité</h1>
+  <section class="porche" style="padding-block: calc(var(--pas) * 0.62)">
+    <div class="enveloppe flex flex-col gap-7">
+      <p class="jalon">Données personnelles</p>
+      <h1 class="titre-geant">Confidentialité<span class="accent">.</span></h1>
       <p class="chapeau">
-      {EDITEUR.produit} outille les vendeuses camerounaises qui vendent déjà sur
-      WhatsApp. Cette page dit ce que nous collectons, pourquoi, avec qui c'est
-      partagé, et comment en demander la suppression. Elle décrit ce que le
-        logiciel fait — pas une intention.
+        Cette page dit ce que nous collectons dans nos services, pourquoi, avec qui c'est
+        partagé, et comment en demander la suppression. Elle décrit ce que nos logiciels font —
+        pas une intention.
       </p>
     </div>
   </section>
 
-  <div class="enveloppe section prose">
+  <section class="enveloppe prose" style="padding-block: var(--pas)">
 
     <h2>Ce que nous ne collectons jamais</h2>
     <ul>
@@ -136,7 +135,7 @@ import Base from "../layouts/Base.astro";
     </ul>
     <p>
       <strong>Nous ne vendons aucune donnée, et nous n'en louons
-      aucune à des annonceurs.</strong> Il n'y a pas de publicité dans Catalog.
+      aucune à des annonceurs.</strong> Il n'y a aucune publicité dans nos services.
     </p>
 
     <h2>Combien de temps</h2>
@@ -162,5 +161,5 @@ import Base from "../layouts/Base.astro";
       Cette page décrit le fonctionnement du service au 5 août 2026. Toute
       évolution qui changerait ce qui est collecté sera publiée ici.
     </p>
-  </div>
+  </section>
 </Base>

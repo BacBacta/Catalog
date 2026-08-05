@@ -3,71 +3,74 @@ import { EDITEUR } from "@catalog/contracts/editeur";
 import Base from "../layouts/Base.astro";
 
 /**
- * Les coordonnees — ADR 0042.
+ * Contact et mentions legales — ADR 0043.
  *
- * **Aucun formulaire.** Un formulaire de contact suppose un point de reception,
- * un stockage des messages et une politique pour eux ; une adresse de courriel
- * ne suppose rien et arrive au meme endroit. C'est aussi ce qu'un verificateur
- * peut EPROUVER : il ecrit, on repond.
+ * ── Ce que la fiche porte, et ce qu'elle ne porte pas ─────────────────────
+ *
+ * Le registre de commerce contient beaucoup plus que ce qui doit figurer sur
+ * un site : dates de naissance des associes, duree de la societe, numeraires,
+ * objet social integral. Rien de tout cela n'a sa place ici — publier les
+ * donnees personnelles d'un associe serait meme un contresens sur un site qui
+ * promet de collecter le minimum.
+ *
+ * La fiche se limite donc a ce que les mentions legales exigent : qui edite,
+ * sous quelle forme, avec quel capital, ou est le siege, sous quel numero
+ * d'immatriculation, et qui dirige la publication.
+ *
+ * **Aucun formulaire.** Il supposerait un point de reception, un stockage des
+ * messages et une politique pour eux. Une adresse de courriel ne suppose rien,
+ * arrive au meme endroit, et se met a l'epreuve : on ecrit, on repond.
  */
+
+const MENTIONS = [
+  { cle: "Dénomination", valeur: EDITEUR.societe },
+  {
+    cle: "Forme juridique",
+    valeur: `${EDITEUR.forme} au capital de ${EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA`,
+  },
+  { cle: "Immatriculation", valeur: `RCCM ${EDITEUR.rccm}` },
+  { cle: "Siège social", valeur: EDITEUR.siege },
+  { cle: "Directeur de la publication", valeur: EDITEUR.gerant },
+  { cle: "Courriel", valeur: EDITEUR.contact },
+] as const;
 ---
 <Base
   chemin="/contact"
-  title={`Contact — ${EDITEUR.societe}`}
-  description="Coordonnées d'Horizon Services, éditeur de Catalog : adresse de contact, siège social et identité légale."
+  title={`Contact — ${EDITEUR.nom}`}
+  description="Écrire à Horizon Services, société de services immatriculée à Douala. Mentions légales et coordonnées."
 >
-  <section class="banniere">
-    <div class="enveloppe flex flex-col gap-5 pt-12 pb-14">
-      <p class="surtitre">Contact</p>
-      <h1 class="titre-geant">Nous écrire</h1>
+  <section class="porche">
+    <div class="enveloppe flex flex-col gap-9">
+      <p class="jalon">Contact</p>
+      <h1 class="titre-geant">Écrivez-nous<span class="accent">.</span></h1>
       <p class="chapeau">
-        Une seule adresse, pour tout : une question sur nos services, une demande d'accès ou de
-        suppression de données, une boutique à ouvrir. Une personne vous répond.
+        Une seule adresse, pour tout. Une personne vous répond.
       </p>
-      <div class="flex flex-wrap gap-3 pt-1">
-        <a href={`mailto:${EDITEUR.contact}`} class="bouton bouton--plein">{EDITEUR.contact}</a>
-      </div>
+      <p class="m-0">
+        <a href={`mailto:${EDITEUR.contact}`} class="courriel-geant">{EDITEUR.contact}</a>
+      </p>
     </div>
   </section>
 
-  <section class="enveloppe section flex flex-col gap-5">
-    <div class="flex flex-col gap-3">
-      <p class="numero-section">MENTIONS LÉGALES</p>
-      <h2 class="titre-section">L'entreprise</h2>
+  <section class="enveloppe" style="padding-block: var(--pas)">
+    <div class="flex flex-col gap-7">
+      <p class="jalon">Mentions légales</p>
+      <dl class="fiche">
+        {
+          MENTIONS.map((m) => (
+            <div class="fiche__rang">
+              <dt>{m.cle}</dt>
+              <dd>
+                {m.cle === "Courriel" ? <a href={`mailto:${m.valeur}`}>{m.valeur}</a> : m.valeur}
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+      <p class="m-0 max-w-xl text-caption text-muted">
+        Il n'existe pas d'adresse postale de rue au Cameroun : la boîte postale est l'adresse
+        officielle, celle qui figure au registre du commerce.
+      </p>
     </div>
-    <dl class="carte grid gap-4 sm:grid-cols-2">
-      <div>
-        <dt class="fait__libelle">Dénomination</dt>
-        <dd class="m-0 fait__valeur">{EDITEUR.societe}</dd>
-      </div>
-      <div>
-        <dt class="fait__libelle">Forme juridique</dt>
-        <dd class="m-0 text-ink">{EDITEUR.forme}</dd>
-      </div>
-      <div>
-        <dt class="fait__libelle">Capital social</dt>
-        <dd class="m-0 text-ink">{EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA</dd>
-      </div>
-      <div>
-        <dt class="fait__libelle">RCCM</dt>
-        <dd class="m-0 text-ink">{EDITEUR.rccm}</dd>
-      </div>
-      <div>
-        <dt class="fait__libelle">Siège social</dt>
-        <dd class="m-0 text-ink">{EDITEUR.siege}</dd>
-      </div>
-      <div>
-        <dt class="fait__libelle">Gérant</dt>
-        <dd class="m-0 text-ink">{EDITEUR.gerant}</dd>
-      </div>
-      <div>
-        <dt class="fait__libelle">Produit édité</dt>
-        <dd class="m-0 text-ink">{EDITEUR.produit}</dd>
-      </div>
-    </dl>
-    <p class="m-0 text-caption text-muted">
-      Il n'existe pas d'adresse postale de rue au Cameroun : la boîte postale est l'adresse
-      officielle, celle qui figure au registre du commerce.
-    </p>
   </section>
 </Base>

@@ -12,27 +12,19 @@ const { title, description, chemin } = Astro.props;
 const canonique = new URL(chemin, EDITEUR.site).href;
 
 /**
- * La coquille du site de la SOCIETE — ADR 0042, revise le 05/08/2026.
+ * La coquille du site de la SOCIETE — ADR 0043.
  *
- * Le site parle d'Horizon Services, pas de Catalog : Catalog est un PRODUIT de
- * la maison, presente comme tel. Une societe qui se confond avec son premier
- * produit n'a rien a montrer le jour ou elle en a deux — et un verificateur
- * qui cherche l'entreprise derriere le numero WhatsApp doit la trouver, elle.
+ * Le site presente Horizon Services, et rien d'autre. Les produits qu'elle
+ * edite ont leurs propres domaines : les faire entrer ici transformerait une
+ * page de societe en plaquette commerciale, et brouillerait ce qu'un
+ * verificateur vient chercher — l'entreprise, pas son catalogue d'offres.
  *
- * **Aucune police telechargee, aucun JavaScript, aucun traceur.** Ce n'est pas
- * de l'ascetisme : la page qui explique qu'on ne vend aucune donnee ne va pas
- * charger un mouchard pour compter ses visites. La CSP l'interdit
- * materiellement (`default-src 'none'`).
- *
- * L'URL canonique est ABSOLUE et pointe l'apex. Le domaine repond aussi en
- * `www` : sans canonique, les deux formes seraient deux pages differentes pour
- * un moteur — et pour un verificateur qui compare l'URL declaree a celle qu'il
- * atteint.
+ * **Aucune police telechargee, aucun JavaScript, aucun traceur.** La CSP
+ * l'interdit materiellement (`default-src 'none'`) : la page qui affirme
+ * qu'on ne collecte rien ne peut pas charger un mouchard.
  */
 const NAV = [
-  { href: "/", texte: "La société" },
-  { href: "/#catalog", texte: "Catalog" },
-  { href: "/confidentialite", texte: "Confidentialité" },
+  { href: "/", texte: "Société" },
   { href: "/contact", texte: "Contact" },
 ] as const;
 ---
@@ -44,7 +36,7 @@ const NAV = [
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonique} />
-    <meta property="og:site_name" content={EDITEUR.societe} />
+    <meta property="og:site_name" content={EDITEUR.nom} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonique} />
@@ -54,12 +46,11 @@ const NAV = [
   </head>
   <body>
     <header class="entete">
-      <div class="enveloppe flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-3.5">
+      <div class="enveloppe flex flex-wrap items-center justify-between gap-x-8 gap-y-2 py-4">
         <a href="/" class="marque">
-          <span>{EDITEUR.societe}</span>
-          <span class="marque__point" aria-hidden="true"></span>
+          {EDITEUR.nom}<span class="point">.</span>
         </a>
-        <nav aria-label="Principale" class="flex flex-wrap items-center gap-x-5 gap-y-1">
+        <nav aria-label="Principale" class="flex flex-wrap items-center gap-x-7 gap-y-1">
           {
             NAV.map((l) => (
               <a
@@ -78,31 +69,23 @@ const NAV = [
     <slot />
 
     <footer class="pied">
-      <div class="enveloppe flex flex-col gap-5 py-9">
-        <div class="flex flex-wrap justify-between gap-6">
-          <div class="flex max-w-sm flex-col gap-1.5">
-            <span class="marque">{EDITEUR.societe}</span>
-            <p class="m-0">
-              Société de services immatriculée à Douala. Nous concevons et exploitons{" "}
-              <a href="/#catalog">{EDITEUR.produit}</a>.
-            </p>
-          </div>
-          <nav aria-label="Pied de page" class="flex flex-col gap-1.5">
-            <a href="/">La société</a>
-            <a href="/confidentialite">Confidentialité</a>
+      <div class="enveloppe flex flex-col gap-8">
+        <p class="pied__marque m-0" aria-hidden="true">{EDITEUR.nom}</p>
+
+        <div class="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+          <p class="m-0 max-w-md">
+            {EDITEUR.forme} au capital de {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA —
+            RCCM {EDITEUR.rccm}<br />
+            {EDITEUR.siege}
+          </p>
+          <nav aria-label="Pied de page" class="flex flex-wrap gap-x-6 gap-y-2">
             <a href="/contact">Contact</a>
+            <a href="/confidentialite">Confidentialité</a>
             <a href={`mailto:${EDITEUR.contact}`}>{EDITEUR.contact}</a>
           </nav>
         </div>
 
-        <hr class="filet" />
-
-        <p class="m-0">
-          <strong>{EDITEUR.societe}</strong> — {EDITEUR.forme} au capital de{" "}
-          {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA.<br />
-          RCCM {EDITEUR.rccm} — Siège : {EDITEUR.siege}. Gérant : {EDITEUR.gerant}.<br />
-          © 2019–2026 {EDITEUR.societe}. Tous droits réservés.
-        </p>
+        <p class="m-0">© 2019–2026 {EDITEUR.societe}</p>
       </div>
     </footer>
   </body>
