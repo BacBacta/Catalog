@@ -1,6 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
 import { chargerBoutiques } from "../lib/catalogue.ts";
+import { EDITEUR } from "../lib/editeur.ts";
 
 /**
  * La racine du domaine public.
@@ -36,5 +37,18 @@ const nombre = chargerBoutiques().length;
       a pas d'annuaire ici : ce n'est pas une place de marché.
       {nombre > 0 ? ` (${nombre} boutique${nombre > 1 ? "s" : ""} en ligne.)` : ""}
     </p>
+
+    {/* Le pied de page n'est pas decoratif : la confidentialite et le contact
+        sont ce qu'un verificateur — 360dialog, Meta — cherche en premier, et
+        ce qu'une utilisatrice doit trouver sans demander (ADR 0041). */}
+    <footer class="mt-6 flex flex-col gap-1 border-t border-line pt-4">
+      <p class="text-caption text-muted">
+        <a href="/confidentialite" class="text-brand-500">Confidentialité</a>
+      </p>
+      <p class="text-caption text-muted">
+        {EDITEUR.nom} — {EDITEUR.lieu} ·{" "}
+        <a href={`mailto:${EDITEUR.contact}`} class="text-brand-500">{EDITEUR.contact}</a>
+      </p>
+    </footer>
   </main>
 </Base>
