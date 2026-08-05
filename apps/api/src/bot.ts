@@ -129,16 +129,86 @@ export interface BotDeps {
   aleatoire?: (n: number) => Uint8Array;
 }
 
+/**
+ * Un message n'est traite QU'UNE FOIS — ADR 0040.
+ *
+ * WhatsApp et ses relais livrent au moins une fois : un accuse qui tarde, et
+ * la meme livraison revient, indefiniment, a intervalle croissant. Sans cette
+ * garde, chaque relivraison rejoue le message dans la machine de conversation.
+ * Ce n'est pas une gene cosmetique : en bac a sable, un « Bonjour » vieux
+ * d'une minute est devenu le NOM d'une boutique, et un « Douala » le nom d'un
+ * article (05/08/2026).
+ *
+ * La reclamation se pose AVANT tout travail : c'est ce qui rend inoffensive la
+ * relivraison qui arrive pendant le traitement de la premiere. Elle se termine
+ * apres — et une reclamation restee inachevee au-dela de `RECLAMATION_PERIMEE`
+ * se laisse rejouer, sinon un processus tue emporterait le message avec lui.
+ *
+ * Le compromis est explicite : on prefere PERDRE un message dont le traitement
+ * est mort en chemin — la vendeuse reecrit — plutot que d'en traiter un deux
+ * fois. Un double traitement, lui, corrompt un etat que personne ne repare.
+ */
+const RECLAMATION_PERIMEE_MS = 2 * 60_000;
+
+/** Purge tardive : les lignes ne servent que le temps des relivraisons. */
+const RETENTION_VUS_MS = 3 * 24 * 3600_000;
+
+async function reclamer(deps: BotDeps, messageId: string, maintenant: Date): Promise<boolean> {
+  try {
+    await deps.prisma.botMessageVu.create({ data: { id: messageId, reclameLe: maintenant } });
+    return true;
+  } catch (cause) {
+    if ((cause as { code?: string })?.code !== "P2002") throw cause;
+  }
+  /* Deja vu. Reste a savoir si le traitement precedent s'est acheve, ou s'il
+     est mort en chemin — auquel cas la relivraison est notre seconde chance. */
+  const vu = await deps.prisma.botMessageVu.findUnique({
+    where: { id: messageId },
+    select: { reclameLe: true, termineLe: true },
+  });
+  if (!vu || vu.termineLe) return false;
+  if (maintenant.getTime() - vu.reclameLe.getTime() < RECLAMATION_PERIMEE_MS) return false;
+  await deps.prisma.botMessageVu.update({
+    where: { id: messageId },
+    data: { reclameLe: maintenant },
+  });
+  return true;
+}
+
 export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promise<void> {
+  const maintenant = deps.maintenant?.() ?? new Date();
   for (const entree of lireEntreesBot(corps)) {
     /* Un message qui porte un code de defi (AAAA-BB) appartient a la
        connexion WhatsApp (ADR 0027), deja traitee par `surMessage` : le bot
        ne repond pas par-dessus. */
     if (entree.genre === "texte" && extraireCodeDefi(entree.texte)) continue;
+
+    /**
+     * Sans `messageId`, aucune idempotence possible — on traite, comme avant.
+     * Le simulateur de terrain est dans ce cas, et c'est voulu : il sert
+     * justement a rejouer un scenario a l'identique.
+     */
+    if (entree.messageId) {
+      const aTraiter = await reclamer(deps, entree.messageId, maintenant).catch(() => true);
+      if (!aTraiter) continue;
+    }
+
     await traiterEntree(deps, entree).catch(() => {
       /* Une entree qui casse ne bloque ni les suivantes ni la relivraison. */
     });
+
+    if (entree.messageId) {
+      await deps.prisma.botMessageVu
+        .update({ where: { id: entree.messageId }, data: { termineLe: maintenant } })
+        .catch(() => {});
+    }
   }
+
+  /* La purge se fait ici plutot que dans un job : la table ne vit que par ce
+     chemin, et une ligne de trois jours n'a plus aucune relivraison a bloquer. */
+  await deps.prisma.botMessageVu
+    .deleteMany({ where: { reclameLe: { lt: new Date(maintenant.getTime() - RETENTION_VUS_MS) } } })
+    .catch(() => {});
 }
 
 /**

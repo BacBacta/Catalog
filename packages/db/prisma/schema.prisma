@@ -629,6 +629,35 @@ model BotConversation {
 /// la remise se DATE, elle n'efface rien. Le corps est le texte exact a
 /// envoyer — deja redige, sans SMS colle ni jeton (les deux interdits de
 /// l'etat de conversation valent ici aussi).
+/// Les messages entrants DEJA traites — ADR 0040.
+///
+/// WhatsApp et ses relais garantissent la livraison AU MOINS une fois : un
+/// message dont l'accuse n'est pas revenu assez vite est relivre, indefiniment,
+/// a intervalle croissant. Sans cette table, chaque relivraison rejouait le
+/// message dans la machine de conversation — un « Bonjour » vieux d'une minute
+/// devenait le NOM d'une boutique, un « Douala » devenait le nom d'un article.
+/// Constate en bac a sable le 05/08/2026.
+///
+/// La cle est le `wamid`, l'identifiant que WhatsApp donne au message : il est
+/// unique de bout en bout, et c'est le seul point fixe d'une relivraison.
+model BotMessageVu {
+  /// Le `wamid` du message entrant.
+  id String @id
+
+  /// Quand le traitement a ete RECLAME. Pose avant tout travail : c'est ce qui
+  /// fait qu'une relivraison arrivee pendant le traitement du premier ne double
+  /// pas le travail.
+  reclameLe DateTime @default(now()) @map("reclame_le")
+
+  /// Quand il s'est ACHEVE. Nul = en cours, ou mort en chemin. La distinction
+  /// n'est pas cosmetique : une reclamation restee inachevee au-dela d'un delai
+  /// se laisse rejouer, sinon un processus tue emporterait le message avec lui.
+  termineLe DateTime? @map("termine_le")
+
+  @@index([reclameLe])
+  @@map("bot_message_vu")
+}
+
 model BotNotification {
   id      String    @id @default(uuid(7))
   phone   String
