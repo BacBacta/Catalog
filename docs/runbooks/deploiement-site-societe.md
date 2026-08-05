@@ -253,41 +253,55 @@ vérifier le CONTENU, pas le code HTTP.
 interruption laisse un déploiement fantôme en `UNKNOWN` qu'il faut ensuite
 supprimer à la main. Le lancer en tâche de fond et attendre.
 
-## Le piège du `vercel.json` dans un sous-répertoire
+## Le `Root Directory` — le réglage dont tout dépend
 
-Constaté le 05/08/2026, sur une construction déclenchée depuis la console :
-
-```
-Error: No Output Directory named "dist" found after the Build completed.
-```
-
-**Les trois projets Vercel de ce dépôt ont `Root Directory = .`**, la racine.
-Vercel lit donc `/vercel.json` — pas `apps/site/vercel.json`, qui n'est jamais
-ouvert.
-
-Ce qui l'a rendu dangereux plutôt qu'inerte : au tout premier déploiement CLI,
-Vercel a **recopié dans les réglages du projet** le `buildCommand` et
-l'`outputDirectory` trouvés dans `apps/site/vercel.json`. Le projet s'est donc
-retrouvé avec « construis `apps/site`, cherche la sortie dans `dist` » — alors
-qu'il construit depuis la racine, où `dist` n'existe pas.
-
-Réglages corrects du projet `horizon-services-site` :
+Corrigé le 05/08/2026. **Réglages actuels du projet `horizon-services-site` :**
 
 | Réglage | Valeur |
 |---|---|
-| Root Directory | `.` |
-| Build Command | `pnpm --filter @catalog/site build` |
-| Output Directory | **`apps/site/dist`** |
-| Install Command | `pnpm install --frozen-lockfile` |
+| **Root Directory** | **`apps/site`** |
+| Framework Preset | `Astro` |
+| Build Command | *(vide — `astro build` par défaut)* |
+| Output Directory | *(vide — `dist` par défaut)* |
+| Install Command | *(vide — Vercel détecte l'espace de travail pnpm)* |
 
-⚠️ **Ne pas créer de `vercel.json` à la racine du dépôt.** Les trois projets
+### Pourquoi ce réglage n'est pas un détail de confort
+
+**Vercel lit `vercel.json` RELATIVEMENT au Root Directory.** Tant que celui-ci
+valait `.`, Vercel cherchait `/vercel.json` à la racine du dépôt — un fichier
+qui n'existe pas et **qui ne doit pas exister**, puisque trois projets Vercel
 partagent cette racine : il s'appliquerait aussi à la boutique et à l'app
-vendeuse, et casserait leurs déploiements.
+vendeuse et casserait leurs déploiements.
 
-`apps/site/vercel.json` ne garde donc que les en-têtes, pour qui rebrancherait
-un jour une construction avec `Root Directory = apps/site`. **Les en-têtes qui
-comptent aujourd'hui sont dans `.vercel/output/config.json`**, reproduit en
-annexe.
+Conséquence, restée invisible plusieurs heures : **`apps/site/vercel.json`
+n'était jamais ouvert, et AUCUN en-tête de sécurité n'était servi.** La CSP
+`default-src 'none'` — celle qui rend matériellement impossible le chargement
+d'un traceur sur la page qui promet de ne rien collecter — n'existait que dans
+un fichier que personne ne lisait.
+
+Le défaut ne se voit sur aucune page : le site s'affiche parfaitement sans
+en-têtes. **Il ne se constate qu'en regardant la réponse.**
+
+```bash
+curl -sSI https://<url>/ | grep -i "content-security\|x-frame\|x-content\|referrer"
+```
+
+Les quatre lignes doivent sortir. Si la commande ne rend rien, le
+`Root Directory` a été remis à `.` — ou le fichier a été déplacé.
+
+### Deux pièges à connaître
+
+⚠️ **Ne pas créer de `vercel.json` à la racine du dépôt**, même pour n'y mettre
+que des en-têtes. `headers[].source` filtre sur un CHEMIN, pas sur un projet :
+`default-src 'none'` s'appliquerait aussi à la boutique publique, qui a des
+îlots et du script en ligne, et la casserait entièrement.
+
+⚠️ **Une erreur `No Output Directory named "dist"`** signifie que le
+`Root Directory` est revenu à `.` alors que l'`Output Directory` dit `dist`.
+Constaté une fois : au tout premier déploiement CLI, Vercel avait **recopié
+dans les réglages du projet** le `buildCommand` et l'`outputDirectory` trouvés
+dans `apps/site/vercel.json`, sans en reprendre le répertoire. Vider les trois
+champs et laisser le préréglage Astro faire son travail.
 
 ## Le projet est connecté à Git — c'est LUI qui déploie
 

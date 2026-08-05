@@ -129,6 +129,32 @@ describe("le site de la societe", () => {
        balise. Son absence est un 404 par page ouverte. */
     expect(existsSync(join(LIB_DIR, "..", "public", "favicon.ico"))).toBe(true);
   });
+
+  it("`vercel.json` porte toujours la CSP qui interdit le script", () => {
+    /**
+     * Ce test ne garantit PAS que l'en-tete est servi — il ne mesure qu'un
+     * fichier. C'est important de le dire, parce que le defaut reel a ete
+     * exactement l'ecart entre les deux : le fichier etait juste, et Vercel ne
+     * le lisait pas (`Root Directory` = racine du depot, ADR 0045).
+     *
+     * La seule verification qui vaut est la reponse HTTP, et elle vit dans le
+     * runbook :
+     *   curl -sSI https://horizonservices.store/ | grep -i content-security
+     *
+     * Ce test tient l'autre moitie : que la regle ne disparaisse pas du
+     * fichier une fois qu'on a fait le necessaire pour qu'il soit lu.
+     */
+    const conf = JSON.parse(readFileSync(join(LIB_DIR, "..", "vercel.json"), "utf8"));
+    const entetes = conf.headers?.flatMap((h: { headers: { key: string; value: string }[] }) =>
+      h.headers.map((e) => [e.key.toLowerCase(), e.value] as const),
+    );
+    const csp = entetes?.find(([k]: readonly [string, string]) => k === "content-security-policy");
+    expect(csp, "aucune CSP dans vercel.json").toBeDefined();
+    expect(csp?.[1]).toContain("default-src 'none'");
+    /* Les trois icones sont servies depuis le meme domaine : sans `img-src`,
+       l'onglet redeviendrait vide — cette fois par la CSP. */
+    expect(csp?.[1]).toContain("img-src 'self'");
+  });
 });
 
 /**
