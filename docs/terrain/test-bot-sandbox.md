@@ -236,18 +236,37 @@ le verrou vit dans le bot (ADR 0039).
 
 ## Recommencer un test à zéro
 
-Trois écritures sur la préprod, pour qu'un numéro redevienne une inconnue —
-via `flyctl ssh console --app catalog-api-preprod`, puis un script node qui :
+```bash
+# 1. voir ce qui sera touché — n'écrit rien
+flyctl ssh console --app catalog-api-preprod \
+  -C "node /app/apps/api/scripts/terrain-raz.mjs +237690000000 --voir"
 
-1. **détache** toute boutique née de ce numéro (`seller.phone` → numéro
-   factice unique, `userId` → nul) — l'historique reste, rien n'est détruit ;
-2. **efface** la ligne `bot_conversation` du numéro (état, langue, mémoire de
-   commande) ;
-3. **purge** les `bot_notification` en attente qui le visent.
+# 2. appliquer
+flyctl ssh console --app catalog-api-preprod \
+  -C "node /app/apps/api/scripts/terrain-raz.mjs +237690000000"
+```
 
-Les commandes passées comme acheteuse peuvent rester : une conversation
-neuve ne les connaît plus. Après la remise à zéro, le premier message du
-téléphone rouvre le parcours prospect complet (« vendre avec <slug> »…).
+**Effacer la conversation ne suffit pas** : la vendeuse se reconnaît par
+**deux** chemins (`bot.ts`) — `authUser.phoneNumber` → sa relation `seller`,
+et `seller.phone`. N'en couper qu'un donne un parcours à moitié neuf, où le
+bot répond « Collez ici le SMS de votre opérateur » à une prospect.
+
+Le script coupe les deux en **détachant** la boutique — rien n'est effacé :
+
+- `seller.phone` → numéro factice unique, `userId` → nul (les deux chemins
+  tombent) ;
+- `status` → `closed` : la boutique sort de l'instantané public à la
+  prochaine publication ;
+- `slug` → suffixé : l'ancien lien ne résout plus, et le nom d'origine
+  redevient libre pour la nouvelle boutique ;
+- `bot_conversation` supprimée, `bot_notification` en attente purgées — sinon
+  elles seraient remises au premier message du parcours neuf.
+
+**L'`authUser` est conservé.** Le bot le retrouvera par son numéro et lui
+rattachera la nouvelle boutique : c'est le chemin réel d'une vendeuse qui
+revient, pas un raccourci de test. Commandes, preuves et avis restent en base
+— une remise à zéro de test n'a aucune raison de détruire une preuve de
+paiement.
 
 ## Vérifier côté base (quand le téléphone ne suffit pas)
 
