@@ -47,6 +47,12 @@ const NAV = [
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonique} />
+    {/* Le monogramme de l'onglet — ADR 0045. Le SVG est la source ; l'ICO
+        existe parce que les navigateurs le demandent a la racine SANS balise,
+        et l'icone Apple parce que l'ecran d'accueil iOS ignore le SVG. */}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta property="og:site_name" content={EDITEUR.nom} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />

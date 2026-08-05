@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { EDITEUR } from "@catalog/contracts/editeur";
@@ -107,6 +107,27 @@ describe("le site de la societe", () => {
       expect(source, `${f} reaffiche le gerant`).not.toContain("EDITEUR.gerant");
       expect(source, f).not.toContain(EDITEUR.gerant);
     }
+  });
+
+  it("chaque icone declaree existe VRAIMENT dans `public/`", () => {
+    /* Une balise `<link rel="icon">` qui pointe un fichier absent ne casse
+       rien de visible : le navigateur retombe sur son icone par defaut, et
+       l'onglet reste vide — exactement le symptome qu'on vient de corriger.
+       Le defaut est donc silencieux, et c'est pour cela qu'il se teste. */
+    const coquille = readFileSync(join(LIB_DIR, "layouts", "Base.astro"), "utf8");
+    const declarees = [...coquille.matchAll(/rel="(?:apple-touch-)?icon"[^>]*href="([^"]+)"/g)].map(
+      (m) => m[1],
+    );
+    expect(declarees.length, "aucune icone declaree — l'onglet resterait vide").toBeGreaterThan(0);
+    for (const href of declarees) {
+      expect(
+        existsSync(join(LIB_DIR, "..", "public", href)),
+        `${href} est declare mais absent`,
+      ).toBe(true);
+    }
+    /* L'ICO est reclame a la racine par TOUS les navigateurs, meme sans
+       balise. Son absence est un 404 par page ouverte. */
+    expect(existsSync(join(LIB_DIR, "..", "public", "favicon.ico"))).toBe(true);
   });
 });
 
