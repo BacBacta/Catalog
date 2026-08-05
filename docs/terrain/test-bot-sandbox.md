@@ -286,7 +286,43 @@ Deux issues, par ordre de préférence :
 1. **Le ticket 360dialog aboutit** : le relais entrant revient, et tout ce
    guide se rejoue au pouce, sans terminal.
 2. **Le numéro de test Meta** (Cloud API directe, gratuit, 5 destinataires) :
-   entrant ET sortant complets. Il faut pointer son webhook vers
-   `/api/whatsapp/entrant/<secret>` et aligner `WHATSAPP_APP_SECRET`,
-   `WABOT_API_KEY` et `WABOT_BASE_URL` sur l'app Meta — c'est un changement
-   d'environnement, pas de code.
+   entrant ET sortant complets, **médias compris** — c'est le seul canal où la
+   chaîne photo se vérifie.
+
+   > ⚠️ **Correction du 05/08/2026.** Cette ligne disait « c'est un changement
+   > d'environnement, **pas de code** ». C'était faux sur trois points, et
+   > l'ADR 0046 les traite :
+   >
+   > | | 360dialog | Meta directe |
+   > |---|---|---|
+   > | Authentification | `D360-API-KEY` | `Authorization: Bearer` |
+   > | Envoi | `{base}/messages` | `{base}/{idNuméro}/messages` |
+   > | Média, 2ᵉ temps | hôte de l'URL **réécrit** | URL suivie **telle quelle** |
+   >
+   > Le troisième est le plus coûteux : la réécriture d'hôte est
+   > **indispensable** chez 360dialog et **casse** le téléchargement chez Meta.
+   > Elle ne se voit qu'en téléchargeant une vraie photo — donc jamais sur le
+   > bac à sable, qui n'a aucun média.
+
+   Aujourd'hui c'est bien un changement d'environnement, parce que le code a
+   été écrit. À régler :
+
+   ```
+   WABOT_BASE_URL="https://graph.facebook.com/v21.0"
+   WABOT_API_KEY="<jeton System User, PAS celui du tableau de bord>"
+   WHATSAPP_PHONE_NUMBER_ID="<l'identifiant du numéro de test>"
+   WHATSAPP_APP_SECRET="<celui de l'app Meta>"
+   WABOT_WEBHOOK_AUTH=""   # vidé : en Meta directe, l'HMAC reprend du service
+   ```
+
+   `WABOT_TRANSPORT` n'a pas à être déclaré : `graph.facebook.com` suffit à le
+   déduire.
+
+   **Le piège du jeton.** Celui qu'affiche le tableau de bord Meta expire en
+   **24 h**. Le bot cesserait d'envoyer du jour au lendemain, sans rien changer
+   de visible ailleurs. Il faut un jeton de *System User*, sans expiration.
+
+   **Ce que ce numéro ne fera jamais** : s'ajouter à l'application WhatsApp
+   Business — il n'y a aucune ligne derrière, donc aucun code à recevoir —, ni
+   écrire à quelqu'un qui n'est pas dans les 5 destinataires inscrits, ni
+   devenir le numéro de production.

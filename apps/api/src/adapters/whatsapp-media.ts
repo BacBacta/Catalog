@@ -1,4 +1,5 @@
 import type { LecteurMedia, MediaEntrant } from "../domain/bot/media.ts";
+import { entetesAuth, type TransportWhatsapp } from "./whatsapp-transport.ts";
 
 /**
  * Telechargement d'une photo entrante via 360dialog — ADR 0034, revise apres
@@ -41,6 +42,7 @@ import type { LecteurMedia, MediaEntrant } from "../domain/bot/media.ts";
 export interface LecteurMediaConfig {
   apiKey: string;
   baseUrl: string;
+  transport: TransportWhatsapp;
   /**
    * Plafond d'octets acceptes. Le pipeline d'images a le sien
    * (`IMAGE_TAILLE_MAX_OCTETS`) ; celui-ci arrete la LECTURE avant de remplir
@@ -53,7 +55,9 @@ export interface LecteurMediaConfig {
 const TAILLE_MAX_DEFAUT = 16 * 1024 * 1024; // la borne de Meta pour une image.
 
 export class LecteurMediaWhatsapp implements LecteurMedia {
-  readonly nom = "360dialog";
+  /* Le nom part dans les traces : le figer a « 360dialog » ferait mentir
+     le journal du jour ou on diagnostique un envoi passe par Meta. */
+  readonly nom: string;
 
   readonly #cfg: LecteurMediaConfig;
   readonly #fetch: typeof fetch;
@@ -65,6 +69,7 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
           "Voir .env.example, section « bot WhatsApp ».",
       );
     }
+    this.nom = cfg.transport;
     this.#cfg = cfg;
     this.#fetch = cfg.fetchImpl ?? fetch;
   }
@@ -72,12 +77,15 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
   async lire(mediaId: string): Promise<MediaEntrant | null> {
     if (!/^[\w.-]{1,256}$/.test(mediaId)) return null;
     const base = this.#cfg.baseUrl.replace(/\/$/, "");
-    const entetes = { "D360-API-KEY": this.#cfg.apiKey };
+    const entetes = entetesAuth(this.#cfg.transport, this.#cfg.apiKey);
 
     try {
-      /* Forme Cloud d'abord ({base}/{id}) ; forme v1 en second ({base}/media/{id}). */
+      /* Forme Cloud d'abord ({base}/{id}). La forme v1 ({base}/media/{id}) est
+         une particularite on-premise de 360dialog : chez Meta elle rendrait un
+         404 sur un identifiant qui n'existe pas, et le repli n'a aucun sens. */
       let premiere = await this.#fetch(`${base}/${mediaId}`, { headers: entetes });
       if (!premiere.ok) {
+        if (this.#cfg.transport === "meta") return null;
         premiere = await this.#fetch(`${base}/media/${mediaId}`, { headers: entetes });
         if (!premiere.ok) return null;
       }
@@ -95,13 +103,25 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
       if (typeof meta?.url !== "string") return null;
 
       /**
-       * L'URL du JSON pointe chez Meta et ne connait pas notre cle : son hote
-       * se REMPLACE par celui de l'API (chemin et parametres conserves), et
-       * l'authentification repart dans l'en-tete — la regle 360dialog.
+       * Le second temps, et le SEUL endroit ou les deux transports divergent
+       * vraiment.
+       *
+       * Chez **360dialog**, l'URL rendue pointe chez Meta (`lookaside.fbsbx.com`)
+       * et ne connait pas notre cle : leur documentation demande d'en REMPLACER
+       * l'hote par celui de l'API, chemin et parametres conserves, puis de
+       * presenter `D360-API-KEY`. La suivre telle quelle echoue — c'est le
+       * defaut du 02/08/2026.
+       *
+       * Chez **Meta**, la meme reecriture CASSERAIT le telechargement :
+       * `lookaside.fbsbx.com` accepte le jeton porteur, et l'envoyer vers
+       * `graph.facebook.com` rendrait un chemin qui n'existe pas. L'URL se suit
+       * telle quelle.
+       *
+       * Une seule ligne de difference, et elle est invisible tant qu'on ne teste
+       * qu'un des deux chemins.
        */
-      const cible = new URL(meta.url);
-      const notre = new URL(base);
-      const telechargement = `${notre.origin}${cible.pathname}${cible.search}`;
+      const telechargement =
+        this.#cfg.transport === "meta" ? meta.url : this.#reecrireHote(meta.url, base);
 
       const seconde = await this.#fetch(telechargement, { headers: entetes });
       if (!seconde.ok) return null;
@@ -115,6 +135,13 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
       /* Reseau coupe, TLS refuse, corps difforme : pas de photo, pas de panne. */
       return null;
     }
+  }
+
+  /** La regle 360dialog : meme chemin, meme parametres, notre hote. */
+  #reecrireHote(url: string, base: string): string {
+    const cible = new URL(url);
+    const notre = new URL(base);
+    return `${notre.origin}${cible.pathname}${cible.search}`;
   }
 
   async #octets(reponse: Response, typeAnnonce: string): Promise<MediaEntrant | null> {

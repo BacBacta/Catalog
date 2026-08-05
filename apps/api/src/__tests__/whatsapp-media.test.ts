@@ -10,7 +10,10 @@ import { LecteurMediaWhatsapp } from "../adapters/whatsapp-media.ts";
  * vendeuse, jamais une panne de conversation.
  */
 
-const CFG = { apiKey: "cle", baseUrl: "https://waba.test/v1" };
+/* Transport explicite depuis l'ADR 0046 : ces cas decrivent le chemin
+   360dialog — reecriture d'hote comprise. Le chemin Meta a les siens, dans
+   `whatsapp-transport.test.ts`. */
+const CFG = { apiKey: "cle", baseUrl: "https://waba.test/v1", transport: "360dialog" as const };
 const octets = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
 
 const reponseJson = (corps: unknown) =>
@@ -24,8 +27,12 @@ const reponseOctets = (type = "image/jpeg") =>
 
 describe("LecteurMediaWhatsapp", () => {
   it("refuse de se construire sans cle ni base — comme l'envoyeur", () => {
-    expect(() => new LecteurMediaWhatsapp({ apiKey: "", baseUrl: "x" })).toThrow(/WABOT_API_KEY/);
-    expect(() => new LecteurMediaWhatsapp({ apiKey: "x", baseUrl: "" })).toThrow(/WABOT_BASE_URL/);
+    expect(
+      () => new LecteurMediaWhatsapp({ apiKey: "", baseUrl: "x", transport: "360dialog" }),
+    ).toThrow(/WABOT_API_KEY/);
+    expect(
+      () => new LecteurMediaWhatsapp({ apiKey: "x", baseUrl: "", transport: "360dialog" }),
+    ).toThrow(/WABOT_BASE_URL/);
   });
 
   it("forme Cloud API : JSON d'abord, octets ensuite, cle posee aux DEUX appels", async () => {
