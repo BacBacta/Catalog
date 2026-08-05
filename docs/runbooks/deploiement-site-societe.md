@@ -243,3 +243,33 @@ vendeuse, et casserait leurs déploiements.
 un jour une construction avec `Root Directory = apps/site`. **Les en-têtes qui
 comptent aujourd'hui sont dans `.vercel/output/config.json`**, reproduit en
 annexe.
+
+## Le projet est connecté à Git — c'est LUI qui déploie
+
+Découvert le 05/08/2026, après avoir cherché longtemps du côté du CLI : le
+projet est relié au dépôt. **Chaque push sur la branche de travail déclenche
+une construction**, et elle aboutit en ~40 s.
+
+Deux conséquences qui expliquent ce qui paraissait cassé :
+
+1. Un push sur une branche qui n'est pas la branche par défaut produit un
+   déploiement **Preview**, pas Production. Le site public ne bouge donc pas,
+   même quand la construction réussit.
+2. **Les déploiements `--prebuilt --prod` du CLI restent bloqués en `UNKNOWN`**
+   sur ce projet depuis qu'il est relié à Git. Ils n'aboutissent jamais et il
+   faut les supprimer à la main.
+
+### La marche à suivre
+
+```bash
+git push                      # déclenche la construction (Preview sur une branche)
+vercel ls --cwd apps/site     # relever l'URL du Preview « Ready »
+vercel promote <url-preview> --yes --cwd apps/site
+```
+
+`promote` reconstruit avec l'environnement de production et bascule le
+domaine. Compter ~40 s de plus.
+
+**Ne plus utiliser `vercel deploy --prebuilt --prod` sur ce projet.** La
+section « pré-construit » plus haut décrit ce qui marchait AVANT la liaison
+Git ; elle reste vraie pour un projet non relié.
