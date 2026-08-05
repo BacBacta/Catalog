@@ -5,6 +5,80 @@
 > fin, le numéro Catalog est un vrai numéro, les médias fonctionnent, et le
 > bac à sable ne sert plus.
 
+## Ce que le terrain du 05/08/2026 a établi — à lire avant tout
+
+Une tentative de bascule a eu lieu ce jour-là. Elle n'a pas abouti, et **ce
+n'est pas un échec technique** : le blocage est administratif, et il est en
+amont de tout ce que décrit ce runbook.
+
+### Le verrou : la vérification d'entreprise Meta
+
+> « Si votre numéro est en statut *Pending*, cela signifie que Meta est encore
+> en train de vérifier votre WABA. Pendant cette période, **aucun numéro ne
+> peut être enregistré ou utilisé**. » — support 360dialog
+
+Tant que la vérification d'entreprise n'est pas passée, un numéro ajouté au
+WABA reste « En attente » et **aucun bouton ne le débloque**. Inutile de
+chercher une action dans la fiche du numéro : il n'y en a pas.
+
+C'est donc le **chemin critique**, et non une formalité de fin de parcours
+comme le laissait entendre la section « Après la bascule ».
+
+### Un numéro ne se remplace pas, et l'abonnement le suit
+
+Trois règles confirmées par le support, qui coûtent de l'argent si on les
+découvre tard :
+
+- **Un numéro de test Meta (`+1 555…`) ne peut jamais être échangé** contre un
+  numéro réel. Il faut inscrire le nouveau numéro par l'Embedded Signup, puis
+  cesser d'utiliser l'ancien.
+- **Les abonnements sont liés au numéro et ne se transfèrent pas.** Ouvrir un
+  canal sur le vrai numéro **ajoute** une facturation ; celle du numéro de test
+  se résilie à la main, sans quoi elle court pour rien.
+- **Ni les données ni l'historique** ne suivent d'un numéro à l'autre.
+
+### Ce qu'un numéro de test permet, et où il s'arrête
+
+Le support a écrit que « le test ne se fait pas via l'application WhatsApp ».
+**C'est trompeur** : ce qui est vrai, c'est qu'on ne peut pas installer
+WhatsApp Business *sur* le numéro de test. Le destinataire, lui, utilise son
+WhatsApp ordinaire — c'est exactement le montage du produit.
+
+La vraie borne est ailleurs : **un numéro de test ne livre qu'aux 5
+destinataires inscrits** dans le tableau de bord développeur. Et quand le WABA
+est détenu par le partenaire, ce tableau de bord n'est pas accessible au
+client — la liste devient donc inatteignable.
+
+Symptôme à connaître : **l'API répond `HTTP 200` avec un `wamid`, et le message
+n'arrive jamais.** L'envoi est accepté, la livraison est bloquée en aval. Un
+contrôle qui ne regarde que le code HTTP conclut à tort que tout va bien.
+
+### Ce qui est acquis et n'est pas à refaire
+
+| Fait | Comment il a été établi |
+|---|---|
+| L'envoi fonctionne | `POST waba-v2.360dialog.io/messages` → `200` + `wamid` |
+| `WABOT_BASE_URL` **sans `/v1`** | même appel, en production |
+| La route entrante est montée | `/api/whatsapp/entrant/<faux>` rend `{"erreur":"inconnu"}` là où un chemin inexistant rend `404 Not Found` en texte brut |
+| Le webhook du canal est configuré | *Channel Webhook URL* + en-tête `Authorization` |
+
+Le jour où le canal du vrai numéro existe, **il ne reste qu'à remplacer la clé**
+et à repointer le webhook.
+
+### La sonde qui distingue « route absente » de « secret faux »
+
+Les deux rendent un 404. Seul le CORPS les sépare :
+
+```bash
+curl -sS https://<api>/api/nexistepas                      # → 404 Not Found       (texte brut)
+curl -sS https://<api>/api/whatsapp/entrant/nimportequoi   # → {"erreur":"inconnu"} (notre JSON)
+```
+
+Le second prouve que `WHATSAPP_ENTRANT_SECRET` **et** `WHATSAPP_APP_SECRET`
+sont posées : sans les deux, la route n'est pas enregistrée du tout.
+
+---
+
 ## Ce qu'il faut avoir en main
 
 Depuis le Hub 360dialog, une fois le canal approuvé :
