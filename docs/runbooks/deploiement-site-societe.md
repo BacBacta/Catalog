@@ -64,6 +64,39 @@ Vercel). Au choix, chez Namecheap :
 - **B** — déléguer : remplacer les serveurs de noms par `ns1.vercel-dns.com`
   et `ns2.vercel-dns.com`.
 
+### Le geste chez Namecheap, pas à pas
+
+Constaté le 05/08/2026 : le domaine résolvait encore vers `192.64.119.150` —
+**la page de parking de Namecheap** — et `www` ne résolvait pas du tout. Le
+rattachement côté Vercel ne suffit pas : tant que le DNS pointe ailleurs,
+`horizonservices.store` ne montre rien.
+
+Dans le tableau de bord Namecheap → *Domain List* → **Manage** →
+**Advanced DNS** :
+
+1. **Supprimer** la ligne `CNAME Record · @ · parkingpage.namecheap.com` (ou
+   toute ligne `URL Redirect` sur `@`). Elle est ce qui sert la page de
+   parking, et elle prime sur ce qu'on ajoute.
+2. **Ajouter** `A Record` · Host `@` · Value `76.76.21.21` · TTL Automatic.
+3. **Ajouter** `CNAME Record` · Host `www` · Value `cname.vercel-dns.com` ·
+   TTL Automatic.
+
+⚠️ **Ne pas ajouter les deux formes du même enregistrement.** Un `A` et un
+`CNAME` sur le même hôte est un conflit, et la résolution devient aléatoire.
+
+Compter de quelques minutes à deux heures de propagation. Pour vérifier sans
+attendre le navigateur — qui garde son propre cache :
+
+```bash
+getent hosts horizonservices.store      # doit rendre 76.76.21.21
+getent hosts www.horizonservices.store  # doit résoudre
+```
+
+Vercel émet le certificat tout seul dès que la résolution est bonne, et envoie
+un courriel. **Tant que HTTPS n'est pas émis, ne pas déclarer l'URL** : un
+certificat en cours donne un avertissement de navigateur, et c'est ce que le
+vérificateur verrait.
+
 La redirection `www` → apex est faite **par le déploiement**, pas par la
 console : une route conditionnée sur l'en-tête `Host` rend un 308. Elle est
 donc versionnée avec le reste, et elle survit à une recréation du projet.
@@ -144,3 +177,33 @@ identifiants de liaison du projet). Le voici, à recréer à chaque déploiement
 L'ordre compte : la redirection d'abord, les en-têtes ensuite avec
 `"continue": true` — sinon la première route absorberait la requête et le
 fichier ne serait jamais servi.
+
+## Quand un déploiement reste bloqué en `UNKNOWN`
+
+Constaté le 05/08/2026 : après plusieurs déploiements rapprochés, le CLI
+affiche `Building…` indéfiniment et `vercel inspect` rend `status UNKNOWN`.
+L'URL du déploiement répond bien `200` — mais elle sert la **page de
+protection Vercel**, pas le site. C'est le piège : un `curl` qui ne regarde que
+le code HTTP conclut que tout va bien.
+
+```bash
+# Ce qui distingue un vrai déploiement d'une page de protection :
+curl -sS https://<url>/contact | head -c 120   # doit commencer par notre <html lang="fr">
+```
+
+Ce qui a été écarté, dans l'ordre :
+
+- **une panne globale** — `vercel-status.com` annonçait *All Systems
+  Operational*, zéro incident ouvert ;
+- **la file d'attente saturée** — les cinq déploiements bloqués ont été
+  supprimés (`vercel remove <url> --yes`), le suivant est resté bloqué quand
+  même.
+
+Reste une limite côté compte (le plan gratuit borne les déploiements par jour,
+tous projets confondus). **Le déploiement précédent reste servi** : rien n'est
+cassé, la mise en ligne est simplement différée. Réessayer plus tard, et
+vérifier le CONTENU, pas le code HTTP.
+
+⚠️ **Ne jamais tuer `vercel deploy` en cours** (`timeout`, Ctrl-C). Chaque
+interruption laisse un déploiement fantôme en `UNKNOWN` qu'il faut ensuite
+supprimer à la main. Le lancer en tâche de fond et attendre.

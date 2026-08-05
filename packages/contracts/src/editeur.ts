@@ -61,8 +61,14 @@ export const EDITEUR = {
 
   /**
    * L'adresse a laquelle on ecrit — y compris pour une suppression de donnees.
-   * Une adresse sur le domaine du produit vaudrait mieux devant un
-   * verificateur : elle prouve le controle du domaine declare.
+   *
+   * Sur le domaine de la societe, et c'est ce qui compte devant un
+   * verificateur : une adresse `@horizonservices.store` PROUVE le controle du
+   * domaine declare, ce qu'une adresse Gmail ne fait pas.
+   *
+   * ⚠️ Elle doit exister avant d'etre publiee : une adresse de contact qui
+   * rebondit est pire que pas d'adresse du tout, et c'est la premiere chose
+   * qu'un verificateur met a l'epreuve — il ecrit, et il attend la reponse.
    */
-  contact: "swappilot.exchange@gmail.com",
+  contact: "support@horizonservices.store",
 } as const;
