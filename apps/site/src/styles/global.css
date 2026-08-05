@@ -1,9 +1,465 @@
 @import "@catalog/ui/tokens.css";
 
+/**
+ * Le site de la societe — ADR 0042.
+ *
+ * ── Pourquoi une echelle typographique LOCALE ─────────────────────────────
+ *
+ * Les jetons partages sont calibres pour des applications tenues a bout de
+ * bras : `--text-hero` plafonne a 2,125 rem, ce qui est juste sur un ecran de
+ * telephone dans une main et minuscule sur une page de societe lue sur un
+ * portable. On n'elargit donc pas le bareme commun — ce serait grossir les
+ * montants de l'app vendeuse par ricochet — on en pose un ICI, editorial et
+ * fluide, qui n'existe que pour ce site.
+ *
+ * ── Ce qui rend la page « premium » sans un octet de JavaScript ───────────
+ *
+ * Rien d'autre que des degrades, des ombres, du rythme et de la retenue. La
+ * CSP interdit tout script (`default-src 'none'`) : ce fichier est donc le
+ * seul endroit ou l'apparence se joue, et c'est une contrainte saine.
+ */
+
+:root {
+  /* Echelle fluide : la borne basse tient sur un telephone d'entree de gamme,
+     la haute sur un portable. `clamp` evite les paliers de points d'arret. */
+  --t-display: clamp(2.15rem, 1.5rem + 3.4vw, 3.5rem);
+  --t-h2: clamp(1.6rem, 1.25rem + 1.6vw, 2.25rem);
+  --t-h3: 1.125rem;
+  --t-lead: clamp(1.0625rem, 1rem + 0.35vw, 1.25rem);
+  --t-eyebrow: 0.75rem;
+
+  /* Rythme vertical des sections. */
+  --pas: clamp(3.5rem, 2rem + 6vw, 6rem);
+}
+
 body {
   margin: 0;
   background: var(--color-plane);
   color: var(--color-ink);
   font-family: var(--font-sans);
   line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ───────────────────────────── mise en page ───────────────────────────── */
+
+.enveloppe {
+  width: 100%;
+  max-width: 68rem;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 0.5rem + 2vw, 2.5rem);
+}
+
+.section {
+  padding-block: var(--pas);
+}
+
+/* ───────────────────────────── l'en-tete ──────────────────────────────── */
+
+.entete {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--color-plane) 82%, transparent);
+  border-bottom: 1px solid var(--color-line);
+}
+/* `backdrop-filter` est un CONFORT : sans lui, le fond reste lisible grace au
+   `color-mix` ci-dessus. Aucun texte ne depend de sa prise en charge. */
+@supports (backdrop-filter: blur(1px)) {
+  .entete {
+    backdrop-filter: saturate(180%) blur(12px);
+  }
+}
+
+.marque {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.marque__point {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-brand-500);
+  translate: 0 -0.15rem;
+}
+
+.lien-nav {
+  color: var(--color-ink-2);
+  text-decoration: none;
+  font-size: var(--text-caption);
+  letter-spacing: 0.01em;
+  padding-block: 0.35rem;
+  border-bottom: 1.5px solid transparent;
+}
+.lien-nav:hover,
+.lien-nav:focus-visible {
+  color: var(--color-ink);
+}
+.lien-nav[aria-current="page"] {
+  color: var(--color-ink);
+  font-weight: 600;
+  border-bottom-color: var(--color-brand-500);
+}
+
+/* ───────────────────────────── la banniere ────────────────────────────── */
+
+/**
+ * Le fond de la banniere : deux halos de marque, tres bas en opacite, et une
+ * grille fine. Tout en degrade — aucune image a telecharger, donc rien qui
+ * coute au forfait d'une lectrice a Douala.
+ */
+.banniere {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-bottom: 1px solid var(--color-line);
+}
+.banniere::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(
+      44rem 26rem at 12% -10%,
+      color-mix(in srgb, var(--color-brand-500) 16%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      34rem 22rem at 92% 8%,
+      color-mix(in srgb, var(--color-brand-300) 20%, transparent),
+      transparent 62%
+    );
+}
+.banniere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(to right, var(--color-grille) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-grille) 1px, transparent 1px);
+  background-size: 4.5rem 4.5rem;
+  /* La grille s'efface vers le bas : elle habille le haut, elle ne concurrence
+     pas le texte. */
+  mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 72%);
+  opacity: 0.7;
+}
+
+.surtitre {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--t-eyebrow);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-brand-500);
+}
+
+.titre-geant {
+  font-size: var(--t-display);
+  line-height: 1.03;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.chapeau {
+  font-size: var(--t-lead);
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  max-width: 42rem;
+  text-wrap: pretty;
+}
+
+/* ───────────────────────────── les actions ────────────────────────────── */
+
+.bouton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--size-touch);
+  padding-inline: 1.4rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-body);
+  font-weight: 650;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+.bouton--plein {
+  background: var(--color-brand-fill);
+  color: var(--color-brand-on-fill);
+  box-shadow: var(--shadow-card);
+}
+.bouton--ligne {
+  border-color: var(--color-control-line);
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bouton {
+    transition:
+      transform var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
+  }
+  .bouton:hover {
+    transform: translateY(-1px);
+  }
+  .bouton--plein:hover {
+    box-shadow: var(--shadow-raised);
+  }
+}
+
+/* ────────────────────── le bandeau de faits verifiables ───────────────── */
+
+/**
+ * Ce bandeau n'est pas decoratif : ce sont les quatre faits qu'un
+ * verificateur cherche — anciennete, immatriculation, capital, siege. Les
+ * mettre haut et lisibles est le geste le plus utile de la page.
+ */
+.faits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1.25rem 2rem;
+  padding-block: 1.5rem;
+  border-top: 1px solid var(--color-line);
+}
+.fait {
+  /* Le filet vertical n'apparait qu'entre deux colonnes REELLES : sur un
+     telephone, les cellules s'empilent et un filet a gauche serait orphelin. */
+  padding-left: 1rem;
+  border-left: 2px solid color-mix(in srgb, var(--color-brand-500) 35%, transparent);
+}
+.fait__valeur {
+  font-size: var(--text-title);
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.fait__libelle {
+  font-size: var(--text-caption);
+  color: var(--color-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ─────────────────────── la banniere sur grand ecran ─────────────────── */
+
+/**
+ * Deux colonnes a partir de 62rem : le texte a gauche garde une mesure lisible
+ * (~42rem), et la carte produit occupe le vide qui restait a droite. Sous ce
+ * seuil, tout s'empile — la carte passe SOUS le texte, jamais a cote en 20rem.
+ */
+.banniere__corps {
+  display: grid;
+  gap: 2.5rem;
+  align-items: center;
+}
+@media (min-width: 62rem) {
+  .banniere__corps {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    gap: 3.5rem;
+  }
+}
+
+/* ───────────────────────────── les cartes ─────────────────────────────── */
+
+.grille {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.carte {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-card);
+  padding: 1.4rem;
+  box-shadow: var(--shadow-card);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .carte {
+    transition:
+      transform var(--duration-base) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out);
+  }
+  .carte:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+  }
+}
+.carte__num {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-brand-500);
+  letter-spacing: 0.08em;
+}
+.carte__titre {
+  font-size: var(--t-h3);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0.35rem 0 0.4rem;
+}
+.carte__corps {
+  color: var(--color-ink-2);
+  margin: 0;
+}
+
+/* La carte mise en avant : fond de marque, pour le produit qui existe. */
+.carte--phare {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-brand-500) 10%, var(--color-surface)),
+    var(--color-surface) 62%
+  );
+  border-color: color-mix(in srgb, var(--color-brand-500) 26%, var(--color-line));
+}
+
+/* ─────────────────────── titres et rythme des sections ────────────────── */
+
+.titre-section {
+  font-size: var(--t-h2);
+  line-height: 1.15;
+  letter-spacing: -0.022em;
+  font-weight: 780;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.numero-section {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  letter-spacing: 0.16em;
+  color: var(--color-muted);
+}
+
+/* Le filet qui separe les sections, sans peser comme une bordure pleine. */
+.filet {
+  height: 1px;
+  border: 0;
+  margin: 0;
+  background: linear-gradient(to right, var(--color-line), var(--color-line) 60%, transparent);
+}
+
+/* ───────────────────────────── listes ─────────────────────────────────── */
+
+.liste-marquee {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+.liste-marquee > li {
+  position: relative;
+  padding-left: 1.6rem;
+  color: var(--color-ink-2);
+}
+.liste-marquee > li::before {
+  content: "";
+  position: absolute;
+  left: 0.35rem;
+  top: 0.62em;
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: var(--color-brand-500);
+}
+
+.etiquettes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.etiquette {
+  border: 1px solid var(--color-line);
+  background: var(--color-surface);
+  border-radius: var(--radius-pill);
+  padding: 0.35rem 0.85rem;
+  font-size: var(--text-caption);
+  color: var(--color-ink-2);
+}
+
+/* ───────────────────────────── appel final ────────────────────────────── */
+
+.appel {
+  border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, var(--color-brand-500) 24%, var(--color-line));
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, var(--color-brand-500) 13%, var(--color-surface)),
+    var(--color-surface) 70%
+  );
+  padding: clamp(1.5rem, 1rem + 2.5vw, 2.75rem);
+  box-shadow: var(--shadow-card);
+}
+
+/* ───────────────────────────── le pied ────────────────────────────────── */
+
+.pied {
+  border-top: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+}
+.pied a {
+  color: var(--color-brand-500);
+}
+
+/* ───────────────────────────── pages de texte ─────────────────────────── */
+
+/**
+ * Les pages juridiques : une colonne etroite, des intertitres qui respirent.
+ * Une politique de confidentialite illisible n'informe personne — et c'est
+ * elle qu'un verificateur lit en entier.
+ */
+.prose {
+  max-width: 44rem;
+}
+.prose h2 {
+  font-size: var(--t-h3);
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  margin: 2.2rem 0 0.6rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--color-line);
+}
+.prose h2:first-of-type {
+  margin-top: 1.4rem;
+}
+.prose p,
+.prose ul {
+  color: var(--color-ink-2);
+  margin: 0 0 0.9rem;
+}
+.prose ul {
+  padding-left: 1.15rem;
+}
+.prose li {
+  margin-bottom: 0.5rem;
+}
+.prose strong {
+  color: var(--color-ink);
+}
+.prose a {
+  color: var(--color-brand-500);
+}
+
+/* Le focus visible ne se retire jamais : c'est la navigation au clavier. */
+:where(a, button):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
 }

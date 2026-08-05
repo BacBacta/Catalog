@@ -16,49 +16,56 @@ import Base from "../layouts/Base.astro";
   title={`Contact — ${EDITEUR.societe}`}
   description="Coordonnées d'Horizon Services, éditeur de Catalog : adresse de contact, siège social et identité légale."
 >
-  <section class="flex flex-col gap-3">
-    <h1 class="text-hero font-extrabold leading-tight text-ink">Nous écrire</h1>
-    <p class="text-body text-ink-2">
-      Écrivez-nous à{" "}
-      <a href={`mailto:${EDITEUR.contact}`} class="text-brand-500">{EDITEUR.contact}</a>. C'est la
-      même adresse pour une question sur le service, une demande d'accès ou de suppression de
-      données, et pour ouvrir une boutique.
-    </p>
+  <section class="banniere">
+    <div class="enveloppe flex flex-col gap-5 pt-12 pb-14">
+      <p class="surtitre">Contact</p>
+      <h1 class="titre-geant">Nous écrire</h1>
+      <p class="chapeau">
+        Une seule adresse, pour tout : une question sur nos services, une demande d'accès ou de
+        suppression de données, une boutique à ouvrir. Une personne vous répond.
+      </p>
+      <div class="flex flex-wrap gap-3 pt-1">
+        <a href={`mailto:${EDITEUR.contact}`} class="bouton bouton--plein">{EDITEUR.contact}</a>
+      </div>
+    </div>
   </section>
 
-  <section class="flex flex-col gap-3">
-    <h2 class="text-title font-bold text-ink">L'entreprise</h2>
-    <dl class="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 text-body">
+  <section class="enveloppe section flex flex-col gap-5">
+    <div class="flex flex-col gap-3">
+      <p class="numero-section">MENTIONS LÉGALES</p>
+      <h2 class="titre-section">L'entreprise</h2>
+    </div>
+    <dl class="carte grid gap-4 sm:grid-cols-2">
       <div>
-        <dt class="text-caption text-muted">Dénomination</dt>
-        <dd class="font-semibold text-ink">{EDITEUR.societe}</dd>
+        <dt class="fait__libelle">Dénomination</dt>
+        <dd class="m-0 fait__valeur">{EDITEUR.societe}</dd>
       </div>
       <div>
-        <dt class="text-caption text-muted">Forme juridique</dt>
-        <dd class="text-ink-2">{EDITEUR.forme}</dd>
+        <dt class="fait__libelle">Forme juridique</dt>
+        <dd class="m-0 text-ink">{EDITEUR.forme}</dd>
       </div>
       <div>
-        <dt class="text-caption text-muted">Capital social</dt>
-        <dd class="text-ink-2">{EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA</dd>
+        <dt class="fait__libelle">Capital social</dt>
+        <dd class="m-0 text-ink">{EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA</dd>
       </div>
       <div>
-        <dt class="text-caption text-muted">RCCM</dt>
-        <dd class="text-ink-2">{EDITEUR.rccm}</dd>
+        <dt class="fait__libelle">RCCM</dt>
+        <dd class="m-0 text-ink">{EDITEUR.rccm}</dd>
       </div>
       <div>
-        <dt class="text-caption text-muted">Siège social</dt>
-        <dd class="text-ink-2">{EDITEUR.siege}</dd>
+        <dt class="fait__libelle">Siège social</dt>
+        <dd class="m-0 text-ink">{EDITEUR.siege}</dd>
       </div>
       <div>
-        <dt class="text-caption text-muted">Gérant</dt>
-        <dd class="text-ink-2">{EDITEUR.gerant}</dd>
+        <dt class="fait__libelle">Gérant</dt>
+        <dd class="m-0 text-ink">{EDITEUR.gerant}</dd>
       </div>
       <div>
-        <dt class="text-caption text-muted">Produit édité</dt>
-        <dd class="text-ink-2">{EDITEUR.produit}</dd>
+        <dt class="fait__libelle">Produit édité</dt>
+        <dd class="m-0 text-ink">{EDITEUR.produit}</dd>
       </div>
     </dl>
-    <p class="text-caption text-muted">
+    <p class="m-0 text-caption text-muted">
       Il n'existe pas d'adresse postale de rue au Cameroun : la boîte postale est l'adresse
       officielle, celle qui figure au registre du commerce.
     </p>
