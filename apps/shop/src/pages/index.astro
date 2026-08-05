@@ -1,7 +1,7 @@
 ---
+import { EDITEUR } from "@catalog/contracts/editeur";
 import Base from "../layouts/Base.astro";
 import { chargerBoutiques } from "../lib/catalogue.ts";
-import { EDITEUR } from "../lib/editeur.ts";
 
 /**
  * La racine du domaine public — ADR 0041.
@@ -145,7 +145,9 @@ const PILIERS = [
         en premier, et ce qu'une utilisatrice doit trouver sans demander. */}
     <footer class="flex flex-col gap-2 border-t border-line pt-5">
       <p class="text-caption text-muted">
-        <a href="/confidentialite" class="text-brand-500">Confidentialité</a>
+        <a href={`${EDITEUR.site}/confidentialite`} class="text-brand-500">Confidentialité</a>
+        {" · "}
+        <a href={EDITEUR.site} class="text-brand-500">À propos de {EDITEUR.produit}</a>
       </p>
       <p class="text-caption text-muted">
         {EDITEUR.produit} est édité par <strong class="text-ink-2">{EDITEUR.societe}</strong>,

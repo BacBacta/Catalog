@@ -1,0 +1,9 @@
+@import "@catalog/ui/tokens.css";
+
+body {
+  margin: 0;
+  background: var(--color-plane);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}

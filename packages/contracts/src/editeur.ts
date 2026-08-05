@@ -24,6 +24,13 @@ export const EDITEUR = {
   /** Le nom du PRODUIT (ADR 0010) : majuscule, sans « ue ». */
   produit: "Catalog",
 
+  /**
+   * Le site de la SOCIETE — ADR 0042. C'est l'URL declaree a 360dialog et a
+   * Meta, et celle vers laquelle la boutique renvoie pour tout ce qui est
+   * legal. Apex sans `www` : `www` y redirige.
+   */
+  site: "https://horizonservices.store",
+
   /** La denomination sociale, telle qu'elle figure au registre. */
   societe: "HORIZON SERVICES",
   /** Societe a responsabilite limitee pluripersonnelle. */

@@ -1,0 +1,87 @@
+---
+import { EDITEUR } from "@catalog/contracts/editeur";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  /** Chemin de la page, pour l'URL canonique. « / » pour la racine. */
+  chemin: string;
+}
+const { title, description, chemin } = Astro.props;
+const canonique = new URL(chemin, EDITEUR.site).href;
+
+/**
+ * La coquille du site de la societe — ADR 0042.
+ *
+ * **Aucune police telechargee, aucun JavaScript, aucun traceur.** Ce n'est pas
+ * de l'ascetisme : la page qui explique qu'on ne vend aucune donnee ne va pas
+ * charger un mouchard publicitaire pour compter ses visites. Et une vendeuse
+ * qui l'ouvre depuis Douala sur un forfait compte ses megaoctets.
+ *
+ * L'URL canonique est ABSOLUE et pointe l'apex. Le domaine repond aussi en
+ * `www` : sans canonique, les deux formes seraient deux pages differentes pour
+ * un moteur — et pour un verificateur qui compare l'URL declaree a celle qu'il
+ * atteint.
+ */
+const NAV = [
+  { href: "/", texte: "Accueil" },
+  { href: "/confidentialite", texte: "Confidentialité" },
+  { href: "/contact", texte: "Contact" },
+] as const;
+---
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonique} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonique} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta name="theme-color" content="#0b0f14" />
+  </head>
+  <body>
+    <div class="mx-auto flex min-h-screen w-full max-w-[46rem] flex-col px-4">
+      <header class="flex flex-wrap items-center justify-between gap-3 py-5">
+        <a href="/" class="text-body font-extrabold text-ink">{EDITEUR.societe}</a>
+        <nav aria-label="Principale" class="flex flex-wrap gap-4">
+          {
+            NAV.map((l) => (
+              <a
+                href={l.href}
+                class:list={[
+                  "text-caption",
+                  chemin === l.href ? "font-semibold text-ink" : "text-brand-500",
+                ]}
+                aria-current={chemin === l.href ? "page" : undefined}
+              >
+                {l.texte}
+              </a>
+            ))
+          }
+        </nav>
+      </header>
+
+      <main class="flex flex-1 flex-col gap-10 py-4"><slot /></main>
+
+      <footer class="flex flex-col gap-2 border-t border-line py-6">
+        <p class="text-caption text-muted">
+          <strong class="text-ink-2">{EDITEUR.societe}</strong> — {EDITEUR.forme} au capital de{" "}
+          {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA.<br />
+          RCCM {EDITEUR.rccm} — Siège : {EDITEUR.siege}.<br />
+          Gérant : {EDITEUR.gerant}.
+        </p>
+        <p class="text-caption text-muted">
+          <a href={`mailto:${EDITEUR.contact}`} class="text-brand-500">{EDITEUR.contact}</a>
+          {" · "}
+          <a href="/confidentialite" class="text-brand-500">Confidentialité</a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

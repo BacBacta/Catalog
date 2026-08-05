@@ -1,0 +1,66 @@
+---
+import { EDITEUR } from "@catalog/contracts/editeur";
+import Base from "../layouts/Base.astro";
+
+/**
+ * Les coordonnees — ADR 0042.
+ *
+ * **Aucun formulaire.** Un formulaire de contact suppose un point de reception,
+ * un stockage des messages et une politique pour eux ; une adresse de courriel
+ * ne suppose rien et arrive au meme endroit. C'est aussi ce qu'un verificateur
+ * peut EPROUVER : il ecrit, on repond.
+ */
+---
+<Base
+  chemin="/contact"
+  title={`Contact — ${EDITEUR.societe}`}
+  description="Coordonnées d'Horizon Services, éditeur de Catalog : adresse de contact, siège social et identité légale."
+>
+  <section class="flex flex-col gap-3">
+    <h1 class="text-hero font-extrabold leading-tight text-ink">Nous écrire</h1>
+    <p class="text-body text-ink-2">
+      Écrivez-nous à{" "}
+      <a href={`mailto:${EDITEUR.contact}`} class="text-brand-500">{EDITEUR.contact}</a>. C'est la
+      même adresse pour une question sur le service, une demande d'accès ou de suppression de
+      données, et pour ouvrir une boutique.
+    </p>
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <h2 class="text-title font-bold text-ink">L'entreprise</h2>
+    <dl class="flex flex-col gap-2 rounded-card border border-line bg-surface p-4 text-body">
+      <div>
+        <dt class="text-caption text-muted">Dénomination</dt>
+        <dd class="font-semibold text-ink">{EDITEUR.societe}</dd>
+      </div>
+      <div>
+        <dt class="text-caption text-muted">Forme juridique</dt>
+        <dd class="text-ink-2">{EDITEUR.forme}</dd>
+      </div>
+      <div>
+        <dt class="text-caption text-muted">Capital social</dt>
+        <dd class="text-ink-2">{EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA</dd>
+      </div>
+      <div>
+        <dt class="text-caption text-muted">RCCM</dt>
+        <dd class="text-ink-2">{EDITEUR.rccm}</dd>
+      </div>
+      <div>
+        <dt class="text-caption text-muted">Siège social</dt>
+        <dd class="text-ink-2">{EDITEUR.siege}</dd>
+      </div>
+      <div>
+        <dt class="text-caption text-muted">Gérant</dt>
+        <dd class="text-ink-2">{EDITEUR.gerant}</dd>
+      </div>
+      <div>
+        <dt class="text-caption text-muted">Produit édité</dt>
+        <dd class="text-ink-2">{EDITEUR.produit}</dd>
+      </div>
+    </dl>
+    <p class="text-caption text-muted">
+      Il n'existe pas d'adresse postale de rue au Cameroun : la boîte postale est l'adresse
+      officielle, celle qui figure au registre du commerce.
+    </p>
+  </section>
+</Base>

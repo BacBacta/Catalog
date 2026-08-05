@@ -1,6 +1,6 @@
 ---
+import { EDITEUR } from "@catalog/contracts/editeur";
 import Base from "../layouts/Base.astro";
-import { EDITEUR } from "../lib/editeur.ts";
 
 /**
  * La politique de confidentialite — ADR 0041.
@@ -15,16 +15,19 @@ import { EDITEUR } from "../lib/editeur.ts";
  * plus que le code ne tient serait pire que pas de politique du tout : elle
  * serait un engagement faux, verifiable par quiconque lit l'application.
  *
- * Pas de JavaScript : la page tient dans le budget de la boutique publique.
+ * Elle vit sur le site de la SOCIETE et non sur la boutique — ADR 0042 : une
+ * seule version, celle que le verificateur ouvre, et rien a maintenir en
+ * double. La boutique publique y renvoie.
+ *
+ * Pas de JavaScript, comme tout le reste de ce site.
  */
 ---
 <Base
-  title={`Confidentialité — ${EDITEUR.produit}`}
-  description="Ce que Catalog collecte, pourquoi, avec qui c'est partagé, et comment demander la suppression."
+  chemin="/confidentialite"
+  title={`Confidentialité — ${EDITEUR.societe}`}
+  description="Ce que Catalog collecte, pourquoi, avec qui c'est partagé, combien de temps, et comment demander la suppression."
 >
-  <main class="mx-auto flex w-full max-w-[42rem] flex-col gap-5 px-4 py-10">
-    <p class="text-caption text-muted"><a href="/" class="text-brand-500">← {EDITEUR.produit}</a></p>
-
+  <div class="flex flex-col gap-5">
     <h1 class="text-hero font-extrabold leading-tight text-ink">Confidentialité</h1>
     <p class="text-body text-ink-2">
       {EDITEUR.produit} outille les vendeuses camerounaises qui vendent déjà sur
@@ -149,18 +152,9 @@ import { EDITEUR } from "../lib/editeur.ts";
       rester opposable à l'acheteuse qui la détient.
     </p>
 
-    <h2 class="text-title font-bold text-ink">Qui nous sommes</h2>
-    <p class="text-body text-ink-2">
-      {EDITEUR.produit} est édité par <strong class="text-ink">{EDITEUR.societe}</strong>,
-      {EDITEUR.forme} au capital de {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA.<br />
-      RCCM {EDITEUR.rccm} — Siège : {EDITEUR.siege}.<br />
-      Gérant : {EDITEUR.gerant}.<br />
-      Contact : <a href={`mailto:${EDITEUR.contact}`} class="text-brand-500">{EDITEUR.contact}</a>
-    </p>
-
     <p class="text-caption text-muted">
       Cette page décrit le fonctionnement du service au 5 août 2026. Toute
       évolution qui changerait ce qui est collecté sera publiée ici.
     </p>
-  </main>
+  </div>
 </Base>

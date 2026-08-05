@@ -6,6 +6,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./editeur": "./src/editeur.ts",
     "./money": "./src/money.ts",
     "./phone": "./src/phone.ts",
     "./recu": "./src/recu.ts",

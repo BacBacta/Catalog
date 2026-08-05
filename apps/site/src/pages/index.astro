@@ -1,0 +1,149 @@
+---
+import { EDITEUR } from "@catalog/contracts/editeur";
+import Base from "../layouts/Base.astro";
+
+/**
+ * La page que 360dialog et Meta ouvriront — ADR 0042.
+ *
+ * Elle a deux lecteurs, et le meme texte doit servir les deux : un
+ * verificateur qui cherche « est-ce une vraie entreprise, et que fait-elle de
+ * WhatsApp ? », et une vendeuse qui cherche « qu'est-ce que ca m'apporte ? ».
+ *
+ * Ce qui la rend credible aux yeux du premier est ce qui la rend utile a la
+ * seconde : dire precisement ce que le produit fait, avec quelles donnees, et
+ * ce qu'il ne fait pas.
+ */
+
+const PILIERS = [
+  {
+    titre: "Un catalogue partageable",
+    corps:
+      "Ses articles, avec photo et prix, dans un lien qu'elle envoie elle-même. Ses clientes commandent sans quitter la conversation.",
+  },
+  {
+    titre: "Le paiement, pré-rempli",
+    corps:
+      "Le clavier de l'acheteuse s'ouvre garni : le code de l'opérateur, le numéro de la vendeuse, le montant. Elle n'a plus qu'à appeler.",
+  },
+  {
+    titre: "Un reçu vérifiable",
+    corps:
+      "Chaque paiement prouvé donne un reçu que l'acheteuse peut vérifier, portant l'identifiant de transaction de l'opérateur.",
+  },
+] as const;
+
+const CONTROLES = [
+  "Le format du message correspond à celui de l'opérateur",
+  "Le montant correspond à ce qui est attendu",
+  "La contrepartie est la bonne personne",
+  "L'horodatage est postérieur à la commande",
+  "L'identifiant de transaction n'a jamais servi, chez aucune vendeuse",
+  "L'identifiant est cohérent avec lui-même (Orange)",
+  "L'acheteuse contre-signe le paiement",
+] as const;
+---
+<Base
+  chemin="/"
+  title={`${EDITEUR.societe} — Catalog, le commerce WhatsApp avec preuve de paiement`}
+  description="Horizon Services édite Catalog : un catalogue partageable, une rampe de paiement mobile money et un reçu vérifiable, pour les vendeuses camerounaises qui vendent déjà sur WhatsApp."
+>
+  <section class="flex flex-col gap-3">
+    <p class="text-caption font-semibold uppercase tracking-wide text-brand-500">
+      {EDITEUR.societe} · Douala, Cameroun
+    </p>
+    <h1 class="text-hero font-extrabold leading-tight text-ink">
+      Vendre sur WhatsApp, avec une preuve de paiement.
+    </h1>
+    <p class="text-title font-semibold text-ink-2">
+      Nous éditons <strong class="text-ink">{EDITEUR.produit}</strong>, un service pour les
+      vendeuses camerounaises qui vendent déjà sur WhatsApp.
+    </p>
+    <p class="text-body text-ink-2">
+      La conversation ne bouge pas — c'est là que le commerce se fait. Nous ajoutons par-dessus un
+      catalogue partageable, une rampe de paiement mobile money, un suivi de commande et une
+      réputation bâtie sur des ventes réellement prouvées.
+    </p>
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <h2 class="text-title font-bold text-ink">Ce que fait {EDITEUR.produit}</h2>
+    {
+      PILIERS.map((p) => (
+        <article class="rounded-card border border-line bg-surface p-4">
+          <h3 class="text-body font-bold text-ink">{p.titre}</h3>
+          <p class="mt-1 text-body text-ink-2">{p.corps}</p>
+        </article>
+      ))
+    }
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <h2 class="text-title font-bold text-ink">Le problème que nous résolvons</h2>
+    <p class="text-body text-ink-2">
+      Sur ce marché, l'arnaque la plus courante est la <strong class="text-ink"
+        >fausse capture d'écran Mobile Money</strong
+      > : un acheteur montre une image, la marchandise part, l'argent n'arrive jamais. Une capture
+      ne porte aucun identifiant contrôlable.
+    </p>
+    <p class="text-body text-ink-2">
+      {EDITEUR.produit} n'en accepte aucune. Ce qui fait foi, c'est le <strong class="text-ink"
+        >SMS que l'opérateur a envoyé à la vendeuse</strong
+      > — celle dont l'argent est en jeu. Elle le colle, et sept contrôles s'appliquent :
+    </p>
+    <ol class="flex list-decimal flex-col gap-1 pl-5 text-body text-ink-2">
+      {CONTROLES.map((c) => <li>{c}</li>)}
+    </ol>
+    <p class="text-body text-ink-2">
+      La fraude dominante disparaît structurellement : la personne qui apporte la preuve est celle
+      qui a l'argent.
+    </p>
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <h2 class="text-title font-bold text-ink">Les fonds ne passent jamais par nous</h2>
+    <p class="text-body text-ink-2">
+      L'argent va du portefeuille de l'acheteuse à celui de la vendeuse, <strong class="text-ink"
+        >en dépôt direct</strong
+      >. {EDITEUR.societe} n'initie aucun transfert, ne détient aucun fonds, n'encaisse rien —
+      et ne peut donc prélever aucune commission sur les ventes.
+    </p>
+    <p class="text-body text-ink-2">
+      Nous <strong class="text-ink">utilisons</strong> les réseaux mobile money d'Orange Money
+      Cameroun et de MTN Mobile Money ; nous n'en opérons aucun. La vendeuse encaisse sur le
+      portefeuille qu'elle possède déjà : aucun compte à ouvrir chez nous.
+    </p>
+    <p class="text-body text-ink-2">
+      Le code secret Mobile Money se saisit dans la session de l'opérateur. {EDITEUR.produit} ne
+      le voit jamais, ne le demande jamais, et n'a aucun champ où il pourrait être écrit. Aucune
+      donnée de carte bancaire ne transite par nos serveurs.
+    </p>
+  </section>
+
+  <section class="flex flex-col gap-3">
+    <h2 class="text-title font-bold text-ink">Comment nous utilisons WhatsApp</h2>
+    <p class="text-body text-ink-2">
+      {EDITEUR.produit} répond aux messages que les personnes nous envoient, dans leur
+      conversation. Une vendeuse ouvre sa boutique en écrivant à notre numéro ; une acheteuse
+      commande en ouvrant le lien que la vendeuse lui a partagé.
+    </p>
+    <p class="text-body text-ink-2">
+      Nous n'envoyons <strong class="text-ink">aucun message non sollicité</strong> et ne
+      constituons aucune liste de diffusion. Chaque échange part d'un message reçu.
+    </p>
+    <p class="text-caption text-muted">
+      Ce que nous conservons, pourquoi et combien de temps :{" "}
+      <a href="/confidentialite" class="text-brand-500">notre politique de confidentialité</a>.
+    </p>
+  </section>
+
+  <section class="flex flex-col gap-2">
+    <h2 class="text-title font-bold text-ink">Nous écrire</h2>
+    <p class="text-body text-ink-2">
+      Une question, une demande d'accès ou de suppression de données, une boutique à ouvrir :{" "}
+      <a href={`mailto:${EDITEUR.contact}`} class="text-brand-500">{EDITEUR.contact}</a>.
+    </p>
+    <p class="text-caption text-muted">
+      <a href="/contact" class="text-brand-500">Toutes nos coordonnées →</a>
+    </p>
+  </section>
+</Base>
