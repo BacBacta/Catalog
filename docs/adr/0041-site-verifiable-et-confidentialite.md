@@ -49,19 +49,44 @@ politique** : un engagement faux, vérifiable par quiconque lit l'application.
 C'est la même discipline que pour le stock (ADR 0038) et la date de retour des
 congés (ADR 0039) — on ne publie pas ce qu'on ne tient pas.
 
-## Décision 2 — L'éditeur ne revendique aucune société
+## Décision 2 — L'identité légale vient du registre, et d'un seul fichier
 
-`apps/shop/src/lib/editeur.ts` porte le nom, le lieu et le contact, et **un
-seul fichier les porte**. Le nom est « Catalog », sans mention de SARL ni de
-registre de commerce.
+`apps/shop/src/lib/editeur.ts` porte l'identité, et **un seul fichier la
+porte**. Les valeurs sont recopiées du registre de commerce fourni par le
+porteur du produit le 05/08/2026 — déclaration de constitution de personne
+morale, greffe du Tribunal de Première Instance de Douala-Ndokoti, inscription
+du 28 mai 2019 :
 
-Ce n'est pas une omission : écrire une entité qui n'existe pas serait faux sur
-la page même qui sert à établir la confiance, et la vérification d'entreprise
-de Meta exige un document officiel **au même nom**. Une incohérence à cet
-endroit fait échouer la vérification et coûte un nouveau dossier.
+- **HORIZON SERVICES**, SARL pluripersonnelle ;
+- capital social 1 000 000 FCFA ;
+- siège B.P. 1524, Douala ;
+- gérant Clovis Raoul Tsannang Nguimfack.
 
-Le jour où l'entité existe, c'est cette ligne qui change — et elle devra
-correspondre exactement au nom d'affichage WhatsApp et au document fourni.
+Elles ne se retapent pas de mémoire : la vérification d'entreprise de Meta
+compare le site au document déposé, et une incohérence — un mot de la
+dénomination, un chiffre du capital — fait échouer le dossier et coûte un
+nouveau dépôt.
+
+**Un point reste à confirmer** : le numéro RCCM est inscrit à la main sur le
+registre. Il est lu `RC/DLA/2019/B/1183`, et cette lecture doit être vérifiée
+sur l'original avant publication. Un numéro faux sur une page publique est une
+mention légale fausse, et c'est exactement ce qu'un vérificateur recoupe. Le
+champ porte cet avertissement dans le code.
+
+**`Catalog` et `Horizon Services` ne sont pas la même chose** : le premier est
+le produit (ADR 0010), le second la société qui l'édite. Le nom d'affichage
+WhatsApp doit correspondre à l'un des deux et rester cohérent avec le document
+déposé — c'est une décision du porteur du produit, pas un détail
+d'implémentation.
+
+## Décision 2 bis — La page d'accueil devient une vraie page
+
+Elle ne disait que ce qu'est Catalog, en trois paragraphes. C'est désormais la
+page qu'un vérificateur ouvre : elle dit ce que le produit fait, **pourquoi la
+capture d'écran ne prouve rien**, que les fonds ne transitent par aucun compte
+à nous, comment une vendeuse ouvre sa boutique, et ce qu'une acheteuse y
+trouve. Toujours zéro JavaScript, et toujours **pas d'annuaire** — la règle
+d'origine de cette page tient.
 
 ## Décision 3 — Le pied de page, parce qu'une page introuvable ne compte pas
 
@@ -78,6 +103,8 @@ conclut qu'elle n'existe pas.
 - **Ça ne change pas l'adresse de contact.** Elle reste celle du compte. Une
   adresse sur le domaine du produit prouverait le contrôle de ce domaine — à
   reprendre quand le domaine existera.
+- **Ça ne publie pas de NIU.** Il ne figure pas sur le document fourni, et un
+  numéro fiscal ne s'invente pas.
 - **Ça n'écrit pas de conditions générales de vente.** Catalog n'est pas partie
   à la vente : la transaction lie l'acheteuse à la vendeuse, et les fonds ne
   nous touchent jamais. Rédiger des CGV donnerait à croire le contraire.

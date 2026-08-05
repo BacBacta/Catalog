@@ -19,15 +19,15 @@ import { EDITEUR } from "../lib/editeur.ts";
  */
 ---
 <Base
-  title={`Confidentialité — ${EDITEUR.nom}`}
+  title={`Confidentialité — ${EDITEUR.produit}`}
   description="Ce que Catalog collecte, pourquoi, avec qui c'est partagé, et comment demander la suppression."
 >
   <main class="mx-auto flex w-full max-w-[42rem] flex-col gap-5 px-4 py-10">
-    <p class="text-caption text-muted"><a href="/" class="text-brand-500">← {EDITEUR.nom}</a></p>
+    <p class="text-caption text-muted"><a href="/" class="text-brand-500">← {EDITEUR.produit}</a></p>
 
     <h1 class="text-hero font-extrabold leading-tight text-ink">Confidentialité</h1>
     <p class="text-body text-ink-2">
-      {EDITEUR.nom} outille les vendeuses camerounaises qui vendent déjà sur
+      {EDITEUR.produit} outille les vendeuses camerounaises qui vendent déjà sur
       WhatsApp. Cette page dit ce que nous collectons, pourquoi, avec qui c'est
       partagé, et comment en demander la suppression. Elle décrit ce que le
       logiciel fait — pas une intention.
@@ -151,7 +151,10 @@ import { EDITEUR } from "../lib/editeur.ts";
 
     <h2 class="text-title font-bold text-ink">Qui nous sommes</h2>
     <p class="text-body text-ink-2">
-      {EDITEUR.nom}, {EDITEUR.lieu}.<br />
+      {EDITEUR.produit} est édité par <strong class="text-ink">{EDITEUR.societe}</strong>,
+      {EDITEUR.forme} au capital de {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA.<br />
+      RCCM {EDITEUR.rccm} — Siège : {EDITEUR.siege}.<br />
+      Gérant : {EDITEUR.gerant}.<br />
       Contact : <a href={`mailto:${EDITEUR.contact}`} class="text-brand-500">{EDITEUR.contact}</a>
     </p>
 
