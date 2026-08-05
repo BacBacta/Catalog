@@ -3,7 +3,7 @@ import { EDITEUR } from "@catalog/contracts/editeur";
 import Base from "../layouts/Base.astro";
 
 /**
- * Contact et mentions legales — ADR 0043.
+ * Contact et mentions legales — ADR 0043, revisee par l'ADR 0044.
  *
  * ── Ce que la fiche porte, et ce qu'elle ne porte pas ─────────────────────
  *
@@ -13,9 +13,19 @@ import Base from "../layouts/Base.astro";
  * donnees personnelles d'un associe serait meme un contresens sur un site qui
  * promet de collecter le minimum.
  *
- * La fiche se limite donc a ce que les mentions legales exigent : qui edite,
- * sous quelle forme, avec quel capital, ou est le siege, sous quel numero
- * d'immatriculation, et qui dirige la publication.
+ * **Deux rangs ont ete retires sur demande** (ADR 0044) : l'immatriculation
+ * et le directeur de la publication.
+ *
+ * - Le numero RCCM a ete lu sur un champ MANUSCRIT du registre et n'est pas
+ *   confirme sur l'original. Une mention legale fausse est pire qu'une
+ *   mention absente : c'est precisement ce qu'un verificateur recoupe avec le
+ *   document depose. Il reste dans `packages/contracts/src/editeur.ts`, pret a
+ *   revenir ici le jour ou les chiffres sont confirmes.
+ * - Le nom du gerant est une donnee personnelle. Le publier sur un site dont
+ *   la page voisine promet de ne collecter que le minimum se defend mal.
+ *
+ * Reste ce qui identifie la maison : qui edite, sous quelle forme, avec quel
+ * capital, ou est le siege, et a quelle adresse on lui ecrit.
  *
  * **Aucun formulaire.** Il supposerait un point de reception, un stockage des
  * messages et une politique pour eux. Une adresse de courriel ne suppose rien,
@@ -28,9 +38,7 @@ const MENTIONS = [
     cle: "Forme juridique",
     valeur: `${EDITEUR.forme} au capital de ${EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA`,
   },
-  { cle: "Immatriculation", valeur: `RCCM ${EDITEUR.rccm}` },
   { cle: "Siège social", valeur: EDITEUR.siege },
-  { cle: "Directeur de la publication", valeur: EDITEUR.gerant },
   { cle: "Courriel", valeur: EDITEUR.contact },
 ] as const;
 ---
@@ -39,7 +47,7 @@ const MENTIONS = [
   title={`Contact — ${EDITEUR.nom}`}
   description="Écrire à Horizon Services, société de services immatriculée à Douala. Mentions légales et coordonnées."
 >
-  <section class="porche">
+  <section class="porche porche--court">
     <div class="enveloppe flex flex-col gap-9">
       <p class="jalon">Contact</p>
       <h1 class="titre-geant">Écrivez-nous<span class="accent">.</span></h1>
@@ -52,10 +60,10 @@ const MENTIONS = [
     </div>
   </section>
 
-  <section class="enveloppe" style="padding-block: var(--pas)">
+  <section class="enveloppe" style="padding-block: calc(var(--pas) * 0.6)">
     <div class="flex flex-col gap-7">
-      <p class="jalon">Mentions légales</p>
-      <dl class="fiche">
+      <p class="jalon reveler">Mentions légales</p>
+      <dl class="fiche reveler">
         {
           MENTIONS.map((m) => (
             <div class="fiche__rang">
@@ -67,10 +75,6 @@ const MENTIONS = [
           ))
         }
       </dl>
-      <p class="m-0 max-w-xl text-caption text-muted">
-        Il n'existe pas d'adresse postale de rue au Cameroun : la boîte postale est l'adresse
-        officielle, celle qui figure au registre du commerce.
-      </p>
     </div>
   </section>
 </Base>

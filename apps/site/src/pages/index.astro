@@ -3,11 +3,11 @@ import { EDITEUR } from "@catalog/contracts/editeur";
 import Base from "../layouts/Base.astro";
 
 /**
- * La page de la societe — ADR 0043.
+ * La page de la societe — ADR 0043, revisee par l'ADR 0044.
  *
  * ── Ce qui a ete RETIRE, et pourquoi ──────────────────────────────────────
  *
- * La version precedente recopiait l'objet social du registre en huit
+ * La toute premiere version recopiait l'objet social du registre en huit
  * etiquettes et racontait le produit sur trois sections. Deux defauts :
  *
  * 1. **Un objet social recopie n'est pas une offre.** Un registre enumere ce
@@ -18,8 +18,17 @@ import Base from "../layouts/Base.astro";
  * 2. **Les produits ont leur propre domaine.** Les faire entrer ici
  *    transformait la page de societe en plaquette commerciale.
  *
- * Ne reste que ce qui identifie la maison. Le vide est le sujet : une page
- * institutionnelle se juge a ce qu'elle a eu le courage de ne pas dire.
+ * ── Ce que l'ADR 0044 AJOUTE, et la ligne qu'il ne franchit pas ───────────
+ *
+ * La page manquait de rythme : quatre ecrans de la meme surface claire, sans
+ * une respiration. La bande de reperes est cette respiration — le seul bloc
+ * de couleur pleine du site.
+ *
+ * **Elle n'affirme rien de neuf.** L'annee est celle deja ecrite dans le
+ * jalon, le nombre de domaines est CALCULE depuis la liste ci-dessous, et la
+ * ville est celle du siege. Trois faits deja dits, auxquels on donne du
+ * corps. Y mettre un chiffre d'affaires, un nombre de clients ou une annee
+ * d'experience arrondie aurait ete inventer — AGENTS.md §7.7.
  */
 
 /**
@@ -29,25 +38,34 @@ import Base from "../layouts/Base.astro";
  */
 const DOMAINES = [
   {
-    num: "01",
     titre: "Prestations de services",
     corps: "Le cœur de notre activité, exercé pour le compte d'entreprises et de particuliers.",
   },
   {
-    num: "02",
     titre: "Commerce général",
     corps: "Importation, exportation, représentation commerciale et industrielle.",
   },
   {
-    num: "03",
     titre: "Assistance comptable",
     corps: "Accompagnement des obligations courantes des entreprises.",
   },
   {
-    num: "04",
     titre: "Tourisme et voyages",
     corps: "Organisation, réservation et prestations associées.",
   },
+] as const;
+
+/** L'annee de creation, dite une seule fois et relue partout. */
+const DEPUIS = 2019;
+
+/**
+ * Les trois reperes de la bande. `04` se CALCULE : la bande ne peut pas
+ * annoncer un nombre de domaines que la liste ne tient plus.
+ */
+const REPERES = [
+  { valeur: String(DEPUIS), cle: "Année de création" },
+  { valeur: String(DOMAINES.length).padStart(2, "0"), cle: "Domaines d'activité" },
+  { valeur: "Douala", cle: "Siège social" },
 ] as const;
 ---
 <Base
@@ -56,44 +74,65 @@ const DOMAINES = [
   description="Horizon Services est une société de services camerounaise, immatriculée à Douala depuis 2019. Prestations de services, commerce général, assistance comptable, tourisme et voyages."
 >
   <section class="porche">
-    <div class="enveloppe flex flex-col gap-9">
-      <p class="jalon">Douala, Cameroun — depuis 2019</p>
+    <div class="enveloppe">
+      <p class="jalon">Douala, Cameroun — depuis {DEPUIS}</p>
+    </div>
+
+    <div class="enveloppe flex flex-col gap-10">
       <h1 class="titre-geant">
         Une maison de services, <span class="accent">à Douala</span>.
       </h1>
-      <p class="chapeau">
-        {EDITEUR.nom} est une société camerounaise immatriculée au registre du commerce de
-        Douala. Nous accompagnons entreprises et particuliers sur quatre domaines, et nous
-        engageons notre nom sur chacun.
-      </p>
-      <p class="m-0">
-        <a href="/contact" class="appel-ligne">
-          Nous écrire <span class="fleche" aria-hidden="true">→</span>
-        </a>
-      </p>
+      <div class="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between lg:gap-14">
+        <p class="chapeau">
+          {EDITEUR.nom} est une société camerounaise immatriculée au registre du commerce de
+          Douala. Nous accompagnons entreprises et particuliers sur quatre domaines, et nous
+          engageons notre nom sur chacun.
+        </p>
+        <p class="m-0 shrink-0">
+          <a href="/contact" class="appel-ligne">
+            Nous écrire <span class="fleche" aria-hidden="true">→</span>
+          </a>
+        </p>
+      </div>
     </div>
   </section>
 
-  <section class="enveloppe">
-    <div class="index">
+  <section class="enveloppe" style="padding-block: var(--pas)">
+    <div class="flex flex-col gap-9">
+      <p class="jalon reveler">Ce que nous faisons</p>
+      <div class="index">
+        {
+          DOMAINES.map((d, i) => (
+            <article class="rang reveler">
+              <p class="rang__num">{String(i + 1).padStart(2, "0")}</p>
+              <h2 class="rang__titre">{d.titre}</h2>
+              <p class="rang__corps">{d.corps}</p>
+            </article>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="bande">
+    <div class="enveloppe bande__grille">
       {
-        DOMAINES.map((d) => (
-          <article class="rang">
-            <p class="rang__num m-0">{d.num}</p>
-            <h2 class="rang__titre">{d.titre}</h2>
-            <p class="rang__corps">{d.corps}</p>
-          </article>
+        REPERES.map((r) => (
+          <div class="datum reveler">
+            <p class="datum__val">{r.valeur}</p>
+            <p class="datum__cle">{r.cle}</p>
+          </div>
         ))
       }
     </div>
   </section>
 
   <section class="enveloppe" style="padding-block: var(--pas)">
-    <div class="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
-      <p class="credo">
+    <div class="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
+      <p class="credo reveler">
         Une société se juge à ce qu'elle tient, pas à ce qu'elle annonce.
       </p>
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-5 reveler">
         <p class="jalon">Nous écrire</p>
         <a href={`mailto:${EDITEUR.contact}`} class="courriel-geant">{EDITEUR.contact}</a>
       </div>

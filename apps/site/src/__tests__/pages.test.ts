@@ -92,4 +92,74 @@ describe("le site de la societe", () => {
       expect(source, f).not.toContain(EDITEUR.rccm);
     }
   });
+
+  it("n'affiche NI le numero d'immatriculation NI le nom du gerant", async () => {
+    /* Retrait demande, acte par l'ADR 0044. Deux raisons, et la premiere est
+       la plus forte : le numero RCCM a ete lu sur un champ MANUSCRIT et n'est
+       pas confirme sur l'original — une mention legale fausse est pire qu'une
+       mention absente. La seconde : le nom du gerant est une donnee
+       personnelle, sur un site dont la page voisine promet le minimum.
+       Les deux champs restent dans `editeur.ts` ; c'est leur AFFICHAGE ici
+       qui est ferme, et il se rouvre en une ligne le jour venu. */
+    for (const f of await fichiers(LIB_DIR, ".astro")) {
+      const source = readFileSync(f, "utf8");
+      expect(source, `${f} reaffiche le RCCM`).not.toContain("EDITEUR.rccm");
+      expect(source, `${f} reaffiche le gerant`).not.toContain("EDITEUR.gerant");
+      expect(source, f).not.toContain(EDITEUR.gerant);
+    }
+  });
+});
+
+/**
+ * Les gardes du mouvement — ADR 0044.
+ *
+ * Le site anime au defilement et entre deux pages, entierement en CSS. Les
+ * deux regles ci-dessous sont ce qui rend cette animation acceptable ; elles
+ * se cassent d'une ligne distraite.
+ */
+describe("le mouvement du site", () => {
+  const css = readFileSync(join(import.meta.dirname, "..", "styles", "global.css"), "utf8");
+
+  /** Extrait le corps de chaque `@keyframes`, accolades equilibrees. */
+  function corpsDesKeyframes(source: string): string[] {
+    const corps: string[] = [];
+    for (const m of source.matchAll(/@keyframes\b/g)) {
+      let i = source.indexOf("{", m.index);
+      if (i === -1) continue;
+      let profondeur = 0;
+      const debut = i;
+      for (; i < source.length; i++) {
+        if (source[i] === "{") profondeur++;
+        else if (source[i] === "}" && --profondeur === 0) break;
+      }
+      corps.push(source.slice(debut, i + 1));
+    }
+    return corps;
+  }
+
+  it("n'anime JAMAIS l'opacite — le contraste doit etre mesurable a tout instant", () => {
+    /* Meme raison qu'au lot 2 (voir `tokens.css`) : un fondu rend le contraste
+       dependant de l'instant ou on le lit, et axe-core lit la page pendant
+       l'animation. Une revelation se fait donc par TRANSLATION. */
+    const trouves = corpsDesKeyframes(css);
+    expect(
+      trouves.length,
+      "aucune @keyframes trouvee — le test ne mesure plus rien",
+    ).toBeGreaterThan(0);
+    for (const corps of trouves) {
+      expect(corps, "une @keyframes anime l'opacite").not.toMatch(/\bopacity\s*:/);
+    }
+  });
+
+  it("la preference `reduced-motion` coupe aussi la transition entre pages", () => {
+    /* Les pseudo-elements `::view-transition-*` vivent dans un arbre a part :
+       la regle globale de `tokens.css`, qui vise `*`, ne les atteint pas. Il
+       faut les nommer, sans quoi la page continue de fondre pour quelqu'un
+       qui a demande l'inverse. */
+    expect(css).toContain("@view-transition");
+    const reduit = css.slice(css.indexOf("prefers-reduced-motion: reduce"));
+    expect(reduit, "aucun bloc `reduce` apres la declaration").not.toBe("");
+    expect(reduit).toMatch(/::view-transition-group\(\*\)/);
+    expect(reduit).toMatch(/animation:\s*none/);
+  });
 });

@@ -27,7 +27,7 @@ import Base from "../layouts/Base.astro";
   title={`Confidentialité — ${EDITEUR.nom}`}
   description="Ce qu'Horizon Services collecte dans ses services, pourquoi, avec qui c'est partagé, combien de temps, et comment demander la suppression."
 >
-  <section class="porche" style="padding-block: calc(var(--pas) * 0.62)">
+  <section class="porche porche--court">
     <div class="enveloppe flex flex-col gap-7">
       <p class="jalon">Données personnelles</p>
       <h1 class="titre-geant">Confidentialité<span class="accent">.</span></h1>
@@ -39,7 +39,12 @@ import Base from "../layouts/Base.astro";
     </div>
   </section>
 
-  <section class="enveloppe prose" style="padding-block: var(--pas)">
+  {/* `prose` est un ENFANT de l'enveloppe, pas la meme boite : sur la meme
+      balise, sa largeur de 44rem l'emportait sur les 76rem de l'enveloppe et
+      la colonne se recentrait dans l'ecran — desalignee du titre et de
+      l'en-tete, qui eux restent au bord gauche. */}
+  <section class="enveloppe" style="padding-block: calc(var(--pas) * 0.55) var(--pas)">
+    <div class="prose">
 
     <h2>Ce que nous ne collectons jamais</h2>
     <ul>
@@ -157,9 +162,10 @@ import Base from "../layouts/Base.astro";
       rester opposable à l'acheteuse qui la détient.
     </p>
 
-    <p class="text-caption text-muted">
-      Cette page décrit le fonctionnement du service au 5 août 2026. Toute
-      évolution qui changerait ce qui est collecté sera publiée ici.
-    </p>
+      <p class="text-caption text-muted">
+        Cette page décrit le fonctionnement du service au 5 août 2026. Toute
+        évolution qui changerait ce qui est collecté sera publiée ici.
+      </p>
+    </div>
   </section>
 </Base>

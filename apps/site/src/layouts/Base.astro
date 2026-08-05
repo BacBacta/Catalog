@@ -12,7 +12,7 @@ const { title, description, chemin } = Astro.props;
 const canonique = new URL(chemin, EDITEUR.site).href;
 
 /**
- * La coquille du site de la SOCIETE — ADR 0043.
+ * La coquille du site de la SOCIETE — ADR 0043, revisee par l'ADR 0044.
  *
  * Le site presente Horizon Services, et rien d'autre. Les produits qu'elle
  * edite ont leurs propres domaines : les faire entrer ici transformerait une
@@ -21,7 +21,18 @@ const canonique = new URL(chemin, EDITEUR.site).href;
  *
  * **Aucune police telechargee, aucun JavaScript, aucun traceur.** La CSP
  * l'interdit materiellement (`default-src 'none'`) : la page qui affirme
- * qu'on ne collecte rien ne peut pas charger un mouchard.
+ * qu'on ne collecte rien ne peut pas charger un mouchard. Les transitions de
+ * page et les revelations au defilement sont du CSS — voir `global.css`.
+ *
+ * ── Ce que le pied ne porte plus, et pourquoi ─────────────────────────────
+ *
+ * Le numero d'immatriculation et le nom du directeur de la publication en ont
+ * ete retires sur demande du porteur du produit (ADR 0044). Deux raisons le
+ * rendent defendable : le numero a ete lu sur un champ MANUSCRIT du registre
+ * et n'est pas confirme — publier un numero faux est pire que n'en publier
+ * aucun —, et le nom du gerant est une donnee personnelle sur un site qui
+ * promet de n'en collecter que le minimum. La denomination, la forme, le
+ * capital et le siege restent : ce sont eux qui identifient la maison.
  */
 const NAV = [
   { href: "/", texte: "Société" },
@@ -70,12 +81,9 @@ const NAV = [
 
     <footer class="pied">
       <div class="enveloppe flex flex-col gap-8">
-        <p class="pied__marque m-0" aria-hidden="true">{EDITEUR.nom}</p>
-
-        <div class="flex flex-wrap items-end justify-between gap-x-10 gap-y-5">
+        <div class="flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
           <p class="m-0 max-w-md">
-            {EDITEUR.forme} au capital de {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA —
-            RCCM {EDITEUR.rccm}<br />
+            {EDITEUR.forme} au capital de {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA<br />
             {EDITEUR.siege}
           </p>
           <nav aria-label="Pied de page" class="flex flex-wrap gap-x-6 gap-y-2">
@@ -87,6 +95,8 @@ const NAV = [
 
         <p class="m-0">© 2019–2026 {EDITEUR.societe}</p>
       </div>
+
+      <p class="pied__marque" aria-hidden="true">{EDITEUR.nom}</p>
     </footer>
   </body>
 </html>

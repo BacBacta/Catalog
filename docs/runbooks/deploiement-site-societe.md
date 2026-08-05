@@ -57,29 +57,55 @@ vercel domains inspect horizonservices.store --cwd apps/site
 ```
 
 Il reste **un geste chez le registrar** (le domaine est chez un tiers, pas chez
-Vercel). Au choix, chez Namecheap :
+Vercel). Vercel en propose deux ; **une seule est utilisable ici.**
 
-- **A** — recommandé, le plus simple : enregistrement `A` sur l'apex vers
-  `76.76.21.21`, et `CNAME` sur `www` vers `cname.vercel-dns.com`.
-- **B** — déléguer : remplacer les serveurs de noms par `ns1.vercel-dns.com`
-  et `ns2.vercel-dns.com`.
+- **A** — la bonne : garder le DNS chez Namecheap, et n'y corriger que deux
+  lignes. Enregistrement `A` sur l'apex vers `76.76.21.21`, `CNAME` sur `www`
+  vers `cname.vercel-dns.com`.
+- **B** — ❌ **déléguer les serveurs de noms à `ns1/ns2.vercel-dns.com`.**
+  `vercel domains inspect` la propose en évidence. **Ne pas la suivre.**
+
+### Pourquoi la délégation casserait le courriel de la société
+
+Relevé le 05/08/2026, dans la zone servie par Namecheap :
+
+```
+MX   10 mx1.privateemail.com / 10 mx2.privateemail.com
+TXT  "v=spf1 include:spf.privateemail.com ~all"
+```
+
+C'est la boîte **`support@horizonservices.store`** — l'adresse que le site
+affiche en très grand sur deux pages, et celle par laquelle une demande de
+suppression de données doit arriver.
+
+Déléguer la zone à Vercel remplace les serveurs de noms : les `MX` et le `SPF`
+**ne sont plus servis par personne**, et le courriel cesse d'arriver dans la
+minute. Vercel ne recopie pas les enregistrements existants. La voie **A**
+laisse la zone en place et n'y touche que le web.
 
 ### Le geste chez Namecheap, pas à pas
 
-Constaté le 05/08/2026 : le domaine résolvait encore vers `192.64.119.150` —
-**la page de parking de Namecheap** — et `www` ne résolvait pas du tout. Le
-rattachement côté Vercel ne suffit pas : tant que le DNS pointe ailleurs,
+Constaté le 05/08/2026, et **inchangé depuis** : le domaine résout vers
+`192.64.119.150` — la page de parking de Namecheap — et `www` ne résout pas du
+tout. `http://horizonservices.store/` rend un **302 vers `www.`**, servi par
+`Namecheap URL Forward`, et `www` n'existe pas : c'est une boucle. HTTPS ne
+répond pas.
+
+Le rattachement côté Vercel ne suffit pas : tant que le DNS pointe ailleurs,
 `horizonservices.store` ne montre rien.
 
 Dans le tableau de bord Namecheap → *Domain List* → **Manage** →
 **Advanced DNS** :
 
-1. **Supprimer** la ligne `CNAME Record · @ · parkingpage.namecheap.com` (ou
-   toute ligne `URL Redirect` sur `@`). Elle est ce qui sert la page de
-   parking, et elle prime sur ce qu'on ajoute.
+1. **Supprimer d'abord** la ligne `URL Redirect Record` sur `@` (ou
+   `CNAME · @ · parkingpage.namecheap.com`). C'est elle qui sert le 302 vers
+   `www`, et elle prime sur tout ce qu'on ajoute ensuite. Tant qu'elle est là,
+   les étapes 2 et 3 ne changent rien de visible.
 2. **Ajouter** `A Record` · Host `@` · Value `76.76.21.21` · TTL Automatic.
 3. **Ajouter** `CNAME Record` · Host `www` · Value `cname.vercel-dns.com` ·
    TTL Automatic.
+4. **Ne toucher à AUCUNE ligne `MX` ni au `TXT` qui commence par `v=spf1`.**
+   Ce sont elles qui font arriver le courriel.
 
 ⚠️ **Ne pas ajouter les deux formes du même enregistrement.** Un `A` et un
 `CNAME` sur le même hôte est un conflit, et la résolution devient aléatoire.
@@ -90,7 +116,26 @@ attendre le navigateur — qui garde son propre cache :
 ```bash
 getent hosts horizonservices.store      # doit rendre 76.76.21.21
 getent hosts www.horizonservices.store  # doit résoudre
+
+# Et pour relire la zone sans dépendre du résolveur local :
+curl -sS -H 'accept: application/dns-json' \
+  'https://cloudflare-dns.com/dns-query?name=horizonservices.store&type=A'
+curl -sS -H 'accept: application/dns-json' \
+  'https://cloudflare-dns.com/dns-query?name=horizonservices.store&type=MX'
 ```
+
+### Le courriel : la zone est prête, la boîte ne l'est peut-être pas
+
+Les `MX` et le `SPF` pointent vers **Namecheap Private Email**. Cela dit que
+le domaine sait recevoir ; cela ne dit **pas** que la boîte
+`support@` existe. Elle se crée dans *Private Email* → *Mailboxes*, et la
+seule vérification qui vaut est de s'écrire à soi-même depuis un compte
+extérieur et de constater l'arrivée. Un `MX` correct sur une boîte inexistante
+rend un rejet différé, invisible depuis l'extérieur.
+
+**Tant que la boîte n'existe pas, ne pas déclarer l'URL à 360dialog** : le
+site affiche cette adresse comme unique point de contact, et un vérificateur
+qui écrit sans réponse conclut vite.
 
 Vercel émet le certificat tout seul dès que la résolution est bonne, et envoie
 un courriel. **Tant que HTTPS n'est pas émis, ne pas déclarer l'URL** : un
