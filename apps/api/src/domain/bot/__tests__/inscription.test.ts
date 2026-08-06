@@ -15,7 +15,7 @@ import {
 import type { MessageBoutons, MessageTexte } from "../messages.ts";
 
 /**
- * L'inscription dans le fil — ADR 0034. Chaque test est un echange, comme
+ * L'inscription dans le fil — ADR 0047. Chaque test est un echange, comme
  * pour la machine acheteuse : la boutique et l'article naissent d'un effet,
  * jamais d'un message.
  */

@@ -7,7 +7,7 @@ import {
 } from "./inscription.ts";
 
 /**
- * Vers quel fil part un message — ADR 0034.
+ * Vers quel fil part un message — ADR 0047.
  *
  * ── Le defaut que ce module corrige ────────────────────────────────────────
  *

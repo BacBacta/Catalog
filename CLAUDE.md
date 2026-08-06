@@ -81,7 +81,9 @@ lot 14 (observabilité, canari de formats, runbooks, sauvegardes). Puis, hors
 séquence `PROMPTS.md` : durcissement et mise en production (ADR 0024),
 canaux du code de connexion et passerelle MboaSMS (0025–0027), architecture
 d'authentification cible et cérémonie Google (0028–0029), refonte UI vendeuse
-(0030), et le bot WhatsApp (0031 à 0039).
+(0030), le bot WhatsApp (0031 à 0040, puis 0047 — l'onboarding vendeuse dans
+le fil, renuméroté depuis 0034 pour lever une collision), et le site de la
+société sur son domaine propre (0041 à 0046).
 
 ### Le bot WhatsApp — trois points ouverts, et ils le restent
 
@@ -98,10 +100,14 @@ d'`AGENTS.md` interdit :
    variante ? C'est une décision produit à prendre, pas un champ à remplir.
    D'ici là, la question « taille / couleur / modèle » renvoie à la vendeuse,
    et c'est le palliatif assumé.
-2. **Le pidgin est reporté, pas oublié.** L'extraction des messages sortants
-   est faite et FR/EN sont complets ; le pidgin s'écrira après relecture par
-   une locutrice. Une traduction fabriquée par la machine ne se promeut pas
-   silencieusement en langue de sortie.
+2. **Le pidgin est ÉCRIT et NON SERVI** (ADR 0034, qui révise le 0033 sur ce
+   point seul). `TEXTES.wes` est complet — `wes` est le code du Kamtok, pas
+   `pcm` qui est nigérian — et `PIDGIN_RELU` vaut `false` : rien n'atteint une
+   acheteuse tant qu'une locutrice n'a pas relu. Le drapeau vit dans le domaine
+   et non dans l'environnement, parce qu'ouvrir une langue est une décision,
+   pas un réglage. Deux tests interdisent la demi-bascule : rien ne sort tant
+   que c'est fermé, et l'aide FR/EN doit annoncer la langue dès que c'est
+   ouvert. Ne jamais passer le drapeau à `true` sans la relecture.
 3. **Tout ce qui exige des gabarits utilitaires attend le WABA** : relances
    suivantes (24 h, post-expiration), notification de la vendeuse, Flows,
    catalogue natif, click-to-WhatsApp. L'adaptateur d'envoi est dormant —

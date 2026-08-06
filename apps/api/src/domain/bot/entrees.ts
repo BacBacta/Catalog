@@ -20,7 +20,7 @@ export type EntreeBot =
   | { de: string; genre: "bouton"; id: string; messageId?: string }
   | { de: string; genre: "liste"; id: string; messageId?: string }
   /**
-   * Une PHOTO — ADR 0034. C'est le geste le plus naturel du canal : une
+   * Une PHOTO — ADR 0047. C'est le geste le plus naturel du canal : une
    * vendeuse photographie l'article qu'elle a en main. On ne retient que
    * l'identifiant du media et sa legende ; les octets se telechargent
    * ailleurs, et n'entrent jamais dans l'etat de conversation.

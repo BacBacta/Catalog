@@ -1,6 +1,6 @@
 # 0035 — La cible bot premium est validée ; le P0 la construit
 
-Date : 02/08/2026 · Statut : accepté · Complète : 0031 à 0034
+Date : 02/08/2026 · Statut : accepté · Complète : 0031 à 0033, et 0047
 
 ## Contexte
 

@@ -1,7 +1,7 @@
 import type { LecteurMedia, MediaEntrant } from "../domain/bot/media.ts";
 
 /**
- * Telechargement d'une photo entrante via 360dialog — ADR 0034, revise apres
+ * Telechargement d'une photo entrante via 360dialog — ADR 0047, revise apres
  * le terrain du 02/08/2026 (ADR 0035).
  *
  * ── Ce que le terrain a etabli ─────────────────────────────────────────────

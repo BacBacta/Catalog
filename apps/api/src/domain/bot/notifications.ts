@@ -4,7 +4,7 @@ import { formatXaf } from "@catalog/contracts/money";
  * Les notifications sortantes du bot — ADR 0035. Module PUR : il decide et il
  * formule ; le service envoie ou met en attente.
  *
- * **Notre bot n'initie jamais une conversation** (ADR 0034) : il ne peut
+ * **Notre bot n'initie jamais une conversation** (ADR 0047) : il ne peut
  * ecrire librement que dans la fenetre de service ouverte par un message de
  * l'autre personne. On ne connait pas la fenetre exacte de Meta ; on connait
  * la date du dernier message TRAITE (`BotConversation.updatedAt`), et c'est

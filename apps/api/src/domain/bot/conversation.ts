@@ -435,7 +435,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       };
     }
     /**
-     * L'aide OFFRE une sortie vendeuse — ADR 0034. Sans ce bouton, une
+     * L'aide OFFRE une sortie vendeuse — ADR 0047. Sans ce bouton, une
      * personne qui a entendu parler de Catalog et qui ecrit au numero
      * s'entend repondre d'ouvrir le lien d'une boutique qu'elle n'a pas :
      * l'entonnoir fuyait au premier message.

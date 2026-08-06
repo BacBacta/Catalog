@@ -97,7 +97,7 @@ const bot =
         baseBoutique: process.env.BASE_BOUTIQUE_PUBLIQUE?.trim() ?? "",
         baseApp: process.env.BASE_APP_VENDEUSE?.trim() ?? "",
         storage,
-        /* Les photos entrantes de l'inscription (ADR 0034) — meme cle, meme
+        /* Les photos entrantes de l'inscription (ADR 0047) — meme cle, meme
            base que l'envoi : c'est le meme canal. */
         media: new LecteurMediaWhatsapp({ apiKey: cleBot, baseUrl: baseBot }),
         /* Le numero du bot, pour composer les liens de boutique et de

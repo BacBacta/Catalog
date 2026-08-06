@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LecteurMediaWhatsapp } from "../adapters/whatsapp-media.ts";
 
 /**
- * Le lecteur de photos entrantes — ADR 0034.
+ * Le lecteur de photos entrantes — ADR 0047.
  *
  * Ce qui se teste ici n'est pas « ca telecharge » : c'est que l'adaptateur
  * distingue les DEUX formes de reponse sans qu'on le lui dise, et qu'aucun

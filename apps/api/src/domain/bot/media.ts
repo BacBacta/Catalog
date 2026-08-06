@@ -1,5 +1,5 @@
 /**
- * Recuperation d'une photo entrante — INTERFACE seulement, ADR 0034.
+ * Recuperation d'une photo entrante — INTERFACE seulement, ADR 0047.
  *
  * Meme posture que `ObjectStorage` et `SmsSender` : le domaine declare ce dont
  * il a besoin, l'adaptateur sait qui transporte. Ici le besoin tient en une

@@ -1,6 +1,14 @@
-# 0034 — Un seul WABA, et l'onboarding vendeuse dans le fil
+# 0047 — Un seul WABA, et l'onboarding vendeuse dans le fil
 
 Date : 02/08/2026 · Statut : accepté · Complète : 0027, 0031, 0032, 0033
+
+> **Renuméroté de 0034 à 0047 le 06/08/2026, à la fusion.** Cet ADR a été
+> écrit sur une branche pendant qu'un autre — « le pidgin, écrit et non servi »
+> — prenait le même numéro sur `main`. Deux décisions différentes ne peuvent
+> pas partager un numéro : `docs/adr` est un index, et « l'ADR 0034 » doit
+> désigner une seule chose. Celui de `main` garde le sien, il est déjà cité
+> par `CLAUDE.md` ; celui-ci prend le premier numéro libre. Le texte de la
+> décision, lui, n'a pas été touché.
 
 ## Contexte
 

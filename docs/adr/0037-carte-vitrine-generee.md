@@ -1,6 +1,6 @@
 # 0037 — La carte-vitrine : une image à poster en Statut
 
-Date : 04/08/2026 · Statut : accepté · Complète : 0016, 0034, 0035
+Date : 04/08/2026 · Statut : accepté · Complète : 0016, 0047, 0035
 
 ## Contexte
 

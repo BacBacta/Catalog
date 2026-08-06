@@ -57,7 +57,7 @@ dans le dépôt, ni dans ce fichier.
 
 ## L'astuce qui rend tout visible : un numéro, deux rôles
 
-L'aiguillage route sur le **geste**, pas sur l'identité (ADR 0034). Votre
+L'aiguillage route sur le **geste**, pas sur l'identité (ADR 0047). Votre
 numéro peut donc être à la fois la vendeuse de sa boutique ET une acheteuse —
 y compris chez lui-même. En achetant sur votre propre boutique, **les deux
 côtés de chaque échange arrivent sur votre téléphone** : la confirmation

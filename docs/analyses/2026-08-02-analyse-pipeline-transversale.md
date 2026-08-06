@@ -27,7 +27,7 @@ payer.
 
 ```
 INSCRIPTION ──①── CATALOGUE ──②── PANIER/COMMANDE ──③── PAIEMENT ──④── PREUVE ──⑤── AVIS
- (fil, ADR 0034)   (bot + web      (bot, ADR 0033)      (rampe USSD,     (7 contrôles,   (suivi,
+ (fil, ADR 0047)   (bot + web      (bot, ADR 0033)      (rampe USSD,     (7 contrôles,   (suivi,
                     + boutique)                          lot 9)           lot 8/10)       lot 12)
 ```
 
@@ -45,7 +45,7 @@ INSCRIPTION ──①── CATALOGUE ──②── PANIER/COMMANDE ──③�
 
 ## 3. La cascade — pourquoi le tout vaut moins que la somme des parties
 
-Suivons **Bea**, inscrite ce matin dans le fil (le parcours ADR 0034
+Suivons **Bea**, inscrite ce matin dans le fil (le parcours ADR 0047
 fonctionne, vérifié en préproduction), jusqu'à son premier avis vérifié :
 
 1. Sa boutique n'a **pas de numéro de reversement** — le fil ne le pose
@@ -91,7 +91,7 @@ d'inertie est monté pièce par pièce, et aucun moteur ne le lance.**
 | T2 | **Le moteur de confiance est éteint par défaut, et rien ne le rallume.** Reversement absent → `sans_prepaiement` → aucun paiement d'avance prouvable. Une seule mention à la création, aucune relance, aucune checklist de complétion — alors que pg-boss est là et que la relance d'acompte (ADR 0033) montre le patron exact à répliquer. | `bot.ts` (`reversementPose` → mode) |
 | T4 | **Une vendeuse née de Google est invisible pour le bot.** Le routage cherche `authUser.phoneNumber` ; un compte né de la cérémonie Google n'en a pas (ADR 0029 : le numéro de contact est un attribut sur `seller.phone`). Elle écrit au bot depuis son numéro déclaré → traitée en acheteuse → son SMS collé reçoit une réponse d'acheteuse. | `bot.ts` (`traiterEntree`) |
 | T5 | **Le stock est affiché partout et saisissable nulle part.** Le bot le montre et borne les quantités (sprint B), la boutique publique l'affiche — et AUCUNE interface ne l'écrit : ni le fil, ni `ArticleForm` (« le stock n'est pas demandé ici »). L'API `PATCH` l'accepte ; personne ne l'appelle. C'est exactement le mensonge d'instrumentation que `stats-instrumentation.test.ts` interdit ailleurs : une donnée montrée que personne ne peut produire. | `ArticleForm.tsx:29` |
-| T3 | **Aucune métrique d'activation.** Le compteur de transitions du bot (sprint A) mesure l'entonnoir d'ACHAT ; rien ne mesure boutique créée → 1er article → reversement posé → 1re commande → 1re preuve → 1er avis. `canalOuverture` (ADR 0034) est la première brique, seule. | `mesures.ts` |
+| T3 | **Aucune métrique d'activation.** Le compteur de transitions du bot (sprint A) mesure l'entonnoir d'ACHAT ; rien ne mesure boutique créée → 1er article → reversement posé → 1re commande → 1re preuve → 1er avis. `canalOuverture` (ADR 0047) est la première brique, seule. | `mesures.ts` |
 | — | Le fil est **en ajout seul** : ni modification de prix, ni archivage, ni description depuis WhatsApp. Cohérent avec « le reste vit dans l'app » — mais voir T1. | `inscription.ts` |
 
 ### Couture ② — le catalogue : deux vitrines, une morte

@@ -2,7 +2,7 @@ import { formatXaf } from "@catalog/contracts/money";
 import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
 
 /**
- * L'inscription d'une vendeuse DANS le fil — ADR 0034.
+ * L'inscription d'une vendeuse DANS le fil — ADR 0047.
  *
  * Module PUR : pas de base, pas de reseau, pas d'horloge. Il rend des etats,
  * des messages et au plus un effet ; le service execute.

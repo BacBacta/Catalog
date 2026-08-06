@@ -1,6 +1,6 @@
 # 0036 — L'identité du fil : contre-signer et noter sans quitter WhatsApp
 
-Date : 02/08/2026 · Statut : accepté · Complète : 0021, 0027, 0034, 0035
+Date : 02/08/2026 · Statut : accepté · Complète : 0021, 0027, 0047, 0035
 
 ## Contexte
 
@@ -40,7 +40,7 @@ et se contre-signer elle-même. **Aucun scénario nouveau n'apparaît**, et c'es
 la seule raison pour laquelle cette décision est acceptable : elle retire une
 friction, elle n'ouvre pas une porte.
 
-Le `wa_id` reste par ailleurs attesté par Meta, comme aux ADR 0027 et 0034 :
+Le `wa_id` reste par ailleurs attesté par Meta, comme aux ADR 0027 et 0047 :
 personne ne peut se présenter comme un autre numéro.
 
 ## Décision 2 — deux gestes, et deux seulement
@@ -54,7 +54,7 @@ L'identité du fil autorise :
 
 Elle n'autorise **rien d'autre**. Jamais un paiement, jamais une modification
 de commande, jamais quoi que ce soit qui touche au numéro de reversement — ce
-champ garde son OTP propre (AGENTS.md §2, ADR 0034). La liste est fermée, et
+champ garde son OTP propre (AGENTS.md §2, ADR 0047). La liste est fermée, et
 l'ajout d'un geste exigera de rouvrir cet ADR.
 
 ## Décision 3 — la portée est la DERNIÈRE commande du fil, jamais une référence tapée

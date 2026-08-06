@@ -50,7 +50,7 @@ manque. Le parrainage attribue mais ne se mesure pas (aucun compteur).
 
 **Aujourd'hui.** « vendre » → nom → ville → boutique ouverte, ~40 secondes,
 zéro navigateur, numéro attesté par le message même (équivalent OTP, ADR
-0034). **C'est au-dessus du standard en friction — peu d'acteurs font
+0047). **C'est au-dessus du standard en friction — peu d'acteurs font
 mieux.**
 
 **Mais la boutique naît sans identité.** Vérifié au modèle : `Seller` n'a
@@ -62,7 +62,7 @@ vendeuse.
 **Standard 2026.** Un profil marchand riche : visuel de vitrine, quartier,
 description courte de la boutique, horaires. Chez les concurrents à numéro
 dédié, le profil WhatsApp Business porte tout cela nativement ; nous avons
-choisi le numéro partagé (ADR 0034, assumé : le numéro du notaire) — donc
+choisi le numéro partagé (ADR 0047, assumé : le numéro du notaire) — donc
 **tout ce que le profil aurait porté doit être compensé dans le contenu**,
 et rien ne l'est.
 
@@ -192,7 +192,7 @@ conversation qui lui appartient. Chez nous, chez-amina et chez-bea vivent
 dans le même fil, se remplacent l'une l'autre dans l'état, et l'acheteuse
 qui compare deux boutiques les fait se chasser mutuellement (panier vidé
 au passage — T7). Le choix du numéro partagé est défendu et maintenu (ADR
-0034 : le notaire) ; mais **son coût — l'identité diluée — n'est compensé
+0047 : le notaire) ; mais **son coût — l'identité diluée — n'est compensé
 nulle part** : pas de carte-vitrine en tête d'accueil, pas de quartier, pas
 d'ancienneté, pas de « 12 articles · 8 ventes prouvées » quand il n'y a pas
 encore d'avis (démarrage à froid : la réputation se tait, rien ne la
@@ -326,9 +326,9 @@ marché sur numéro partagé :
    vignettes est possible pour toute boutique ≤ 30 articles référencés au
    catalogue partagé. C'est l'issue de milieu de gamme.
 
-## C3. L'issue que l'ADR 0034 n'interdit pas : des numéros sous NOTRE WABA
+## C3. L'issue que l'ADR 0047 n'interdit pas : des numéros sous NOTRE WABA
 
-L'ADR 0034 a écarté « un WABA par vendeuse » (RCCM, numéro personnel,
+L'ADR 0047 a écarté « un WABA par vendeuse » (RCCM, numéro personnel,
 économie) — et il a raison. Mais **un WABA porte plusieurs NUMÉROS : 2 dès
 le départ, jusqu'à 20 après vérification de l'entreprise** — la nôtre, avec
 NOTRE RCCM. Un numéro dédié sous le WABA Catalog n'exige RIEN de la

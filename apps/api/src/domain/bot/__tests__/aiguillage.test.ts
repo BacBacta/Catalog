@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { aiguiller, type ContexteAiguillage } from "../aiguillage.ts";
 
 /**
- * L'aiguillage par geste — ADR 0034. Deux defauts a ne jamais laisser
+ * L'aiguillage par geste — ADR 0047. Deux defauts a ne jamais laisser
  * revenir : une vendeuse qui ne peut pas acheter, et une prospect qu'on
  * renvoie au catalogue.
  */

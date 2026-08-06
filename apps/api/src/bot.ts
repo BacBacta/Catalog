@@ -52,7 +52,7 @@ import {
   corpsLivraisonRefusee,
   corpsNouvelleCommande,
 } from "./domain/bot/notifications.ts";
-import { type Langue, TEXTES } from "./domain/bot/textes.ts";
+import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import {
   avancerEtape,
@@ -103,7 +103,7 @@ export interface BotDeps {
    */
   storage?: ObjectStorage;
   /**
-   * Lecture des photos entrantes (ADR 0034). Absent : l'inscription marche,
+   * Lecture des photos entrantes (ADR 0047). Absent : l'inscription marche,
    * les articles se publient sans photo — jamais de blocage.
    */
   media?: LecteurMedia;
@@ -228,7 +228,7 @@ function cleConversation(waId: string): string | null {
 }
 
 /**
- * L'aiguillage — ADR 0034.
+ * L'aiguillage — ADR 0047.
  *
  * On route sur le GESTE, plus sur l'identite. Deux defauts corriges d'un
  * coup : une vendeuse peut desormais acheter chez une consoeur (le demi-gros
@@ -293,7 +293,7 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
 /* ────────────────────────── fil inscription ─────────────────────────────── */
 
 /**
- * L'inscription d'une vendeuse et l'ajout d'article — ADR 0034.
+ * L'inscription d'une vendeuse et l'ajout d'article — ADR 0047.
  *
  * Le numero est ATTESTE par le message entrant : Meta nous donne le `wa_id`,
  * personne ne peut l'usurper. C'est la meme force de preuve que le defi de
@@ -628,7 +628,7 @@ async function creerArticleDepuisFil(
 async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
   const enregistrement = await deps.prisma.botConversation.findUnique({ where: { phone } });
-  const langue: Langue = enregistrement?.langue === "en" ? "en" : "fr";
+  const langue: Langue = normaliserLangue(enregistrement?.langue);
   const t = TEXTES[langue];
 
   /* L'etat se RELIT (toutes generations confondues), puis perime : un flux
