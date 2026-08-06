@@ -1,0 +1,12 @@
+-- ADR 0039 — expand.
+--
+-- Le mode conges : la boutique reste en ligne et visible, mais n'accepte plus
+-- de NOUVELLE commande. C'est un champ DISTINCT de `seller.status` — celui-ci
+-- decrit le compte (actif, suspendu, ferme) et fait disparaitre la boutique de
+-- l'instantane public. Une vendeuse qui part au village ne ferme pas son
+-- compte : elle garde ses commandes en cours, sa reputation et son lien.
+--
+-- Nullable = ouverte. La DATE, plutot qu'un booleen, parce qu'elle repond a
+-- « depuis quand ? » sans table d'historique — et qu'un journal d'audit
+-- (`seller_audit_event`) garde la trace de chaque bascule.
+ALTER TABLE "seller" ADD COLUMN "conges_depuis" TIMESTAMP(3);

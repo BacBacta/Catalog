@@ -1,0 +1,80 @@
+/**
+ * Qui edite Catalog — ADR 0041.
+ *
+ * **Le seul endroit a changer.** Ces valeurs sont lues par la page d'accueil et
+ * par la politique de confidentialite, c'est-a-dire par les pages qu'un
+ * verificateur 360dialog ou Meta ouvre en premier.
+ *
+ * Elles viennent du REGISTRE DE COMMERCE (declaration de constitution de
+ * personne morale, greffe du Tribunal de Premiere Instance de Douala-Ndokoti,
+ * inscription du 28 mai 2019). Elles ne se retapent pas de memoire : la
+ * verification d'entreprise de Meta compare le site au document fourni, et une
+ * incoherence — un mot de la denomination, un chiffre du capital — fait
+ * echouer le dossier et coute un nouveau depot.
+ *
+ * ── `Catalog` et `Horizon Services Sarl` ne sont pas la meme chose ────────
+ *
+ * `Catalog` est le PRODUIT (ADR 0010). `Horizon Services Sarl` est la SOCIETE
+ * qui l'edite. Le nom d'affichage WhatsApp doit correspondre a l'un des deux et
+ * rester coherent avec le document depose — c'est une decision du porteur du
+ * produit, pas un detail d'implementation.
+ */
+
+export const EDITEUR = {
+  /** Le nom du PRODUIT (ADR 0010) : majuscule, sans « ue ». */
+  produit: "Catalog",
+
+  /**
+   * Le site de la SOCIETE — ADR 0042. C'est l'URL declaree a 360dialog et a
+   * Meta, et celle vers laquelle la boutique renvoie pour tout ce qui est
+   * legal. Apex sans `www` : `www` y redirige.
+   */
+  site: "https://horizonservices.store",
+
+  /**
+   * La denomination sociale, telle qu'elle figure au registre — en capitales.
+   * Elle sert aux MENTIONS LEGALES, ou la forme doit correspondre exactement
+   * au document depose.
+   *
+   * **La denomination porte `SARL`** — ADR 0046, sur decision du porteur du
+   * produit. Elle en fait partie ; ce n'est pas une redondance avec `forme`,
+   * qui dit autre chose : la denomination NOMME la societe, la forme la
+   * QUALIFIE et porte la mention `pluripersonnelle` que le nom ne porte pas.
+   * Les deux se lisent donc a la suite sans se repeter tout a fait.
+   */
+  societe: "HORIZON SERVICES SARL",
+  /**
+   * Le nom d'usage, pour la prose. « HORIZON SERVICES SARL est une societe… »
+   * se lit comme un cri au milieu d'une phrase : une denomination de registre
+   * n'est pas une casse de lecture.
+   */
+  nom: "Horizon Services Sarl",
+  /** Societe a responsabilite limitee pluripersonnelle. */
+  forme: "SARL pluripersonnelle",
+  capitalXaf: 1_000_000,
+  /**
+   * Numero d'immatriculation.
+   *
+   * ⚠️ Lu sur un champ MANUSCRIT du registre. Les quatre derniers chiffres
+   * doivent etre confirmes d'un coup d'oeil sur l'original avant toute
+   * publication : un numero faux sur une page publique est une mention legale
+   * fausse, et c'est exactement ce qu'un verificateur recoupe.
+   */
+  rccm: "RC/DLA/2019/B/1183",
+  /** Il n'existe pas d'adresse postale au Cameroun (ADR 0005) : la boite l'est. */
+  siege: "B.P. 1524, Douala, Cameroun",
+  gerant: "Clovis Raoul Tsannang Nguimfack",
+
+  /**
+   * L'adresse a laquelle on ecrit — y compris pour une suppression de donnees.
+   *
+   * Sur le domaine de la societe, et c'est ce qui compte devant un
+   * verificateur : une adresse `@horizonservices.store` PROUVE le controle du
+   * domaine declare, ce qu'une adresse Gmail ne fait pas.
+   *
+   * ⚠️ Elle doit exister avant d'etre publiee : une adresse de contact qui
+   * rebondit est pire que pas d'adresse du tout, et c'est la premiere chose
+   * qu'un verificateur met a l'epreuve — il ecrit, et il attend la reponse.
+   */
+  contact: "support@horizonservices.store",
+} as const;

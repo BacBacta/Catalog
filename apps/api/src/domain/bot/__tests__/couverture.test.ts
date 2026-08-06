@@ -53,6 +53,7 @@ describe("textes — les trois catalogues produisent, en entier", () => {
       const produits: string[] = [
         t.boutiqueIntrouvable,
         t.aideAcheteuse,
+        t.btnVendre,
         t.aideGestes,
         t.annule,
         t.langueChangee,
@@ -78,8 +79,10 @@ describe("textes — les trois catalogues produisent, en entier", () => {
         t.quantiteIncomprise,
         t.quantiteTropHaute(2),
         t.plusDeStock("Pagne"),
-        t.ajout("Pagne", 2, 30000),
-        t.panierCorps(30000),
+        t.ajout("Pagne", 2),
+        t.panierCorps(["Pagne × 2 : 15 000 F l'unité"], 30000),
+        t.panierVide,
+        t.btnMonPanier,
         t.btnPasserCommande,
         t.btnAutreArticle,
         t.btnAnnuler,
@@ -118,6 +121,50 @@ describe("textes — les trois catalogues produisent, en entier", () => {
         t.faqPhoto,
         t.faqVariante,
         t.relanceAcompte("CT-104312", 7500),
+        t.btnVoirPhotos,
+        t.rafaleAucunePhoto,
+        t.panierAbandonneAilleurs,
+        t.ligneHorsLivraison,
+        t.apresConfirmation("Chez Amina", "https://wa.me/237677123456"),
+        t.suiteSuivi("https://x.test/s"),
+        t.blocPaiement({
+          montantXaf: 8000,
+          numeroAffiche: "6 56 74 62 15",
+          operateurNom: "Orange Money",
+          codeEntree: "#150*50#",
+          lienPayer: "https://x.test/payer",
+        }),
+        t.blocPaiement({
+          montantXaf: 8000,
+          numeroAffiche: "6 56 74 62 15",
+          operateurNom: null,
+          codeEntree: null,
+          lienPayer: null,
+        }),
+        t.notifPaiementProuve("CT-104312", 7500),
+        t.notifPaiementProuve("CT-104312", 0),
+        t.notifLivree("CT-104312", "Chez Amina"),
+        t.btnContresigner,
+        t.btnPasMoi,
+        t.btnDonnerAvis,
+        t.contresigneMerci("CT-104312"),
+        t.contresigneImpossible,
+        t.contesterConfirmation("CT-104312"),
+        t.btnContesterOui,
+        t.contesteEnregistre("CT-104312"),
+        t.avisInvitation("Chez Amina"),
+        t.btnNoter,
+        t.avisLigne(5),
+        t.avisLigne(1),
+        t.avisNoteEnregistree(true),
+        t.avisNoteEnregistree(false),
+        t.btnSansMot,
+        t.avisMotMerci,
+        t.avisImpossible,
+        t.avisDejaDepose,
+        t.apresAchatSansCommande,
+        t.boutiqueFermeeAccueil,
+        t.boutiqueFermee("Chez Amina"),
       ];
       for (const p of produits) {
         expect(p, langue).toBeTypeOf("string");
@@ -228,6 +275,16 @@ describe("les chemins defensifs de la machine", () => {
       ctx(),
     );
     expect(r.etat).toMatchObject({ nom: "catalogue", page: 0 });
+  });
+
+  it("l'aide sans boutique OFFRE d'ouvrir une boutique — jamais un cul-de-sac", () => {
+    // ADR 0047 : c'est ici que l'entonnoir vendeuse fuyait.
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "bonjour" },
+      ctx({ boutique: null }),
+    );
+    expect(idsBoutons(r.messages[0])).toEqual(["vendre"]);
   });
 
   it("changer de langue sans boutique en contexte marche aussi", () => {

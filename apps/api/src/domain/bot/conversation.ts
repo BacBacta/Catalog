@@ -1,7 +1,8 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { planDePaiement } from "../order/paiement.ts";
-import { boutons, liste, type MessageSortant, texte } from "./messages.ts";
+import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
+import { boutons, image, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
 
 /**
@@ -57,11 +58,24 @@ export interface BoutiqueBot {
   /** Sans reversement pose, on peut commander mais pas payer d'avance. */
   reversementPose: boolean;
   /**
+   * Mode conges — ADR 0039. La boutique reste ENTIEREMENT visible : accueil,
+   * catalogue, fiches, photos, reputation. Seule la commande est suspendue, et
+   * la conversation avec la vendeuse reste offerte partout ou elle l'etait.
+   * Les commandes deja passees ne sont pas concernees.
+   */
+  enConges?: boolean;
+  /**
    * La reputation du lot 12 — l'argument de confiance du produit, dit a
    * l'accueil. `nbVerifies` a zero : la ligne ne s'affiche pas ; on ne fait
    * pas dire « 0 vente » a une vendeuse qui debute.
    */
   reputation?: { note: number | null; nbVerifies: number };
+  /**
+   * Vrai quand au moins un article a une photo STOCKEE — pose par le service,
+   * qui seul connait les cles d'objets. C'est ce qui fait apparaitre « Voir en
+   * photos » a l'accueil (ADR 0035) sans jamais promettre une rafale vide.
+   */
+  aDesPhotos?: boolean;
   articles: ArticleBot[];
 }
 
@@ -76,6 +90,17 @@ export interface StatutDerniereCommande {
   boutique: string;
   libelle: string;
   resteXaf: number;
+  /**
+   * Ce que l'identite du fil autorise MAINTENANT sur cette commande
+   * (ADR 0036). Calcule par le service avec les machines du domaine
+   * (`appliquerEvenement`, `droitAuDepot`) : la conversation ne redit aucune
+   * regle, elle propose ce qui est permis.
+   */
+  contresignable?: boolean;
+  avisPossible?: boolean;
+  /** Vrai quand l'avis portera le label « achat vérifié » (lot 12). */
+  avisVerifie?: boolean;
+  avisDejaDepose?: boolean;
 }
 
 /* ────────────────────────── l'etat persiste ─────────────────────────────── */
@@ -103,7 +128,13 @@ export type EtatConv =
       panier: LignePanier[];
       mode: "livraison" | "retrait";
       livraison: LivraisonBrouillon;
-    };
+    }
+  /**
+   * L'apres-achat (ADR 0036) : la note vient d'etre enregistree, on attend le
+   * mot facultatif. Seul etat qui ne porte pas de boutique — il ne detient
+   * rien d'autre que le fait qu'un avis vient d'etre depose.
+   */
+  | { nom: "avis_mot" };
 
 export const ETAT_INITIAL: EtatConv = { nom: "accueil" };
 
@@ -159,6 +190,8 @@ export function normaliserEtat(brut: unknown): EtatConv {
       }
       return { nom: "recap", slug, panier: lignes, mode, livraison };
     }
+    case "avis_mot":
+      return { nom: "avis_mot" };
     default:
       return ETAT_INITIAL;
   }
@@ -192,6 +225,9 @@ export const INACTIVITE_MAX_MS = 24 * 60 * 60 * 1000;
 export function etatApresInactivite(etat: EtatConv, ageMs: number): EtatConv {
   if (ageMs < INACTIVITE_MAX_MS) return etat;
   if (etat.nom === "accueil") return etat;
+  /* L'attente d'un mot d'avis perime sans boutique ou revenir : la note, elle,
+     est deja enregistree (ADR 0036) — rien n'est perdu. */
+  if (etat.nom === "avis_mot") return ETAT_INITIAL;
   if (etat.nom === "catalogue") {
     return { nom: "catalogue", slug: etat.slug, page: etat.page };
   }
@@ -200,10 +236,13 @@ export function etatApresInactivite(etat: EtatConv, ageMs: number): EtatConv {
 
 /* ────────────────────────── entree et reaction ──────────────────────────── */
 
+/** `messageId` est le wamid entrant — pour reagir et citer (ADR 0035). */
 export type Entree =
-  | { genre: "texte"; texte: string }
-  | { genre: "bouton"; id: string }
-  | { genre: "liste"; id: string };
+  | { genre: "texte"; texte: string; messageId?: string }
+  | { genre: "bouton"; id: string; messageId?: string }
+  | { genre: "liste"; id: string; messageId?: string }
+  /** Une photo. Le fil acheteuse ne la lit pas — seule l'inscription le fait. */
+  | { genre: "image"; mediaId: string; legende?: string; messageId?: string };
 
 export interface BrouillonCommande {
   slug: string;
@@ -213,7 +252,18 @@ export interface BrouillonCommande {
 
 export type EffetBot =
   | { type: "creer_commande"; brouillon: BrouillonCommande }
-  | { type: "verifier_sms"; texte: string };
+  | { type: "verifier_sms"; texte: string }
+  /** « livrée CT-XXXXXX » — la vendeuse marque la remise depuis le fil (ADR 0035). */
+  | { type: "marquer_livree"; reference: string }
+  /** « ma carte » — la carte-vitrine à poster en Statut (ADR 0037). */
+  | { type: "envoyer_carte" }
+  /** « congés » / « je reprends » — la boutique se ferme et se rouvre (ADR 0039). */
+  | { type: "basculer_conges"; fermer: boolean }
+  /* ─── l'apres-achat, autorise par l'identite du fil — ADR 0036 ─── */
+  | { type: "contresigner" }
+  | { type: "contester" }
+  | { type: "deposer_avis"; note: number }
+  | { type: "completer_avis"; texte: string };
 
 export interface Reaction {
   etat: EtatConv;
@@ -241,16 +291,17 @@ export function extraireSlugBoutique(texteBrut: string): string | null {
 const sansAccents = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
 /**
- * Les trois mots-cles valables PARTOUT, dans les deux langues. En
- * correspondance exacte : un quartier qui s'appellerait « Menu » n'existe
- * pas, mais un repere qui CONTIENT le mot existe surement — d'ou l'egalite
- * stricte, pas la recherche.
+ * Les mots-cles valables PARTOUT, dans les deux langues. En correspondance
+ * exacte : un quartier qui s'appellerait « Menu » n'existe pas, mais un repere
+ * qui CONTIENT le mot existe surement — d'ou l'egalite stricte, pas la
+ * recherche.
  */
-function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | null {
+function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | "panier" | null {
   const net = sansAccents(texteBrut.trim().toLowerCase());
   if (net === "menu" || net === "accueil" || net === "home") return "menu";
   if (net === "annuler" || net === "stop" || net === "cancel") return "annuler";
   if (net === "aide" || net === "help") return "aide";
+  if (net === "panier" || net === "cart" || net === "mon panier") return "panier";
   return null;
 }
 
@@ -284,6 +335,14 @@ const PAR_PAGE = 8; // 8 articles + « voir la suite » restent sous les 10 lign
 
 /** Plafond absolu par article — au-dela, ce n'est plus une conversation. */
 const QUANTITE_MAX = 99;
+
+/**
+ * La rafale « voir en photos » : six images au plus. Au-dela, ce n'est plus
+ * une vitrine, c'est une inondation — et chaque image coute une verification
+ * d'existence au service. Exportee : le service enrichit exactement autant
+ * d'articles qu'il en partira.
+ */
+export const RAFALE_MAX = 6;
 
 function panierDe(etat: EtatConv): LignePanier[] {
   return "panier" in etat && etat.panier ? etat.panier : [];
@@ -329,7 +388,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     const demande = langueDemandee(entree.texte);
     if (demande && demande !== langue) {
       const tNouveau = TEXTES[demande];
-      const suite = boutique ? accueilBoutique(vers, boutique, tNouveau) : null;
+      const suite = boutique ? accueilBoutique(vers, boutique, tNouveau, panierDe(etat)) : null;
       return {
         etat: suite?.etat ?? etat,
         messages: [texte(vers, tNouveau.langueChangee), ...(suite?.messages ?? [])],
@@ -339,15 +398,34 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   }
 
   /* Un slug dans le texte remet TOUJOURS la conversation sur la boutique :
-     c'est le geste du lien partage, il prime sur tout etat anterieur. */
+     c'est le geste du lien partage, il prime sur tout etat anterieur. Le
+     panier suit si c'est la MEME boutique ; sinon il est laisse — et on le
+     DIT, au lieu de le faire disparaitre en silence (ADR 0035). */
   if (entree.genre === "texte" && extraireSlugBoutique(entree.texte)) {
     if (!boutique) {
       return { etat: ETAT_INITIAL, messages: [texte(vers, t.boutiqueIntrouvable)] };
     }
-    return accueilBoutique(vers, boutique, t);
+    const panier = panierDe(etat);
+    const memeBoutique = "slug" in etat && etat.slug === boutique.slug;
+    const accueil = accueilBoutique(vers, boutique, t, memeBoutique ? panier : []);
+    if (!memeBoutique && panier.length > 0) {
+      return {
+        etat: accueil.etat,
+        messages: [texte(vers, t.panierAbandonneAilleurs), ...accueil.messages],
+      };
+    }
+    return accueil;
   }
 
   const mot = entree.genre === "texte" ? motCleGlobal(entree.texte) : null;
+
+  /**
+   * L'apres-achat — ADR 0036. Il passe AVANT l'exigence d'une boutique : on
+   * contre-signe et on note une commande, pas un catalogue. L'autorisation
+   * vient du fil lui-meme (`derniereCommande`), jamais d'une reference tapee.
+   */
+  const apres = reagirApresAchat(etat, entree, ctx, t);
+  if (apres) return apres;
 
   if (!boutique) {
     if (entree.genre === "texte" && demandeStatut(entree.texte)) {
@@ -356,13 +434,23 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
         messages: [messageStatut(vers, ctx.derniereCommande ?? null, t)],
       };
     }
-    return { etat: ETAT_INITIAL, messages: [texte(vers, t.aideAcheteuse)] };
+    /**
+     * L'aide OFFRE une sortie vendeuse — ADR 0047. Sans ce bouton, une
+     * personne qui a entendu parler de Catalog et qui ecrit au numero
+     * s'entend repondre d'ouvrir le lien d'une boutique qu'elle n'a pas :
+     * l'entonnoir fuyait au premier message.
+     */
+    return {
+      etat: ETAT_INITIAL,
+      messages: [boutons(vers, t.aideAcheteuse, [{ id: "vendre", titre: t.btnVendre }])],
+    };
   }
 
-  const id = entree.genre === "texte" ? null : entree.id;
+  const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
 
-  /* Les gestes globaux, valables dans tout etat — bouton OU mot-cle. */
-  if (id === "menu" || mot === "menu") return accueilBoutique(vers, boutique, t);
+  /* Les gestes globaux, valables dans tout etat — bouton OU mot-cle.
+     « menu » GARDE le panier : seul « annuler » le vide, et il le dit. */
+  if (id === "menu" || mot === "menu") return accueilBoutique(vers, boutique, t, panierDe(etat));
   if (id === "annuler" || mot === "annuler") {
     const accueil = accueilBoutique(vers, boutique, t);
     return {
@@ -373,6 +461,45 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   if (mot === "aide") {
     return { etat, messages: [texte(vers, t.aideGestes)] };
   }
+  /**
+   * « panier » marche PARTOUT (T8) : depuis le catalogue, depuis une fiche,
+   * depuis le flux de livraison. Jusqu'ici, la premiere fois qu'une acheteuse
+   * voyait ses lignes etait le recapitulatif — trop tard pour corriger.
+   */
+  if (id === "panier" || mot === "panier") {
+    const contenu = panierDe(etat);
+    if (contenu.length === 0) {
+      return { etat, messages: [texte(vers, t.panierVide)] };
+    }
+    return {
+      etat: { nom: "ajout", slug: boutique.slug, panier: contenu },
+      messages: messageAjout(vers, boutique, contenu, t),
+    };
+  }
+  /**
+   * Mode conges — ADR 0039. Le refus se pose sur les TROIS gestes qui font
+   * avancer vers une commande, et pas seulement sur le premier : un fil ouvert
+   * avant le depart en conges porte encore ses anciens boutons, et WhatsApp les
+   * laisse appuyer. `confirmer` est le dernier verrou avant `creer_commande`.
+   *
+   * Tout le reste marche : catalogue, fiches, photos, panier, suivi, avis. Une
+   * boutique fermee reste une vitrine, et la vendeuse reste joignable.
+   */
+  if (
+    boutique.enConges &&
+    (id === "commander" || id === "confirmer" || (id?.startsWith("cmd:") ?? false))
+  ) {
+    return {
+      etat,
+      messages: [
+        boutons(vers, t.boutiqueFermee(boutique.nom), [
+          ...(boutique.whatsappVendeuse ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }] : []),
+          { id: "catalogue", titre: t.btnVoirArticles },
+        ]),
+      ],
+    };
+  }
+
   if (id === "vendeuse") {
     if (!boutique.whatsappVendeuse) return accueilBoutique(vers, boutique, t);
     const chiffres = boutique.whatsappVendeuse.replace(/\D/g, "");
@@ -384,6 +511,22 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   if (id === "catalogue" || id?.startsWith("cat:")) {
     const page = id?.startsWith("cat:") ? Number(id.slice(4)) || 0 : 0;
     return pageCatalogue(vers, boutique, page, panierDe(etat), t);
+  }
+  if (id === "photos") {
+    /* La rafale : chaque article illustre part en photo pleine largeur,
+       legendee nom et prix, puis la liste reprend la main. Le service n'a
+       enrichi que les URL VERIFIEES — une rafale ne promet jamais un lien
+       mort (regle de l'ADR 0032). */
+    const suite = pageCatalogue(vers, boutique, 0, panierDe(etat), t);
+    const photos = boutique.articles
+      .slice(0, RAFALE_MAX)
+      .flatMap((a) =>
+        a.imageUrl ? [image(vers, a.imageUrl, `${a.nom} — ${formatXaf(a.prixXaf)}`)] : [],
+      );
+    if (photos.length === 0) {
+      return { etat: suite.etat, messages: [texte(vers, t.rafaleAucunePhoto), ...suite.messages] };
+    }
+    return { etat: suite.etat, messages: [...photos, ...suite.messages] };
   }
   if (id?.startsWith("art:")) {
     const page = etat.nom === "catalogue" ? etat.page : 0;
@@ -462,9 +605,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
         : [...etat.panier, { articleId: article.id, quantite }];
       return {
         etat: { nom: "ajout", slug: etat.slug, panier },
-        messages: [
-          boutonsAjout(vers, t.ajout(article.nom, quantite, totalPanier(boutique, panier)), t),
-        ],
+        messages: messageAjout(vers, boutique, panier, t, t.ajout(article.nom, quantite)),
       };
     }
 
@@ -561,8 +702,142 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     }
 
     default:
-      return accueilBoutique(vers, boutique, t);
+      return accueilBoutique(vers, boutique, t, panierDe(etat));
   }
+}
+
+/* ──────────────────── l'apres-achat dans le fil (ADR 0036) ──────────────── */
+
+/**
+ * Les quatre gestes que l'identite du fil autorise, et rien d'autre :
+ * contre-signer, contester, noter, ajouter un mot.
+ *
+ * Rend `null` quand l'entree n'est aucun de ces gestes — la conversation
+ * ordinaire reprend alors la main. **Aucune regle metier n'est redite ici** :
+ * ce qui est permis vient de `ctx.derniereCommande`, calcule par le service
+ * avec les machines du lot 7 et du lot 12 (decision 4 de l'ADR).
+ */
+function reagirApresAchat(
+  etat: EtatConv,
+  entree: Entree,
+  ctx: ContexteAcheteuse,
+  t: TextesAcheteuse,
+): Reaction | null {
+  const vers = ctx.vers;
+  const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+  const tape = entree.genre === "texte" ? sansAccents(entree.texte.trim().toLowerCase()) : "";
+  const commande = ctx.derniereCommande ?? null;
+
+  /* Le mot d'avis attendu : tout texte devient le commentaire. Les mots-cles
+     globaux, eux, ont deja repris la main plus haut. */
+  if (etat.nom === "avis_mot") {
+    if (id === "avis:sans_mot") {
+      return { etat: ETAT_INITIAL, messages: [texte(vers, t.avisMotMerci)] };
+    }
+    if (entree.genre === "texte" && entree.texte.trim().length > 1) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [texte(vers, t.avisMotMerci)],
+        effet: { type: "completer_avis", texte: entree.texte.trim().slice(0, 1000) },
+      };
+    }
+  }
+
+  const veutContresigner = id === "contresigner" || tape === "confirmer";
+  const veutContester = id === "contester";
+  const veutNoter = id === "avis" || tape === "avis" || tape === "noter" || tape === "review";
+  const note = id?.startsWith("note:") ? Number(id.slice(5)) : null;
+
+  if (
+    !veutContresigner &&
+    !veutContester &&
+    !veutNoter &&
+    note === null &&
+    id !== "contester:oui"
+  ) {
+    return null;
+  }
+
+  /* Aucune commande dans ce fil : on le DIT, on n'invente rien. */
+  if (!commande) {
+    return { etat: ETAT_INITIAL, messages: [texte(vers, t.apresAchatSansCommande)] };
+  }
+
+  if (veutContresigner) {
+    if (!commande.contresignable) {
+      return { etat, messages: [texte(vers, t.contresigneImpossible)] };
+    }
+    return {
+      etat,
+      messages: [texte(vers, t.contresigneMerci(commande.reference))],
+      effet: { type: "contresigner" },
+    };
+  }
+
+  if (veutContester) {
+    /* La contestation se CONFIRME : un appui malheureux gelerait la commande. */
+    return {
+      etat,
+      messages: [
+        boutons(vers, t.contesterConfirmation(commande.reference), [
+          { id: "contester:oui", titre: t.btnContesterOui },
+          { id: "menu", titre: t.btnAnnuler },
+        ]),
+      ],
+    };
+  }
+
+  if (id === "contester:oui") {
+    return {
+      etat,
+      messages: [texte(vers, t.contesteEnregistre(commande.reference))],
+      effet: { type: "contester" },
+    };
+  }
+
+  if (veutNoter) {
+    if (commande.avisDejaDepose) {
+      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+    }
+    if (!commande.avisPossible) {
+      return { etat, messages: [texte(vers, t.avisImpossible)] };
+    }
+    return {
+      etat,
+      messages: [
+        liste(
+          vers,
+          t.avisInvitation(commande.boutique),
+          t.btnNoter,
+          [5, 4, 3, 2, 1].map((n) => ({ id: `note:${n}`, titre: t.avisLigne(n) })),
+        ),
+      ],
+    };
+  }
+
+  if (note !== null) {
+    if (!Number.isInteger(note) || note < 1 || note > 5) {
+      return { etat, messages: [texte(vers, t.avisImpossible)] };
+    }
+    if (commande.avisDejaDepose) {
+      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+    }
+    if (!commande.avisPossible) {
+      return { etat, messages: [texte(vers, t.avisImpossible)] };
+    }
+    /* La note s'enregistre TOUT DE SUITE ; le mot l'enrichit ensuite. */
+    return {
+      etat: { nom: "avis_mot" },
+      messages: [
+        boutons(vers, t.avisNoteEnregistree(commande.avisVerifie === true), [
+          { id: "avis:sans_mot", titre: t.btnSansMot },
+        ]),
+      ],
+      effet: { type: "deposer_avis", note },
+    };
+  }
+
+  return null;
 }
 
 /* ────────────────────────── les messages du fil ─────────────────────────── */
@@ -593,13 +868,36 @@ function boutonsAjout(vers: string, corps: string, t: TextesAcheteuse): MessageS
   ]);
 }
 
+/**
+ * Les lignes du panier, telles qu'elles se lisent — ADR 0033, complete par la
+ * tranche P1d. Un article disparu du catalogue depuis l'ajout est simplement
+ * omis : la creation le reverifiera de toute facon (`resoudreLignes`).
+ */
+function lignesLisibles(b: BoutiqueBot, panier: LignePanier[], t: TextesAcheteuse): string[] {
+  return panier.flatMap((l) => {
+    const a = b.articles.find((x) => x.id === l.articleId);
+    return a ? [t.ligneArticle(a.nom, l.quantite, a.prixXaf)] : [];
+  });
+}
+
+/**
+ * L'etape panier telle qu'elle s'affiche. Jusqu'a la tranche P1d elle n'en
+ * montrait que le TOTAL : la premiere fois qu'une acheteuse relisait ses lignes
+ * etait le recapitulatif, une fois la livraison saisie — trop tard pour
+ * corriger sans tout reprendre. Elle les montre desormais a chaque passage.
+ *
+ * `ajoute` n'est present que lorsqu'on vient d'ajouter quelque chose : l'accuse
+ * de reception a sa valeur propre, il ne se deduit pas d'une liste.
+ */
 function messageAjout(
   vers: string,
   b: BoutiqueBot,
   panier: LignePanier[],
   t: TextesAcheteuse,
+  ajoute?: string,
 ): MessageSortant[] {
-  return [boutonsAjout(vers, t.panierCorps(totalPanier(b, panier)), t)];
+  const corps = t.panierCorps(lignesLisibles(b, panier, t), totalPanier(b, panier));
+  return [boutonsAjout(vers, ajoute ? `${ajoute}\n\n${corps}` : corps, t)];
 }
 
 function questionMode(vers: string, totalXaf: number, t: TextesAcheteuse): MessageSortant {
@@ -615,22 +913,32 @@ function noteAffichee(note: number, langue: "fr" | "point"): string {
   return langue === "fr" ? String(note).replace(".", ",") : String(note);
 }
 
-function accueilBoutique(vers: string, b: BoutiqueBot, t: TextesAcheteuse): Reaction {
+function accueilBoutique(
+  vers: string,
+  b: BoutiqueBot,
+  t: TextesAcheteuse,
+  panier: LignePanier[] = [],
+): Reaction {
   const rep = b.reputation;
   const note = rep?.note != null ? noteAffichee(rep.note, t === TEXTES.fr ? "fr" : "point") : null;
   const lignes = [
     `*${b.nom}* — ${b.ville}`,
     ...(rep && rep.nbVerifies > 0 ? [t.accueilReputation(note, rep.nbVerifies)] : []),
-    t.accueilPitch,
+    /* Fermee, on le dit A L'ACCUEIL : laisser choisir un article puis refuser
+       a la fin serait la meme faute que la course de livraison decouverte a la
+       remise (ADR 0035). */
+    b.enConges ? t.boutiqueFermeeAccueil : t.accueilPitch,
   ];
+  /* Trois boutons au plus (limite API) : la vitrine, les photos, l'humaine. */
   const choix = [
     { id: "catalogue", titre: t.btnVoirArticles },
+    ...(b.aDesPhotos ? [{ id: "photos", titre: t.btnVoirPhotos }] : []),
     ...(b.whatsappVendeuse ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }] : []),
   ];
-  const image = b.articles.find((a) => a.imageUrl)?.imageUrl;
+  const enTete = b.articles.find((a) => a.imageUrl)?.imageUrl;
   return {
-    etat: { nom: "catalogue", slug: b.slug, page: 0 },
-    messages: [boutons(vers, lignes.join("\n"), choix, image ? { image } : {})],
+    etat: { nom: "catalogue", slug: b.slug, page: 0, ...(panier.length > 0 ? { panier } : {}) },
+    messages: [boutons(vers, lignes.join("\n"), choix, enTete ? { image: enTete } : {})],
   };
 }
 
@@ -661,6 +969,16 @@ function pageCatalogue(
   if (b.articles.length > debut + PAR_PAGE) {
     lignes.push({ id: `cat:${page + 1}`, titre: t.voirLaSuite, description: "" });
   }
+  /* Le panier se voit sans avoir a le taper (T8) : une ligne en TETE de liste
+     des qu'il contient quelque chose. 8 articles + « voir la suite » + celle-ci
+     font exactement les 10 lignes que WhatsApp accepte. */
+  if (panier.length > 0) {
+    lignes.unshift({
+      id: "panier",
+      titre: t.btnMonPanier,
+      description: formatXaf(totalPanier(b, panier)),
+    });
+  }
   return {
     etat: { nom: "catalogue", slug: b.slug, page, ...(panier.length > 0 ? { panier } : {}) },
     messages: [liste(vers, t.listeTitre(b.nom, b.articles.length), t.btnVoirArticles, lignes)],
@@ -683,21 +1001,32 @@ function ficheArticle(
     ...(article.stock != null ? [t.stockRestant(article.stock)] : []),
     ...(article.description ? ["", article.description] : []),
   ];
+  const actions = [
+    /* En conges, « Commander » ne s'affiche pas du tout : proposer un bouton
+       dont on sait qu'il refusera est une promesse qu'on ne tient pas. La
+       vendeuse prend sa place — elle seule sait quand elle reprend. */
+    ...(b.enConges
+      ? b.whatsappVendeuse
+        ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }]
+        : []
+      : [{ id: `cmd:${article.id}`, titre: t.btnCommander }]),
+    { id: `cat:${page}`, titre: t.btnRetourCatalogue },
+    /* Trois boutons au maximum : celui-ci ne prend sa place que lorsqu'il a
+       quelque chose a montrer. */
+    ...(panier.length > 0 ? [{ id: "panier", titre: t.btnMonPanier }] : []),
+  ];
   return {
     /* La page courante est conservee : « Retour au catalogue » y ramene, au
        lieu de renvoyer une acheteuse de la page 3 a la page 0. */
     etat: { nom: "catalogue", slug: b.slug, page, ...(panier.length > 0 ? { panier } : {}) },
-    messages: [
-      boutons(
-        vers,
-        lignes.join("\n"),
-        [
-          { id: `cmd:${article.id}`, titre: t.btnCommander },
-          { id: `cat:${page}`, titre: t.btnRetourCatalogue },
-        ],
-        article.imageUrl ? { image: article.imageUrl } : {},
-      ),
-    ],
+    /* Image d'ABORD, pleine largeur (ADR 0035) : la photo vend, le texte
+       precise. Sans photo, la fiche reste un seul message a boutons. */
+    messages: article.imageUrl
+      ? [
+          image(vers, article.imageUrl, `${article.nom} — ${formatXaf(article.prixXaf)}`),
+          boutons(vers, lignes.join("\n"), actions),
+        ]
+      : [boutons(vers, lignes.join("\n"), actions)],
   };
 }
 
@@ -762,14 +1091,13 @@ function messageRecap(
 ): MessageSortant {
   const total = totalPanier(b, panier);
   const plan = planDePaiement(total, b.reversementPose ? "acompte" : "sans_prepaiement");
-  const lignesArticles = panier.flatMap((l) => {
-    const a = b.articles.find((x) => x.id === l.articleId);
-    return a ? [t.ligneArticle(a.nom, l.quantite, a.prixXaf)] : [];
-  });
   const lignes = [
     t.recapTitre(b.nom),
-    ...lignesArticles,
+    ...lignesLisibles(b, panier, t),
     t.ligneTotal(total),
+    /* Le total ne comprend JAMAIS la course : le dire au recap evite de le
+       decouvrir a la remise (ADR 0035). */
+    ...(livraison.mode === "livraison" ? [t.ligneHorsLivraison] : []),
     ...(plan.duAvantXaf > 0 && plan.duAvantXaf < total ? [t.ligneAcompte(plan.duAvantXaf)] : []),
     ligneLivraison(livraison, t),
     t.ligneTelephone(formatPhone(livraison.phone)),
@@ -821,6 +1149,21 @@ export function confirmationCommande(
      * ne dit jamais « payer » quand il n'y a rien a payer d'avance.
      */
     lienSuivi: string | null;
+    /**
+     * Le bloc paiement DANS le fil (ADR 0035) : monte par le service depuis le
+     * reversement de la vendeuse et la CONFIGURATION de la rampe — le code
+     * d'entree n'est jamais une constante (AGENTS.md). Absent : la copie
+     * historique reprend la main, rien ne casse.
+     */
+    paiement?: {
+      montantXaf: number;
+      numeroAffiche: string;
+      operateurNom: string | null;
+      codeEntree: string | null;
+      lienPayer: string | null;
+    } | null;
+    /** Le wa.me de la vendeuse : la conversation continue chez elle. */
+    waVendeuse?: string | null;
   },
   langue: Langue = "fr",
 ): MessageSortant[] {
@@ -829,15 +1172,27 @@ export function confirmationCommande(
     t.confirmationTitre(c.reference, c.boutique),
     ...c.lignes.map((l) => t.ligneArticle(l.nom, l.quantite, l.prixUnitaireXaf)),
     t.ligneTotal(c.totalXaf),
+    ...(c.livraison.mode === "livraison" ? [t.ligneHorsLivraison] : []),
     ...(c.duAvantXaf > 0 && c.duAvantXaf < c.totalXaf ? [t.ligneAcompte(c.duAvantXaf)] : []),
     ligneLivraison(c.livraison, t),
     t.ligneTelephone(formatPhone(c.livraison.phone)),
     t.ligneCode(c.codeVerification),
   ];
-  const corps = lignes.join("\n");
-  if (!c.lienSuivi) return [texte(vers, corps)];
-  const suite = c.duAvantXaf > 0 ? t.suiteAcompte(c.lienSuivi) : t.suiteSansAcompte(c.lienSuivi);
-  return [texte(vers, corps), texte(vers, suite)];
+  const messages: MessageSortant[] = [texte(vers, lignes.join("\n"))];
+
+  if (c.duAvantXaf > 0 && c.paiement) {
+    /* Le paiement se dit ICI, en texte brut autosuffisant ; le lien de suivi
+       redevient ce qu'il est — le suivi et le recu. */
+    messages.push(texte(vers, t.blocPaiement(c.paiement)));
+    if (c.lienSuivi) messages.push(texte(vers, t.suiteSuivi(c.lienSuivi)));
+  } else if (c.lienSuivi) {
+    messages.push(
+      texte(vers, c.duAvantXaf > 0 ? t.suiteAcompte(c.lienSuivi) : t.suiteSansAcompte(c.lienSuivi)),
+    );
+  }
+
+  if (c.waVendeuse) messages.push(texte(vers, t.apresConfirmation(c.boutique, c.waVendeuse)));
+  return messages;
 }
 
 /* ────────────────────────── le fil vendeuse ─────────────────────────────── */
@@ -846,6 +1201,17 @@ export interface CommandeOuverte {
   id: string;
   reference: string;
   resteXaf: number;
+}
+
+/** Ce que le menu vendeuse montre d'elle-meme — charge par le service. */
+export interface BoutiqueVendeuse {
+  nom: string;
+  nbArticles: number;
+  lienBoutique: string;
+  /** L'URL de l'espace vendeuse. `null` quand la base n'est pas configuree. */
+  lienEspace: string | null;
+  /** Mode conges — ADR 0039. Le menu dit l'etat et propose l'inverse. */
+  enConges?: boolean;
 }
 
 /**
@@ -861,18 +1227,65 @@ export function reagirVendeuse(
     smsReconnu: boolean;
     commandesOuvertes: CommandeOuverte[];
     soldesXaf: number;
+    boutique?: BoutiqueVendeuse | null;
   },
 ): Reaction {
   if (entree.genre === "texte" && contexte.smsReconnu) {
     return {
       etat: ETAT_INITIAL,
-      messages: [],
+      /* L'accuse pose SUR le SMS meme (ADR 0035) : le fil reste lisible. */
+      messages: entree.messageId ? [reaction(vers, entree.messageId, "✅")] : [],
       effet: { type: "verifier_sms", texte: entree.texte },
     };
   }
 
+  /* « livree CT-522801 » — la remise se marque depuis le fil (ADR 0035). La
+     MEME machine d'etapes que la route decide ; ici on ne fait que reconnaitre
+     le geste. « CT- » se tolere absent : six chiffres suffisent. */
+  if (entree.genre === "texte") {
+    const livree = /^livree\s+(?:ct-?)?(\d{6})$/.exec(
+      sansAccents(entree.texte.trim().toLowerCase()),
+    );
+    if (livree?.[1]) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [],
+        effet: { type: "marquer_livree", reference: `CT-${livree[1]}` },
+      };
+    }
+  }
+
   const mot = entree.genre === "texte" ? entree.texte.trim().toLowerCase() : "";
-  if (mot === "solde" || mot === "soldes") {
+  const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+
+  /* La carte-vitrine (ADR 0037) : le service la fabrique et l'envoie — la
+     machine ne sait pas dessiner, elle sait demander. */
+  if (id === "carte" || (entree.genre === "texte" && demandeCarteVitrine(entree.texte))) {
+    return { etat: ETAT_INITIAL, messages: [], effet: { type: "envoyer_carte" } };
+  }
+
+  /**
+   * Le mode conges depuis le fil — ADR 0039. Deux gestes symetriques, en
+   * bouton comme au mot tape. La bascule n'est pas confirmee : elle est
+   * REVERSIBLE d'un mot, et rien ne se perd — ni commande, ni reputation.
+   */
+  const bascule =
+    id === "conges"
+      ? true
+      : id === "rouvrir"
+        ? false
+        : entree.genre === "texte"
+          ? demandeConges(entree.texte)
+          : null;
+  if (bascule !== null) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [],
+      effet: { type: "basculer_conges", fermer: bascule },
+    };
+  }
+
+  if (mot === "solde" || mot === "soldes" || id === "solde") {
     const n = contexte.commandesOuvertes.length;
     const corps =
       n === 0
@@ -884,12 +1297,65 @@ export function reagirVendeuse(
     return { etat: ETAT_INITIAL, messages: [texte(vers, corps)] };
   }
 
+  /**
+   * Le menu vendeuse — ADR 0035. « Ma boutique » n'est plus un cul-de-sac :
+   * l'etat de la boutique, ses liens, et les deux gestes qui comptent. La
+   * copie de repli reste pour le service qui n'aurait pas charge la boutique.
+   */
+  const b = contexte.boutique;
+  if (!b) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        texte(
+          vers,
+          "Collez ici le SMS de votre opérateur pour prouver un paiement, ou écrivez « solde ». Le reste — articles, photos, chiffres — vit dans votre espace vendeuse.",
+        ),
+      ],
+    };
+  }
+  const lignes = [
+    `*${b.nom}*`,
+    ...(b.enConges
+      ? ["🌴 *En congés* — votre boutique reste en ligne, mais ne prend pas de nouvelle commande."]
+      : []),
+    b.nbArticles > 0
+      ? `${b.nbArticles} article${b.nbArticles > 1 ? "s" : ""} en ligne`
+      : "Aucun article en ligne pour l'instant — ajoutez le premier !",
+    contexte.commandesOuvertes.length > 0
+      ? `À encaisser : *${formatXaf(contexte.soldesXaf)}* sur ${contexte.commandesOuvertes.length} commande${contexte.commandesOuvertes.length > 1 ? "s" : ""}`
+      : "Rien à encaisser en ce moment.",
+    "",
+    `Votre lien de boutique — partagez-le, mettez-le en Statut :\n${b.lienBoutique}`,
+    ...(b.lienEspace ? [`Vos chiffres et votre reversement : ${b.lienEspace}`] : []),
+    "",
+    "Un paiement reçu ? Collez ici le SMS de votre opérateur — il devient le reçu. Une commande remise ? Écrivez « livrée CT-… ».",
+    /* Le geste est ANNONCE : un mot-clé que personne ne connaît n'existe pas. */
+    ...(b.enConges
+      ? ["Prête à reprendre ? Écrivez « je reprends »."]
+      : [
+          "Vous partez ? Écrivez « congés » : votre boutique reste en ligne, sans prendre de commande.",
+        ]),
+  ];
   return {
     etat: ETAT_INITIAL,
     messages: [
-      texte(
+      /* Trois boutons au plus. En congés, « Je reprends » prend la place de la
+         carte à partager — c'est le geste du moment, et mettre en avant une
+         boutique qui ne prend pas commande n'en est pas un. « Ajouter un
+         article » reste : préparer sa rentrée est exactement ce qu'on fait
+         pendant des congés. */
+      boutons(
         vers,
-        "Collez ici le SMS de votre opérateur pour prouver un paiement, ou écrivez « solde ». Le reste — articles, photos, chiffres — vit dans votre espace vendeuse.",
+        lignes.join("\n"),
+        [
+          ...(b.enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
+          { id: "article", titre: "Ajouter un article" },
+          ...(!b.enConges && b.nbArticles > 0
+            ? [{ id: "carte", titre: "Ma carte à partager" }]
+            : []),
+          { id: "solde", titre: "Mes soldes" },
+        ].slice(0, 3),
       ),
     ],
   };

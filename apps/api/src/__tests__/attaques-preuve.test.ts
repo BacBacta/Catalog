@@ -97,7 +97,7 @@ interface Scene {
 /** Une vendeuse, une commande, un lien de suivi. */
 async function scene(
   suffixe: number,
-  options: { totalXaf?: number; payoutPhone?: string } = {},
+  options: { totalXaf?: number; payoutPhone?: string; payMode?: "integral" | "acompte" } = {},
 ): Promise<Scene> {
   const totalXaf = options.totalXaf ?? 26800;
   const n = (base: string) => `+237${base}${suffixe.toString().padStart(7, "0").slice(-7)}`;
@@ -135,7 +135,7 @@ async function scene(
       totalXaf,
       amountPaidXaf: 0,
       balanceXaf: totalXaf,
-      payMode: "integral",
+      payMode: options.payMode ?? "integral",
       delivery: { mode: "retrait", pickupPoint: "Carrefour Elf", phone: "+237652000001" },
       verificationCode: code,
       createdAt: CREEE,
@@ -188,8 +188,14 @@ describeDb("attaques sur la preuve (lot 15)", () => {
   /* ═════════════ 1. rejouer un identifiant ═════════════ */
 
   describe("rejouer un identifiant deja reclame", () => {
+    /**
+     * Le scenario reel du rejeu chez soi (ADR 0035) : l'acompte est prouve,
+     * puis le MEME SMS est recolle pour reclamer le solde — le montant
+     * correspond a nouveau (l'acompte de 50 % egale le solde), tous les
+     * controles purs passent, et c'est l'INSERT qui tranche : controle n° 5.
+     */
     it("chez la MEME vendeuse : refuse par le controle n° 5", async () => {
-      const s = await scene(suivant());
+      const s = await scene(suivant(), { totalXaf: 53600, payMode: "acompte" });
       const sms = MTN_RECEPTION.replace("17600000002", txMtn());
 
       expect((await poster(s, sms)).status).toBe(200);
@@ -199,6 +205,72 @@ describeDb("attaques sur la preuve (lot 15)", () => {
       const corps = (await rejeu.json()) as Reponse;
       expect(corps.verdict).toBe("refuse");
       expect(controleEnEchec(corps)).toBe(5);
+    });
+
+    /**
+     * Depuis l'ADR 0035, une preuve acceptee FAIT AVANCER la commande. Le
+     * rejeu sur une commande soldee meurt donc des le controle n° 2 : le
+     * montant ne correspond plus a rien d'attendu. C'est une defense de plus,
+     * pas une de moins — l'unicite reste derriere.
+     */
+    it("chez la MEME vendeuse, commande soldee : le montant ne correspond plus (controle n° 2)", async () => {
+      const s = await scene(suivant());
+      const sms = MTN_RECEPTION.replace("17600000002", txMtn());
+
+      expect((await poster(s, sms)).status).toBe(200);
+
+      const rejeu = await poster(s, sms);
+      expect(rejeu.status).toBe(422);
+      const corps = (await rejeu.json()) as Reponse;
+      expect(corps.verdict).toBe("refuse");
+      expect(controleEnEchec(corps)).toBe(2);
+    });
+
+    /**
+     * **La reparation du maillon manquant (ADR 0035), attestee sur la base :**
+     * une preuve acceptee ecrit `prouve`, applique le versement et journalise
+     * l'entree comptable. C'est ce qui rend le recu emissible — avant cette
+     * transaction, la chaine verdict → recu → contre-signature etait morte.
+     */
+    it("une preuve acceptee applique l'argent et l'etat a la commande", async () => {
+      const s = await scene(suivant());
+      const sms = MTN_RECEPTION.replace("17600000002", txMtn());
+
+      expect((await poster(s, sms)).status).toBe(200);
+
+      const commande = await prisma.order.findUniqueOrThrow({
+        where: { id: s.orderId },
+        select: { proofState: true, amountPaidXaf: true, balanceXaf: true },
+      });
+      expect(commande.proofState).toBe("prouve");
+      expect(commande.amountPaidXaf).toBe(26800);
+      expect(commande.balanceXaf).toBe(0);
+
+      const comptable = await prisma.ledgerEntry.findFirst({
+        where: { orderId: s.orderId, reason: "paiement_prouve" },
+        select: { amountXaf: true, direction: true },
+      });
+      expect(comptable).toMatchObject({ amountXaf: 26800, direction: "entree" });
+    });
+
+    /**
+     * L'acompte est le paiement que Catalog lui-meme demande : son SMS passe
+     * le controle n° 2 (l'attendu est l'ACOMPTE tant que rien n'est arrive),
+     * et le solde reste ouvert — exactement ce que le recap a annonce.
+     */
+    it("le SMS de l'acompte est accepte, le solde reste ouvert", async () => {
+      const s = await scene(suivant(), { totalXaf: 53600, payMode: "acompte" });
+      const sms = MTN_RECEPTION.replace("17600000002", txMtn());
+
+      expect((await poster(s, sms)).status).toBe(200);
+
+      const commande = await prisma.order.findUniqueOrThrow({
+        where: { id: s.orderId },
+        select: { proofState: true, amountPaidXaf: true, balanceXaf: true },
+      });
+      expect(commande.proofState).toBe("prouve");
+      expect(commande.amountPaidXaf).toBe(26800);
+      expect(commande.balanceXaf).toBe(26800);
     });
 
     /**

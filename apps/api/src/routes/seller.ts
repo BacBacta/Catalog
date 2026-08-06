@@ -32,7 +32,50 @@ export interface Vendeuse {
     city: string;
     payoutPhone: string | null;
     payoutOperator: string | null;
+    /** Mode conges — ADR 0039. `null` = la boutique prend les commandes. */
+    congesDepuis: string | null;
   } | null;
+}
+
+/**
+ * La bascule du mode conges — ADR 0039.
+ *
+ * Ecrite ICI et appelee par les DEUX chemins (l'app vendeuse et le fil
+ * WhatsApp) : deux ecritures separees finiraient par diverger sur le journal,
+ * qui est justement ce qui permet de repondre a « depuis quand ma boutique
+ * ne prend plus rien ? ».
+ *
+ * Idempotente : refermer une boutique fermee ne repousse pas la date. La date
+ * repond a « depuis quand », pas a « quand a-t-elle appuye pour la derniere
+ * fois » — et une bascule sans changement n'entre pas au journal.
+ */
+export async function basculerConges(
+  prisma: PrismaClient,
+  sellerId: string,
+  fermer: boolean,
+  acteur: string,
+  maintenant: Date,
+): Promise<{ congesDepuis: Date | null }> {
+  const actuel = await prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { congesDepuis: true },
+  });
+  if (!actuel) throw new Error("boutique introuvable");
+  const cible = fermer ? (actuel.congesDepuis ?? maintenant) : null;
+  if (actuel.congesDepuis?.getTime() === cible?.getTime()) return { congesDepuis: cible };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.seller.update({ where: { id: sellerId }, data: { congesDepuis: cible } });
+    await tx.sellerAuditEvent.create({
+      data: {
+        sellerId,
+        kind: fermer ? "boutique_fermee" : "boutique_rouverte",
+        actor: acteur,
+        at: maintenant,
+      },
+    });
+  });
+  return { congesDepuis: cible };
 }
 
 /** Resout la session en profil. `null` = non authentifie, jamais une exception. */
@@ -48,12 +91,13 @@ export async function vendeuseCourante(deps: SessionDeps, req: Request): Promise
       city: true,
       payoutPhone: true,
       payoutOperator: true,
+      congesDepuis: true,
     },
   });
   return {
     userId: s.user.id,
     loginPhone: s.user.phoneNumber ?? "",
-    seller: seller ?? null,
+    seller: seller ? { ...seller, congesDepuis: seller.congesDepuis?.toISOString() ?? null } : null,
   };
 }
 
@@ -168,6 +212,32 @@ export function sellerRoutes(deps: SessionDeps) {
         }
         return c.json(seller, 201);
       })
+
+      /**
+       * Le mode conges — ADR 0039.
+       *
+       * Pas d'OTP : fermer sa boutique ne deplace aucun argent et se defait
+       * d'un geste. Le champ qui exige une verification est le numero de
+       * reversement, et lui seul (AGENTS.md).
+       */
+      .post("/conges", async (c) => {
+        const v = await vendeuseCourante(deps, c.req.raw);
+        if (!v) return c.json({ erreur: "non_authentifiee" }, 401);
+        if (!v.seller) return c.json({ erreur: "profil_absent" }, 404);
+
+        const corps = await c.req.json().catch(() => null);
+        if (typeof corps?.fermer !== "boolean") {
+          return c.json({ erreur: "champs_requis", message: "`fermer` est un booleen." }, 422);
+        }
+        const r = await basculerConges(
+          deps.prisma,
+          v.seller.id,
+          corps.fermer,
+          "vendeuse_app",
+          new Date(),
+        );
+        return c.json({ congesDepuis: r.congesDepuis?.toISOString() ?? null });
+      })
   );
 }
 
@@ -176,7 +246,7 @@ export function sellerRoutes(deps: SessionDeps) {
  * le rejet d'inscription pour une homonymie, qui est frequente — « chez tantine »
  * n'est pas un nom rare.
  */
-async function slugLibre(prisma: PrismaClient, base: string): Promise<string> {
+export async function slugLibre(prisma: PrismaClient, base: string): Promise<string> {
   for (let i = 0; i < 50; i++) {
     const essai = i === 0 ? base : `${base}-${i + 1}`;
     const pris = await prisma.seller.findUnique({ where: { slug: essai }, select: { id: true } });

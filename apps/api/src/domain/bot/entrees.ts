@@ -10,10 +10,22 @@
  * par le client WhatsApp, ne route jamais rien.
  */
 
+/**
+ * `messageId` est le wamid du message ENTRANT — ce qui permet d'y REAGIR et
+ * de le CITER (ADR 0035, P1) : l'accuse posé sur la photo meme, le verdict
+ * qui cite le SMS. Facultatif : une livraison sans identifiant reste lue.
+ */
 export type EntreeBot =
-  | { de: string; genre: "texte"; texte: string }
-  | { de: string; genre: "bouton"; id: string }
-  | { de: string; genre: "liste"; id: string };
+  | { de: string; genre: "texte"; texte: string; messageId?: string }
+  | { de: string; genre: "bouton"; id: string; messageId?: string }
+  | { de: string; genre: "liste"; id: string; messageId?: string }
+  /**
+   * Une PHOTO — ADR 0047. C'est le geste le plus naturel du canal : une
+   * vendeuse photographie l'article qu'elle a en main. On ne retient que
+   * l'identifiant du media et sa legende ; les octets se telechargent
+   * ailleurs, et n'entrent jamais dans l'etat de conversation.
+   */
+  | { de: string; genre: "image"; mediaId: string; legende?: string; messageId?: string };
 
 export function lireEntreesBot(corps: unknown): EntreeBot[] {
   const sortie: EntreeBot[] = [];
@@ -41,8 +53,10 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
     for (const message of messages) {
       const m = message as {
         from?: unknown;
+        id?: unknown;
         type?: unknown;
         text?: { body?: unknown };
+        image?: { id?: unknown; caption?: unknown };
         interactive?: {
           type?: unknown;
           button_reply?: { id?: unknown };
@@ -50,20 +64,31 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
         };
       } | null;
       if (typeof m?.from !== "string") continue;
+      const messageId = typeof m.id === "string" && m.id ? { messageId: m.id } : {};
 
       if (m.type === "text" && typeof m.text?.body === "string") {
-        sortie.push({ de: m.from, genre: "texte", texte: m.text.body });
+        sortie.push({ de: m.from, genre: "texte", texte: m.text.body, ...messageId });
+        continue;
+      }
+      if (m.type === "image" && typeof m.image?.id === "string") {
+        sortie.push({
+          de: m.from,
+          genre: "image",
+          mediaId: m.image.id,
+          ...(typeof m.image.caption === "string" ? { legende: m.image.caption } : {}),
+          ...messageId,
+        });
         continue;
       }
       if (m.type === "interactive") {
         const i = m.interactive;
         if (i?.type === "button_reply" && typeof i.button_reply?.id === "string") {
-          sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id });
+          sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id, ...messageId });
         } else if (i?.type === "list_reply" && typeof i.list_reply?.id === "string") {
-          sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id });
+          sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id, ...messageId });
         }
       }
-      /* images, stickers, audios, accuses : ignores ici — le service peut
+      /* stickers, audios, accuses : ignores ici — le service peut
          repondre un message d'aide, mais ce n'est pas le travail du parseur. */
     }
   }

@@ -37,6 +37,9 @@ interface Props {
   article: ArticlePublic;
 }
 const { boutique, article } = Astro.props;
+/* En congés, le seul lien utile est la conversation nue — pas un message de
+   commande pré-rempli pour une commande qui ne sera pas prise (ADR 0039). */
+const lienVendeuse = `https://wa.me/${boutique.whatsapp.replace(/\D/g, "")}`;
 ---
 <Base
   title={`${article.nom} — ${boutique.nom}`}
@@ -59,15 +62,40 @@ const { boutique, article } = Astro.props;
           doublerait le bouton. C'est ce qui rend le compteur un confort et non le
           porteur de la fonction — une acheteuse dont le JavaScript n'arrive
           jamais commande quand meme. */}
-      <Commander
-        client:visible
-        boutique={boutique.nom}
-        whatsapp={boutique.whatsapp}
-        nom={article.nom}
-        prixXaf={article.prixXaf}
-        stock={article.stock}
-        variantes={article.variantes}
-      />
+      {
+        /* Mode congés — ADR 0039. L'îlot n'est pas monté du tout : un compteur
+           de quantité au-dessus d'un bouton qui ne commande rien est une
+           promesse qu'on ne tient pas. La conversation, elle, reste ouverte —
+           c'est même le seul geste utile ici. */
+        boutique.enConges ? (
+          <div class="flex flex-col gap-3">
+            <p role="status" class="text-body text-warn">
+              🌴 {boutique.nom} ne prend pas de nouvelle commande en ce moment.
+            </p>
+            <p class="text-caption text-ink-2">
+              Écrivez-lui : elle seule sait quand elle reprend.
+            </p>
+            <a
+              href={lienVendeuse}
+              rel="noopener"
+              data-testid="ecrire-vendeuse"
+              class="inline-flex min-h-[var(--size-touch)] items-center justify-center rounded-field border border-control-line bg-surface px-5 py-3 text-body font-semibold text-ink"
+            >
+              Écrire à la vendeuse
+            </a>
+          </div>
+        ) : (
+          <Commander
+            client:visible
+            boutique={boutique.nom}
+            whatsapp={boutique.whatsapp}
+            nom={article.nom}
+            prixXaf={article.prixXaf}
+            stock={article.stock}
+            variantes={article.variantes}
+          />
+        )
+      }
     </section>
 
     <section class="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">

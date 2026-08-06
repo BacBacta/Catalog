@@ -114,6 +114,8 @@ export interface Vendeuse {
     city: string;
     payoutPhone: string | null;
     payoutOperator: string | null;
+    /** Mode conges — ADR 0039. `null` = la boutique prend les commandes. */
+    congesDepuis: string | null;
   } | null;
 }
 
@@ -218,6 +220,10 @@ export const api = {
       corps: { businessName, city, ...(contactPhone ? { contactPhone } : {}) },
     }),
 
+  /** Mode conges — ADR 0039. Aucun OTP : rien ne bouge d'argent, et ça se défait. */
+  basculerConges: (fermer: boolean) =>
+    appeler<{ congesDepuis: string | null }>("/api/vendeuse/conges", { corps: { fermer } }),
+
   envoyerCodeReversement: (nouveauNumero: string) =>
     appeler("/api/reversement/code", { corps: { nouveauNumero } }),
 
@@ -233,9 +239,16 @@ export const api = {
   articles: (avecArchives = false) =>
     appeler<{ articles: Article[] }>(`/api/articles${avecArchives ? "?archives=1" : ""}`),
 
-  creerArticle: (name: string, priceXaf: number, description?: string) =>
+  creerArticle: (name: string, priceXaf: number, description?: string, stock?: number) =>
     appeler<Article>("/api/articles", {
-      corps: { name, priceXaf, ...(description ? { description } : {}) },
+      corps: {
+        name,
+        priceXaf,
+        ...(description ? { description } : {}),
+        /* Zero vaut « non suivi » et c'est deja le defaut en base : on ne
+           l'envoie pas pour ne pas le faire passer pour un choix. */
+        ...(stock ? { stock } : {}),
+      },
     }),
 
   modifierArticle: (

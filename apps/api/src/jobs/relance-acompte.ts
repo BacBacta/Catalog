@@ -2,7 +2,12 @@ import type { PrismaClient } from "@catalog/db";
 import { type Job, PgBoss } from "pg-boss";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import { texte } from "../domain/bot/messages.ts";
-import { decisionRelance, RELANCE_APRES_S } from "../domain/bot/relance.ts";
+import {
+  decisionRelance,
+  decisionRelanceReversement,
+  RELANCE_APRES_S,
+  RELANCE_REVERSEMENT_APRES_S,
+} from "../domain/bot/relance.ts";
 import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
 
 /**
@@ -21,6 +26,7 @@ import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
  */
 
 export const FILE_RELANCE = "bot-relance-acompte";
+export const FILE_RELANCE_REVERSEMENT = "bot-relance-reversement";
 
 export interface ChargeRelance {
   commandeId: string;
@@ -29,15 +35,25 @@ export interface ChargeRelance {
   langue: Langue;
 }
 
+/** La relance « posez votre reversement » — ADR 0035, T2. */
+export interface ChargeRelanceReversement {
+  sellerId: string;
+  /** Le fil WhatsApp de la VENDEUSE. */
+  phone: string;
+}
+
 export interface JobsBotDeps {
   connexion: string;
   prisma: PrismaClient;
   envoyeur: EnvoyeurBot;
+  /** L'URL de l'espace vendeuse — la relance y pointe. Vide : pas de lien. */
+  baseApp?: string;
   maintenant?: () => Date;
 }
 
 export interface JobsBot {
   planifierRelance: (charge: ChargeRelance) => Promise<void>;
+  planifierRelanceReversement: (charge: ChargeRelanceReversement) => Promise<void>;
   arreter: () => Promise<void>;
 }
 
@@ -48,6 +64,7 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
   boss.on("error", () => console.warn("jobs bot : erreur pg-boss (details retenus)"));
   await boss.start();
   await boss.createQueue(FILE_RELANCE);
+  await boss.createQueue(FILE_RELANCE_REVERSEMENT);
 
   await boss.work<ChargeRelance>(FILE_RELANCE, async (jobs: Job<ChargeRelance>[]) => {
     for (const job of jobs) {
@@ -55,9 +72,21 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
     }
   });
 
+  await boss.work<ChargeRelanceReversement>(
+    FILE_RELANCE_REVERSEMENT,
+    async (jobs: Job<ChargeRelanceReversement>[]) => {
+      for (const job of jobs) {
+        await executerRelanceReversement(deps, job.data);
+      }
+    },
+  );
+
   return {
     planifierRelance: async (charge) => {
       await boss.sendAfter(FILE_RELANCE, charge, null, RELANCE_APRES_S);
+    },
+    planifierRelanceReversement: async (charge) => {
+      await boss.sendAfter(FILE_RELANCE_REVERSEMENT, charge, null, RELANCE_REVERSEMENT_APRES_S);
     },
     arreter: () => boss.stop(),
   };
@@ -99,5 +128,35 @@ async function executerRelance(deps: JobsBotDeps, charge: ChargeRelance): Promis
   const t = TEXTES[normaliserLangue(charge.langue)];
   await deps.envoyeur.envoyer(
     texte(charge.phone, t.relanceAcompte(commande.ref, decision.acompteXaf)),
+  );
+}
+
+/**
+ * La relance reversement (ADR 0035, T2) : UNE seule, ~20 h apres l'ouverture,
+ * re-decidee sur l'etat REEL — un reversement pose entre-temps vaut silence.
+ * En francais : le fil vendeuse l'est (ADR 0033).
+ */
+async function executerRelanceReversement(
+  deps: JobsBotDeps,
+  charge: ChargeRelanceReversement,
+): Promise<void> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: charge.sellerId },
+    select: { payoutPhone: true, createdAt: true },
+  });
+  if (!seller) return;
+
+  const decision = decisionRelanceReversement(
+    { reversementPose: seller.payoutPhone !== null, creeeA: seller.createdAt },
+    deps.maintenant?.() ?? new Date(),
+  );
+  if (!decision.relancer) return;
+
+  const lien = deps.baseApp ? `\nVotre espace vendeuse : ${deps.baseApp}/reversement` : "";
+  await deps.envoyeur.envoyer(
+    texte(
+      charge.phone.replace(/^\+/, ""),
+      `Votre boutique est prête — il ne lui manque qu'une chose pour être payée d'AVANCE : votre numéro Mobile Money.\nIl a sa propre vérification (c'est le numéro qui reçoit votre argent), et chaque paiement prouvé donnera un reçu vérifiable.${lien}\nSans lui, vos clientes commandent sans acompte.`,
+    ),
   );
 }

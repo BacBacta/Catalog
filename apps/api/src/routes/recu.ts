@@ -59,6 +59,8 @@ const CHAMPS_COMMANDE = {
   /** Lot 11 : l'etape et le mode de livraison alimentent le suivi. */
   step: true,
   delivery: true,
+  /** ADR 0035 : l'avis s'attribue a l'article quand la commande n'en a qu'un. */
+  items: true,
   seller: { select: { id: true, businessName: true, payoutPhone: true } },
   proofs: {
     where: { verdict: { in: VERDICTS_RECEVABLES } },
@@ -78,6 +80,7 @@ const CHAMPS_COMMANDE = {
 type CommandeLue = {
   step: OrderStep;
   delivery: unknown;
+  items: unknown;
   /** Typee au lieu de `string` : `etapesDuSuivi` attend le vocabulaire ferme. */
   id: string;
   ref: string;
@@ -370,12 +373,25 @@ export function suiviRoutes(deps: RecuDeps) {
     if (!droit.possible) return c.json({ erreur: "commande_non_livree" }, 409);
 
     const now = deps.maintenant?.() ?? new Date();
+    /**
+     * L'article note (ADR 0035) : SEULEMENT quand la commande ne porte qu'un
+     * article distinct. Sur un panier mixte, on n'attribue pas un avis global
+     * a un article au hasard — la colonne reste nulle, et c'est un fait dit.
+     */
+    const articlesDistincts = new Set(
+      (Array.isArray(commande.items) ? commande.items : [])
+        .map((l) => (l as { productId?: unknown }).productId)
+        .filter((p): p is string => typeof p === "string"),
+    );
+    const productId = articlesDistincts.size === 1 ? [...articlesDistincts][0] : null;
+
     try {
       await deps.prisma.$transaction(async (tx) => {
         await tx.review.create({
           data: {
             orderId: commande.id,
             sellerId: commande.seller.id,
+            ...(productId ? { productId } : {}),
             rating: note,
             body: texte || null,
             verified: droit.verifie,

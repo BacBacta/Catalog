@@ -7,15 +7,21 @@ import { resolveChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
 import { EnvoyeurWhatsappBot } from "./adapters/whatsapp-bot.ts";
+import { LecteurMediaWhatsapp } from "./adapters/whatsapp-media.ts";
 import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
 import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
 import { traiterLivraisonBot } from "./bot.ts";
+import { notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
 import { reglesDepuisEnv } from "./domain/securite/debit.ts";
-import { type ChargeRelance, demarrerJobsBot } from "./jobs/relance-acompte.ts";
+import {
+  type ChargeRelance,
+  type ChargeRelanceReversement,
+  demarrerJobsBot,
+} from "./jobs/relance-acompte.ts";
 import { gardeDeCohorte } from "./middleware/cohorte.ts";
 import { limiterDebit, MemoireDeDebit } from "./middleware/debit.ts";
 import { monterAvecGardes, TAILLE_JSON_MAX } from "./middleware/securite.ts";
@@ -72,22 +78,78 @@ app.route(
   }),
 );
 
+// La rampe : publique, sans session. C'est une acheteuse qui la lit, depuis la
+// boutique statique, et c'est ce qui permet de changer un code d'operateur sans
+// reconstruire le site. Le bot en lit aussi le code d'entree (ADR 0035).
+const rampe = rampeDepuisEnv(process.env);
+
+/**
+ * Le bot (ADR 0031), construit AVANT les routes de commandes : la preuve et
+ * l'avancement d'etape le previennent (ADR 0035). Il reste EN DORMANCE sans
+ * sa cle — et sans lui, les routes vivent sans notification, comme avant.
+ */
+const cleBot = process.env.WABOT_API_KEY?.trim();
+const baseBot = process.env.WABOT_BASE_URL?.trim();
+const bot =
+  cleBot && baseBot
+    ? {
+        envoyeur: new EnvoyeurWhatsappBot({ apiKey: cleBot, baseUrl: baseBot }),
+        baseBoutique: process.env.BASE_BOUTIQUE_PUBLIQUE?.trim() ?? "",
+        baseApp: process.env.BASE_APP_VENDEUSE?.trim() ?? "",
+        storage,
+        /* Les photos entrantes de l'inscription (ADR 0047) — meme cle, meme
+           base que l'envoi : c'est le meme canal. */
+        media: new LecteurMediaWhatsapp({ apiKey: cleBot, baseUrl: baseBot }),
+        /* Le numero du bot, pour composer les liens de boutique et de
+           parrainage. Absent : les liens ne se fabriquent pas, et la
+           machine le dit plutot que d'ecrire une URL fausse. */
+        numeroCatalog: process.env.WHATSAPP_WABA_NUMERO?.trim() ?? "",
+        rampe,
+      }
+    : null;
+
 app.route("/api/articles", productRoutes({ prisma, session, storage }));
 // Les statistiques : sous session, et filtrees par la vendeuse de la session.
 // Aucun identifiant de boutique ne circule dans l'URL — ce serait un numero a
 // essayer, et les chiffres d'une vendeuse ne regardent qu'elle.
 app.route("/api/statistiques", statsRoutes({ prisma, session }));
-app.route("/api/commandes", preuveRoutes({ prisma, session, chiffreur: resolveChiffreurSms() }));
+app.route(
+  "/api/commandes",
+  preuveRoutes({
+    prisma,
+    session,
+    chiffreur: resolveChiffreurSms(),
+    /* Paiement prouve → l'acheteuse le sait dans son fil (ADR 0035). */
+    ...(bot
+      ? {
+          apresPreuve: (orderId: string) =>
+            notifierPaiementProuve({ prisma, envoyeur: bot.envoyeur }, orderId),
+        }
+      : {}),
+  }),
+);
 // Le cycle de vie, sur le MEME prefixe. Les deux routeurs se partagent
 // `/api/commandes` sans se recouvrir : `preuveRoutes` tient `GET /:id` et
 // `POST /:id/preuve`, celui-ci tient la liste, l'avancement d'etape et la
 // declaration de paiement.
-app.route("/api/commandes", commandeRoutes({ prisma, session }));
+app.route(
+  "/api/commandes",
+  commandeRoutes({
+    prisma,
+    session,
+    /* Livree (depuis l'app comme depuis le fil) → l'invitation a noter. */
+    ...(bot
+      ? {
+          apresEtape: async ({ orderId, etape }: { orderId: string; etape: string }) => {
+            if (etape === "livree") {
+              await notifierLivree({ prisma, envoyeur: bot.envoyeur }, orderId);
+            }
+          },
+        }
+      : {}),
+  }),
+);
 
-// La rampe : publique, sans session. C'est une acheteuse qui la lit, depuis la
-// boutique statique, et c'est ce qui permet de changer un code d'operateur sans
-// reconstruire le site.
-const rampe = rampeDepuisEnv(process.env);
 app.route("/api/rampe", rampeRoutes(rampe));
 
 // Le recu et le suivi : publics, sans session. C'est une ACHETEUSE qui les lit,
@@ -135,37 +197,25 @@ const secretEntrant = process.env.WHATSAPP_ENTRANT_SECRET?.trim();
 const secretAppMeta = process.env.WHATSAPP_APP_SECRET?.trim();
 if (secretEntrant && secretAppMeta) {
   /**
-   * Le bot (ADR 0031), EN DORMANCE sans sa cle : les defis de connexion
-   * continuent seuls. Avec la cle et la base, chaque livraison passe aussi
-   * par lui — il saute les defis et ignore ce qu'il ne comprend pas.
-   */
-  const cleBot = process.env.WABOT_API_KEY?.trim();
-  const baseBot = process.env.WABOT_BASE_URL?.trim();
-  const bot =
-    cleBot && baseBot
-      ? {
-          envoyeur: new EnvoyeurWhatsappBot({ apiKey: cleBot, baseUrl: baseBot }),
-          baseBoutique: process.env.BASE_BOUTIQUE_PUBLIQUE?.trim() ?? "",
-          baseApp: process.env.BASE_APP_VENDEUSE?.trim() ?? "",
-          storage,
-        }
-      : null;
-
-  /**
-   * La relance d'acompte (ADR 0033) — premiere utilisation reelle de pg-boss.
-   * Elle ne demarre QU'AVEC le bot : sans lui, personne ne cree de commande
-   * par WhatsApp, donc rien a relancer. Et si la file ne demarre pas, le bot
-   * vit sans relance plutot que de ne pas vivre du tout.
+   * La relance d'acompte (ADR 0033) et la relance reversement (ADR 0035) —
+   * pg-boss. Elles ne demarrent QU'AVEC le bot : sans lui, personne ne cree
+   * de commande par WhatsApp, donc rien a relancer. Et si la file ne demarre
+   * pas, le bot vit sans relance plutot que de ne pas vivre du tout.
    */
   if (bot && process.env.DATABASE_URL) {
     demarrerJobsBot({
       connexion: process.env.DATABASE_URL,
       prisma,
       envoyeur: bot.envoyeur,
+      ...(bot.baseApp ? { baseApp: bot.baseApp } : {}),
     })
       .then((jobs) => {
-        (bot as { planifierRelance?: (c: ChargeRelance) => Promise<void> }).planifierRelance =
-          jobs.planifierRelance;
+        const cible = bot as {
+          planifierRelance?: (c: ChargeRelance) => Promise<void>;
+          planifierRelanceReversement?: (c: ChargeRelanceReversement) => Promise<void>;
+        };
+        cible.planifierRelance = jobs.planifierRelance;
+        cible.planifierRelanceReversement = jobs.planifierRelanceReversement;
       })
       .catch(() => console.warn("jobs bot : demarrage refuse — le bot continue sans relance"));
   }
