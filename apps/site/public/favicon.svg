@@ -1,6 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Horizon Services">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Horizon Services Sarl">
   <!--
-    Le monogramme d'Horizon Services — ADR 0045.
+    Le monogramme d'Horizon Services Sarl — ADR 0045.
+
+    Le « H » reste l'initiale du mot-marque : la denomination a pris « SARL »
+    (ADR 0046), pas une lettre de plus a 16 px.
 
     Le « H » est dessine en RECTANGLES, pas ecrit en <text>. Une favicon
     n'embarque pas sa police : un <text font-family="Georgia"> rendrait un

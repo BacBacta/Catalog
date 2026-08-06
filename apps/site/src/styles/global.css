@@ -532,10 +532,14 @@ body {
   margin: 2.75rem 0 0;
   font-family: var(--serif);
   font-weight: 700;
-  /* Reglee pour que « HORIZON SERVICES » tienne ENTIER a toutes les largeurs.
-     Une signature rognee en plein mot se lit comme un defaut, pas comme un
-     parti pris — c'etait le cas a 11,2vw, ou le S final tombait dehors. */
-  font-size: clamp(1.9rem, 9.4vw, 11.5rem);
+  /* Reglee pour que « HORIZON SERVICES SARL » tienne ENTIER a toutes les
+     largeurs. Une signature rognee en plein mot se lit comme un defaut, pas
+     comme un parti pris — c'etait le cas a 11,2vw, ou le S final tombait
+     dehors, et le pied CLIPPE (`overflow: hidden`) au lieu de deborder.
+     La denomination a pris « SARL » (ADR 0046) : 21 signes au lieu de 16, donc
+     les trois bornes sont descendues d'un facteur 16/21 puis MESUREES au
+     rendu, de 320 px a 1920 px, pas seulement calculees. */
+  font-size: clamp(1.45rem, 7.1vw, 8.75rem);
   line-height: 0.82;
   letter-spacing: -0.035em;
   text-transform: uppercase;

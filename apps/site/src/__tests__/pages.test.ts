@@ -93,6 +93,34 @@ describe("le site de la societe", () => {
     }
   });
 
+  it("aucune metadonnee ne recopie le nom de la societe", async () => {
+    /**
+     * Le defaut reel, trouve en changeant la denomination (ADR 0046) : les
+     * trois attributs `description=` portaient « Horizon Services » EN DUR,
+     * alors que le corps des pages lisait `EDITEUR`. Le nom etait donc juste
+     * dans la page et faux dans la metadonnee — celle que Google affiche et
+     * que WhatsApp met dans l'apercu du lien. Invisible a l'ecran.
+     *
+     * On teste le PREMIER MOT de la denomination : il suffit a reperer une
+     * recopie, et il reste vrai si la casse ou la suite du nom changent.
+     */
+    const mot = EDITEUR.nom.split(" ")[0];
+    for (const f of await fichiers(PAGES_DIR, ".astro")) {
+      const source = readFileSync(f, "utf8");
+      for (const attr of source.matchAll(/\b(?:title|description)="([^"]*)"/g)) {
+        expect(attr[1], `${f} recopie le nom de la societe dans un attribut`).not.toContain(mot);
+      }
+    }
+  });
+
+  it("l'etiquette du monogramme dit le MEME nom que `contracts`", () => {
+    /* Le SVG est un fichier statique : il ne peut pas lire `EDITEUR`, donc
+       c'est le seul endroit du site ou le nom est ecrit a la main. Il diverge
+       en silence — une etiquette n'a pas de rendu visible. */
+    const svg = readFileSync(join(LIB_DIR, "..", "public", "favicon.svg"), "utf8");
+    expect(svg).toContain(`aria-label="${EDITEUR.nom}"`);
+  });
+
   it("n'affiche NI le numero d'immatriculation NI le nom du gerant", async () => {
     /* Retrait demande, acte par l'ADR 0044. Deux raisons, et la premiere est
        la plus forte : le numero RCCM a ete lu sur un champ MANUSCRIT et n'est

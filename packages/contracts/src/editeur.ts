@@ -12,10 +12,10 @@
  * incoherence — un mot de la denomination, un chiffre du capital — fait
  * echouer le dossier et coute un nouveau depot.
  *
- * ── `Catalog` et `Horizon Services` ne sont pas la meme chose ─────────────
+ * ── `Catalog` et `Horizon Services Sarl` ne sont pas la meme chose ────────
  *
- * `Catalog` est le PRODUIT (ADR 0010). `Horizon Services` est la SOCIETE qui
- * l'edite. Le nom d'affichage WhatsApp doit correspondre a l'un des deux et
+ * `Catalog` est le PRODUIT (ADR 0010). `Horizon Services Sarl` est la SOCIETE
+ * qui l'edite. Le nom d'affichage WhatsApp doit correspondre a l'un des deux et
  * rester coherent avec le document depose — c'est une decision du porteur du
  * produit, pas un detail d'implementation.
  */
@@ -35,14 +35,20 @@ export const EDITEUR = {
    * La denomination sociale, telle qu'elle figure au registre — en capitales.
    * Elle sert aux MENTIONS LEGALES, ou la forme doit correspondre exactement
    * au document depose.
+   *
+   * **La denomination porte `SARL`** — ADR 0046, sur decision du porteur du
+   * produit. Elle en fait partie ; ce n'est pas une redondance avec `forme`,
+   * qui dit autre chose : la denomination NOMME la societe, la forme la
+   * QUALIFIE et porte la mention `pluripersonnelle` que le nom ne porte pas.
+   * Les deux se lisent donc a la suite sans se repeter tout a fait.
    */
-  societe: "HORIZON SERVICES",
+  societe: "HORIZON SERVICES SARL",
   /**
-   * Le nom d'usage, pour la prose. « HORIZON SERVICES est une societe… » se
-   * lit comme un cri au milieu d'une phrase : une denomination de registre
+   * Le nom d'usage, pour la prose. « HORIZON SERVICES SARL est une societe… »
+   * se lit comme un cri au milieu d'une phrase : une denomination de registre
    * n'est pas une casse de lecture.
    */
-  nom: "Horizon Services",
+  nom: "Horizon Services Sarl",
   /** Societe a responsabilite limitee pluripersonnelle. */
   forme: "SARL pluripersonnelle",
   capitalXaf: 1_000_000,
