@@ -33,3 +33,10 @@ apps/shop/vercel.json
 # temps d'un `docker build` local (runbook deploiement, « bâtisseur refusé »).
 # La chaine de deploiement la supprime elle-meme ; elle ne se committe jamais.
 .ca-proxy-local.crt
+ca-proxy.crt
+
+# Le Dockerfile derive du meme contournement : `apps/api/Dockerfile` plus le CA
+# du mandataire, injecte dans le SEUL etage de construction. Il se regenere a
+# chaque deploiement et depend de l'environnement qui le fabrique — le
+# committer figerait dans le depot une particularite de bac a sable.
+Dockerfile.deploiement
