@@ -81,6 +81,45 @@ describe("l'envoyeur, selon le transport", () => {
     expect(vues[0]?.entetes.Authorization).toBeUndefined();
   });
 
+  it("un refus d'envoi NOMME le code d'erreur Meta — et rien d'autre du corps", async () => {
+    /* Le 07/08/2026, tous les envois sont morts en silence sur (#131037)
+       « display name approval » : une heure de diagnostic a l'aveugle, parce
+       que l'exception ne portait que « HTTP 400 ». Le code Meta est un ENTIER,
+       sans contenu de conversation — il se journalise (ADR 0023 respecte). Le
+       texte du corps, lui, ne traverse jamais. */
+    const envoyeur = new EnvoyeurWhatsappBot({
+      apiKey: "CLE360",
+      baseUrl: PROD_360,
+      transport: "360dialog",
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              message: "display name approval SECRET",
+              code: 131037,
+              type: "OAuthException",
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
+    });
+    await expect(envoyeur.envoyer({ messaging_product: "whatsapp" } as never)).rejects.toThrowError(
+      /envoi bot refuse : HTTP 400, code Meta 131037$/,
+    );
+  });
+
+  it("un refus sans corps lisible reste un refus nu — pas de code invente", async () => {
+    const envoyeur = new EnvoyeurWhatsappBot({
+      apiKey: "CLE360",
+      baseUrl: PROD_360,
+      transport: "360dialog",
+      fetchImpl: async () => new Response("indisponible", { status: 503 }),
+    });
+    await expect(envoyeur.envoyer({ messaging_product: "whatsapp" } as never)).rejects.toThrowError(
+      /envoi bot refuse : HTTP 503$/,
+    );
+  });
+
   it("meta : le numero emetteur est un SEGMENT d'URL, et la cle un jeton porteur", async () => {
     const vues: Array<{ url: string; entetes: Record<string, string> }> = [];
     const envoyeur = new EnvoyeurWhatsappBot({

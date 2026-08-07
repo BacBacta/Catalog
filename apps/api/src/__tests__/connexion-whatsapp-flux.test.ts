@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   appliquerMessageEntrant,
   consulterSuivi,
@@ -310,6 +310,42 @@ describe("la route webhook", () => {
       { "x-hub-signature-256": signature(corps) },
     );
     expect(r.status).toBe(200);
+  });
+
+  it("un echec de traitement se JOURNALISE — nos messages traversent, le reste ne livre que son nom", async () => {
+    /* La panne muette du 07/08/2026 : (#131037) avalait tout envoi sans une
+       ligne. Nos propres erreurs (« envoi bot… ») sont sans contenu et
+       traversent ; une erreur etrangere peut porter un numero ou du SQL —
+       seul son NOM sort. */
+    const avertissements: string[] = [];
+    const espion = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      avertissements.push(args.map(String).join(" "));
+    });
+    try {
+      const corps = livraison("7F3K-2M");
+      await poster(
+        application(async () => {
+          throw new Error("envoi bot refuse : HTTP 400, code Meta 131037");
+        }),
+        corps,
+        { "x-hub-signature-256": signature(corps) },
+      );
+      class PannePrivee extends Error {
+        override name = "PannePrivee";
+      }
+      await poster(
+        application(async () => {
+          throw new PannePrivee("SELECT * FROM seller WHERE phone = '+237...'");
+        }),
+        corps,
+        { "x-hub-signature-256": signature(corps) },
+      );
+    } finally {
+      espion.mockRestore();
+    }
+    expect(avertissements.some((l) => l.includes("code Meta 131037"))).toBe(true);
+    expect(avertissements.some((l) => l.includes("PannePrivee"))).toBe(true);
+    expect(avertissements.every((l) => !l.includes("SELECT"))).toBe(true);
   });
 
   it("la poignee de main Meta rend le defi, avec le bon jeton seulement", async () => {

@@ -92,7 +92,19 @@ export class EnvoyeurWhatsappBot implements EnvoyeurBot {
      * traces ne portent pas ca (ADR 0023).
      */
     if (!reponse.ok) {
-      throw new Error(`envoi bot refuse : HTTP ${reponse.status}`);
+      /* Le code d'erreur Meta est un ENTIER (#131037 : « display name
+         approval », etc.) : il nomme la cause sans porter une lettre de
+         contenu, et il se journalise donc (ADR 0023 respecte). Le 07/08/2026,
+         son absence a coute une heure de diagnostic a l'aveugle — tous les
+         envois mouraient en silence sur un « HTTP 400 » muet. */
+      const code = (
+        (await reponse.json().catch(() => null)) as { error?: { code?: unknown } } | null
+      )?.error?.code;
+      throw new Error(
+        `envoi bot refuse : HTTP ${reponse.status}${
+          typeof code === "number" ? `, code Meta ${code}` : ""
+        }`,
+      );
     }
     const corps = (await reponse.json().catch(() => null)) as {
       messages?: Array<{ id?: unknown }>;

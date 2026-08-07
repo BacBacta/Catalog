@@ -130,12 +130,18 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
        * L'usage unique du code rend les relivraisons inoffensives de toute
        * facon — mieux vaut un defi perdu qu'une boucle de relivraison.
        */
-      await deps.surMessage(message).catch(() => {});
+      await deps.surMessage(message).catch((e: unknown) => {
+        console.warn(`bot : message entrant non traite (${resumerErreur(e)})`);
+      });
     }
 
     /* Le bot lit la livraison ENTIERE — reponses interactives comprises, que
        `lireMessagesEntrants` ne voit pas. Il saute lui-meme les defis. */
-    if (deps.surLivraison) await deps.surLivraison(corps).catch(() => {});
+    if (deps.surLivraison) {
+      await deps.surLivraison(corps).catch((e: unknown) => {
+        console.warn(`bot : livraison non traitee (${resumerErreur(e)})`);
+      });
+    }
 
     return c.json({ recu: true }, 200);
   });
@@ -150,4 +156,20 @@ function egalConstant(a: string | undefined, b: string): boolean {
   const tb = Buffer.from(b);
   if (ta.length !== tb.length) return false;
   return timingSafeEqual(ta, tb);
+}
+
+/**
+ * Une erreur avalee sans un mot a coute une heure de diagnostic le 07/08/2026 :
+ * tous les envois mouraient sur (#131037) « display name approval », et le
+ * journal ne disait RIEN — l'etat en base etait la seule piste. On journalise
+ * donc la cause, sous la meme regle que le refus d'entree : SANS CONTENU.
+ *
+ * Seuls nos propres messages d'erreur (« envoi bot refuse : HTTP 400, code
+ * Meta 131037 ») traversent : ils sont construits sans une lettre de
+ * conversation. Toute autre erreur — Prisma, reseau — ne livre que son NOM :
+ * son message peut porter une requete, un numero, un fragment de SQL.
+ */
+function resumerErreur(e: unknown): string {
+  if (!(e instanceof Error)) return "erreur non standard";
+  return e.message.startsWith("envoi bot") ? e.message : e.name;
 }
