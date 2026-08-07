@@ -77,7 +77,13 @@ liste d'autorisation, ni d'un numéro déclaré, ni d'une session ouverte.
 |---|---|---|
 | **200** | Le verrou passe. Le corps de test n'est pas une livraison WhatsApp valide, et c'est sans importance : un JSON illisible est traité comme un message ordinaire (ADR 0027) | Passer à l'étape 6 |
 | **401** | Le relais envoie **sans le verrou attendu** : en-tête absent, ou valeur différente — un espace de fin suffit | Reprendre l'étape 4, comparer les deux valeurs |
-| **404** | Secret d'URL faux, **ou** la route ne s'est pas montée | Vérifier le secret ; puis que `WHATSAPP_ENTRANT_SECRET` **et** `WABOT_WEBHOOK_AUTH` sont bien sur la machine (ADR 0035 §1) |
+| **404** `{"erreur":"inconnu"}` | La route existe, le **secret d'URL est faux** | Recopier le secret ; il est comparé au caractère près |
+| **404** `404 Not Found` | La route **ne s'est pas montée** : il manque `WHATSAPP_ENTRANT_SECRET`, ou les deux preuves d'origine à la fois | Vérifier les secrets sur la machine (ADR 0035 §1) |
+
+Les deux `404` se distinguent par leur **corps**, et c'est la seule façon de les
+séparer : `{"erreur":"inconnu"}` vient de la route elle-même, `404 Not Found`
+est le défaut de Hono quand aucune route ne répond. Mesuré le 07/08/2026 —
+utiliser `curl -i`, un `-o /dev/null` masquerait justement la différence.
 
 **6. Vérifier qu'un vrai message arrive.** Depuis un numéro déclaré, écrire
 « Hi » au numéro du canal, puis :
