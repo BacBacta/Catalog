@@ -152,6 +152,18 @@ export interface BotDeps {
 const RECLAMATION_PERIMEE_MS = 2 * 60_000;
 
 /** Purge tardive : les lignes ne servent que le temps des relivraisons. */
+/**
+ * Le mot qu'un echec laisse au journal — SANS CONTENU, comme toute trace
+ * (ADR 0023). Nos propres erreurs (« envoi bot refuse : HTTP 400, code Meta
+ * 131037 ») sont construites sans une lettre de conversation et traversent
+ * telles quelles ; toute erreur etrangere — Prisma, reseau — ne livre que son
+ * NOM, car son message peut porter un numero, une requete, un fragment de SQL.
+ */
+export function resumerErreur(e: unknown): string {
+  if (!(e instanceof Error)) return "erreur non standard";
+  return e.message.startsWith("envoi bot") ? e.message : e.name;
+}
+
 const RETENTION_VUS_MS = 3 * 24 * 3600_000;
 
 async function reclamer(deps: BotDeps, messageId: string, maintenant: Date): Promise<boolean> {
@@ -194,8 +206,11 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
       if (!aTraiter) continue;
     }
 
-    await traiterEntree(deps, entree).catch(() => {
-      /* Une entree qui casse ne bloque ni les suivantes ni la relivraison. */
+    await traiterEntree(deps, entree).catch((e: unknown) => {
+      /* Une entree qui casse ne bloque ni les suivantes ni la relivraison —
+         mais elle se NOMME. La panne muette du 07/08/2026 : tous les envois
+         mouraient sur (#131037), et ce catch ne disait rien. */
+      console.warn(`bot : entree non traitee (${resumerErreur(e)})`);
     });
 
     if (entree.messageId) {

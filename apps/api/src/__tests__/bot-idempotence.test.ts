@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
@@ -82,6 +82,35 @@ describeDb("idempotence des messages entrants (ADR 0040)", () => {
     /* Le relais reessaie : trois fois, comme sur les captures du 05/08. */
     for (let i = 0; i < 3; i++) await traiterLivraisonBot(s.deps, livraison(de, "Bonjour", id));
     expect(s.envoyeur.envoyes.length).toBe(apresPremier);
+
+    await prisma.botConversation.deleteMany({ where: { phone: `+${de}` } });
+    await prisma.botMessageVu.deleteMany({ where: { id } });
+  });
+
+  it("un envoi qui meurt se NOMME au journal — la panne muette du 07/08/2026", async () => {
+    /* Meta a gele le numero sur (#131037) : chaque reponse mourait en 400,
+       avalee par le catch interne sans une ligne. Le code d'erreur — un
+       ENTIER, sans contenu — doit desormais se lire dans `fly logs`. */
+    const de = `2379${String(70000000 + RUN).slice(-8)}`;
+    const id = suivant();
+    const s = scene();
+    s.deps.envoyeur = {
+      nom: "panne",
+      async envoyer() {
+        throw new Error("envoi bot refuse : HTTP 400, code Meta 131037");
+      },
+    };
+    const lignes: string[] = [];
+    const espion = vi.spyOn(console, "warn").mockImplementation((...a: unknown[]) => {
+      lignes.push(a.map(String).join(" "));
+    });
+    try {
+      await traiterLivraisonBot(s.deps, livraison(de, "Bonjour", id));
+    } finally {
+      espion.mockRestore();
+    }
+    expect(lignes.some((l) => l.includes("code Meta 131037"))).toBe(true);
+    expect(lignes.every((l) => !l.includes("Bonjour"))).toBe(true);
 
     await prisma.botConversation.deleteMany({ where: { phone: `+${de}` } });
     await prisma.botMessageVu.deleteMany({ where: { id } });

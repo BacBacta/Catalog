@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { resumerErreur } from "../bot.ts";
 import { Hono } from "hono";
 import { lireMessagesEntrants, type MessageEntrant } from "../domain/connexion-whatsapp.ts";
 
@@ -156,20 +157,4 @@ function egalConstant(a: string | undefined, b: string): boolean {
   const tb = Buffer.from(b);
   if (ta.length !== tb.length) return false;
   return timingSafeEqual(ta, tb);
-}
-
-/**
- * Une erreur avalee sans un mot a coute une heure de diagnostic le 07/08/2026 :
- * tous les envois mouraient sur (#131037) « display name approval », et le
- * journal ne disait RIEN — l'etat en base etait la seule piste. On journalise
- * donc la cause, sous la meme regle que le refus d'entree : SANS CONTENU.
- *
- * Seuls nos propres messages d'erreur (« envoi bot refuse : HTTP 400, code
- * Meta 131037 ») traversent : ils sont construits sans une lettre de
- * conversation. Toute autre erreur — Prisma, reseau — ne livre que son NOM :
- * son message peut porter une requete, un numero, un fragment de SQL.
- */
-function resumerErreur(e: unknown): string {
-  if (!(e instanceof Error)) return "erreur non standard";
-  return e.message.startsWith("envoi bot") ? e.message : e.name;
 }
