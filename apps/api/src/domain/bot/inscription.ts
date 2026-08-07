@@ -1,6 +1,8 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { INACTIVITE_MAX_MS } from "./conversation.ts";
+import type { FormeNonLue } from "./entrees.ts";
 import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
+import { TEXTES } from "./textes.ts";
 
 /**
  * L'inscription d'une vendeuse DANS le fil — ADR 0034.
@@ -218,6 +220,9 @@ export function lireLegendeArticle(legende: string): { nom: string; prixXaf: num
 /* Le mot `annuler` existe depuis l'ADR 0034 ; il n'etait annonce nulle part
    au moment ou on en a besoin — une reponse refusee bouclait sans issue
    visible (ADR 0048). */
+const QUESTION_NOM_ARTICLE =
+  "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.";
+
 const SORTIE_DE_SECOURS = "\n\nPour sortir : tapez « annuler ».";
 
 const NOM_MIN = 2;
@@ -295,13 +300,47 @@ export function messageConfirmationLegende(
 /* ────────────────────────── la machine ──────────────────────────────────── */
 
 export interface Entree {
-  genre: "texte" | "bouton" | "liste" | "image";
+  genre: "texte" | "bouton" | "liste" | "image" | "autre";
   texte?: string;
   id?: string;
   mediaId?: string;
   legende?: string;
+  /** La forme qu'on ne sait pas lire, quand `genre` vaut « autre » (ADR 0049). */
+  forme?: FormeNonLue;
   /** Le wamid entrant — pour REAGIR a la photo et la CITER (ADR 0035). */
   messageId?: string;
+}
+
+/**
+ * La QUESTION que pose l'etat courant — ADR 0049.
+ *
+ * A ne pas confondre avec les messages de reproche (« Je n'ai pas compris le
+ * prix ») : quelqu'un qui envoie un vocal n'a rien fait de mal. On lui dit
+ * qu'on ne sait pas l'ecouter, puis on lui REPOSE la question — sans quoi il
+ * reste devant une explication, sans savoir ce qu'on attend de lui.
+ */
+export function questionDeLEtat(etat: EtatVendeuse, vers: string): MessageSortant {
+  switch (etat.nom) {
+    case "inscription_nom":
+      return texte(vers, `${PREMIERE_QUESTION}${SORTIE_DE_SECOURS}`);
+    case "inscription_ville":
+      return texte(vers, `*Dans quelle ville vendez-vous ?*\nExemple : Douala${SORTIE_DE_SECOURS}`);
+    case "article_nom":
+      return texte(vers, `${QUESTION_NOM_ARTICLE}${SORTIE_DE_SECOURS}`);
+    case "article_prix":
+      return texte(
+        vers,
+        `*${etat.nomArticle}* — son prix, en francs ?\nExemple : 15000${SORTIE_DE_SECOURS}`,
+      );
+    case "article_photo":
+      return boutons(
+        vers,
+        `J'attends la photo de *${etat.nomArticle}* — envoyez-la comme une image, depuis l'appareil photo ou la galerie.`,
+        [{ id: "sans_photo", titre: "Sans photo" }],
+      );
+    case "article_confirme":
+      return messageConfirmationLegende(vers, { nom: etat.nomArticle, prixXaf: etat.prixXaf });
+  }
 }
 
 /**
@@ -325,6 +364,17 @@ export function reagirInscription(
           "C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article.",
         ),
       ],
+    };
+  }
+
+  /* Une forme non lue — ADR 0049. Traitee AVANT le switch : la reponse est la
+     meme partout, seule la question reposee change. Le fil vendeuse est en
+     francais (ADR 0033), d'ou `TEXTES.fr`. */
+  if (entree.genre === "autre") {
+    const forme = entree.forme ?? "inconnue";
+    return {
+      etat,
+      messages: [texte(vers, TEXTES.fr.formeNonLue(forme)), questionDeLEtat(etat, vers)],
     };
   }
 

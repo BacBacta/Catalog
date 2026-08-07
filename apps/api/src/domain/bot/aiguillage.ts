@@ -45,7 +45,7 @@ export interface ContexteAiguillage {
 }
 
 export interface EntreeAiguillee {
-  genre: "texte" | "bouton" | "liste" | "image";
+  genre: "texte" | "bouton" | "liste" | "image" | "autre";
   texte?: string | undefined;
   id?: string | undefined;
 }

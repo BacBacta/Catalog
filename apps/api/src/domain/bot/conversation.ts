@@ -1,6 +1,7 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { planDePaiement } from "../order/paiement.ts";
+import type { FormeNonLue } from "./entrees.ts";
 import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
 import { boutons, image, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
@@ -242,7 +243,9 @@ export type Entree =
   | { genre: "bouton"; id: string; messageId?: string }
   | { genre: "liste"; id: string; messageId?: string }
   /** Une photo. Le fil acheteuse ne la lit pas — seule l'inscription le fait. */
-  | { genre: "image"; mediaId: string; legende?: string; messageId?: string };
+  | { genre: "image"; mediaId: string; legende?: string; messageId?: string }
+  /** Une forme que le bot ne sait pas traiter — ADR 0049. */
+  | { genre: "autre"; forme: FormeNonLue; messageId?: string };
 
 export interface BrouillonCommande {
   slug: string;
@@ -381,6 +384,15 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
   const t = TEXTES[langue];
   const vers = ctx.vers;
   const boutique = ctx.boutique;
+
+  /**
+   * Une forme qu'on ne sait pas lire — ADR 0049. On repond, et l'etat NE
+   * BOUGE PAS : un vocal envoye au milieu de la saisie de livraison ne doit
+   * pas renvoyer au catalogue. La personne reprend ou elle en etait.
+   */
+  if (entree.genre === "autre") {
+    return { etat, messages: [texte(vers, t.formeNonLue(entree.forme))] };
+  }
 
   /* Le changement de langue prime sur tout : c'est une demande sur la
      conversation elle-meme, pas sur la boutique. */
@@ -1230,6 +1242,11 @@ export function reagirVendeuse(
     boutique?: BoutiqueVendeuse | null;
   },
 ): Reaction {
+  /* Une forme non lue — ADR 0049. Le fil vendeuse est en francais (ADR 0033). */
+  if (entree.genre === "autre") {
+    return { etat: ETAT_INITIAL, messages: [texte(vers, TEXTES.fr.formeNonLue(entree.forme))] };
+  }
+
   if (entree.genre === "texte" && contexte.smsReconnu) {
     return {
       etat: ETAT_INITIAL,

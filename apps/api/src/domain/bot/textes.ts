@@ -1,4 +1,5 @@
 import { formatXaf } from "@catalog/contracts/money";
+import type { FormeNonLue } from "./entrees.ts";
 
 /**
  * Les textes du fil ACHETEUSE, par langue — ADR 0033.
@@ -23,6 +24,18 @@ export interface TextesAcheteuse {
   btnVendre: string;
   aideGestes: string;
   annule: string;
+  /**
+   * Ce qu'on repond a une forme qu'on ne sait pas lire — ADR 0049. Une phrase
+   * PAR forme : dire « je ne sais pas ecouter les vocaux » a quelqu'un qui a
+   * partage sa position serait une reponse fausse, donc un silence deguise.
+   */
+  formeNonLue: (forme: FormeNonLue) => string;
+  /**
+   * Ce qu'on dit quand NOTRE traitement casse — ADR 0049. Un silence apres un
+   * message est indiscernable d'une panne definitive ; une phrase qui invite a
+   * reessayer coute une ligne et sauve la conversation.
+   */
+  pannePassagere: string;
   langueChangee: string;
 
   accueilReputation: (note: string | null, nbVerifies: number) => string;
@@ -177,6 +190,23 @@ const fr: TextesAcheteuse = {
   aideGestes:
     "Quatre mots marchent partout : « menu » (accueil de la boutique), « panier » (ce que vous avez choisi), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler à la vendeuse » est à l'accueil. Write « english » for English.",
   annule: "C'est annulé — le panier est vide, rien n'a été commandé.",
+  pannePassagere:
+    "Quelque chose n'a pas marché de mon côté — ce n'est pas vous. Réessayez dans un instant, ou écrivez « menu ».",
+  formeNonLue: (forme) =>
+    ({
+      vocal:
+        "Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « nom prix » en légende.",
+      video:
+        "Je ne sais pas encore regarder les vidéos. Une photo, elle, je la lis : envoyez-la avec « nom prix » en légende.",
+      document:
+        "Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots.",
+      sticker: "Joli. Mais je ne sais lire que le texte, les photos et les boutons.",
+      localisation:
+        "Merci — je ne sais pas encore me servir d'une position partagée. Écrivez-moi votre quartier et un repère (« en face de… »).",
+      contact: "Je ne sais pas encore lire une fiche contact. Écrivez-moi le numéro en chiffres.",
+      inconnue:
+        "Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton.",
+    })[forme],
   langueChangee: "D'accord, on continue en français. Write « english » to switch back.",
 
   accueilReputation: (note, nb) =>
@@ -351,6 +381,21 @@ const en: TextesAcheteuse = {
   aideGestes:
     "Four words work everywhere: “menu” (shop home), “cart” (what you picked), “cancel” (drop the current order), “status” (your last order). For a human, the “Talk to the seller” button is on the home screen. Écrivez « français » pour le français.",
   annule: "Cancelled — your cart is empty, nothing was ordered.",
+  pannePassagere:
+    'Something went wrong on my side — it\'s not you. Try again in a moment, or write "menu".',
+  formeNonLue: (forme) =>
+    ({
+      vocal:
+        'I can\'t listen to voice notes yet. Write to me in a few words — or send the photo, with "name price" as the caption.',
+      video:
+        'I can\'t watch videos yet. A photo I can read: send it with "name price" as the caption.',
+      document: "I can't open documents yet. Write me what it says, in a few words.",
+      sticker: "Nice. But I can only read text, photos and buttons.",
+      localisation:
+        'Thank you — I can\'t use a shared location yet. Write me your neighbourhood and a landmark ("opposite the…").',
+      contact: "I can't read a contact card yet. Write me the number in digits.",
+      inconnue: "I can't read this type of message yet. Write to me, or tap a button.",
+    })[forme],
   langueChangee: "OK, English it is. Écrivez « français » pour revenir au français.",
 
   accueilReputation: (note, nb) =>

@@ -65,16 +65,27 @@ describe("lireEntreesBot", () => {
     ]);
   });
 
-  it("ignore sans lever ce qu'il ne connait pas — stickers, accuses, images sans id", () => {
+  it("un message sans expediteur reste ignore — il n'y a personne a qui repondre", () => {
+    const e = lireEntreesBot(enveloppe([{ pas: "un message" }, null, { type: "text" }]));
+    expect(e).toEqual([]);
+  });
+
+  it("ce qu'il ne sait pas TRAITER, il le NOMME desormais — ADR 0049", () => {
+    /* Avant le 07/08/2026, ces formes rendaient une liste vide : le bot ne
+       repondait rien, et un silence sur WhatsApp veut dire panne. Elles
+       produisent maintenant une entree `autre`, que chaque fil sait traiter.
+       Une image dont l'identifiant manque suit le meme chemin : la personne a
+       envoye une photo, elle merite mieux que rien. */
     const e = lireEntreesBot(
       enveloppe([
         { from: "2376", type: "image", image: {} },
         { from: "2376", type: "sticker" },
-        { pas: "un message" },
-        null,
       ]),
     );
-    expect(e).toEqual([]);
+    expect(e).toEqual([
+      { de: "2376", genre: "autre", forme: "inconnue" },
+      { de: "2376", genre: "autre", forme: "sticker" },
+    ]);
   });
 
   it("lit la forme PLATE v1 du sandbox 360dialog — messages a la racine", () => {

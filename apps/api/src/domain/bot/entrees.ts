@@ -15,6 +15,37 @@
  * de le CITER (ADR 0035, P1) : l'accuse posé sur la photo meme, le verdict
  * qui cite le SMS. Facultatif : une livraison sans identifiant reste lue.
  */
+/**
+ * Les formes que le bot ne sait PAS traiter, mais qu'il doit reconnaitre —
+ * ADR 0049. Le vocal vient en tete : c'est le geste le plus naturel d'une
+ * vendeuse qui tape lentement, et c'etait la sortie muette du produit.
+ */
+export type FormeNonLue =
+  | "vocal"
+  | "video"
+  | "document"
+  | "sticker"
+  | "localisation"
+  | "contact"
+  | "inconnue";
+
+/** Ce que Meta nomme, et ce que nous en disons. */
+const FORMES: Record<string, FormeNonLue> = {
+  audio: "vocal",
+  video: "video",
+  document: "document",
+  sticker: "sticker",
+  location: "localisation",
+  contacts: "contact",
+};
+
+/**
+ * Les types qui ne sont PAS des questions, et auxquels on ne repond donc
+ * jamais. Repondre « je ne sais pas lire ca » a un 👍 est pire que le
+ * silence : c'est un reproche adresse a quelqu'un qui vient d'approuver.
+ */
+const SANS_REPONSE = new Set(["reaction", "system", "ephemeral", "order"]);
+
 export type EntreeBot =
   | { de: string; genre: "texte"; texte: string; messageId?: string }
   | { de: string; genre: "bouton"; id: string; messageId?: string }
@@ -25,7 +56,14 @@ export type EntreeBot =
    * l'identifiant du media et sa legende ; les octets se telechargent
    * ailleurs, et n'entrent jamais dans l'etat de conversation.
    */
-  | { de: string; genre: "image"; mediaId: string; legende?: string; messageId?: string };
+  | { de: string; genre: "image"; mediaId: string; legende?: string; messageId?: string }
+  /**
+   * Une forme que le bot ne sait pas traiter — ADR 0049. Elle est lue POUR
+   * pouvoir repondre : le silence est la pire des reponses sur un canal ou
+   * l'absence de reponse veut dire panne. Aucun contenu n'est retenu, pas
+   * meme un identifiant de media : on ne lit pas ce qu'on ne sait pas lire.
+   */
+  | { de: string; genre: "autre"; forme: FormeNonLue; messageId?: string };
 
 export function lireEntreesBot(corps: unknown): EntreeBot[] {
   const sortie: EntreeBot[] = [];
@@ -86,10 +124,27 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
           sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id, ...messageId });
         } else if (i?.type === "list_reply" && typeof i.list_reply?.id === "string") {
           sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id, ...messageId });
+        } else {
+          /* Une reponse interactive d'une forme inedite — Flow, catalogue —
+             ne se perd pas en silence tant qu'elle n'est pas traitee. */
+          sortie.push({ de: m.from, genre: "autre", forme: "inconnue", ...messageId });
         }
+        continue;
       }
-      /* stickers, audios, accuses : ignores ici — le service peut
-         repondre un message d'aide, mais ce n'est pas le travail du parseur. */
+
+      /* Tout le reste — ADR 0049. Ce qui n'est pas une question ne recoit pas
+         de reponse ; ce qui en est une en recoit toujours une, meme si c'est
+         pour dire qu'on ne sait pas encore la lire. */
+      if (typeof m.type === "string" && !SANS_REPONSE.has(m.type)) {
+        sortie.push({
+          de: m.from,
+          genre: "autre",
+          forme: FORMES[m.type] ?? "inconnue",
+          ...messageId,
+        });
+      }
+      /* Depuis l'ADR 0049, plus rien n'est ignore en silence : le parseur
+         NOMME la forme, et chaque fil decide de la reponse. */
     }
   }
   return sortie;

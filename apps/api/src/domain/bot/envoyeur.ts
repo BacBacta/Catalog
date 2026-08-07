@@ -1,4 +1,4 @@
-import type { MessageSortant } from "./messages.ts";
+import type { AccuseLecture, MessageSortant } from "./messages.ts";
 
 /**
  * L'interface d'envoi du bot — definie ICI, dans le domaine, implementee par
@@ -12,4 +12,13 @@ import type { MessageSortant } from "./messages.ts";
 export interface EnvoyeurBot {
   readonly nom: string;
   envoyer(message: MessageSortant): Promise<void>;
+  /**
+   * L'accuse de lecture, et l'indicateur de frappe qui voyage avec — ADR 0049.
+   *
+   * FACULTATIF, et de CONFORT : un transport qui ne sait pas le faire reste un
+   * transport valide, et un accuse refuse ne coute aucune conversation. C'est
+   * la meme posture que la reaction et la citation (ADR 0035) — on tente, on
+   * ne parie jamais le fil dessus.
+   */
+  accuser?(accuse: AccuseLecture): Promise<void>;
 }

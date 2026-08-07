@@ -42,6 +42,7 @@ import {
 } from "./domain/bot/inscription.ts";
 import type { LecteurMedia } from "./domain/bot/media.ts";
 import {
+  accuseLecture,
   boutons as boutonsMessage,
   image as imageMessage,
   type MessageSortant,
@@ -206,11 +207,29 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
       if (!aTraiter) continue;
     }
 
+    /**
+     * L'accuse de lecture, et la frappe — ADR 0049. Pose AVANT le travail :
+     * la double coche bleue est la seule chose qui distingue « le bot reflechit »
+     * de « le bot est mort », et le traitement peut durer (telechargement de
+     * media, re-encodage, carte-vitrine). De CONFORT : un echec ne coute rien
+     * et ne casse pas le fil — l'indicateur se dissipe seul.
+     */
+    if (entree.messageId && deps.envoyeur.accuser) {
+      await deps.envoyeur
+        .accuser(accuseLecture(entree.messageId, { frappe: true }))
+        .catch(() => {});
+    }
+
     await traiterEntree(deps, entree).catch((e: unknown) => {
       /* Une entree qui casse ne bloque ni les suivantes ni la relivraison —
          mais elle se NOMME. La panne muette du 07/08/2026 : tous les envois
          mouraient sur (#131037), et ce catch ne disait rien. */
       console.warn(`bot : entree non traitee (${resumerErreur(e)})`);
+      /* Et surtout : la personne en face apprend qu'il s'est passe quelque
+         chose. Un silence apres un message est indiscernable d'une panne, et
+         c'est exactement ce qu'on vient de vivre le 07/08/2026. L'envoi est
+         lui-meme protege : si c'est LUI qui est casse, on ne boucle pas. */
+      deps.envoyeur.envoyer(texte(entree.de, TEXTES.fr.pannePassagere)).catch(() => {});
     });
 
     if (entree.messageId) {
@@ -435,6 +454,8 @@ function entreePourMachine(entree: EntreeBot): EntreeMachine {
         ...(entree.legende ? { legende: entree.legende } : {}),
         ...id,
       };
+    case "autre":
+      return { genre: "autre", forme: entree.forme, ...id };
     default:
       return { genre: entree.genre, id: entree.id, ...id };
   }

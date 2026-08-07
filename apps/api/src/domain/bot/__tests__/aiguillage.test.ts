@@ -116,3 +116,38 @@ describe("la photo d'une vendeuse (ADR 0035)", () => {
     ).toBe("acheteuse");
   });
 });
+
+/**
+ * Ou part une forme qu'on ne sait pas lire — ADR 0049.
+ *
+ * Aucune regle nouvelle : les cinq existantes suffisent, et c'est le signe
+ * qu'elles sont bien ecrites. Ce bloc FIXE le resultat, pour qu'un
+ * remaniement de l'aiguillage ne renvoie pas un vocal au mauvais fil.
+ */
+describe("une forme non lue suit les regles existantes", () => {
+  const base = {
+    estVendeuse: false,
+    etatVendeuseEnCours: false,
+    smsReconnu: false,
+    achatEnCours: false,
+  };
+  const vocal = { genre: "autre" as const };
+
+  it("un formulaire vendeuse en cours la garde — la question se reposera", () => {
+    expect(aiguiller(vocal, { ...base, etatVendeuseEnCours: true })).toBe("inscription");
+  });
+
+  it("un achat en cours la garde aussi — l'etat de commande ne se perd pas", () => {
+    expect(aiguiller(vocal, { ...base, achatEnCours: true })).toBe("acheteuse");
+  });
+
+  it("une vendeuse au repos la recoit dans SON fil, pas dans l'inscription", () => {
+    /* Une PHOTO d'une vendeuse au repos est un article qui arrive (regle 3).
+       Un vocal, non : il ne porte rien qu'on sache publier. */
+    expect(aiguiller(vocal, { ...base, estVendeuse: true })).toBe("vendeuse");
+  });
+
+  it("une inconnue la recoit au fil acheteuse", () => {
+    expect(aiguiller(vocal, base)).toBe("acheteuse");
+  });
+});

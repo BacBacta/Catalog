@@ -108,6 +108,39 @@ export type MessageSortant =
   | MessageImage
   | MessageReaction;
 
+/**
+ * L'accuse de lecture, et l'indicateur de frappe qui voyage avec — ADR 0049.
+ *
+ * Ce n'est PAS un `MessageSortant` : il ne porte ni destinataire ni contenu,
+ * il designe un message recu. Il part sur la meme route (`POST /messages`),
+ * et c'est la seule chose qu'il partage avec un message. Le garder hors de
+ * l'union evite qu'il traverse `envoyerSequence`, dont les replis n'ont
+ * aucun sens ici.
+ *
+ * L'indicateur de frappe se dissipe seul : a l'envoi du message suivant, ou
+ * au bout de 25 secondes. On ne l'eteint donc jamais a la main — il n'y a
+ * rien a nettoyer si le traitement echoue.
+ */
+export interface AccuseLecture {
+  messaging_product: "whatsapp";
+  status: "read";
+  message_id: string;
+  typing_indicator?: { type: "text" };
+}
+
+export function accuseLecture(
+  messageId: string,
+  options: { frappe?: boolean } = {},
+): AccuseLecture {
+  if (!messageId.trim()) throw new Error("un accuse de lecture exige l'identifiant du message");
+  return {
+    messaging_product: "whatsapp",
+    status: "read",
+    message_id: messageId,
+    ...(options.frappe ? { typing_indicator: { type: "text" as const } } : {}),
+  };
+}
+
 /** Troncature propre : jamais plus de `max`, ellipse comprise. */
 function tronquer(texte: string, max: number): string {
   const net = texte.trim();

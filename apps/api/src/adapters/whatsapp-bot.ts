@@ -1,5 +1,5 @@
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
-import type { MessageSortant } from "../domain/bot/messages.ts";
+import type { AccuseLecture, MessageSortant } from "../domain/bot/messages.ts";
 import { entetesAuth, type TransportWhatsapp } from "./whatsapp-transport.ts";
 
 /**
@@ -68,6 +68,37 @@ export class EnvoyeurWhatsappBot implements EnvoyeurBot {
     this.nom = cfg.transport;
     this.#cfg = cfg;
     this.#fetch = cfg.fetchImpl ?? fetch;
+  }
+
+  /**
+   * L'accuse de lecture — ADR 0049. Meme route que les messages
+   * (`POST /messages`), corps different : il designe un message recu au lieu
+   * d'en composer un. De CONFORT : l'appelant l'ignore s'il echoue.
+   */
+  async accuser(accuse: AccuseLecture): Promise<void> {
+    const base = this.#cfg.baseUrl.replace(/\/$/, "");
+    const url =
+      this.#cfg.transport === "meta"
+        ? `${base}/${this.#cfg.phoneNumberId}/messages`
+        : `${base}/messages`;
+    const reponse = await this.#fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...entetesAuth(this.#cfg.transport, this.#cfg.apiKey),
+      },
+      body: JSON.stringify(accuse),
+    });
+    if (!reponse.ok) {
+      const code = (
+        (await reponse.json().catch(() => null)) as { error?: { code?: unknown } } | null
+      )?.error?.code;
+      throw new Error(
+        `accuse de lecture refuse : HTTP ${reponse.status}${
+          typeof code === "number" ? `, code Meta ${code}` : ""
+        }`,
+      );
+    }
   }
 
   async envoyer(message: MessageSortant): Promise<void> {
