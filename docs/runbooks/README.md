@@ -39,8 +39,8 @@ a besoin d'un `vercel.json` généré — il ne lit ni `_redirects` ni `_headers
 
 [bascule-360dialog.md](bascule-360dialog.md) se lit avant de mettre le bot
 WhatsApp en service, et se relit le jour où rien n'arrive : l'ordre des
-opérations, et surtout le diagnostic des trois silences — un webhook mal
-branché ne rend pas d'erreur, il se tait.
+opérations, et surtout ce qui sépare « le verrou refuse » de « le relais
+n'envoie pas » — un webhook mal branché ne rend pas d'erreur, il se tait.
 
 ## Et une liste qui n'est pas un runbook
 

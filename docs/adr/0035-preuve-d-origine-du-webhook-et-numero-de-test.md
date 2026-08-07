@@ -96,22 +96,33 @@ Trois conséquences, dans l'ordre où elles mordent :
 La PLBV reste donc le jalon d'ouverture aux vendeuses réelles. Ce canal de test
 avance la validation technique, il ne l'avance pas d'un jour.
 
-## Le point non vérifié, et il est bloquant
+## Où se pose l'en-tête — mesuré le 07/08/2026
 
-L'écran « Set webhook » du Hub 360dialog n'offre **qu'un champ URL**. Or sans
-en-tête `Authorization` rejoué, toute livraison est refusée en 401 — et le
-symptôme est un **silence**, pas une erreur : le Hub affiche une URL enregistrée,
-et rien n'arrive.
+Cette section a d'abord été écrite « à confirmer » : l'écran *Getting started*
+du Hub n'offre qu'un champ URL, et l'hypothèse était que l'en-tête se posait par
+l'API de configuration du webhook. **L'hypothèse était fausse**, et elle est
+remplacée ici par la mesure — c'est le sens du §7.7 d'`AGENTS.md` : un point
+marqué « à confirmer » se promeut par une constatation datée, jamais en silence.
 
-La pose de l'en-tête passe, sauf preuve du contraire, par l'API de configuration
-du webhook de 360dialog plutôt que par cet écran. **Ce point n'a pas été vérifié
-sur le canal réel** — la documentation 360dialog n'est pas atteignable depuis
-l'environnement où cet ADR est écrit. Il est marqué « à confirmer » dans
-`.env.example` et dans le runbook, et le branchement ne doit pas être considéré
-comme fait tant qu'une livraison n'a pas été vue arriver.
+La pose se fait **dans le Hub**, par la boîte de dialogue **« Edit WABA
+Webhook »**, qui porte une section `Custom Headers` (« Headers sent with each
+webhook request ») en paires nom / valeur. Le champ URL de l'écran d'accueil
+n'est qu'un raccourci vers la même configuration, amputé de cette section.
 
-C'est l'application du §7.7 d'`AGENTS.md` : la valeur plausible aurait été
-d'écrire la procédure au futur comme si elle était connue.
+Deux conséquences pratiques :
+
+- la mise en service ne demande **aucun appel d'API** : URL, en-tête
+  `Authorization`, Save ;
+- la même boîte porte un bouton **« Send test request »**, et il constitue le
+  meilleur contrôle du verrou — meilleur qu'un vrai message, parce qu'il ne
+  dépend ni de la liste d'autorisation ni d'un téléphone. Son corps n'est pas
+  une livraison WhatsApp valide, ce qui ne change rien : la route répond `200`
+  dès que le verrou passe, le JSON illisible étant déjà traité comme un message
+  ordinaire (ADR 0027 — répondre autre chose ferait re-livrer en boucle).
+
+Le tableau de diagnostic du runbook en découle : `200` = verrou bon, `401` =
+en-tête absent ou faux, `404` = secret d'URL faux. Trois codes, trois causes,
+sans lire un journal.
 
 ## Conséquences
 

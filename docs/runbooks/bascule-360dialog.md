@@ -59,18 +59,28 @@ fly secrets set --app catalog-api-preprod \
 > **Ne pas poser `WHATSAPP_APP_SECRET`.** Il n'existe pas en relais, et une
 > valeur inventée ferait croire à une signature Meta active (ADR 0035 §3).
 
-**4. Déclarer le webhook, en-tête compris.** L'URL est
-`https://catalog-api-preprod.fly.dev/api/whatsapp/entrant/<WHATSAPP_ENTRANT_SECRET>`,
-et l'en-tête `Authorization` doit porter **exactement** la valeur de
-`WABOT_WEBHOOK_AUTH`.
+**4. Déclarer le webhook, en-tête compris.** Dans le Hub, **« Edit WABA
+Webhook »** — pas le champ URL de l'écran d'accueil, qui est un raccourci amputé
+de la section des en-têtes (mesuré le 07/08/2026) :
 
-> **À confirmer sur le canal réel :** l'écran « Set webhook » du Hub n'offre
-> qu'un champ URL. La pose de l'en-tête passe, sauf preuve du contraire, par
-> l'API de configuration du webhook de 360dialog. Sans en-tête, l'étape 5
-> échouera — et c'est précisément ce qu'elle sert à révéler.
+| Champ | Valeur |
+|---|---|
+| Webhook URL | `https://catalog-api-preprod.fly.dev/api/whatsapp/entrant/<WHATSAPP_ENTRANT_SECRET>` |
+| Custom Headers → Name | `Authorization` |
+| Custom Headers → Value | la valeur de `WABOT_WEBHOOK_AUTH`, **au caractère près** |
 
-**5. Vérifier qu'une livraison arrive.** Depuis un numéro déclaré, écrire « Hi »
-au numéro du canal, puis :
+**5. Cliquer « Send test request », dans la même boîte.** C'est le meilleur
+contrôle du verrou, et il vient avant tout téléphone : il ne dépend ni de la
+liste d'autorisation, ni d'un numéro déclaré, ni d'une session ouverte.
+
+| Code rendu | Cause | Geste |
+|---|---|---|
+| **200** | Le verrou passe. Le corps de test n'est pas une livraison WhatsApp valide, et c'est sans importance : un JSON illisible est traité comme un message ordinaire (ADR 0027) | Passer à l'étape 6 |
+| **401** | Le relais envoie **sans le verrou attendu** : en-tête absent, ou valeur différente — un espace de fin suffit | Reprendre l'étape 4, comparer les deux valeurs |
+| **404** | Secret d'URL faux, **ou** la route ne s'est pas montée | Vérifier le secret ; puis que `WHATSAPP_ENTRANT_SECRET` **et** `WABOT_WEBHOOK_AUTH` sont bien sur la machine (ADR 0035 §1) |
+
+**6. Vérifier qu'un vrai message arrive.** Depuis un numéro déclaré, écrire
+« Hi » au numéro du canal, puis :
 
 ```bash
 fly logs --app catalog-api-preprod | grep -i "entrant\|refusee"
@@ -78,17 +88,19 @@ fly logs --app catalog-api-preprod | grep -i "entrant\|refusee"
 
 ---
 
-## 3. Diagnostic — trois silences, trois causes
+## 3. Diagnostic — quand le test passe mais que rien n'arrive
+
+L'étape 5 verte et l'étape 6 muette isolent la panne du côté du relais, pas du
+nôtre : le verrou est bon, c'est la livraison qui ne part pas.
 
 | Ce que disent les traces | Cause | Geste |
 |---|---|---|
-| Rien du tout | Le relais n'envoie pas : URL non enregistrée, ou secret d'URL faux (404 muet) | Re-déclarer le webhook, vérifier le secret caractère par caractère |
-| `livraison entrante refusee : signature=false en-tete=false` | Le relais envoie, **sans le verrou** — l'en-tête n'a pas été posé | Étape 4, par l'API de configuration |
-| `livraison entrante refusee : signature=false en-tete=true` | L'en-tête est posé mais **ne correspond pas** | Comparer les deux valeurs ; un espace de fin suffit |
-| 404 sur le webhook, tout étant posé | La route ne s'est pas montée | Vérifier que `WHATSAPP_ENTRANT_SECRET` **et** `WABOT_WEBHOOK_AUTH` sont bien sur la machine (ADR 0035 §1) |
+| Rien du tout | Le numéro de l'expéditrice n'est **pas sur la liste d'autorisation** du numéro de test, ou l'abonnement aux événements de message n'est pas actif | Déclarer le numéro (§1) ; vérifier les événements souscrits |
+| `livraison entrante refusee : signature=false en-tete=false` | Le relais envoie sans le verrou — un vrai message ne passe pas là où le test passait : la configuration a été enregistrée deux fois, ou sur un autre canal | Rouvrir « Edit WABA Webhook » et relire les en-têtes |
+| `livraison entrante refusee : signature=false en-tete=true` | L'en-tête est posé mais **ne correspond pas** à la valeur de la machine | Comparer les deux ; un espace de fin suffit |
 
-Cette trace ne porte **aucun contenu** de message, par construction (ADR 0023) :
-elle dit la forme du refus, jamais ce qui a été refusé.
+Ces traces ne portent **aucun contenu** de message, par construction (ADR 0023) :
+elles disent la forme du refus, jamais ce qui a été refusé.
 
 ---
 
