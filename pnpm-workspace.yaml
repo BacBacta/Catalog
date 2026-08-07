@@ -81,3 +81,25 @@ overrides:
   brace-expansion: ^5.0.8
   tmp: ^0.2.6
   uuid: ^11.1.1
+
+  # ── Deux avis ELEVES apparus le 07/08/2026, sur `--prod` cette fois ───────
+  #
+  # Ils ont fait echouer la porte du deploiement sur un commit qui ne touche
+  # AUCUN fichier de dependance. C'est le propre de `pnpm audit` : il interroge
+  # la base d'avis en direct, donc il peut passer au rouge sans qu'une ligne du
+  # depot ait bouge. Le rouge etait donc juste, et la porte a bien fait son
+  # travail.
+  #
+  # `fast-uri` < 3.1.5 — confusion d'hote via antislash (GHSA-7p8r-x3mc-p8w7).
+  # Il arrive par `ajv`, sous `prisma`, en dix-sept chemins. Une seule version
+  # dans l'arbre (3.1.4), donc la resolution est sans risque de collision.
+  fast-uri: ^3.1.5
+
+  # `js-yaml` — CPU quadratique sur `!!omap` (CVE-2026-59870), NON retroporte.
+  #
+  # La resolution est BORNEE A LA LIGNE 4.x, et ce n'est pas une precaution de
+  # style : `@lhci/utils` tire `js-yaml` 3.15.0, hors de la plage vulnerable
+  # (>=4.0.0 <4.3.1). Un override global l'aurait fait sauter de 3 a 4 — une
+  # frontiere majeure ou `safeLoad` disparait —, cassant Lighthouse pour
+  # corriger une faille qui ne le concerne pas.
+  js-yaml@4: ^4.3.1
