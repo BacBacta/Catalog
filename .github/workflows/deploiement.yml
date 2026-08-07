@@ -120,6 +120,40 @@ jobs:
           echo "Le seul fly.toml decrit la preproduction (catalog-api-preprod)."
           echo "Creer fly.production.toml et passer --config avant d'utiliser ce choix."
           exit 1
+      # ── DIAGNOSTIC TEMPORAIRE — a retirer une fois la cause etablie ────────
+      #
+      # Quatre deploiements ont echoue le 07/08/2026 sur « missing third-party
+      # discharge token », en nommant QUATRE FOIS le meme identifiant de jeton,
+      # malgre plusieurs remplacements du secret. Un jeton neuf recevrait un
+      # identifiant neuf : la valeur lue par ce job n'a donc jamais change.
+      #
+      # Reste a savoir pourquoi. Deviner coute un run par hypothese ; mesurer en
+      # coute un seul. Ce pas n'ecrit JAMAIS la valeur — uniquement sa longueur
+      # et la presence de la virgule qui separe le jeton de sa decharge. C'est
+      # le minimum qui distingue les trois causes possibles, et rien de plus :
+      #
+      #   longueur identique d'un remplacement a l'autre → ce n'est pas ce
+      #     secret-la qui est modifie (un secret d'ENVIRONNEMENT masque un
+      #     secret de DEPOT du meme nom, sans que rien ne le signale) ;
+      #   virgule absente → la valeur est coupee avant la decharge ;
+      #   longue ET avec virgule → le jeton est complet, la cause est cote Fly.
+      - name: Empreinte du secret — diagnostic temporaire
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "secret ABSENT : aucune valeur n'est servie a ce job."
+            exit 0
+          fi
+          echo "longueur : ${#FLY_API_TOKEN}"
+          case "$FLY_API_TOKEN" in
+            *,*) echo "virgule : OUI — la decharge est presente" ;;
+            *)   echo "virgule : NON — valeur tronquee avant la decharge" ;;
+          esac
+          case "$FLY_API_TOKEN" in
+            FlyV1\ *) echo "prefixe : OUI — commence par 'FlyV1 '" ;;
+            *)        echo "prefixe : NON — le 'FlyV1 ' initial manque" ;;
+          esac
       - name: fly deploy
         run: flyctl deploy --remote-only --wait-timeout 10m --config fly.toml --app catalog-api-preprod
         env:
