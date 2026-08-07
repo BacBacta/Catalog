@@ -1,10 +1,12 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { describe, expect, it } from "vitest";
+import { INACTIVITE_MAX_MS } from "../conversation.ts";
 import {
   demandeAjoutArticle,
   demandeEspaceVendeuse,
   demandeInscription,
   type EtatVendeuse,
+  etatVendeuseApresInactivite,
   lireLegendeArticle,
   lirePrix,
   messageArticlePublie,
@@ -328,5 +330,69 @@ describe("la photo legendee (ADR 0035)", () => {
     expect(
       normaliserEtatVendeuse({ nom: "article_confirme", nomArticle: "Pagne", prixXaf: 15000 }),
     ).toBeNull();
+  });
+});
+
+/**
+ * Un flux vendeuse abandonne PERIME — ADR 0048.
+ *
+ * Constate en preproduction le 07/08/2026 : un « Hi » recu sur un fil dont
+ * l'etat `article_nom` datait d'une session precedente s'est vu repondre
+ * « *Hi* — son prix, en francs ? ». Le fil ACHETEUSE perimait deja depuis
+ * l'ADR 0032 ; le fil vendeuse, lui, ne perimait pas — et la regle 1 de
+ * l'aiguillage (« l'inscription en cours prime sur tout ») lui faisait donc
+ * avaler tout message ulterieur, indefiniment.
+ */
+describe("peremption d'un flux vendeuse abandonne", () => {
+  const EN_COURS: EtatVendeuse = { nom: "article_nom" };
+
+  it("garde l'etat tant que le flux est vivant", () => {
+    expect(etatVendeuseApresInactivite(EN_COURS, 0)).toEqual(EN_COURS);
+    expect(etatVendeuseApresInactivite(EN_COURS, INACTIVITE_MAX_MS - 1)).toEqual(EN_COURS);
+  });
+
+  it("l'abandonne au-dela du delai — c'est le defaut du 07/08/2026", () => {
+    expect(etatVendeuseApresInactivite(EN_COURS, INACTIVITE_MAX_MS)).toBeNull();
+    expect(etatVendeuseApresInactivite(EN_COURS, 30 * 24 * 60 * 60 * 1000)).toBeNull();
+  });
+
+  it("perime AUSSI l'inscription et l'article a moitie saisi", () => {
+    const etats: EtatVendeuse[] = [
+      { nom: "inscription_nom" },
+      { nom: "inscription_ville", nomBoutique: "Chez Awa" },
+      { nom: "article_prix", nomArticle: "Pagne wax" },
+      { nom: "article_photo", nomArticle: "Pagne wax", prixXaf: 15000 },
+      { nom: "article_confirme", nomArticle: "Pagne", prixXaf: 15000, mediaId: "m-1" },
+    ];
+    for (const e of etats) {
+      expect(etatVendeuseApresInactivite(e, INACTIVITE_MAX_MS)).toBeNull();
+    }
+  });
+});
+
+/**
+ * Le piege du 07/08/2026 : « Bonjour » repond a une demande de prix, le bot
+ * dit « Je n'ai pas compris le prix », et RIEN n'indique comment sortir. Le
+ * mot `annuler` existait depuis l'ADR 0034 — il n'etait simplement annonce
+ * nulle part au moment ou on en a besoin.
+ */
+describe("la sortie de secours s'annonce quand la reponse ne passe pas", () => {
+  it("le prix incompris rappelle « annuler »", () => {
+    const r = reagirInscription(
+      { nom: "article_prix", nomArticle: "Hi" },
+      { genre: "texte", texte: "Bonjour" },
+      VERS,
+    );
+    expect(corps(r.messages[0])).toContain("annuler");
+  });
+
+  it("le nom d'article refuse rappelle « annuler »", () => {
+    const r = reagirInscription({ nom: "article_nom" }, { genre: "texte", texte: "x" }, VERS);
+    expect(corps(r.messages[0])).toContain("annuler");
+  });
+
+  it("le nom de boutique refuse rappelle « annuler »", () => {
+    const r = reagirInscription({ nom: "inscription_nom" }, { genre: "texte", texte: "x" }, VERS);
+    expect(corps(r.messages[0])).toContain("annuler");
   });
 });

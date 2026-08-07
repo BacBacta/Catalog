@@ -1,4 +1,5 @@
 import { formatXaf } from "@catalog/contracts/money";
+import { INACTIVITE_MAX_MS } from "./conversation.ts";
 import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
 
 /**
@@ -47,6 +48,29 @@ export type EtatVendeuse =
    * du terrain — une photo, sa legende « nom prix », un appui.
    */
   | { nom: "article_confirme"; nomArticle: string; prixXaf: number; mediaId: string };
+
+/**
+ * Un flux vendeuse abandonne PERIME — ADR 0048.
+ *
+ * Le fil ACHETEUSE perimait deja (`etatApresInactivite`, ADR 0032) ; le fil
+ * vendeuse, lui, ne perimait pas. Or la regle 1 de l'aiguillage donne la
+ * priorite absolue a une inscription en cours : un etat oublie avalait donc
+ * TOUT message ulterieur, indefiniment. Constate le 07/08/2026 — un « Hi »
+ * s'est vu repondre « *Hi* — son prix, en francs ? ».
+ *
+ * On rend `null`, pas un etat de repli : il n'y a rien a reprendre a mi-chemin
+ * d'un formulaire, et le message suivant doit etre aiguille comme un premier
+ * contact. Rien n'est perdu — ni boutique ni article n'existe avant l'effet.
+ *
+ * Meme delai que le fil acheteuse, volontairement : deux horloges pour une
+ * seule notion d'abandon se contrediraient un jour.
+ */
+export function etatVendeuseApresInactivite(
+  etat: EtatVendeuse,
+  ageMs: number,
+): EtatVendeuse | null {
+  return ageMs < INACTIVITE_MAX_MS ? etat : null;
+}
 
 export type EffetVendeuse =
   | { type: "creer_boutique"; nomBoutique: string; ville: string; parrain?: string }
@@ -191,6 +215,11 @@ export function lireLegendeArticle(legende: string): { nom: string; prixXaf: num
   return { nom, prixXaf: prix };
 }
 
+/* Le mot `annuler` existe depuis l'ADR 0034 ; il n'etait annonce nulle part
+   au moment ou on en a besoin — une reponse refusee bouclait sans issue
+   visible (ADR 0048). */
+const SORTIE_DE_SECOURS = "\n\nPour sortir : tapez « annuler ».";
+
 const NOM_MIN = 2;
 const NOM_MAX = 80;
 const abandon = (t: string) =>
@@ -308,7 +337,8 @@ export function reagirInscription(
           messages: [
             texte(
               vers,
-              "Il me faut le nom de votre boutique, en quelques mots.\nExemple : Chez Amina",
+              "Il me faut le nom de votre boutique, en quelques mots.\nExemple : Chez Amina" +
+                SORTIE_DE_SECOURS,
             ),
           ],
         };
@@ -379,7 +409,8 @@ export function reagirInscription(
           messages: [
             texte(
               vers,
-              "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+              "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende." +
+                SORTIE_DE_SECOURS,
             ),
           ],
         };
@@ -398,7 +429,8 @@ export function reagirInscription(
           messages: [
             texte(
               vers,
-              "Je n'ai pas compris le prix. Écrivez-le en chiffres, sans virgule.\nExemple : 15000",
+              "Je n'ai pas compris le prix. Écrivez-le en chiffres, sans virgule.\nExemple : 15000" +
+                SORTIE_DE_SECOURS,
             ),
           ],
         };

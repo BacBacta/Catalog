@@ -33,6 +33,7 @@ import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import {
   demandeInscription,
   type EtatVendeuse,
+  etatVendeuseApresInactivite,
   messageArticlePublie,
   messageBoutiqueCreee,
   normaliserEtatVendeuse,
@@ -259,7 +260,18 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
     utilisateur?.seller ??
     (await deps.prisma.seller.findUnique({ where: { phone }, select: { id: true } }));
   const enregistrement = await deps.prisma.botConversation.findUnique({ where: { phone } });
-  const etatVendeuse = normaliserEtatVendeuse(enregistrement?.etat);
+  /* Le flux vendeuse perime comme le flux acheteuse — ADR 0048. Ici, et pas
+     dans `filInscription` : la regle 1 de l'aiguillage lit `etatVendeuseEnCours`
+     AVANT tout le reste, donc un etat perime doit avoir disparu des ce point
+     ou il continuerait de detourner le message. */
+  const etatVendeuseLu = normaliserEtatVendeuse(enregistrement?.etat);
+  const etatVendeuse =
+    etatVendeuseLu && enregistrement
+      ? etatVendeuseApresInactivite(
+          etatVendeuseLu,
+          (deps.maintenant?.() ?? new Date()).getTime() - enregistrement.updatedAt.getTime(),
+        )
+      : etatVendeuseLu;
   const etatAchat = etatVendeuse ? ETAT_INITIAL : normaliserEtat(enregistrement?.etat);
 
   const smsReconnu =
