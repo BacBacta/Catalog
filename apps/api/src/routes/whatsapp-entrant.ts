@@ -14,11 +14,13 @@ import { lireMessagesEntrants, type MessageEntrant } from "../domain/connexion-w
  *
  * - **le secret d'URL** (compare a longueur constante, comme l'accuse de
  *   livraison) coupe le bruit d'internet et la force brute d'adresse ;
- * - **la signature `X-Hub-Signature-256`** — HMAC du corps BRUT avec le secret
- *   d'application Meta — prouve que la livraison vient de Meta. Sans elle,
- *   n'importe qui connaissant l'URL pourrait fabriquer un faux message entrant,
- *   c'est-a-dire se connecter au compte de n'importe quelle vendeuse dont il
- *   provoque un defi. **Elle n'est donc pas optionnelle.**
+ * - **une preuve d'origine**, sans laquelle n'importe qui connaissant l'URL
+ *   pourrait fabriquer un faux message entrant — c'est-a-dire se connecter au
+ *   compte de n'importe quelle vendeuse dont il provoque un defi. **Elle n'est
+ *   donc pas optionnelle**, mais elle prend deux formes selon le transporteur :
+ *   la signature `X-Hub-Signature-256` en Meta directe, l'en-tete rejoue en
+ *   relais 360dialog (ADR 0035). Au moins l'une des deux est exigee a la
+ *   construction ; aucune des deux, la route ne se construit pas.
  *
  * La reponse est toujours 200 une fois les serrures passees : un code inconnu,
  * expire ou rejoue n'est pas une erreur, c'est un message ordinaire. Repondre
@@ -31,8 +33,15 @@ import { lireMessagesEntrants, type MessageEntrant } from "../domain/connexion-w
 export interface WhatsAppEntrantDeps {
   /** Le secret du chemin ET de la poignee de main. Absent, la route n'existe pas. */
   secret: string;
-  /** Le secret d'application Meta, pour la signature. Meme regle. */
-  appSecret: string;
+  /**
+   * Le secret d'application Meta, pour la signature `X-Hub-Signature-256`.
+   *
+   * ABSENT en relais 360dialog : ce secret est un objet de la Meta directe, et
+   * un WABA servi par un partenaire n'en a pas. Sans lui, aucune signature ne
+   * peut etre verifiee — donc toute livraison qui en porte une est refusee,
+   * plutot que d'etre acceptee sur la foi d'un verrou qu'on ne sait pas lire.
+   */
+  appSecret?: string | undefined;
   /** Ce que fait chaque message — injecte, pour tester la route sans Better Auth. */
   surMessage: (message: MessageEntrant) => Promise<void>;
   /**
@@ -47,6 +56,17 @@ export interface WhatsAppEntrantDeps {
 }
 
 export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
+  /* Le garde leve a la construction, comme l'envoyeur du bot et MboaSMS : une
+     route qui accepterait tout corps portant le bon secret d'URL est une porte
+     ouverte sur les comptes vendeuses, et le symptome serait un silence. */
+  if (!deps.appSecret && !deps.authEnTete) {
+    throw new Error(
+      "Webhook WhatsApp entrant : aucune preuve d'origine configuree. " +
+        "Poser WHATSAPP_APP_SECRET (Meta directe) ou WABOT_WEBHOOK_AUTH (relais 360dialog). " +
+        "Voir .env.example et l'ADR 0035.",
+    );
+  }
+
   const r = new Hono();
 
   r.get("/entrant/:secret", (c) => {
@@ -74,8 +94,15 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
      */
     const brut = await c.req.text();
     const fournie = c.req.header("x-hub-signature-256");
-    const attendue = `sha256=${createHmac("sha256", deps.appSecret).update(brut).digest("hex")}`;
-    const parSignature = fournie != null && egalConstant(fournie, attendue);
+    /* Sans secret d'application, `parSignature` reste faux MEME si une
+       signature est fournie : ne pas savoir verifier n'est pas verifier. */
+    const parSignature =
+      deps.appSecret != null &&
+      fournie != null &&
+      egalConstant(
+        fournie,
+        `sha256=${createHmac("sha256", deps.appSecret).update(brut).digest("hex")}`,
+      );
     /* L'en-tete ne remplace la signature que quand elle est ABSENTE : une
        signature fausse reste une signature fausse. */
     const parEnTete =

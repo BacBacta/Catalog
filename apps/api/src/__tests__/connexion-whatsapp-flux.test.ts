@@ -263,3 +263,67 @@ describe("la route webhook", () => {
     expect(familleDe("POST", `/api/whatsapp/entrant/${SECRET}`)).not.toBe(null);
   });
 });
+
+/**
+ * Le relais 360dialog (ADR 0035) : pas de secret d'application Meta, donc pas
+ * de signature — le verrou est l'en-tete rejoue. Ce qui compte ici est autant
+ * ce qui passe que ce qui ne passe PAS sans le secret Meta.
+ */
+describe("la route webhook servie par un relais, sans secret d'application", () => {
+  const AUTH = "Bearer jeton-de-relais-32-caracteres";
+
+  const relais = (surMessage: (m: { de: string; texte: string }) => Promise<void>) => {
+    const app = new Hono();
+    app.route(
+      "/api/whatsapp",
+      whatsappEntrantRoutes({ secret: SECRET, authEnTete: AUTH, surMessage }),
+    );
+    return app;
+  };
+
+  it("livre le message porte par le bon en-tete", async () => {
+    const recus: Array<{ de: string; texte: string }> = [];
+    const r = await poster(
+      relais(async (m) => {
+        recus.push(m);
+      }),
+      livraison("Connexion Catalog : 7F3K-2M."),
+      { authorization: AUTH },
+    );
+    expect(r.status).toBe(200);
+    expect(recus).toEqual([{ de: "237683921934", texte: "Connexion Catalog : 7F3K-2M." }]);
+  });
+
+  it("refuse un en-tete different, et l'absence d'en-tete", async () => {
+    const corps = livraison("7F3K-2M");
+    const app = relais(async () => {
+      throw new Error("ne doit pas etre appele");
+    });
+    expect((await poster(app, corps, { authorization: "Bearer devine" })).status).toBe(401);
+    expect((await poster(app, corps)).status).toBe(401);
+  });
+
+  /**
+   * Le piege que ce test ferme : sans secret d'application, une signature ne
+   * peut pas etre verifiee. L'accepter reviendrait a traiter « je ne sais pas
+   * lire ce verrou » comme « ce verrou est bon » — et le bon en-tete est alors
+   * absent, donc rien ne doit passer.
+   */
+  it("refuse une livraison signee quand aucun secret d'application n'est configure", async () => {
+    const corps = livraison("7F3K-2M");
+    const r = await poster(
+      relais(async () => {
+        throw new Error("ne doit pas etre appele");
+      }),
+      corps,
+      { "x-hub-signature-256": signature(corps) },
+    );
+    expect(r.status).toBe(401);
+  });
+
+  it("REFUSE DE SE CONSTRUIRE sans aucune preuve d'origine", () => {
+    expect(() => whatsappEntrantRoutes({ secret: SECRET, surMessage: async () => {} })).toThrow(
+      /preuve d'origine/,
+    );
+  });
+});

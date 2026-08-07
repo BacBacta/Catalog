@@ -37,6 +37,11 @@ diagnostic pendant que des preuves se perdent ne se rattrape pas.
 secrets à poser, gardes qui empêchent la machine de démarrer, et pourquoi Vercel
 a besoin d'un `vercel.json` généré — il ne lit ni `_redirects` ni `_headers`.
 
+[bascule-360dialog.md](bascule-360dialog.md) se lit avant de mettre le bot
+WhatsApp en service, et se relit le jour où rien n'arrive : l'ordre des
+opérations, et surtout le diagnostic des trois silences — un webhook mal
+branché ne rend pas d'erreur, il se tait.
+
 ## Et une liste qui n'est pas un runbook
 
 [checklist-lancement.md](checklist-lancement.md) se lit **avant** l'incident,

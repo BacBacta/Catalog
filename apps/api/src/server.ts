@@ -128,12 +128,18 @@ if (secretAccuse) app.route("/api/sms", accuseLivraisonRoutes({ secret: secretAc
 
 /**
  * Le webhook WhatsApp entrant (ADR 0027) — meme refus par defaut que l'accuse :
- * il faut LES DEUX secrets, celui du chemin et celui de la signature Meta.
- * L'un sans l'autre serait une porte a moitie fermee, donc pas de route.
+ * il faut le secret du chemin, ET une preuve d'origine. L'un sans l'autre
+ * serait une porte a moitie fermee, donc pas de route.
+ *
+ * La preuve d'origine a deux formes, et une seule suffit (ADR 0035) : la
+ * signature Meta en direct, l'en-tete rejoue par 360dialog en relais. Exiger
+ * le secret d'application Meta d'un WABA servi par un partenaire aurait
+ * demande d'inventer une valeur pour un objet qui n'existe pas de ce cote.
  */
 const secretEntrant = process.env.WHATSAPP_ENTRANT_SECRET?.trim();
 const secretAppMeta = process.env.WHATSAPP_APP_SECRET?.trim();
-if (secretEntrant && secretAppMeta) {
+const authRelais = process.env.WABOT_WEBHOOK_AUTH?.trim();
+if (secretEntrant && (secretAppMeta || authRelais)) {
   /**
    * Le bot (ADR 0031), EN DORMANCE sans sa cle : les defis de connexion
    * continuent seuls. Avec la cle et la base, chaque livraison passe aussi
@@ -174,8 +180,8 @@ if (secretEntrant && secretAppMeta) {
     "/api/whatsapp",
     whatsappEntrantRoutes({
       secret: secretEntrant,
-      appSecret: secretAppMeta,
-      authEnTete: process.env.WABOT_WEBHOOK_AUTH?.trim() || undefined,
+      appSecret: secretAppMeta || undefined,
+      authEnTete: authRelais || undefined,
       surMessage: async (message) => {
         const contexte = await auth.$context;
         await appliquerMessageEntrant(contexte.internalAdapter as unknown as MagasinDefis, {
