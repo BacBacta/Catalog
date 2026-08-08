@@ -334,7 +334,9 @@ describe("« confirmer » tape confirme la commande, et rien d'autre", () => {
         boutique: BOUTIQUE,
       },
     );
-    expect((r.etat as { nom: string }).nom).toBe("ajout");
+    /* Depuis l'ADR 0053, « corriger » rouvre la SAISIE de livraison au lieu
+       de renvoyer au panier — on rectifie la ou l'erreur a ete faite. */
+    expect((r.etat as { nom: string }).nom).toBe("details");
   });
 
   it("dans le tunnel, « avis » et « noter » sont inertes", () => {

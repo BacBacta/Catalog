@@ -12,7 +12,20 @@
  *   propre avec une ellipse — une vendeuse au nom trop long vend quand meme.
  */
 
-const CORPS_MAX = 4096;
+/**
+ * La limite d'un message TEXTE.
+ */
+const CORPS_TEXTE_MAX = 4096;
+
+/**
+ * La limite d'un corps INTERACTIF — ADR 0053.
+ *
+ * Elle n'est PAS la meme, et le depot les confondait : un corps entre 1 025 et
+ * 4 096 caracteres passait la validation locale et mourait en HTTP 400 a
+ * l'envoi, sans un message pour personne. Le menu vendeuse mesure environ 600
+ * caracteres ; une fiche article a longue description depasse 1 400.
+ */
+export const CORPS_INTERACTIF_MAX = 1024;
 const BOUTON_TITRE_MAX = 20;
 const BOUTONS_MAX = 3;
 const LISTE_LIGNES_MAX = 10;
@@ -148,10 +161,10 @@ function tronquer(texte: string, max: number): string {
   return `${net.slice(0, max - 1).trimEnd()}…`;
 }
 
-function corpsOuLeve(corps: string): string {
+function corpsOuLeve(corps: string, max = CORPS_TEXTE_MAX): string {
   const net = corps.trim();
   if (!net) throw new Error("le corps d'un message ne peut pas etre vide");
-  return tronquer(net, CORPS_MAX);
+  return tronquer(net, max);
 }
 
 export function texte(vers: string, corps: string, options: { citer?: string } = {}): MessageTexte {
@@ -222,7 +235,7 @@ export function boutons(
       ...(options.image
         ? { header: { type: "image" as const, image: { link: options.image } } }
         : {}),
-      body: { text: corpsOuLeve(corps) },
+      body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
       action: {
         buttons: choix.map((c) => ({
           type: "reply" as const,
@@ -251,7 +264,7 @@ export function liste(
     type: "interactive",
     interactive: {
       type: "list",
-      body: { text: corpsOuLeve(corps) },
+      body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
       action: {
         button: tronquer(libelleBouton, BOUTON_TITRE_MAX),
         sections: [

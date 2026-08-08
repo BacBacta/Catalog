@@ -320,7 +320,7 @@ describe("les chemins defensifs de la machine", () => {
     expect(corpsTexte(r.messages[0])).toContain("plus d'exemplaire");
   });
 
-  it("l'etape ajout re-propose ses trois sorties sur un texte quelconque", () => {
+  it("l'etape ajout re-propose ses trois sorties, dont la vendeuse — ADR 0053", () => {
     const etat: EtatConv = {
       nom: "ajout",
       slug: "chez-amina",
@@ -328,7 +328,11 @@ describe("les chemins defensifs de la machine", () => {
     };
     const r = reagirAcheteuse(etat, { genre: "texte", texte: "hmm" }, ctx());
     expect(r.etat).toEqual(etat);
-    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "annuler"]);
+    /* La troisieme sortie est « Parler a la vendeuse » quand la boutique est
+       joignable : AGENTS.md §1 veut que les deux continuent de se parler, et
+       l'invariant etait suspendu pendant tout le tunnel. Sans numero, c'est
+       « Annuler » — jamais rien. */
+    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "vendeuse"]);
   });
 
   it("le mode tape en anglais est compris ; l'incomprehensible re-propose les boutons", () => {

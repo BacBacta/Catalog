@@ -55,6 +55,8 @@ export interface TextesAcheteuse {
 
   questionQuantite: (nomArticle: string, stock: number | null) => string;
   btnAutreNombre: string;
+  /** Le libelle du bouton qui OUVRE la liste de quantites — ADR 0053. */
+  btnChoisirQuantite: string;
   quantiteAutre: string;
   quantiteIncomprise: string;
   quantiteTropHaute: (max: number) => string;
@@ -233,6 +235,7 @@ const fr: TextesAcheteuse = {
   questionQuantite: (nom, stock) =>
     `Combien de « ${nom} » voulez-vous ?${stock != null ? ` (${stock} en stock)` : ""}`,
   btnAutreNombre: "Un autre nombre",
+  btnChoisirQuantite: "Choisir",
   quantiteAutre: "Écrivez le nombre voulu, en chiffres (ex. : 3).",
   quantiteIncomprise:
     "Je n'ai pas compris le nombre. Écrivez-le en chiffres (ex. : 3) — ou « annuler » pour abandonner.",
@@ -421,6 +424,7 @@ const en: TextesAcheteuse = {
   questionQuantite: (nom, stock) =>
     `How many “${nom}” do you want?${stock != null ? ` (${stock} in stock)` : ""}`,
   btnAutreNombre: "Another number",
+  btnChoisirQuantite: "Choose",
   quantiteAutre: "Write the number you want, in digits (e.g.: 3).",
   quantiteIncomprise:
     "I did not understand the number. Write it in digits (e.g.: 3) — or “cancel” to stop.",

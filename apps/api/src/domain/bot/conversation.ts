@@ -651,7 +651,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     }
     return {
       etat: { nom: "quantite", slug: boutique.slug, articleId: article.id, panier },
-      messages: [questionQuantite(vers, article, panier, t)],
+      messages: [questionQuantite(vers, article, panier, t, Boolean(boutique.whatsappVendeuse))],
     };
   }
 
@@ -682,19 +682,34 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       const max = maxCommandable(article, etat.panier);
 
       let quantite: number | null = null;
-      if (id === "qte:1") quantite = 1;
-      else if (id === "qte:2") quantite = 2;
+      const choisi = id?.startsWith("qte:") ? Number(id.slice(4)) : Number.NaN;
+      if (Number.isInteger(choisi) && choisi > 0) quantite = choisi;
       else if (id === "qte:autre") {
         return { etat, messages: [texte(vers, t.quantiteAutre)] };
       } else if (entree.genre === "texte") {
         const n = Number(entree.texte.trim());
         if (Number.isInteger(n) && n > 0) quantite = n;
       }
+      /* Un refus de quantite ne doit pas etre un cul-de-sac — ADR 0053 : on
+         explique, PUIS on re-propose la liste, qui porte la sortie. */
+      const joignable = Boolean(boutique.whatsappVendeuse);
       if (quantite === null) {
-        return { etat, messages: [texte(vers, t.quantiteIncomprise)] };
+        return {
+          etat,
+          messages: [
+            texte(vers, t.quantiteIncomprise),
+            questionQuantite(vers, article, etat.panier, t, joignable),
+          ],
+        };
       }
       if (quantite > max) {
-        return { etat, messages: [texte(vers, t.quantiteTropHaute(max))] };
+        return {
+          etat,
+          messages: [
+            texte(vers, t.quantiteTropHaute(max)),
+            questionQuantite(vers, article, etat.panier, t, joignable),
+          ],
+        };
       }
 
       /* L'article entre au panier — fusionne s'il y etait deja. */
@@ -713,7 +728,14 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       if (id === "commander") {
         return {
           etat: { nom: "mode", slug: etat.slug, panier: etat.panier },
-          messages: [questionMode(vers, totalPanier(boutique, etat.panier), t)],
+          messages: [
+            questionMode(
+              vers,
+              totalPanier(boutique, etat.panier),
+              t,
+              Boolean(boutique.whatsappVendeuse),
+            ),
+          ],
         };
       }
       /* « catalogue » et « annuler » sont deja traites en gestes globaux. */
@@ -734,7 +756,17 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
             ? "retrait"
             : null;
       if (!mode) {
-        return { etat, messages: [questionMode(vers, totalPanier(boutique, etat.panier), t)] };
+        return {
+          etat,
+          messages: [
+            questionMode(
+              vers,
+              totalPanier(boutique, etat.panier),
+              t,
+              Boolean(boutique.whatsappVendeuse),
+            ),
+          ],
+        };
       }
       /* La livraison demande OU — ADR 0050. Le retrait, non : le point de
          rendez-vous porte deja le lieu, et lui ajouter une ville serait un
@@ -742,7 +774,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       if (mode === "livraison") {
         return {
           etat: { nom: "ville", slug: etat.slug, panier: etat.panier },
-          messages: [questionVille(vers, boutique.ville, t)],
+          messages: [questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse))],
         };
       }
       return {
@@ -759,7 +791,10 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       const tapee = entree.genre === "texte" ? entree.texte.trim() : "";
       const ville = proposee ?? (villeAcceptable(tapee) ? tapee : null);
       if (!ville) {
-        return { etat, messages: [questionVille(vers, boutique.ville, t)] };
+        return {
+          etat,
+          messages: [questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse))],
+        };
       }
       return {
         etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode: "livraison", ville },
@@ -819,11 +854,29 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
         };
       }
       if (id === "corriger" || mot === "corriger" || mot === "correct") {
-        /* Retour a l'etape panier : on peut reprendre un article ou repartir
-           au catalogue ; la livraison se redemande au passage. */
+        /* Corriger une ligne de livraison ne doit pas coûter le panier —
+           ADR 0053. Ça renvoyait a l'etape `ajout`, donc il fallait
+           re-traverser mode, ville ET details pour rectifier un chiffre.
+           On rouvre la SAISIE, la ou l'erreur a ete faite. */
+        /* La ville se relit de la LIVRAISON deja analysee : l'etat `recap` ne
+           la porte pas a part, et c'est bien — une seule source. */
+        const villeChoisie =
+          etat.livraison.mode === "livraison" ? etat.livraison.city : null;
+        if (etat.mode === "livraison" && villeChoisie) {
+          return {
+            etat: {
+              nom: "details",
+              slug: etat.slug,
+              panier: etat.panier,
+              mode: "livraison",
+              ville: villeChoisie,
+            },
+            messages: [texte(vers, t.questionDetailsLivraison)],
+          };
+        }
         return {
-          etat: { nom: "ajout", slug: etat.slug, panier: etat.panier },
-          messages: messageAjout(vers, boutique, etat.panier, t),
+          etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode: etat.mode },
+          messages: [texte(vers, t.questionDetailsRetrait)],
         };
       }
       return {
@@ -992,29 +1045,56 @@ function reagirApresAchat(
 
 /* ────────────────────────── les messages du fil ─────────────────────────── */
 
+/** Au-dela, la liste WhatsApp deborde ses dix lignes — ADR 0053. */
+const QUANTITE_LISTE_MAX = 8;
+
+/**
+ * La quantite se CHOISIT — ADR 0053.
+ *
+ * Trois boutons couvraient 1, 2, et « un autre nombre » : des trois, seule la
+ * saisie clavier restait pour commander trois pagnes. Une liste en porte dix,
+ * bornee par le stock quand il est connu — on ne propose jamais ce qui
+ * n'existe pas.
+ *
+ * La derniere ligne est une SORTIE, presente a toutes les etapes du tunnel
+ * (AGENTS.md §1 : l'acheteuse et la vendeuse continuent de se parler).
+ */
 function questionQuantite(
   vers: string,
   article: ArticleBot,
   panier: LignePanier[],
   t: TextesAcheteuse,
+  boutiqueJoignable: boolean,
 ): MessageSortant {
   const max = maxCommandable(article, panier);
+  const nombres = Math.min(max, QUANTITE_LISTE_MAX);
   const choix = [
-    { id: "qte:1", titre: "1" },
-    ...(max >= 2 ? [{ id: "qte:2", titre: "2" }] : []),
-    ...(max >= 3
-      ? [{ id: "qte:autre", titre: t.btnAutreNombre }]
-      : [{ id: "annuler", titre: t.btnAnnuler }]),
+    ...Array.from({ length: nombres }, (_, i) => ({
+      id: `qte:${i + 1}`,
+      titre: String(i + 1),
+      description: "",
+    })),
+    ...(max > nombres ? [{ id: "qte:autre", titre: t.btnAutreNombre, description: "" }] : []),
+    boutiqueJoignable
+      ? { id: "vendeuse", titre: t.btnParlerVendeuse, description: "" }
+      : { id: "menu", titre: t.btnAccueil, description: "" },
   ];
-  return boutons(vers, t.questionQuantite(article.nom, article.stock), choix);
+  return liste(vers, t.questionQuantite(article.nom, article.stock), t.btnChoisirQuantite, choix);
 }
 
 /** Les trois sorties de l'etape panier : commander, continuer, abandonner. */
-function boutonsAjout(vers: string, corps: string, t: TextesAcheteuse): MessageSortant {
+function boutonsAjout(
+  vers: string,
+  corps: string,
+  t: TextesAcheteuse,
+  boutiqueJoignable = false,
+): MessageSortant {
   return boutons(vers, corps, [
     { id: "commander", titre: t.btnPasserCommande },
     { id: "catalogue", titre: t.btnAutreArticle },
-    { id: "annuler", titre: t.btnAnnuler },
+    boutiqueJoignable
+      ? { id: "vendeuse", titre: t.btnParlerVendeuse }
+      : { id: "annuler", titre: t.btnAnnuler },
   ]);
 }
 
@@ -1047,7 +1127,9 @@ function messageAjout(
   ajoute?: string,
 ): MessageSortant[] {
   const corps = t.panierCorps(lignesLisibles(b, panier, t), totalPanier(b, panier));
-  return [boutonsAjout(vers, ajoute ? `${ajoute}\n\n${corps}` : corps, t)];
+  return [
+    boutonsAjout(vers, ajoute ? `${ajoute}\n\n${corps}` : corps, t, Boolean(b.whatsappVendeuse)),
+  ];
 }
 
 /**
@@ -1058,18 +1140,32 @@ function messageAjout(
  * liste, parce que le Cameroun ne tient pas en dix lignes et qu'une liste
  * incomplete exclurait une acheteuse sans lui dire pourquoi.
  */
-function questionVille(vers: string, villeBoutique: string, t: TextesAcheteuse): MessageSortant {
+function questionVille(
+  vers: string,
+  villeBoutique: string,
+  t: TextesAcheteuse,
+  boutiqueJoignable = false,
+): MessageSortant {
   return boutons(vers, t.questionVille(villeBoutique), [
     { id: "ville:boutique", titre: villeBoutique },
-    { id: "annuler", titre: t.btnAnnuler },
+    boutiqueJoignable
+      ? { id: "vendeuse", titre: t.btnParlerVendeuse }
+      : { id: "annuler", titre: t.btnAnnuler },
   ]);
 }
 
-function questionMode(vers: string, totalXaf: number, t: TextesAcheteuse): MessageSortant {
+function questionMode(
+  vers: string,
+  totalXaf: number,
+  t: TextesAcheteuse,
+  boutiqueJoignable = false,
+): MessageSortant {
   return boutons(vers, t.questionMode(totalXaf), [
     { id: "mode:livraison", titre: t.btnLivraison },
     { id: "mode:retrait", titre: t.btnRetrait },
-    { id: "annuler", titre: t.btnAnnuler },
+    boutiqueJoignable
+      ? { id: "vendeuse", titre: t.btnParlerVendeuse }
+      : { id: "annuler", titre: t.btnAnnuler },
   ]);
 }
 

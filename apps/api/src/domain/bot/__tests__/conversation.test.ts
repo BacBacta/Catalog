@@ -42,6 +42,11 @@ const ctx = (surcharge: Partial<ContexteAcheteuse> = {}): ContexteAcheteuse => (
 });
 const corpsTexte = (m: unknown) => (m as MessageTexte).text.body;
 const corpsBoutons = (m: unknown) => (m as MessageBoutons).interactive.body.text;
+/* La quantite est passee du bouton a la LISTE (ADR 0053) : meme corps, autre
+   action. */
+const corpsListe = (m: unknown) => (m as MessageListe).interactive.body.text;
+const lignesListe = (m: unknown) =>
+  (m as MessageListe).interactive.action.sections.flatMap((sec) => sec.rows.map((r) => r.id));
 const idsBoutons = (m: unknown) =>
   (m as MessageBoutons).interactive.action.buttons.map((b) => b.reply.id);
 
@@ -195,7 +200,7 @@ describe("le panier — plusieurs articles, une seule commande", () => {
     const corps = corpsBoutons(r.messages[0]);
     expect(corps).toContain("Ajouté : Pagne wax 6 yards × 2");
     expect(corps).toContain(formatXaf(30000));
-    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "annuler"]);
+    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "vendeuse"]);
   });
 
   it("l'ajout MONTRE les lignes, pas seulement le total", () => {
@@ -323,10 +328,13 @@ describe("le panier — plusieurs articles, une seule commande", () => {
     expect(r.messages).toEqual([]); // la confirmation part apres la creation
   });
 
-  it("« Corriger » revient a l'etape panier sans rien perdre", () => {
+  it("« Corriger » rouvre la SAISIE de livraison, pas l'etape panier — ADR 0053", () => {
+    /* Avant l'ADR 0053, corriger un chiffre de la ligne de livraison
+       renvoyait a l'etape panier : il fallait re-traverser mode, ville ET
+       details. On rouvre desormais la saisie, la ou l'erreur a ete faite. */
     const r = reagirAcheteuse(RECAP, { genre: "bouton", id: "corriger" }, ctx());
-    expect(r.etat).toEqual({
-      nom: "ajout",
+    expect(r.etat).toMatchObject({
+      nom: "details",
       slug: "chez-amina",
       panier: [{ articleId: "a1", quantite: 2 }],
     });
@@ -341,9 +349,11 @@ describe("le stock suivi borne la quantite", () => {
       { genre: "bouton", id: "cmd:a2" },
       ctx(),
     );
-    expect(corpsBoutons(r.messages[0])).toContain("(2 en stock)");
-    // stock 2 : les boutons 1 et 2, et Annuler a la place d'« autre nombre ».
-    expect(idsBoutons(r.messages[0])).toEqual(["qte:1", "qte:2", "annuler"]);
+    /* La quantite est une LISTE depuis l'ADR 0053 : le stock la borne, et
+       « un autre nombre » disparait quand il n'y a rien au-dela. La derniere
+       ligne est une sortie — jamais un cul-de-sac. */
+    expect(corpsListe(r.messages[0])).toContain("(2 en stock)");
+    expect(lignesListe(r.messages[0])).toEqual(["qte:1", "qte:2", "vendeuse"]);
   });
 
   it("une quantite au-dela du stock recoit le maximum, l'etat ne bouge pas", () => {
@@ -447,7 +457,7 @@ describe("aucun etat n'est un piege — mots-cles globaux", () => {
     expect(corps).toContain(formatXaf(38000));
     /* Pas d'accuse de reception : rien n'a ete ajoute. */
     expect(corps).not.toContain("Ajouté");
-    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "annuler"]);
+    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "vendeuse"]);
   });
 
   it("« panier » vide le DIT, et ne fabrique pas un etat de commande", () => {
