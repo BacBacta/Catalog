@@ -1,5 +1,6 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
+import { villeAcceptable } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
@@ -122,7 +123,21 @@ export type EtatConv =
   /** « Autre chose ? » — l'article vient d'entrer au panier. */
   | { nom: "ajout"; slug: string; panier: LignePanier[] }
   | { nom: "mode"; slug: string; panier: LignePanier[] }
-  | { nom: "details"; slug: string; panier: LignePanier[]; mode: "livraison" | "retrait" }
+  /**
+   * La ville de LIVRAISON — ADR 0050. Elle etait injectee en silence depuis
+   * la boutique : une boutique de Douala qui livrait a Yaounde enregistrait
+   * « Douala ». La ville de la boutique dit ou est la VENDEUSE ; celle-ci dit
+   * ou va le COLIS. Le retrait n'en a pas — le point de rendez-vous suffit.
+   */
+  | { nom: "ville"; slug: string; panier: LignePanier[] }
+  | {
+      nom: "details";
+      slug: string;
+      panier: LignePanier[];
+      mode: "livraison" | "retrait";
+      /** Absente en retrait ; presente des que le mode est « livraison ». */
+      ville?: string;
+    }
   | {
       nom: "recap";
       slug: string;
@@ -178,10 +193,20 @@ export function normaliserEtat(brut: unknown): EtatConv {
       if (!slug || !lignes) return ETAT_INITIAL;
       return { nom: "mode", slug, panier: lignes };
     }
+    case "ville": {
+      const lignes = panier.length > 0 ? panier : ancienne;
+      if (!slug || !lignes) return ETAT_INITIAL;
+      return { nom: "ville", slug, panier: lignes };
+    }
     case "details": {
       const lignes = panier.length > 0 ? panier : ancienne;
       if (!slug || !lignes || !mode) return ETAT_INITIAL;
-      return { nom: "details", slug, panier: lignes, mode };
+      const ville = typeof e.ville === "string" ? e.ville : null;
+      /* Un `details` de la GENERATION PRECEDENTE n'a pas de ville : elle
+         etait injectee plus tard, depuis la boutique (ADR 0050). On ne la
+         devine pas — on retourne la demander, panier intact. */
+      if (mode === "livraison" && !ville) return { nom: "ville", slug, panier: lignes };
+      return { nom: "details", slug, panier: lignes, mode, ...(ville ? { ville } : {}) };
     }
     case "recap": {
       const lignes = panier.length > 0 ? panier : ancienne;
@@ -379,6 +404,30 @@ export interface ContexteAcheteuse {
   langue?: Langue;
 }
 
+/**
+ * Les etats ou un texte libre est du CONTENU, jamais de la navigation —
+ * ADR 0050.
+ *
+ * `details` : « Bonapriso, en face de la *boutique* Bata » est LA facon
+ * camerounaise de donner un repere (AGENTS.md §2 : le repere est
+ * obligatoire, il n'existe pas d'adresse). Le lire comme un lien de boutique
+ * effacait le panier ET la livraison, sans un mot.
+ *
+ * `ville` : « Bafoussam » ressemble a un slug nu. MESURE : sans cette garde,
+ * une acheteuse qui ecrit sa ville est renvoyee au catalogue.
+ *
+ * `recap` : elle retape sa ligne au lieu d'appuyer sur Corriger.
+ * `avis_mot` : tout texte est le commentaire de son avis.
+ */
+function texteEstDuContenu(etat: EtatConv): boolean {
+  return (
+    etat.nom === "details" ||
+    etat.nom === "ville" ||
+    etat.nom === "recap" ||
+    etat.nom === "avis_mot"
+  );
+}
+
 export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse): Reaction {
   const langue = ctx.langue ?? "fr";
   const t = TEXTES[langue];
@@ -409,11 +458,12 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     }
   }
 
-  /* Un slug dans le texte remet TOUJOURS la conversation sur la boutique :
+  /* Un slug dans le texte remet la conversation sur la boutique — SAUF la ou
+     le texte libre est du CONTENU (ADR 0050) :
      c'est le geste du lien partage, il prime sur tout etat anterieur. Le
      panier suit si c'est la MEME boutique ; sinon il est laisse — et on le
      DIT, au lieu de le faire disparaitre en silence (ADR 0035). */
-  if (entree.genre === "texte" && extraireSlugBoutique(entree.texte)) {
+  if (entree.genre === "texte" && !texteEstDuContenu(etat) && extraireSlugBoutique(entree.texte)) {
     if (!boutique) {
       return { etat: ETAT_INITIAL, messages: [texte(vers, t.boutiqueIntrouvable)] };
     }
@@ -648,10 +698,34 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       if (!mode) {
         return { etat, messages: [questionMode(vers, totalPanier(boutique, etat.panier), t)] };
       }
-      const question = mode === "livraison" ? t.questionDetailsLivraison : t.questionDetailsRetrait;
+      /* La livraison demande OU — ADR 0050. Le retrait, non : le point de
+         rendez-vous porte deja le lieu, et lui ajouter une ville serait un
+         tour de parole pour rien. */
+      if (mode === "livraison") {
+        return {
+          etat: { nom: "ville", slug: etat.slug, panier: etat.panier },
+          messages: [questionVille(vers, boutique.ville, t)],
+        };
+      }
       return {
         etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode },
-        messages: [texte(vers, question)],
+        messages: [texte(vers, t.questionDetailsRetrait)],
+      };
+    }
+
+    case "ville": {
+      /* Un appui sur la ville de la boutique, ou n'importe quelle ville
+         ecrite. On ne propose PAS de liste : le Cameroun ne tient pas en dix
+         lignes, et une liste incomplete exclurait une acheteuse en silence. */
+      const proposee = id === "ville:boutique" ? boutique.ville : null;
+      const tapee = entree.genre === "texte" ? entree.texte.trim() : "";
+      const ville = proposee ?? (villeAcceptable(tapee) ? tapee : null);
+      if (!ville) {
+        return { etat, messages: [questionVille(vers, boutique.ville, t)] };
+      }
+      return {
+        etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode: "livraison", ville },
+        messages: [texte(vers, t.questionDetailsLivraison)],
       };
     }
 
@@ -659,7 +733,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       if (entree.genre !== "texte") {
         return { etat, messages: [texte(vers, t.detailsParTexte)] };
       }
-      const lu = lireDetailsLivraison(entree.texte, etat.mode, boutique.ville, t);
+      const lu = lireDetailsLivraison(entree.texte, etat.mode, etat.ville ?? boutique.ville, t);
       if (!lu.ok) {
         return { etat, messages: [texte(vers, lu.aide)] };
       }
@@ -912,6 +986,21 @@ function messageAjout(
   return [boutonsAjout(vers, ajoute ? `${ajoute}\n\n${corps}` : corps, t)];
 }
 
+/**
+ * « Livraison dans quelle ville ? » — ADR 0050.
+ *
+ * UN bouton, celui de la ville de la boutique : c'est le cas majoritaire, et
+ * il coute une frappe. Toute autre ville s'ECRIT — on ne propose pas de
+ * liste, parce que le Cameroun ne tient pas en dix lignes et qu'une liste
+ * incomplete exclurait une acheteuse sans lui dire pourquoi.
+ */
+function questionVille(vers: string, villeBoutique: string, t: TextesAcheteuse): MessageSortant {
+  return boutons(vers, t.questionVille(villeBoutique), [
+    { id: "ville:boutique", titre: villeBoutique },
+    { id: "annuler", titre: t.btnAnnuler },
+  ]);
+}
+
 function questionMode(vers: string, totalXaf: number, t: TextesAcheteuse): MessageSortant {
   return boutons(vers, t.questionMode(totalXaf), [
     { id: "mode:livraison", titre: t.btnLivraison },
@@ -1084,7 +1173,7 @@ export function lireDetailsLivraison(
 /** La ligne de livraison, relue telle que comprise — recap ET confirmation. */
 function ligneLivraison(l: LivraisonBrouillon, t: TextesAcheteuse): string {
   return l.mode === "livraison"
-    ? t.ligneLivraison(l.quartier, l.landmark)
+    ? t.ligneLivraison(l.city, l.quartier, l.landmark)
     : t.ligneRetrait(l.pickupPoint);
 }
 

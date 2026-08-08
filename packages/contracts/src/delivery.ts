@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VILLE_MAX, VILLE_MIN, villeAcceptable } from "./villes.ts";
 
 /**
  * `normalizePhone` vit desormais dans `phone.ts`, sans Zod : la boutique publique
@@ -14,7 +15,15 @@ export { normalizePhone } from "./phone.ts";
  * Voir docs/adr/0005-pas-de-champ-adresse.md
  */
 
-export const QUARTIERS = {
+/**
+ * Des EXEMPLES de quartiers, pas une couverture — ADR 0050.
+ *
+ * Ils ne couvrent que Douala et Yaounde, alors que la ville d'une boutique
+ * est desormais libre : ailleurs, le quartier reste du texte libre, et c'est
+ * assume. Leur provenance n'est documentee nulle part dans le depot : ils ne
+ * valident donc RIEN, ils suggerent.
+ */
+export const QUARTIERS_SUGGERES = {
   Douala: [
     "Akwa",
     "Bonanjo",
@@ -47,8 +56,6 @@ export const QUARTIERS = {
   ],
 } as const;
 
-export type City = keyof typeof QUARTIERS;
-
 /** Numero camerounais au format E.164 : +237 puis 9 chiffres commencant par 6 ou 2. */
 export const phoneSchema = z
   .string()
@@ -56,10 +63,19 @@ export const phoneSchema = z
 
 const geoSchema = z.object({ lat: z.number(), lng: z.number() });
 
+/**
+ * La ville — ADR 0050. `.refine`, JAMAIS `.trim()` ni `.transform()` : ce
+ * schema RELIT du JSON deja stocke, et un schema qui reecrit ce qu'il relit
+ * rend toute comparaison ininterpretable.
+ */
+const villeSchema = z
+  .string()
+  .refine(villeAcceptable, `la ville tient entre ${VILLE_MIN} et ${VILLE_MAX} caracteres`);
+
 export const deliverySchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("livraison"),
-    city: z.enum(["Douala", "Yaounde"]),
+    city: villeSchema,
     quartier: z.string().min(2),
     /** Obligatoire : c'est ce qui remplace l'adresse. */
     landmark: z.string().min(5, "un point de repere est indispensable au livreur"),

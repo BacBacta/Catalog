@@ -100,7 +100,7 @@ describe("textes — les deux catalogues produisent, en entier", () => {
         t.ligneArticle("Pagne", 2, 15000),
         t.ligneTotal(30000),
         t.ligneAcompte(15000),
-        t.ligneLivraison("Bonapriso", "en face de la pharmacie"),
+        t.ligneLivraison("Bafoussam", "Bonapriso", "en face de la pharmacie"),
         t.ligneRetrait("Marché central"),
         t.ligneTelephone("6 90 11 22 33"),
         t.recapRien,
@@ -338,7 +338,7 @@ describe("les chemins defensifs de la machine", () => {
       panier: [{ articleId: "a1", quantite: 1 }],
     };
     const en = reagirAcheteuse(etat, { genre: "texte", texte: "delivery" }, ctx({ langue: "en" }));
-    expect(en.etat).toMatchObject({ nom: "details", mode: "livraison" });
+    expect(en.etat).toMatchObject({ nom: "ville" });
     const pickup = reagirAcheteuse(etat, { genre: "texte", texte: "pickup" }, ctx());
     expect(pickup.etat).toMatchObject({ nom: "details", mode: "retrait" });
     const rate = reagirAcheteuse(etat, { genre: "bouton", id: "id:inconnu" }, ctx());

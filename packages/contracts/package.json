@@ -12,6 +12,7 @@
     "./recu": "./src/recu.ts",
     "./stats": "./src/stats.ts",
     "./ussd": "./src/ussd.ts",
+    "./villes": "./src/villes.ts",
     "./whatsapp": "./src/whatsapp.ts"
   },
   "scripts": {

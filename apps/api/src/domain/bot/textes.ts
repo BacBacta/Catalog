@@ -75,6 +75,8 @@ export interface TextesAcheteuse {
   btnAnnuler: string;
 
   questionMode: (totalXaf: number) => string;
+  /** « Livraison dans quelle ville ? » — ADR 0050. */
+  questionVille: (villeBoutique: string) => string;
   btnLivraison: string;
   btnRetrait: string;
   modeParBoutons: string;
@@ -89,7 +91,7 @@ export interface TextesAcheteuse {
   ligneArticle: (nom: string, quantite: number, prixUnitaireXaf: number) => string;
   ligneTotal: (totalXaf: number) => string;
   ligneAcompte: (acompteXaf: number) => string;
-  ligneLivraison: (quartier: string, landmark: string) => string;
+  ligneLivraison: (ville: string, quartier: string, landmark: string) => string;
   ligneRetrait: (pickupPoint: string) => string;
   ligneTelephone: (telAffiche: string) => string;
   recapRien: string;
@@ -254,6 +256,7 @@ const fr: TextesAcheteuse = {
   btnAnnuler: "Annuler",
 
   questionMode: (total) => `Comment recevoir votre commande (${formatXaf(total)}) ?`,
+  questionVille: (v) => `*Livraison dans quelle ville ?*\nAppuyez sur *${v}*, ou écrivez la vôtre.`,
   btnLivraison: "Livraison",
   btnRetrait: "Point de retrait",
   modeParBoutons: "Choisissez avec les boutons ci-dessous.",
@@ -272,7 +275,7 @@ const fr: TextesAcheteuse = {
   ligneArticle: (nom, q, pu) => `${nom} × ${q} : ${formatXaf(pu)} l'unité`,
   ligneTotal: (total) => `Total : *${formatXaf(total)}*`,
   ligneAcompte: (acompte) => `Acompte pour confirmer : *${formatXaf(acompte)}*`,
-  ligneLivraison: (quartier, landmark) => `Livraison : ${quartier}, ${landmark}`,
+  ligneLivraison: (ville, quartier, landmark) => `Livraison à ${ville} : ${quartier}, ${landmark}`,
   ligneRetrait: (pickupPoint) => `Retrait : ${pickupPoint}`,
   ligneTelephone: (tel) => `Numéro à appeler : ${tel}`,
   recapRien: "Rien n'est encore commandé. Vérifiez, puis confirmez.",
@@ -440,6 +443,7 @@ const en: TextesAcheteuse = {
   btnAnnuler: "Cancel",
 
   questionMode: (total) => `How should you receive your order (${formatXaf(total)})?`,
+  questionVille: (v) => `*Which city are we delivering to?*\nTap *${v}*, or write yours.`,
   btnLivraison: "Delivery",
   btnRetrait: "Pickup point",
   modeParBoutons: "Choose with the buttons below.",
@@ -458,7 +462,7 @@ const en: TextesAcheteuse = {
   ligneArticle: (nom, q, pu) => `${nom} × ${q} : ${formatXaf(pu)} each`,
   ligneTotal: (total) => `Total: *${formatXaf(total)}*`,
   ligneAcompte: (acompte) => `Deposit to confirm: *${formatXaf(acompte)}*`,
-  ligneLivraison: (quartier, landmark) => `Delivery: ${quartier}, ${landmark}`,
+  ligneLivraison: (ville, quartier, landmark) => `Delivery in ${ville}: ${quartier}, ${landmark}`,
   ligneRetrait: (pickupPoint) => `Pickup: ${pickupPoint}`,
   ligneTelephone: (tel) => `Number to call: ${tel}`,
   recapRien: "Nothing is ordered yet. Check, then confirm.",

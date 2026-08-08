@@ -1,4 +1,5 @@
 import { normalizePhone } from "@catalog/contracts";
+import { villeAcceptable } from "@catalog/contracts/villes";
 import type { PrismaClient } from "@catalog/db";
 import { Hono } from "hono";
 
@@ -141,7 +142,10 @@ export function sellerRoutes(deps: SessionDeps) {
         const corps = await c.req.json().catch(() => null);
         const nom = String(corps?.businessName ?? "").trim();
         const ville = String(corps?.city ?? "").trim();
-        if (nom.length < 2 || ville.length < 2) {
+        /* Le MEME predicat que le bot et que la livraison — ADR 0050. Cette
+           porte n'avait AUCUNE borne haute : une ville de 4 000 caracteres
+           entrait en base et faisait echouer la commande d'une acheteuse. */
+        if (nom.length < 2 || !villeAcceptable(ville)) {
           return c.json(
             {
               erreur: "champs_requis",

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { resumerErreur } from "../bot.ts";
 import { Hono } from "hono";
+import { resumerErreur } from "../bot.ts";
 import { lireMessagesEntrants, type MessageEntrant } from "../domain/connexion-whatsapp.ts";
 
 /**

@@ -42,6 +42,15 @@ export function corpsNouvelleCommande(c: {
   totalXaf: number;
   duAvantXaf: number;
   telephoneLivraison: string;
+  /**
+   * OU livrer — ADR 0050. Absent jusqu'ici, et c'etait un defaut a part
+   * entiere : l'acheteuse saisit un quartier et un repere, tous deux rendus
+   * OBLIGATOIRES par AGENTS.md §2 parce qu'il n'existe pas d'adresse au
+   * Cameroun, et aucune surface vendeuse ne les affichait — ni ce message,
+   * ni l'app (`livraison: unknown`, jamais consomme). Elle devait appeler
+   * pour savoir ou aller.
+   */
+  destination?: string | null;
 }): string {
   return [
     `🛍️ *Nouvelle commande ${c.reference}*`,
@@ -53,6 +62,7 @@ export function corpsNouvelleCommande(c: {
           `Un SMS de ${formatXaf(c.duAvantXaf)} devrait arriver de votre opérateur — collez-le ici : il devient le reçu.`,
         ]
       : ["Sans prépaiement — vous encaissez à la remise."]),
+    ...(c.destination ? [`📍 ${c.destination}`] : []),
     `Numéro à appeler pour la remise : ${c.telephoneLivraison}`,
   ].join("\n");
 }

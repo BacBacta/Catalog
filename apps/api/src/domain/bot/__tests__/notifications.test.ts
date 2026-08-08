@@ -65,3 +65,39 @@ describe("les corps vendeuse", () => {
     expect(corpsLivraisonRefusee("CT-522801", "autre_chose")).toMatch(/étape/);
   });
 });
+
+/**
+ * La vendeuse voit ENFIN ou livrer — ADR 0050.
+ *
+ * Defaut mesure le 07/08/2026 : `corpsNouvelleCommande` ne portait que
+ * « Numéro à appeler pour la remise ». L'acheteuse saisissait un quartier et
+ * un repere — tous deux OBLIGATOIRES (AGENTS.md §2, il n'existe pas
+ * d'adresse au Cameroun) — et AUCUNE surface vendeuse ne les affichait :
+ * ni ce message, ni l'app (`livraison: unknown`, jamais consomme).
+ */
+describe("la destination dans la notification vendeuse", () => {
+  const base = {
+    reference: "CT-482910",
+    lignes: [{ nom: "Pagne wax", quantite: 1 }],
+    totalXaf: 15000,
+    duAvantXaf: 0,
+    telephoneLivraison: "6 90 11 22 33",
+  };
+
+  it("porte la ville, le quartier et le REPERE", () => {
+    const c = corpsNouvelleCommande({
+      ...base,
+      destination: "Livraison : Bafoussam, Banengo, en face du marché A",
+    });
+    expect(c).toContain("Bafoussam");
+    expect(c).toContain("Banengo");
+    expect(c).toContain("en face du marché A");
+  });
+
+  it("sans destination, le message reste celui d'avant — rien ne casse", () => {
+    const c = corpsNouvelleCommande(base);
+    expect(c).toContain("CT-482910");
+    expect(c).toContain("6 90 11 22 33");
+    expect(c).not.toContain("📍");
+  });
+});

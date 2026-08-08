@@ -711,6 +711,9 @@ describe("« ou est ma commande ? »", () => {
 
 describe("normaliserEtat — les etats persistes de toutes generations", () => {
   it("relit un etat du sprint A (articleId/quantite) comme un panier d'une ligne", () => {
+    /* Depuis l'ADR 0050, un `details` de livraison SANS ville retourne
+       demander la ville : elle etait injectee depuis la boutique, et on ne
+       la devine plus. Le panier est intact — rien n'est perdu. */
     expect(
       normaliserEtat({
         nom: "details",
@@ -720,10 +723,43 @@ describe("normaliserEtat — les etats persistes de toutes generations", () => {
         mode: "livraison",
       }),
     ).toEqual({
+      nom: "ville",
+      slug: "chez-amina",
+      panier: [{ articleId: "a1", quantite: 2 }],
+    });
+  });
+
+  it("un `details` de RETRAIT se relit tel quel — le retrait n'a pas de ville", () => {
+    expect(
+      normaliserEtat({
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a1", quantite: 2 }],
+        mode: "retrait",
+      }),
+    ).toEqual({
       nom: "details",
       slug: "chez-amina",
       panier: [{ articleId: "a1", quantite: 2 }],
+      mode: "retrait",
+    });
+  });
+
+  it("un `details` de livraison AVEC ville se relit tel quel", () => {
+    expect(
+      normaliserEtat({
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a1", quantite: 1 }],
+        mode: "livraison",
+        ville: "Bafoussam",
+      }),
+    ).toEqual({
+      nom: "details",
+      slug: "chez-amina",
+      panier: [{ articleId: "a1", quantite: 1 }],
       mode: "livraison",
+      ville: "Bafoussam",
     });
   });
 

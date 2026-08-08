@@ -462,6 +462,27 @@ function entreePourMachine(entree: EntreeBot): EntreeMachine {
 }
 
 /**
+ * Ou livrer, en une ligne lisible — ADR 0050.
+ *
+ * Il n'y a pas d'adresse au Cameroun (ADR 0005) : la destination se dit par
+ * une ville, un quartier et un REPERE, et c'est le repere qui fait le travail
+ * (« en face de la pharmacie Bleue »). Un point de retrait convenu est un
+ * mode de livraison de plein droit, pas un cas degrade — il se dit donc
+ * aussi.
+ */
+function destinationLisible(livraison: unknown): string | null {
+  const l = livraison as Record<string, unknown> | null;
+  if (!l || typeof l !== "object") return null;
+  if (l.mode === "retrait") {
+    return typeof l.pickupPoint === "string" && l.pickupPoint ? `Retrait : ${l.pickupPoint}` : null;
+  }
+  const parts = [l.city, l.quartier, l.landmark].filter(
+    (x): x is string => typeof x === "string" && x.trim() !== "",
+  );
+  return parts.length > 0 ? `Livraison : ${parts.join(", ")}` : null;
+}
+
+/**
  * L'envoi d'une sequence, avec les deux replis de l'ADR 0035 :
  * - une REACTION refusee ne casse jamais la suite — c'est un confort ;
  * - une CITATION refusee fait repartir le message nu — le contenu prime.
@@ -824,6 +845,10 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
             totalXaf: commande.totalXaf,
             duAvantXaf: commande.duAvantXaf,
             telephoneLivraison: formatPhone((b.livraison as { phone?: string }).phone ?? ""),
+            /* OU livrer — ADR 0050. Le quartier et le repere sont
+               OBLIGATOIRES cote acheteuse (AGENTS.md §2) et n'atteignaient
+               aucune surface vendeuse : elle devait appeler pour le savoir. */
+            destination: destinationLisible(b.livraison),
           }),
         );
       }

@@ -1,4 +1,5 @@
 import { formatXaf } from "@catalog/contracts/money";
+import { villeAcceptable } from "@catalog/contracts/villes";
 import { INACTIVITE_MAX_MS } from "./conversation.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
@@ -410,7 +411,11 @@ export function reagirInscription(
 
     case "inscription_ville": {
       const ville = entree.genre === "texte" ? (entree.texte ?? "").trim() : "";
-      if (ville.length < NOM_MIN || ville.length > NOM_MAX) {
+      /* Le MEME predicat que celui qui gardera la livraison — ADR 0050.
+         Jusqu'ici cette porte acceptait 2 a 80 caracteres et la lecture
+         n'acceptait que deux villes : l'ecart se payait chez l'acheteuse,
+         trois semaines plus tard, au dernier appui. */
+      if (!villeAcceptable(ville)) {
         return {
           etat,
           messages: [texte(vers, "Dites-moi la ville où vous vendez.\nExemple : Douala")],

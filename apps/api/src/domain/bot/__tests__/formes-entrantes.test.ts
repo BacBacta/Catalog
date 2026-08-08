@@ -159,3 +159,88 @@ describe("l'accuse de lecture et l'indicateur de frappe", () => {
     expect(() => accuseLecture("")).toThrowError(/identifiant/);
   });
 });
+
+/**
+ * La ville de livraison n'est plus injectee en silence — ADR 0050.
+ *
+ * Elle etait prise sur la BOUTIQUE : une boutique de Douala qui livrait a
+ * Yaounde enregistrait « Douala ». La ville de la boutique dit ou est la
+ * VENDEUSE ; la ville de livraison dit ou va le COLIS. Deux choses.
+ */
+describe("la ville de livraison vient de l'acheteuse", () => {
+  const BOUTIQUE = {
+    slug: "chez-amina",
+    nom: "Chez Amina",
+    ville: "Douala",
+    articles: [{ id: "a1", nom: "Robe wax", prixXaf: 15000, stock: null }],
+  } as never;
+  const ctx = { vers: VERS, boutique: BOUTIQUE };
+  const PANIER = [{ articleId: "a1", quantite: 1 }];
+
+  it("choisir « Livraison » demande la ville AVANT les details", () => {
+    const r = reagirAcheteuse(
+      { nom: "mode", slug: "chez-amina", panier: PANIER } as never,
+      { genre: "bouton", id: "mode:livraison" },
+      ctx,
+    );
+    expect((r.etat as { nom: string }).nom).toBe("ville");
+    expect(corps(r.messages[0])).toContain("Douala");
+  });
+
+  it("le RETRAIT ne demande aucune ville — le point de rendez-vous porte le lieu", () => {
+    const r = reagirAcheteuse(
+      { nom: "mode", slug: "chez-amina", panier: PANIER } as never,
+      { genre: "bouton", id: "mode:retrait" },
+      ctx,
+    );
+    expect(r.etat).toMatchObject({ nom: "details", mode: "retrait" });
+  });
+
+  it("un appui sur la ville de la boutique la retient — une frappe, cas majoritaire", () => {
+    const r = reagirAcheteuse(
+      { nom: "ville", slug: "chez-amina", panier: PANIER } as never,
+      { genre: "bouton", id: "ville:boutique" },
+      ctx,
+    );
+    expect(r.etat).toMatchObject({ nom: "details", mode: "livraison", ville: "Douala" });
+  });
+
+  it("LE cas du 07/08/2026 : une acheteuse ailleurs ECRIT sa ville, et ca marche", () => {
+    for (const ville of ["Bafoussam", "Yaoundé", "Buea", "Nanga-Eboko"]) {
+      const r = reagirAcheteuse(
+        { nom: "ville", slug: "chez-amina", panier: PANIER } as never,
+        { genre: "texte", texte: ville },
+        ctx,
+      );
+      expect(r.etat).toMatchObject({ nom: "details", mode: "livraison", ville });
+    }
+  });
+
+  it("une ville illisible re-pose la question au lieu de deviner", () => {
+    const r = reagirAcheteuse(
+      { nom: "ville", slug: "chez-amina", panier: PANIER } as never,
+      { genre: "texte", texte: "x" },
+      ctx,
+    );
+    expect((r.etat as { nom: string }).nom).toBe("ville");
+    expect(corps(r.messages[0])).toContain("ville");
+  });
+
+  it("la ville CHOISIE, et non celle de la boutique, entre dans la commande", () => {
+    const apresVille = reagirAcheteuse(
+      { nom: "ville", slug: "chez-amina", panier: PANIER } as never,
+      { genre: "texte", texte: "Bafoussam" },
+      ctx,
+    );
+    const r = reagirAcheteuse(
+      apresVille.etat as never,
+      { genre: "texte", texte: "Banengo, en face du marché A, 690 11 22 33" },
+      ctx,
+    );
+    const etat = r.etat as { nom: string; livraison?: { city?: string } };
+    expect(etat.nom).toBe("recap");
+    expect(etat.livraison?.city).toBe("Bafoussam");
+    /* Et elle se VOIT : le recapitulatif est le seul garde-fou du produit. */
+    expect(corps(r.messages[0])).toContain("Bafoussam");
+  });
+});
