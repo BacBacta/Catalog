@@ -135,6 +135,22 @@ rien : la question se re-pose.
   doit jamais voyager dans un message que WhatsApp nous renverra. Le numéro n'y
   entre pas non plus — le fil le porte déjà.
 
+### Ce que la sonde de production a rendu visible
+
+L'ordre des messages ne suffisait pas. `envoyerSequence` relançait l'exception
+du premier message refusé : **un Flow refusé emportait la question avec lui**,
+et l'acheteuse recevait le silence à l'étape la plus coûteuse du parcours. La
+propriété « la question reste visible si le Flow échoue » était vraie dans la
+machine et fausse à l'envoi.
+
+Un formulaire refusé est désormais traité comme une réaction refusée
+(ADR 0035) : tenté, nommé au journal — sans une lettre de conversation
+(ADR 0023) —, jamais fatal. Deux tests contre une vraie base le tiennent, et
+le premier a été vu rouge sans le repli.
+
+C'est le cas qui va se produire : un Flow dépublié, un identifiant périmé, un
+numéro non éligible. Aucun d'eux n'est une raison d'interrompre un achat.
+
 ### Ce qui se passe si l'identifiant est retiré
 
 Le parcours redevient exactement celui d'avant, sans redéploiement : question

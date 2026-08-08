@@ -522,17 +522,36 @@ function destinationLisible(livraison: unknown): string | null {
   return parts.length > 0 ? `Livraison : ${parts.join(", ")}` : null;
 }
 
+/** Un message qui ouvre un Flow — ADR 0055. Confort, jamais contenu. */
+function estFlux(m: MessageSortant): boolean {
+  return (
+    m.type === "interactive" &&
+    (m as { interactive?: { type?: string } }).interactive?.type === "flow"
+  );
+}
+
 /**
- * L'envoi d'une sequence, avec les deux replis de l'ADR 0035 :
+ * L'envoi d'une sequence, avec les trois replis de l'ADR 0035 puis 0055 :
  * - une REACTION refusee ne casse jamais la suite — c'est un confort ;
+ * - un FLOW refuse non plus, et c'est ce qui rend vraie la promesse de
+ *   l'ADR 0055 : la question part APRES, et elle doit partir meme quand le
+ *   formulaire est refuse. Un Flow depublie, un identifiant perime, un
+ *   numero non eligible — et sans ce repli, l'acheteuse recevrait le
+ *   silence a l'etape la plus couteuse du parcours ;
  * - une CITATION refusee fait repartir le message nu — le contenu prime.
- * Le sandbox v1 n'a pas confirme ces deux formes : on les tente, on ne
+ * Le sandbox v1 n'a confirme aucune de ces formes : on les tente, on ne
  * parie jamais la conversation dessus.
  */
 async function envoyerSequence(deps: BotDeps, messages: MessageSortant[]): Promise<void> {
   for (const m of messages) {
     if (m.type === "reaction") {
       await deps.envoyeur.envoyer(m).catch(() => {});
+      continue;
+    }
+    if (estFlux(m)) {
+      await deps.envoyeur
+        .envoyer(m)
+        .catch((e) => console.warn(`bot : formulaire de livraison refuse (${resumerErreur(e)})`));
       continue;
     }
     try {
