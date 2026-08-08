@@ -128,6 +128,13 @@ export interface BotDeps {
    * Absente : le bloc part sans ligne de code, il reste vrai.
    */
   rampe?: RampeConfig;
+  /**
+   * L'identifiant du Flow de livraison — ADR 0055. **Absent par defaut**, et
+   * c'est le cas normal : sans lui, le fil est celui d'avant, question par
+   * question. Present, le formulaire s'AJOUTE — un Flow ne s'affiche pas sur
+   * un WhatsApp ancien, et la question doit rester atteignable.
+   */
+  fluxLivraisonId?: string;
   maintenant?: () => Date;
   aleatoire?: (n: number) => Uint8Array;
 }
@@ -455,7 +462,7 @@ async function filInscription(
  * le geste, sans l'expediteur. Les deux machines acceptent cette union — le
  * fil acheteuse l'a typee, l'inscription lui est structurellement compatible.
  */
-function entreePourMachine(entree: EntreeBot): EntreeMachine {
+function entreePourMachine(entree: EntreeBot): Exclude<EntreeMachine, { genre: "flux" }> {
   const id = entree.messageId ? { messageId: entree.messageId } : {};
   switch (entree.genre) {
     case "texte":
@@ -469,15 +476,29 @@ function entreePourMachine(entree: EntreeBot): EntreeMachine {
       };
     case "autre":
       return { genre: "autre", forme: entree.forme, ...id };
-    /* Une reponse de Flow tant que le Flow n'est pas branche — ADR 0055.
-       On ne peut la RECEVOIR que si on l'a envoyee, et on ne l'envoie pas
-       sans `WABOT_FLUX_LIVRAISON_ID`. Si elle arrive quand meme, la personne
-       recoit une phrase plutot qu'un silence. */
+    /* Une reponse de Flow n'a de sens que dans le fil ACHETEUSE — ADR 0055.
+       Les machines vendeuse et inscription ne la connaissent pas : elle y
+       devient une forme non lue, donc une phrase plutot qu'un silence.
+       `entreePourAcheteuse` est la seule a la laisser passer entiere. */
     case "flux":
       return { genre: "autre", forme: "inconnue", ...id };
     default:
       return { genre: entree.genre, id: entree.id, ...id };
   }
+}
+
+/**
+ * La meme entree, pour la machine ACHETEUSE — elle seule sait lire une
+ * reponse de Flow (ADR 0055). Le contenu voyage brut : `lireReponseFlux` le
+ * relit dans le domaine, ou il est teste.
+ */
+function entreePourAcheteuse(entree: EntreeBot): EntreeMachine {
+  if (entree.genre !== "flux") return entreePourMachine(entree);
+  return {
+    genre: "flux",
+    reponse: entree.reponse,
+    ...(entree.messageId ? { messageId: entree.messageId } : {}),
+  };
 }
 
 /**
@@ -770,11 +791,12 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     ? await statutDerniereCommande(deps, enregistrement.derniereCommandeId)
     : null;
 
-  const reaction = reagirAcheteuse(etat, entreePourMachine(entree), {
+  const reaction = reagirAcheteuse(etat, entreePourAcheteuse(entree), {
     vers: entree.de,
     boutique,
     derniereCommande,
     langue,
+    ...(deps.fluxLivraisonId ? { fluxLivraisonId: deps.fluxLivraisonId } : {}),
   });
   etat = reaction.etat;
   const messages = [...reaction.messages];

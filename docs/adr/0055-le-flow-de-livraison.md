@@ -87,3 +87,55 @@ strictement celui d'aujourd'hui.
 - Le test qui lit `docs/flux-livraison.json` vit dans `src/__tests__`, pas dans
   `src/domain` : le domaine ne touche pas au système de fichiers, et son
   garde-fou l'a rappelé pendant l'écriture de ce lot.
+
+---
+
+## Addendum du 08/08/2026 — le Flow est branché (points 1, 2, 3)
+
+Rien n'est retiré de ce qui précède : les décisions 1 à 3 tiennent telles
+quelles, et le régime « écrit mais non vérifié contre un vrai Flow » aussi.
+Ce qui change, c'est l'état de la liste « ce qui reste à faire ».
+
+**Fait :**
+
+1. Le Flow a été déposé et publié dans le Flow Builder de Meta, à la main.
+2. `WABOT_FLUX_LIVRAISON_ID` est posé sur l'environnement de préproduction.
+3. L'envoi est branché — à l'état `mode`, au moment où la livraison est
+   choisie, et **pas** à l'état `ville` : le formulaire porte déjà la ville,
+   l'envoyer après la question aurait posé deux fois la même chose.
+
+**Reste :** le point 4, la vérification sur un Android bas de gamme à Douala.
+Elle ne se fait pas d'ici, et elle reste la seule qui compte.
+
+### Comment le branchement respecte la décision 3
+
+Le formulaire s'**ajoute**, il ne remplace pas — et l'ordre des messages porte
+cette règle : le Flow part **d'abord**, la question part **en dernier**. C'est
+elle qui reste visible et actionnable si le Flow ne s'affiche pas. Six tests
+tiennent cette propriété, dont un qui compare l'état résultant avec et sans
+identifiant : il est le **même**, parce que le Flow n'est qu'un raccourci vers
+la même étape.
+
+Une réponse de Flow porte les quatre champs d'un coup : elle saute donc l'état
+`details` et va droit au **récapitulatif**, qui reste le seul endroit où la
+livraison se relit avant de s'engager (ADR 0032). Illisible, elle ne casse
+rien : la question se re-pose.
+
+### Deux choses que le branchement a exigées
+
+- **La réponse de Flow n'existe QUE dans le fil acheteuse.** Les machines
+  vendeuse et inscription ne connaissent pas ce geste : `entreePourMachine` l'y
+  ramène à une forme non lue (ADR 0049), et son type de retour l'exclut
+  désormais explicitement — c'est le compilateur qui le tient, pas la
+  discipline. `entreePourAcheteuse` est la seule porte qui la laisse passer
+  entière.
+- **Le jeton de session est déterministe et sans secret.** Le domaine n'a ni
+  horloge ni aléa (AGENTS.md §4), donc le jeton se dérive du slug. Ce n'est pas
+  une concession : `buyerToken` autorise la contre-signature (ADR 0021) et ne
+  doit jamais voyager dans un message que WhatsApp nous renverra. Le numéro n'y
+  entre pas non plus — le fil le porte déjà.
+
+### Ce qui se passe si l'identifiant est retiré
+
+Le parcours redevient exactement celui d'avant, sans redéploiement : question
+par question. C'est la propriété que le premier des six tests vérifie.

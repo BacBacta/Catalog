@@ -3,6 +3,7 @@ import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
 import type { FormeNonLue } from "./entrees.ts";
+import { lireReponseFlux, messageFlux } from "./flux.ts";
 import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
 import { boutons, image, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
@@ -270,7 +271,12 @@ export type Entree =
   /** Une photo. Le fil acheteuse ne la lit pas — seule l'inscription le fait. */
   | { genre: "image"; mediaId: string; legende?: string; messageId?: string }
   /** Une forme que le bot ne sait pas traiter — ADR 0049. */
-  | { genre: "autre"; forme: FormeNonLue; messageId?: string };
+  | { genre: "autre"; forme: FormeNonLue; messageId?: string }
+  /**
+   * La reponse d'un Flow — ADR 0055. Le contenu voyage BRUT : c'est le
+   * domaine qui le relit (`lireReponseFlux`), pas le parseur d'entrees.
+   */
+  | { genre: "flux"; reponse: string; messageId?: string };
 
 export interface BrouillonCommande {
   slug: string;
@@ -422,6 +428,13 @@ export interface ContexteAcheteuse {
   boutique: BoutiqueBot | null;
   derniereCommande?: StatutDerniereCommande | null;
   langue?: Langue;
+  /**
+   * L'identifiant du Flow de livraison — ADR 0055. **Absent par defaut**, et
+   * c'est le cas normal : sans lui, le fil est exactement celui d'avant.
+   * Present, le formulaire s'AJOUTE a la question ; il ne la remplace jamais,
+   * parce qu'un Flow ne s'affiche pas sur un WhatsApp ancien.
+   */
+  fluxLivraisonId?: string;
 }
 
 /**
@@ -772,9 +785,29 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
          rendez-vous porte deja le lieu, et lui ajouter une ville serait un
          tour de parole pour rien. */
       if (mode === "livraison") {
+        /**
+         * Le formulaire part EN PLUS, jamais A LA PLACE — ADR 0055. La
+         * question passe en DERNIER : c'est le message qui reste visible si
+         * le Flow ne s'affiche pas, et c'est le cas de l'Android bas de gamme
+         * qu'on ne peut pas se permettre de perdre.
+         */
+        const raccourci = ctx.fluxLivraisonId
+          ? [
+              messageFlux(
+                vers,
+                ctx.fluxLivraisonId,
+                t.btnFluxLivraison,
+                jetonFlux(etat.slug),
+                t.corpsFluxLivraison,
+              ),
+            ]
+          : [];
         return {
           etat: { nom: "ville", slug: etat.slug, panier: etat.panier },
-          messages: [questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse))],
+          messages: [
+            ...raccourci,
+            questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse)),
+          ],
         };
       }
       return {
@@ -789,6 +822,31 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       /* Un appui sur la ville de la boutique, ou n'importe quelle ville
          ecrite. On ne propose PAS de liste : le Cameroun ne tient pas en dix
          lignes, et une liste incomplete exclurait une acheteuse en silence. */
+      /**
+       * Une reponse de Flow porte les QUATRE champs d'un coup — ADR 0055.
+       * Elle saute donc `details` et va droit au recapitulatif, qui reste le
+       * seul endroit ou la livraison se relit avant de s'engager (ADR 0032).
+       * Illisible, elle ne casse rien : la question se re-pose.
+       */
+      if (entree.genre === "flux") {
+        const lu = lireReponseFlux(entree.reponse);
+        if (!lu) {
+          return {
+            etat,
+            messages: [questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse))],
+          };
+        }
+        return {
+          etat: {
+            nom: "recap",
+            slug: etat.slug,
+            panier: etat.panier,
+            mode: "livraison",
+            livraison: lu,
+          },
+          messages: [messageRecap(vers, boutique, etat.panier, lu, t)],
+        };
+      }
       const proposee = id === "ville:boutique" ? boutique.ville : null;
       const tapee = entree.genre === "texte" ? entree.texte.trim() : "";
       const ville = proposee ?? (villeAcceptable(tapee) ? tapee : null);
@@ -1182,6 +1240,16 @@ function messageAjout(
  * liste, parce que le Cameroun ne tient pas en dix lignes et qu'une liste
  * incomplete exclurait une acheteuse sans lui dire pourquoi.
  */
+/**
+ * Le jeton de session du Flow — ADR 0055. Jetable, deterministe, sans secret.
+ * Le jeton acheteuse (`buyerToken`, ADR 0021) autorise la contre-signature :
+ * il ne voyage JAMAIS dans un message que WhatsApp nous renverra. Le numero
+ * n'y entre pas non plus — le fil le porte deja, l'y recopier n'ajoute rien.
+ */
+function jetonFlux(slug: string): string {
+  return `livraison:${slug}`;
+}
+
 function questionVille(
   vers: string,
   villeBoutique: string,

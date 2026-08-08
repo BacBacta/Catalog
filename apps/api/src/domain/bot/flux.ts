@@ -93,6 +93,7 @@ export function messageFlux(
   fluxId: string,
   libelleBouton: string,
   jeton: string,
+  corps = "Remplissez vos informations de livraison.",
 ): MessageFlux {
   return {
     messaging_product: "whatsapp",
@@ -101,7 +102,7 @@ export function messageFlux(
     type: "interactive",
     interactive: {
       type: "flow",
-      body: { text: "Remplissez vos informations de livraison." },
+      body: { text: corps },
       action: {
         name: "flow",
         parameters: {

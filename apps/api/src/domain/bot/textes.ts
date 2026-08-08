@@ -79,6 +79,10 @@ export interface TextesAcheteuse {
   questionMode: (totalXaf: number) => string;
   /** « Livraison dans quelle ville ? » — ADR 0050. */
   questionVille: (villeBoutique: string) => string;
+  /** Le raccourci formulaire — ADR 0055. Ces deux textes ne s'affichent que
+      si `WABOT_FLUX_LIVRAISON_ID` est pose ; sinon rien ne les lit. */
+  btnFluxLivraison: string;
+  corpsFluxLivraison: string;
   btnLivraison: string;
   btnRetrait: string;
   modeParBoutons: string;
@@ -260,6 +264,8 @@ const fr: TextesAcheteuse = {
 
   questionMode: (total) => `Comment recevoir votre commande (${formatXaf(total)}) ?`,
   questionVille: (v) => `*Livraison dans quelle ville ?*\nAppuyez sur *${v}*, ou écrivez la vôtre.`,
+  btnFluxLivraison: "Remplir en une fois",
+  corpsFluxLivraison: "Ville, quartier, repère et téléphone — en un seul écran.",
   btnLivraison: "Livraison",
   btnRetrait: "Point de retrait",
   modeParBoutons: "Choisissez avec les boutons ci-dessous.",
@@ -448,6 +454,8 @@ const en: TextesAcheteuse = {
 
   questionMode: (total) => `How should you receive your order (${formatXaf(total)})?`,
   questionVille: (v) => `*Which city are we delivering to?*\nTap *${v}*, or write yours.`,
+  btnFluxLivraison: "Fill it in one go",
+  corpsFluxLivraison: "City, neighbourhood, landmark and phone — on one screen.",
   btnLivraison: "Delivery",
   btnRetrait: "Pickup point",
   modeParBoutons: "Choose with the buttons below.",

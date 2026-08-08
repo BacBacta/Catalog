@@ -125,6 +125,13 @@ const bot =
            machine le dit plutot que d'ecrire une URL fausse. */
         numeroCatalog: process.env.WHATSAPP_WABA_NUMERO?.trim() ?? "",
         rampe,
+        /* Le Flow de livraison (ADR 0055). ABSENT PAR DEFAUT : sans lui, le
+           fil est celui d'avant, question par question. Il se pose quand un
+           Flow est publie chez Meta — l'API de notre cle ne sait pas le
+           creer, donc l'identifiant vient de la console, a la main. */
+        ...(process.env.WABOT_FLUX_LIVRAISON_ID?.trim()
+          ? { fluxLivraisonId: process.env.WABOT_FLUX_LIVRAISON_ID.trim() }
+          : {}),
       }
     : null;
 
