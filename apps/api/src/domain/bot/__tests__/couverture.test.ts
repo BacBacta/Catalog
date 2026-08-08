@@ -102,7 +102,7 @@ describe("textes — les deux catalogues produisent, en entier", () => {
         t.ligneAcompte(15000),
         t.ligneLivraison("Bafoussam", "Bonapriso", "en face de la pharmacie"),
         t.ligneRetrait("Marché central"),
-        t.ligneTelephone("6 90 11 22 33"),
+        t.ligneTelephone("690 11 22 33"),
         t.recapRien,
         t.btnConfirmer,
         t.btnCorriger,

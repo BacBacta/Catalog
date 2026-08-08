@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deliverySchema } from "../delivery.ts";
+import { formatPhone, normalizePhone } from "../phone.ts";
 import { VILLE_MAX, VILLE_MIN, villeAcceptable } from "../villes.ts";
 
 /**
@@ -76,5 +77,35 @@ describe("le schema de livraison suit le MEME predicat", () => {
     for (const v of ["Douala", "Bafoussam", "", "D", "a".repeat(VILLE_MAX + 1), " Buea "]) {
       expect(deliverySchema.safeParse({ ...base, city: v }).success).toBe(villeAcceptable(v));
     }
+  });
+});
+
+/**
+ * Le format du numero — ADR 0051.
+ *
+ * Le bot AFFICHAIT « 6 90 11 22 33 » et REFUSAIT cette meme ecriture a la
+ * saisie : l'acheteuse recopiait le recapitulatif, c'etait rejete, elle
+ * relisait sans voir la difference, et recommencait.
+ *
+ * L'affichage s'aligne sur les douze exemples des copies. Les TROIS premiers
+ * chiffres identifient l'operateur — 69x Orange, 67x/68x MTN, 62x Nexttel —
+ * et l'operateur decide du code USSD, des frais hors reseau et de quel SMS
+ * fera preuve. Les grouper garde cette information lisible.
+ */
+describe("formatPhone groupe par l'operateur", () => {
+  it("rend la forme des exemples du produit", () => {
+    expect(formatPhone("+237690112233")).toBe("690 11 22 33");
+    expect(formatPhone("690112233")).toBe("690 11 22 33");
+  });
+
+  it("l'ecriture qu'il rend est celle qu'il accepte — la boucle est fermee", () => {
+    /* La propriete qui manquait : ce que le bot montre, il doit savoir le
+       relire. Le detail de la saisie vit dans le bot, mais la forme rendue
+       ici est celle que l'acheteuse recopie. */
+    expect(normalizePhone(formatPhone("+237690112233"))).toBe("+237690112233");
+  });
+
+  it("un numero illisible ressort tel quel, sans etre maquille", () => {
+    expect(formatPhone("pas un numero")).toBe("pas un numero");
   });
 });

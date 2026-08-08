@@ -324,7 +324,15 @@ const sansAccents = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g
  * qui CONTIENT le mot existe surement — d'ou l'egalite stricte, pas la
  * recherche.
  */
-function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | "panier" | null {
+/**
+ * Le vocabulaire commun aux TROIS fils — ADR 0051.
+ *
+ * Il ne vivait que dans le fil acheteuse : « menu », « aide » et « panier »
+ * ne faisaient RIEN cote vendeuse et cote inscription. Une vendeuse coincee
+ * dans un formulaire n'avait qu'un mot pour sortir (« annuler »), et il
+ * n'etait annonce que dans une partie des messages.
+ */
+export function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | "panier" | null {
   const net = sansAccents(texteBrut.trim().toLowerCase());
   if (net === "menu" || net === "accueil" || net === "home") return "menu";
   if (net === "annuler" || net === "stop" || net === "cancel") return "annuler";
@@ -419,6 +427,24 @@ export interface ContexteAcheteuse {
  * `recap` : elle retape sa ligne au lieu d'appuyer sur Corriger.
  * `avis_mot` : tout texte est le commentaire de son avis.
  */
+/**
+ * Les etats du TUNNEL D'ACHAT — ADR 0051.
+ *
+ * Entre le choix d'un article et la creation de la commande, les mots de
+ * l'apres-achat (« confirmer », « avis », « noter ») designent autre chose
+ * que ce qu'ils designent une fois la commande passee. Ils s'y taisent.
+ */
+function dansLeTunnel(etat: EtatConv): boolean {
+  return (
+    etat.nom === "quantite" ||
+    etat.nom === "ajout" ||
+    etat.nom === "mode" ||
+    etat.nom === "ville" ||
+    etat.nom === "details" ||
+    etat.nom === "recap"
+  );
+}
+
 function texteEstDuContenu(etat: EtatConv): boolean {
   return (
     etat.nom === "details" ||
@@ -756,7 +782,20 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     }
 
     case "recap": {
-      if (id === "confirmer") {
+      /**
+       * Le mot TAPE vaut l'appui — ADR 0051. Le libelle est ecrit sur le
+       * bouton : refuser ce qu'on affiche est le defaut qu'on passe ce lot a
+       * corriger. Et les boutons ne s'affichent pas toujours — vieux
+       * WhatsApp, message transfere, connexion degradee : taper est le repli
+       * naturel, et c'est la population qui en depend le plus.
+       *
+       * Correspondance EXACTE, jamais une sous-chaine : « je ne veux pas
+       * confirmer » ne confirme rien. L'etat `recap` a deja montre les
+       * articles, le total et la livraison — l'engagement est informe qu'elle
+       * tape ou qu'elle appuie.
+       */
+      const mot = entree.genre === "texte" ? sansAccents(entree.texte.trim().toLowerCase()) : "";
+      if (id === "confirmer" || mot === "confirmer" || mot === "confirm") {
         return {
           /* La boutique reste en contexte ; le panier, lui, part en commande. */
           etat: { nom: "catalogue", slug: etat.slug, page: 0 },
@@ -767,7 +806,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
           },
         };
       }
-      if (id === "corriger") {
+      if (id === "corriger" || mot === "corriger" || mot === "correct") {
         /* Retour a l'etape panier : on peut reprendre un article ou repartir
            au catalogue ; la livraison se redemande au passage. */
         return {
@@ -811,7 +850,20 @@ function reagirApresAchat(
 ): Reaction | null {
   const vers = ctx.vers;
   const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
-  const tape = entree.genre === "texte" ? sansAccents(entree.texte.trim().toLowerCase()) : "";
+  /**
+   * Les MOTS de l'apres-achat sont inertes dans le tunnel d'achat — ADR 0051.
+   *
+   * « Confirmer » est le libelle du bouton du RECAPITULATIF (`btnConfirmer`).
+   * Quelqu'un qui recopie le mot au lieu d'appuyer perdait son panier, son
+   * mode et sa livraison ; avec une commande anterieure dans le fil, il
+   * contre-signait la MAUVAISE commande — le controle n°7 declenche sur autre
+   * chose. Les boutons, eux, restent honores partout : leur identifiant est
+   * pose par nous, il ne se tape pas par hasard.
+   */
+  const tape =
+    entree.genre === "texte" && !dansLeTunnel(etat)
+      ? sansAccents(entree.texte.trim().toLowerCase())
+      : "";
   const commande = ctx.derniereCommande ?? null;
 
   /* Le mot d'avis attendu : tout texte devient le commentaire. Les mots-cles
@@ -1144,11 +1196,24 @@ export function lireDetailsLivraison(
   t: TextesAcheteuse = TEXTES.fr,
 ): { ok: true; livraison: LivraisonBrouillon } | { ok: false; aide: string } {
   const net = texteBrut.trim().replace(/\s+/g, " ");
-  const telephone = /(\+?237)?\s*([62]\d(?:\s*\d){7})\s*$/.exec(net);
-  if (!telephone?.[2]) {
+  /**
+   * Le numero se lit PAR LA FIN — ADR 0051.
+   *
+   * `[62]\d` exigeait les deux premiers chiffres COLLES : la forme que le bot
+   * affiche lui-meme (`690 11 22 33`, `formatPhone`) etait donc refusee
+   * quand l'acheteuse la recopiait du recapitulatif. Elle relisait, ne voyait
+   * pas la difference, recommencait : boucle.
+   *
+   * L'espace est desormais libre PARTOUT entre les neuf chiffres. L'ancre de
+   * fin fait le tri quand le repere en contient aussi (« carrefour 2, 690 11
+   * 22 33 ») : seul un groupe de neuf chiffres commencant par 6 ou 2 et
+   * terminant le message est retenu.
+   */
+  const telephone = /(?:\+?237|00237)?\s*([62](?:\s*\d){8})\s*$/.exec(net);
+  if (!telephone?.[1]) {
     return { ok: false, aide: t.aideSansTelephone };
   }
-  const phone = `+237${telephone[2].replace(/\s/g, "")}`;
+  const phone = `+237${telephone[1].replace(/\s/g, "")}`;
   const sansTel = net.slice(0, telephone.index).replace(/[,\s]+$/, "");
 
   if (mode === "retrait") {

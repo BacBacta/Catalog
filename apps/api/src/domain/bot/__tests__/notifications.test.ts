@@ -81,7 +81,7 @@ describe("la destination dans la notification vendeuse", () => {
     lignes: [{ nom: "Pagne wax", quantite: 1 }],
     totalXaf: 15000,
     duAvantXaf: 0,
-    telephoneLivraison: "6 90 11 22 33",
+    telephoneLivraison: "690 11 22 33",
   };
 
   it("porte la ville, le quartier et le REPERE", () => {
@@ -97,7 +97,7 @@ describe("la destination dans la notification vendeuse", () => {
   it("sans destination, le message reste celui d'avant — rien ne casse", () => {
     const c = corpsNouvelleCommande(base);
     expect(c).toContain("CT-482910");
-    expect(c).toContain("6 90 11 22 33");
+    expect(c).toContain("690 11 22 33");
     expect(c).not.toContain("📍");
   });
 });

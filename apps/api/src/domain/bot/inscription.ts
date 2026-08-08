@@ -1,6 +1,6 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { villeAcceptable } from "@catalog/contracts/villes";
-import { INACTIVITE_MAX_MS } from "./conversation.ts";
+import { INACTIVITE_MAX_MS, motCleGlobal } from "./conversation.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
 import { TEXTES } from "./textes.ts";
@@ -355,6 +355,39 @@ export function reagirInscription(
   entree: Entree,
   vers: string,
 ): ReactionVendeuse {
+  /**
+   * Le vocabulaire commun — ADR 0051. « aide » explique OU on en est au lieu
+   * de repeter la question ; « menu » sort du formulaire comme « annuler »,
+   * parce que personne ne devine que le mot de sortie est « annuler ».
+   */
+  if (entree.genre === "texte" && entree.texte) {
+    const mot = motCleGlobal(entree.texte);
+    if (mot === "aide") {
+      return {
+        etat,
+        messages: [
+          texte(
+            vers,
+            "Vous êtes en train de créer votre boutique ou d'ajouter un article." +
+              SORTIE_DE_SECOURS,
+          ),
+          questionDeLEtat(etat, vers),
+        ],
+      };
+    }
+    if (mot === "menu") {
+      return {
+        etat: null,
+        messages: [
+          texte(
+            vers,
+            "C'est mis de côté. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article.",
+          ),
+        ],
+      };
+    }
+  }
+
   /* Abandonner marche partout, comme dans le fil acheteuse (ADR 0032). */
   if (entree.genre === "texte" && entree.texte && abandon(entree.texte)) {
     return {

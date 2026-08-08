@@ -43,5 +43,11 @@ export function formatPhone(input: string): string {
   const n = normalizePhone(input);
   if (!n) return input;
   const national = n.slice(-9);
-  return `${national.slice(0, 1)} ${national.slice(1, 3)} ${national.slice(3, 5)} ${national.slice(5, 7)} ${national.slice(7, 9)}`;
+  /* `690 11 22 33` — ADR 0051. Les TROIS premiers chiffres identifient
+     l'operateur (69x Orange, 67x/68x MTN, 62x Nexttel), et l'operateur decide
+     de tout ici : le code USSD, les frais hors reseau, quel SMS fera preuve.
+     Les grouper garde cette information lisible ; `6 90` la coupait en deux.
+     C'est aussi la forme des douze exemples des copies, et la seule que la
+     saisie acceptait avant ce lot. */
+  return `${national.slice(0, 3)} ${national.slice(3, 5)} ${national.slice(5, 7)} ${national.slice(7, 9)}`;
 }

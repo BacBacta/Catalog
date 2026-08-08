@@ -244,3 +244,118 @@ describe("la ville de livraison vient de l'acheteuse", () => {
     expect(corps(r.messages[0])).toContain("Bafoussam");
   });
 });
+
+/**
+ * Les mots du tunnel — ADR 0051.
+ *
+ * « Confirmer » est le libelle du bouton du recapitulatif. Le mot tape etait
+ * intercepte AVANT le switch et route vers la contre-signature : le panier,
+ * le mode et la livraison disparaissaient — et avec une commande anterieure
+ * dans le fil, c'est la MAUVAISE commande qui etait contre-signee.
+ */
+describe("« confirmer » tape confirme la commande, et rien d'autre", () => {
+  const BOUTIQUE = {
+    slug: "chez-amina",
+    nom: "Chez Amina",
+    ville: "Douala",
+    articles: [{ id: "a1", nom: "Robe wax", prixXaf: 15000, stock: null }],
+  } as never;
+  const RECAP = {
+    nom: "recap",
+    slug: "chez-amina",
+    panier: [{ articleId: "a1", quantite: 1 }],
+    mode: "livraison",
+    livraison: {
+      mode: "livraison",
+      city: "Bafoussam",
+      quartier: "Banengo",
+      landmark: "en face du marché A",
+      phone: "+237690112233",
+    },
+  } as never;
+
+  it("LE defaut : le mot tape cree la commande au lieu de detruire le panier", () => {
+    const r = reagirAcheteuse(
+      RECAP,
+      { genre: "texte", texte: "confirmer" },
+      {
+        vers: VERS,
+        boutique: BOUTIQUE,
+      },
+    );
+    expect(r.effet?.type).toBe("creer_commande");
+  });
+
+  it("il ne contre-signe PAS une commande anterieure du fil", () => {
+    const r = reagirAcheteuse(
+      RECAP,
+      { genre: "texte", texte: "confirmer" },
+      {
+        vers: VERS,
+        boutique: BOUTIQUE,
+        derniereCommande: { reference: "CT-111111", etat: "livree" } as never,
+      },
+    );
+    expect(r.effet?.type).toBe("creer_commande");
+    expect(r.effet?.type).not.toBe("contresigner");
+  });
+
+  it("l'anglaise a enfin un chemin tape — « confirm » marche", () => {
+    const r = reagirAcheteuse(
+      RECAP,
+      { genre: "texte", texte: "Confirm" },
+      {
+        vers: VERS,
+        boutique: BOUTIQUE,
+        langue: "en",
+      },
+    );
+    expect(r.effet?.type).toBe("creer_commande");
+  });
+
+  it("correspondance EXACTE : une phrase qui CONTIENT le mot ne confirme rien", () => {
+    const r = reagirAcheteuse(
+      RECAP,
+      { genre: "texte", texte: "je ne veux pas confirmer" },
+      {
+        vers: VERS,
+        boutique: BOUTIQUE,
+      },
+    );
+    expect(r.effet).toBeUndefined();
+  });
+
+  it("« corriger » tape marche aussi — le mot est sur un bouton, lui aussi", () => {
+    const r = reagirAcheteuse(
+      RECAP,
+      { genre: "texte", texte: "corriger" },
+      {
+        vers: VERS,
+        boutique: BOUTIQUE,
+      },
+    );
+    expect((r.etat as { nom: string }).nom).toBe("ajout");
+  });
+
+  it("dans le tunnel, « avis » et « noter » sont inertes", () => {
+    const enDetails = {
+      nom: "details",
+      slug: "chez-amina",
+      panier: [{ articleId: "a1", quantite: 1 }],
+      mode: "livraison",
+      ville: "Douala",
+    } as never;
+    for (const mot of ["avis", "noter", "review"]) {
+      const r = reagirAcheteuse(
+        enDetails,
+        { genre: "texte", texte: mot },
+        {
+          vers: VERS,
+          boutique: BOUTIQUE,
+          derniereCommande: { reference: "CT-111111", etat: "livree" } as never,
+        },
+      );
+      expect((r.etat as { nom: string }).nom).toBe("details");
+    }
+  });
+});

@@ -301,7 +301,7 @@ describe("le panier — plusieurs articles, une seule commande", () => {
     expect(corps).toContain(formatXaf(38000));
     expect(corps).toContain(formatXaf(19000)); // acompte 50 %
     expect(corps).toContain("Bonapriso, en face de la pharmacie du Rond-Point");
-    expect(corps).toContain("6 90 11 22 33");
+    expect(corps).toContain("690 11 22 33");
     expect(corps).toContain("Rien n'est encore commandé");
   });
 

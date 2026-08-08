@@ -396,3 +396,47 @@ describe("la sortie de secours s'annonce quand la reponse ne passe pas", () => {
     expect(corps(r.messages[0])).toContain("annuler");
   });
 });
+
+/**
+ * Le vocabulaire commun aux trois fils — ADR 0051.
+ *
+ * « menu », « aide » et « panier » ne vivaient que dans le fil acheteuse.
+ * Une vendeuse coincee dans un formulaire n'avait qu'un mot pour sortir,
+ * « annuler », et il n'etait annonce que dans une partie des messages.
+ */
+describe("les mots communs marchent aussi dans l'inscription", () => {
+  const ETATS: EtatVendeuse[] = [
+    { nom: "inscription_nom" },
+    { nom: "inscription_ville", nomBoutique: "Chez Awa" },
+    { nom: "article_nom" },
+    { nom: "article_prix", nomArticle: "Pagne" },
+    { nom: "article_photo", nomArticle: "Pagne", prixXaf: 15000 },
+  ];
+
+  it("« aide » dit OU on en est, puis repose la question — l'etat ne bouge pas", () => {
+    for (const etat of ETATS) {
+      const r = reagirInscription(etat, { genre: "texte", texte: "aide" }, VERS);
+      expect(r.etat).toEqual(etat);
+      expect(r.messages.length).toBeGreaterThanOrEqual(2);
+      expect(corps(r.messages[0])).toContain("annuler");
+    }
+  });
+
+  it("« help » marche aussi — le mot anglais est deja dans le vocabulaire", () => {
+    const r = reagirInscription({ nom: "article_nom" }, { genre: "texte", texte: "help" }, VERS);
+    expect(r.etat).toEqual({ nom: "article_nom" });
+  });
+
+  it("« menu » sort du formulaire — personne ne devine que c'est « annuler »", () => {
+    for (const etat of ETATS) {
+      const r = reagirInscription(etat, { genre: "texte", texte: "menu" }, VERS);
+      expect(r.etat).toBeNull();
+    }
+  });
+
+  it("« aide » ne devient PAS un nom d'article — le mot prime sur la saisie", () => {
+    const r = reagirInscription({ nom: "article_nom" }, { genre: "texte", texte: "aide" }, VERS);
+    expect(r.etat).toEqual({ nom: "article_nom" });
+    expect(r.effet).toBeUndefined();
+  });
+});
