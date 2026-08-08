@@ -122,6 +122,22 @@ soumission sur un nom existant comme une révision, et un gabarit refusé est
 précisément fait pour être corrigé. Le script porte désormais `--nettoyer`,
 mais il est réservé aux essais techniques : la voie normale est la révision.
 
+### La sortie : renommer, pas attendre
+
+Un nom neuf est accepté **sur-le-champ** (mesuré : `HTTP 201`), là où le nom
+retenu refuse toujours après plusieurs minutes. Les cinq gabarits portent donc
+un suffixe `_v2`.
+
+**Il n'y a jamais eu de v1**, et c'est écrit dans le code pour que personne ne
+la cherche dans six mois : le suffixe est le prix d'une manœuvre ratée, pas la
+trace d'une version. Le nom d'un gabarit est un identifiant technique — ni la
+vendeuse ni l'acheteuse ne le voient, elles ne lisent que le texte.
+
+Un dernier détail mesuré : déposer la version anglaise **immédiatement** après
+la française échoue avec « name already in use ». La création se propage ; il
+faut laisser passer quelques dizaines de secondes, ou relancer `--deposer`,
+qui saute ce qui existe déjà.
+
 ## Conséquences
 
 - 16 tests neufs, vus rouges d'abord. 948 tests API.

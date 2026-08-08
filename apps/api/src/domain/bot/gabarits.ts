@@ -48,7 +48,21 @@ export type SujetNotification =
   | "reversement_absent";
 
 export interface Gabarit {
-  /** Le nom depose chez Meta. Minuscules, chiffres, soulignes. */
+  /**
+   * Le nom depose chez Meta. Minuscules, chiffres, soulignes.
+   *
+   * ── Pourquoi « _v2 » alors qu'il n'y a jamais eu de v1 ────────────────────
+   *
+   * Le 08/08/2026, les cinq premiers depots ont ete refuses faute d'exemples,
+   * puis SUPPRIMES pour etre redeposes proprement. Chez Meta la suppression
+   * est asynchrone et le nom reste retenu — jusqu'a 30 jours. Un nom neuf, lui,
+   * passe sur-le-champ.
+   *
+   * Le nom n'est JAMAIS vu par personne : ni la vendeuse, ni l'acheteuse, qui
+   * ne lisent que le texte. C'est un identifiant technique. Le suffixe est
+   * donc le prix d'une manoeuvre ratee, pas la trace d'une version — et il ne
+   * se cherche pas de v1.
+   */
   nom: string;
   categorie: "utility";
   /** Combien de `{{n}}` le corps attend. */
@@ -74,7 +88,7 @@ export interface Gabarit {
 
 export const GABARITS: Record<SujetNotification, Gabarit> = {
   nouvelle_commande: {
-    nom: "catalog_nouvelle_commande",
+    nom: "catalog_nouvelle_commande_v2",
     categorie: "utility",
     variables: 3,
     destinataire: "vendeuse",
@@ -85,7 +99,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
     exemples: ["CT-482910", "15 000 FCFA", "Bafoussam, Banengo, en face du marché A"],
   },
   paiement_prouve: {
-    nom: "catalog_paiement_prouve",
+    nom: "catalog_paiement_prouve_v2",
     categorie: "utility",
     variables: 2,
     destinataire: "acheteuse",
@@ -96,7 +110,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
     exemples: ["CT-482910", "7 500 FCFA"],
   },
   commande_livree: {
-    nom: "catalog_commande_livree",
+    nom: "catalog_commande_livree_v2",
     categorie: "utility",
     variables: 1,
     destinataire: "acheteuse",
@@ -107,7 +121,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
     exemples: ["CT-482910"],
   },
   acompte_attendu: {
-    nom: "catalog_acompte_attendu",
+    nom: "catalog_acompte_attendu_v2",
     categorie: "utility",
     variables: 2,
     destinataire: "acheteuse",
@@ -118,7 +132,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
     exemples: ["CT-482910", "7 500 FCFA"],
   },
   reversement_absent: {
-    nom: "catalog_reversement_absent",
+    nom: "catalog_reversement_absent_v2",
     categorie: "utility",
     variables: 1,
     destinataire: "vendeuse",

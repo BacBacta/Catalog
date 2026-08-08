@@ -173,3 +173,24 @@ describe("chaque variable a son exemple", () => {
     }
   });
 });
+
+/**
+ * Le suffixe « _v2 » — ADR 0054, 08/08/2026.
+ *
+ * Il n'y a jamais eu de v1. Les premiers depots ont ete refuses faute
+ * d'exemples, puis supprimes — et Meta retient un nom supprime jusqu'a
+ * 30 jours. Le nom etant un identifiant technique que personne ne lit, le
+ * suffixe est le prix d'une manoeuvre ratee, pas la trace d'une version.
+ */
+describe("les noms deposes", () => {
+  it("portent tous le suffixe qui a debloque le depot", () => {
+    for (const g of Object.values(GABARITS)) {
+      expect(g.nom, g.nom).toMatch(/_v2$/);
+    }
+  });
+
+  it("restent uniques — deux sujets ne peuvent pas partager un nom", () => {
+    const noms = Object.values(GABARITS).map((g) => g.nom);
+    expect(new Set(noms).size).toBe(noms.length);
+  });
+});
