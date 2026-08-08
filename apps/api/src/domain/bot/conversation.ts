@@ -332,6 +332,18 @@ const sansAccents = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g
  * dans un formulaire n'avait qu'un mot pour sortir (« annuler »), et il
  * n'etait annonce que dans une partie des messages.
  */
+/**
+ * « livree CT-522801 » — ADR 0035, exporte par l'ADR 0052.
+ *
+ * L'aiguillage en a besoin : ce geste doit traverser un formulaire en cours,
+ * ou il devient un prix de 522 801 F (`lirePrix` colle tous les chiffres).
+ * « CT- » se tolere absent : six chiffres suffisent.
+ */
+export function demandeRemise(texteBrut: string): string | null {
+  const m = /^livree\s+(?:ct-?)?(\d{6})$/.exec(sansAccents(texteBrut.trim().toLowerCase()));
+  return m?.[1] ? `CT-${m[1]}` : null;
+}
+
 export function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | "panier" | null {
   const net = sansAccents(texteBrut.trim().toLowerCase());
   if (net === "menu" || net === "accueil" || net === "home") return "menu";
@@ -1410,18 +1422,14 @@ export function reagirVendeuse(
     };
   }
 
-  /* « livree CT-522801 » — la remise se marque depuis le fil (ADR 0035). La
-     MEME machine d'etapes que la route decide ; ici on ne fait que reconnaitre
-     le geste. « CT- » se tolere absent : six chiffres suffisent. */
+  /* « livree CT-522801 » — la remise se marque depuis le fil (ADR 0035). */
   if (entree.genre === "texte") {
-    const livree = /^livree\s+(?:ct-?)?(\d{6})$/.exec(
-      sansAccents(entree.texte.trim().toLowerCase()),
-    );
-    if (livree?.[1]) {
+    const livree = demandeRemise(entree.texte);
+    if (livree) {
       return {
         etat: ETAT_INITIAL,
         messages: [],
-        effet: { type: "marquer_livree", reference: `CT-${livree[1]}` },
+        effet: { type: "marquer_livree", reference: livree },
       };
     }
   }

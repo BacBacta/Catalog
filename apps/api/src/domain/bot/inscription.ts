@@ -1,6 +1,6 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { villeAcceptable } from "@catalog/contracts/villes";
-import { INACTIVITE_MAX_MS, motCleGlobal } from "./conversation.ts";
+import { extraireSlugBoutique, INACTIVITE_MAX_MS, motCleGlobal } from "./conversation.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
 import { TEXTES } from "./textes.ts";
@@ -37,20 +37,37 @@ import { TEXTES } from "./textes.ts";
 
 /* ────────────────────────── les etats ───────────────────────────────────── */
 
+/**
+ * Un geste d'ACHAT arrive pendant un formulaire vendeuse — ADR 0052.
+ *
+ * Le formulaire n'est ni detruit ni poursuivi de force : il est mis de cote,
+ * et on POSE la question. Le slug voyage avec, sinon « Voir la boutique »
+ * n'aurait plus de boutique ou aller.
+ */
+export interface GesteEnPause {
+  slug: string;
+}
+
 export type EtatVendeuse =
   /** Inscription : le nom de la boutique. `parrain` vient du lien d'entree. */
-  | { nom: "inscription_nom"; parrain?: string }
-  | { nom: "inscription_ville"; nomBoutique: string; parrain?: string }
+  | { nom: "inscription_nom"; parrain?: string; enPause?: GesteEnPause }
+  | { nom: "inscription_ville"; nomBoutique: string; parrain?: string; enPause?: GesteEnPause }
   /** Ajout d'article — disponible a vie, pas seulement a l'inscription. */
-  | { nom: "article_nom" }
-  | { nom: "article_prix"; nomArticle: string }
-  | { nom: "article_photo"; nomArticle: string; prixXaf: number }
+  | { nom: "article_nom"; enPause?: GesteEnPause }
+  | { nom: "article_prix"; nomArticle: string; enPause?: GesteEnPause }
+  | { nom: "article_photo"; nomArticle: string; prixXaf: number; enPause?: GesteEnPause }
   /**
    * La photo LEGENDEE lue, en attente du « Publier » (ADR 0035) : on confirme
    * l'extrait, on ne devine pas en silence (AGENTS.md §7.7). C'est LE geste
    * du terrain — une photo, sa legende « nom prix », un appui.
    */
-  | { nom: "article_confirme"; nomArticle: string; prixXaf: number; mediaId: string };
+  | {
+      nom: "article_confirme";
+      nomArticle: string;
+      prixXaf: number;
+      mediaId: string;
+      enPause?: GesteEnPause;
+    };
 
 /**
  * Un flux vendeuse abandonne PERIME — ADR 0048.
@@ -76,6 +93,8 @@ export function etatVendeuseApresInactivite(
 }
 
 export type EffetVendeuse =
+  /** « Voir la boutique » : le fil vendeuse se libere, l'achat reprend — ADR 0052. */
+  | { type: "aller_boutique"; slug: string }
   | { type: "creer_boutique"; nomBoutique: string; ville: string; parrain?: string }
   | { type: "creer_article"; nom: string; prixXaf: number; mediaId?: string };
 
@@ -89,11 +108,21 @@ export interface ReactionVendeuse {
 export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
   const e = brut as Record<string, unknown> | null;
   if (!e || typeof e !== "object") return null;
+  /* La pause voyage avec l'etat — ADR 0052. Sans cette relecture, la question
+     d'arbitrage partait, l'etat etait sauve SANS elle, et le message suivant
+     re-arbitrait indefiniment : le genre de defaut qui ne se voit qu'en
+     production, parce qu'il exige un aller-retour en base. */
+  const pause = e.enPause as Record<string, unknown> | null | undefined;
+  const enPause =
+    pause && typeof pause === "object" && typeof pause.slug === "string"
+      ? { enPause: { slug: pause.slug } }
+      : {};
   switch (e.nom) {
     case "inscription_nom":
       return {
         nom: "inscription_nom",
         ...(typeof e.parrain === "string" ? { parrain: e.parrain } : {}),
+        ...enPause,
       };
     case "inscription_ville":
       if (typeof e.nomBoutique !== "string") return null;
@@ -101,16 +130,22 @@ export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
         nom: "inscription_ville",
         nomBoutique: e.nomBoutique,
         ...(typeof e.parrain === "string" ? { parrain: e.parrain } : {}),
+        ...enPause,
       };
     case "article_nom":
-      return { nom: "article_nom" };
+      return { nom: "article_nom", ...enPause };
     case "article_prix":
       return typeof e.nomArticle === "string"
-        ? { nom: "article_prix", nomArticle: e.nomArticle }
+        ? { nom: "article_prix", nomArticle: e.nomArticle, ...enPause }
         : null;
     case "article_photo":
       return typeof e.nomArticle === "string" && typeof e.prixXaf === "number" && e.prixXaf > 0
-        ? { nom: "article_photo", nomArticle: e.nomArticle, prixXaf: Math.floor(e.prixXaf) }
+        ? {
+            nom: "article_photo",
+            nomArticle: e.nomArticle,
+            prixXaf: Math.floor(e.prixXaf),
+            ...enPause,
+          }
         : null;
     case "article_confirme":
       return typeof e.nomArticle === "string" &&
@@ -122,6 +157,7 @@ export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
             nomArticle: e.nomArticle,
             prixXaf: Math.floor(e.prixXaf),
             mediaId: e.mediaId,
+            ...enPause,
           }
         : null;
     default:
@@ -313,6 +349,43 @@ export interface Entree {
 }
 
 /**
+ * Ce qui est en cours, dit en clair — ADR 0052.
+ *
+ * La question d'arbitrage doit NOMMER le travail qu'on propose d'abandonner,
+ * sinon « on finit ça ? » ne veut rien dire pour quelqu'un qui a ete
+ * interrompu il y a dix minutes par une cliente.
+ */
+function travailEnCours(etat: EtatVendeuse): string {
+  switch (etat.nom) {
+    case "inscription_nom":
+      return "d'ouvrir votre boutique";
+    case "inscription_ville":
+      return `d'ouvrir *${etat.nomBoutique}*`;
+    case "article_nom":
+      return "d'ajouter un article";
+    case "article_prix":
+    case "article_photo":
+    case "article_confirme":
+      return `d'ajouter *${etat.nomArticle}*`;
+  }
+}
+
+/**
+ * La question d'arbitrage — ADR 0052. Deux boutons, rien de perdu d'un cote
+ * comme de l'autre.
+ */
+export function questionArbitrage(etat: EtatVendeuse, slug: string, vers: string): MessageSortant {
+  return boutons(
+    vers,
+    `Vous étiez en train ${travailEnCours(etat)}.\n\nOn finit ça, ou on va voir la boutique *${slug}* ?`,
+    [
+      { id: "pause:finir", titre: "Finir" },
+      { id: "pause:aller", titre: "Voir la boutique" },
+    ],
+  );
+}
+
+/**
  * La QUESTION que pose l'etat courant — ADR 0049.
  *
  * A ne pas confondre avec les messages de reproche (« Je n'ai pas compris le
@@ -355,6 +428,40 @@ export function reagirInscription(
   entree: Entree,
   vers: string,
 ): ReactionVendeuse {
+  /**
+   * La pause en cours se resout d'abord — ADR 0052. Deux boutons, et rien
+   * d'autre : tout autre message RE-POSE la question au lieu de choisir a la
+   * place de la personne. `annuler` sort, comme partout (traite plus bas).
+   */
+  if (etat.enPause) {
+    const { enPause, ...sansPause } = etat;
+    if (entree.genre === "bouton" && entree.id === "pause:finir") {
+      const repris = sansPause as EtatVendeuse;
+      return { etat: repris, messages: [questionDeLEtat(repris, vers)] };
+    }
+    if (entree.genre === "bouton" && entree.id === "pause:aller") {
+      return { etat: null, messages: [], effet: { type: "aller_boutique", slug: enPause.slug } };
+    }
+    if (!(entree.genre === "texte" && entree.texte && abandon(entree.texte))) {
+      return { etat, messages: [questionArbitrage(sansPause as EtatVendeuse, enPause.slug, vers)] };
+    }
+  }
+
+  /**
+   * Un LIEN DE BOUTIQUE pendant un formulaire — ADR 0052. On n'avale pas
+   * (« Je n'ai pas compris le prix », le defaut du 07/08/2026) et on ne jette
+   * pas : on met de cote et on demande.
+   */
+  if (entree.genre === "texte" && entree.texte && !etat.enPause) {
+    const slug = extraireSlugBoutique(entree.texte);
+    if (slug) {
+      return {
+        etat: { ...etat, enPause: { slug } },
+        messages: [questionArbitrage(etat, slug, vers)],
+      };
+    }
+  }
+
   /**
    * Le vocabulaire commun — ADR 0051. « aide » explique OU on en est au lieu
    * de repeter la question ; « menu » sort du formulaire comme « annuler »,

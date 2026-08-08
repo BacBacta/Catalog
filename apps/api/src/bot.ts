@@ -390,6 +390,18 @@ async function filInscription(
   const messages = [...reaction.messages];
   let etatSuivant: EtatVendeuse | EtatConv = reaction.etat ?? ETAT_INITIAL;
 
+  /**
+   * « Voir la boutique » — ADR 0052. Le fil vendeuse se libere, et le geste
+   * d'achat mis de cote REPART, comme s'il venait d'arriver. Sans ce rejeu,
+   * la personne aurait appuye sur un bouton pour ne rien recevoir.
+   */
+  if (reaction.effet?.type === "aller_boutique") {
+    const slug = reaction.effet.slug;
+    await poserEtat(deps, phone, ETAT_INITIAL);
+    await filAcheteuse(deps, { genre: "texte", de: entree.de, texte: `boutique ${slug}` }, phone);
+    return;
+  }
+
   if (reaction.effet?.type === "creer_boutique") {
     const cree = await creerBoutique(deps, phone, reaction.effet);
     if (cree.ok) {

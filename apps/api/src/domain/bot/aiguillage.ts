@@ -1,4 +1,4 @@
-import { extraireSlugBoutique } from "./conversation.ts";
+import { demandeRemise, extraireSlugBoutique } from "./conversation.ts";
 import {
   demandeAjoutArticle,
   demandeConges,
@@ -53,9 +53,26 @@ export interface EntreeAiguillee {
 export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil {
   const t = entree.genre === "texte" ? (entree.texte ?? "") : "";
 
+  /* 0. Les gestes NON AMBIGUS traversent tout — ADR 0052.
+
+     Aucun d'eux n'est une reponse plausible a « quel est le nom de
+     l'article ? » ou « son prix, en francs ? », et les avaler coutait cher :
+      - un SMS d'operateur colle est la VALEUR N°1 du produit (AGENTS.md §2) ;
+        il devenait un nom d'article ou un prix ;
+      - « livree CT-522801 » publiait un article a 522 801 F, parce que
+        `lirePrix` colle tous les chiffres du message.
+     Le formulaire n'est pas detruit pour autant : l'etat vendeuse reste en
+     base, et le service repose la question apres le verdict. */
+  if (ctx.smsReconnu) return "vendeuse";
+  if (ctx.estVendeuse && entree.genre === "texte" && demandeRemise(t)) return "vendeuse";
+
   /* 1. Une inscription commencee se termine. Rien ne la detourne — sinon un
      nom de boutique qui ressemble a un slug renverrait la personne au
-     catalogue au milieu de son inscription. */
+     catalogue au milieu de son inscription.
+
+     Un LIEN DE BOUTIQUE y arrive aussi, volontairement : c'est la MACHINE qui
+     arbitre (ADR 0052), parce qu'elle seule sait ce qui est en cours et peut
+     donc poser la question au lieu de choisir a la place de la personne. */
   if (ctx.etatVendeuseEnCours) return "inscription";
 
   /* 2. Ouvrir une boutique : le geste d'une prospect, tape ou pris au bouton
