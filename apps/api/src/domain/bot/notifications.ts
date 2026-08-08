@@ -1,4 +1,5 @@
 import { formatXaf } from "@catalog/contracts/money";
+import { gabaritPour, type SujetNotification } from "./gabarits.ts";
 
 /**
  * Les notifications sortantes du bot — ADR 0035. Module PUR : il decide et il
@@ -15,17 +16,32 @@ import { formatXaf } from "@catalog/contracts/money";
 
 export const FENETRE_SERVICE_MS = 24 * 60 * 60 * 1000;
 
-export type RemiseNotification = "envoyer" | "attendre";
+export type RemiseNotification = "envoyer" | "gabarit" | "attendre";
 
 /**
  * Envoyer maintenant, ou attendre ? `dernierMessageA` est la derniere
  * activite CONNUE de la conversation ; `null` veut dire « jamais vue » — donc
  * aucune fenetre, donc on attend.
  */
-export function decisionRemise(dernierMessageA: Date | null, maintenant: Date): RemiseNotification {
-  if (!dernierMessageA) return "attendre";
-  const age = maintenant.getTime() - dernierMessageA.getTime();
-  return age >= 0 && age < FENETRE_SERVICE_MS ? "envoyer" : "attendre";
+export function decisionRemise(
+  dernierMessageA: Date | null,
+  maintenant: Date,
+  /**
+   * Le sujet, quand il en a un — ADR 0054. Sans sujet, aucun gabarit n'est
+   * possible et le comportement est celui d'avant : on attend.
+   */
+  sujet?: SujetNotification,
+): RemiseNotification {
+  const dansLaFenetre =
+    dernierMessageA !== null &&
+    (() => {
+      const age = maintenant.getTime() - dernierMessageA.getTime();
+      return age >= 0 && age < FENETRE_SERVICE_MS;
+    })();
+  if (dansLaFenetre) return "envoyer";
+  /* Hors fenetre : le gabarit est la SEULE porte, et Meta le facture. On ne
+     l'ouvre que pour un sujet qui le merite (liste fermee, ADR 0054). */
+  return sujet && gabaritPour(sujet) ? "gabarit" : "attendre";
 }
 
 /* ─────────────────── les corps, cote vendeuse (francais) ─────────────────── */

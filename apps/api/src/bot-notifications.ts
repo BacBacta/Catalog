@@ -1,6 +1,8 @@
+import { formatXaf } from "@catalog/contracts/money";
 import type { PrismaClient } from "@catalog/db";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
-import { boutons, type MessageSortant, texte } from "./domain/bot/messages.ts";
+import { gabaritPour, type SujetNotification, variablesManquantes } from "./domain/bot/gabarits.ts";
+import { boutons, gabarit, type MessageSortant, texte } from "./domain/bot/messages.ts";
 import { decisionRemise } from "./domain/bot/notifications.ts";
 import { TEXTES } from "./domain/bot/textes.ts";
 
@@ -57,19 +59,53 @@ export async function notifier(
   phone: string,
   corps: string,
   choix?: BoutonsNotification,
+  /**
+   * Le sujet et ses variables — ADR 0054. Present : hors fenetre, un gabarit
+   * peut ouvrir la porte au lieu de faire attendre. Absent : comportement
+   * d'avant, la notification attend la prochaine interaction.
+   */
+  horsFenetre?: { sujet: SujetNotification; parametres: readonly string[]; langue?: "fr" | "en" },
 ): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
   try {
     const conversation = await deps.prisma.botConversation.findUnique({
       where: { phone },
-      select: { updatedAt: true },
+      select: { updatedAt: true, langue: true },
     });
-    if (decisionRemise(conversation?.updatedAt ?? null, maintenant) === "envoyer") {
+    const decision = decisionRemise(
+      conversation?.updatedAt ?? null,
+      maintenant,
+      horsFenetre?.sujet,
+    );
+    if (decision === "envoyer") {
       try {
         await deps.envoyeur.envoyer(messageDe(phone, corps, choix));
         return;
       } catch {
         /* L'envoi a echoue : la notification attend, elle ne disparait pas. */
+      }
+    }
+    /**
+     * Hors fenetre, avec un gabarit — ADR 0054. Trois raisons de retomber sur
+     * la file : le gabarit n'est pas approuve, une variable manque, ou Meta
+     * refuse. Dans les trois cas la notification ATTEND ; elle n'est jamais
+     * perdue, et on ne paie jamais un envoi qu'on sait incomplet.
+     */
+    if (decision === "gabarit" && horsFenetre) {
+      const g = gabaritPour(horsFenetre.sujet);
+      if (g && variablesManquantes(g, horsFenetre.parametres) === 0) {
+        const langue = horsFenetre.langue ?? (conversation?.langue === "en" ? "en" : "fr");
+        try {
+          await deps.envoyeur.envoyer(gabarit(phone, g, langue, horsFenetre.parametres));
+          return;
+        } catch (e) {
+          /* Meme regle de redaction que partout (ADR 0023) : nos propres
+             messages traversent, une erreur etrangere ne livre que son nom.
+             Redit ici plutot qu'importe de `bot.ts`, qui importe CE module. */
+          const cause =
+            e instanceof Error ? (e.message.startsWith("envoi bot") ? e.message : e.name) : "?";
+          console.warn(`bot : gabarit refuse, la notification attend (${cause})`);
+        }
       }
     }
     await deps.prisma.botNotification.create({
@@ -137,7 +173,7 @@ export async function notifierPaiementProuve(
     const [commande, conversation] = await Promise.all([
       deps.prisma.order.findUnique({
         where: { id: orderId },
-        select: { ref: true, balanceXaf: true },
+        select: { ref: true, balanceXaf: true, totalXaf: true },
       }),
       conversationDeLaCommande(deps.prisma, orderId),
     ]);
@@ -153,6 +189,14 @@ export async function notifierPaiementProuve(
         { id: "contresigner", titre: t.btnContresigner },
         { id: "contester", titre: t.btnPasMoi },
       ],
+      /* La valeur n°1 du produit ne doit pas attendre — ADR 0054. Une
+         acheteuse qui ignore que son paiement est confirme est exactement
+         celle que la fausse capture MoMo inquiete. */
+      {
+        sujet: "paiement_prouve",
+        parametres: [commande.ref, formatXaf(commande.totalXaf - commande.balanceXaf)],
+        langue: conversation.langue === "en" ? "en" : "fr",
+      },
     );
   } catch {
     console.warn("bot : notification de preuve non envoyee (details retenus)");

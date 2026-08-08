@@ -3,6 +3,7 @@
 
 import { randomBytes } from "node:crypto";
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
+import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
@@ -862,6 +863,19 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
                aucune surface vendeuse : elle devait appeler pour le savoir. */
             destination: destinationLisible(b.livraison),
           }),
+          undefined,
+          /* Hors fenetre, un gabarit ouvre la porte — ADR 0054. C'est LE cas
+             qui justifie le palier payant : une commande arrivee a 21 h un
+             vendredi n'attend plus que la vendeuse reecrive, alors qu'elle
+             ne peut pas deviner qu'il y en a une. */
+          {
+            sujet: "nouvelle_commande",
+            parametres: [
+              commande.ref,
+              formatXaf(commande.totalXaf),
+              destinationLisible(b.livraison) ?? "à convenir avec l'acheteuse",
+            ],
+          },
         );
       }
       /* La relance d'acompte (ADR 0033) : planifiee seulement quand un

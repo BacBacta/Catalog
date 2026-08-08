@@ -114,12 +114,29 @@ export interface MessageImage {
   image: { link: string; caption?: string };
 }
 
+/**
+ * Un message de GABARIT — ADR 0054. La seule forme qui ouvre une fenetre
+ * fermee, et la seule que Meta facture.
+ */
+export interface MessageGabarit {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "template";
+  template: {
+    name: string;
+    language: { code: string };
+    components: Array<{ type: "body"; parameters: Array<{ type: "text"; text: string }> }>;
+  };
+}
+
 export type MessageSortant =
   | MessageTexte
   | MessageBoutons
   | MessageListe
   | MessageImage
-  | MessageReaction;
+  | MessageReaction
+  | MessageGabarit;
 
 /**
  * L'accuse de lecture, et l'indicateur de frappe qui voyage avec — ADR 0049.
@@ -186,6 +203,41 @@ export function reaction(vers: string, messageId: string, emoji: string): Messag
     to: vers,
     type: "reaction",
     reaction: { message_id: messageId, emoji },
+  };
+}
+
+/**
+ * Un message de gabarit — ADR 0054.
+ *
+ * Les parametres sont NETTOYES de leurs sauts de ligne : Meta rejette l'envoi
+ * entier si un seul en porte un, et la notification serait perdue pour une
+ * virgule. Un parametre vide est refuse de la meme facon — l'appelant le
+ * verifie avec `variablesManquantes` avant d'arriver ici.
+ */
+export function gabarit(
+  vers: string,
+  g: { nom: string; variables: number },
+  langue: string,
+  parametres: readonly string[],
+): MessageGabarit {
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: vers,
+    type: "template",
+    template: {
+      name: g.nom,
+      language: { code: langue },
+      components: [
+        {
+          type: "body",
+          parameters: parametres.map((p) => ({
+            type: "text" as const,
+            text: p.replace(/\s*\n+\s*/g, " ").trim(),
+          })),
+        },
+      ],
+    },
   };
 }
 
