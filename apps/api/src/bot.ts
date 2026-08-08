@@ -469,6 +469,12 @@ function entreePourMachine(entree: EntreeBot): EntreeMachine {
       };
     case "autre":
       return { genre: "autre", forme: entree.forme, ...id };
+    /* Une reponse de Flow tant que le Flow n'est pas branche — ADR 0055.
+       On ne peut la RECEVOIR que si on l'a envoyee, et on ne l'envoie pas
+       sans `WABOT_FLUX_LIVRAISON_ID`. Si elle arrive quand meme, la personne
+       recoit une phrase plutot qu'un silence. */
+    case "flux":
+      return { genre: "autre", forme: "inconnue", ...id };
     default:
       return { genre: entree.genre, id: entree.id, ...id };
   }

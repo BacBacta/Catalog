@@ -130,13 +130,40 @@ export interface MessageGabarit {
   };
 }
 
+/**
+ * Le message qui OUVRE un Flow — ADR 0055. Non verifie contre un Flow reel :
+ * l'API de notre cle n'expose pas les Flows.
+ */
+export interface MessageFlux {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "interactive";
+  interactive: {
+    type: "flow";
+    body: { text: string };
+    action: {
+      name: "flow";
+      parameters: {
+        flow_message_version: "3";
+        flow_id: string;
+        flow_cta: string;
+        flow_action: "navigate";
+        /** Jetable, propre a cet envoi — JAMAIS le jeton acheteuse (ADR 0021). */
+        flow_token: string;
+      };
+    };
+  };
+}
+
 export type MessageSortant =
   | MessageTexte
   | MessageBoutons
   | MessageListe
   | MessageImage
   | MessageReaction
-  | MessageGabarit;
+  | MessageGabarit
+  | MessageFlux;
 
 /**
  * L'accuse de lecture, et l'indicateur de frappe qui voyage avec — ADR 0049.

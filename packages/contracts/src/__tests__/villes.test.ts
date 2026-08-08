@@ -109,3 +109,31 @@ describe("formatPhone groupe par l'operateur", () => {
     expect(formatPhone("pas un numero")).toBe("pas un numero");
   });
 });
+
+/**
+ * Le prefixe `00237` — ADR 0055.
+ *
+ * Il est la forme composee depuis un fixe, et il circule. Le bot le tolerait
+ * de son cote depuis l'ADR 0051 ; `normalizePhone` le refusait, si bien qu'un
+ * meme numero passait par un chemin et pas par l'autre.
+ */
+describe("normalizePhone accepte toutes les ecritures qui circulent", () => {
+  it("les cinq formes rendent le meme numero", () => {
+    for (const forme of [
+      "690112233",
+      "690 11 22 33",
+      "6 90 11 22 33",
+      "+237690112233",
+      "237690112233",
+      "00237690112233",
+    ]) {
+      expect(normalizePhone(forme), forme).toBe("+237690112233");
+    }
+  });
+
+  it("ce qui n'est pas camerounais reste refuse", () => {
+    for (const faux of ["+33612345678", "0612345678", "12345", ""]) {
+      expect(normalizePhone(faux), faux).toBeNull();
+    }
+  });
+});

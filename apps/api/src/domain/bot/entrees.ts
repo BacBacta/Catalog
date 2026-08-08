@@ -63,7 +63,12 @@ export type EntreeBot =
    * l'absence de reponse veut dire panne. Aucun contenu n'est retenu, pas
    * meme un identifiant de media : on ne lit pas ce qu'on ne sait pas lire.
    */
-  | { de: string; genre: "autre"; forme: FormeNonLue; messageId?: string };
+  | { de: string; genre: "autre"; forme: FormeNonLue; messageId?: string }
+  /**
+   * La reponse d'un Flow — ADR 0055. Le contenu voyage BRUT : c'est le
+   * domaine qui le lit, pas le parseur, qui reste du texte vers des donnees.
+   */
+  | { de: string; genre: "flux"; reponse: string; messageId?: string };
 
 export function lireEntreesBot(corps: unknown): EntreeBot[] {
   const sortie: EntreeBot[] = [];
@@ -99,6 +104,7 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
           type?: unknown;
           button_reply?: { id?: unknown };
           list_reply?: { id?: unknown };
+          nfm_reply?: { response_json?: unknown };
         };
       } | null;
       if (typeof m?.from !== "string") continue;
@@ -124,9 +130,18 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
           sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id, ...messageId });
         } else if (i?.type === "list_reply" && typeof i.list_reply?.id === "string") {
           sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id, ...messageId });
+        } else if (i?.type === "nfm_reply" && typeof i.nfm_reply?.response_json === "string") {
+          /* La reponse d'un Flow — ADR 0055. */
+          sortie.push({
+            de: m.from,
+            genre: "flux",
+            reponse: i.nfm_reply.response_json,
+            ...messageId,
+          });
         } else {
-          /* Une reponse interactive d'une forme inedite — Flow, catalogue —
-             ne se perd pas en silence tant qu'elle n'est pas traitee. */
+          /* Une reponse interactive d'une forme inedite — catalogue natif,
+             carrousel — ne se perd pas en silence tant qu'elle n'est pas
+             traitee. */
           sortie.push({ de: m.from, genre: "autre", forme: "inconnue", ...messageId });
         }
         continue;

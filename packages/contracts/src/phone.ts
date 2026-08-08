@@ -22,7 +22,13 @@
  */
 export function normalizePhone(input: string): string | null {
   const digits = input.replace(/[^\d+]/g, "").replace(/^\+/, "");
-  const national = digits.startsWith("237") ? digits.slice(3) : digits;
+  /* `00237…` est la forme composee depuis un fixe, et elle circule : la
+     reconnaitre ici evite qu'elle soit refusee ici et acceptee ailleurs
+     (le bot la tolerait deja de son cote — ADR 0055). */
+  const sansPrefixeInternational = digits.startsWith("00") ? digits.slice(2) : digits;
+  const national = sansPrefixeInternational.startsWith("237")
+    ? sansPrefixeInternational.slice(3)
+    : sansPrefixeInternational;
   if (!/^[62]\d{8}$/.test(national)) return null;
   return `+237${national}`;
 }
