@@ -146,3 +146,30 @@ describe("le message de gabarit, au format de la Cloud API", () => {
     }
   });
 });
+
+/**
+ * Les exemples — ADR 0054, ajoutes apres le refus du 08/08/2026.
+ *
+ * Les dix gabarits ont ete refuses d'un coup avec `INVALID_FORMAT`, sans un
+ * mot de plus. Deux essais temoins ont isole la cause : celui qui portait un
+ * exemple est passe en examen, l'autre non. Meta ne peut pas juger « {{1}} ».
+ */
+describe("chaque variable a son exemple", () => {
+  it("autant d'exemples que de variables — ni plus, ni moins", () => {
+    for (const g of Object.values(GABARITS)) {
+      expect(g.exemples.length, g.nom).toBe(g.variables);
+    }
+  });
+
+  it("aucun exemple vide : Meta refuse un echantillon qui ne montre rien", () => {
+    for (const g of Object.values(GABARITS)) {
+      for (const e of g.exemples) expect(e.trim(), g.nom).not.toBe("");
+    }
+  });
+
+  it("aucun exemple ne porte de saut de ligne", () => {
+    for (const g of Object.values(GABARITS)) {
+      for (const e of g.exemples) expect(e, g.nom).not.toContain("\n");
+    }
+  });
+});

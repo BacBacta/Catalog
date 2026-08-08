@@ -54,6 +54,20 @@ export interface Gabarit {
   /** Combien de `{{n}}` le corps attend. */
   variables: number;
   corps: Record<Langue, string>;
+  /**
+   * Un EXEMPLE par variable — ADR 0054, ajoute apres le refus du 08/08/2026.
+   *
+   * Meta ne peut pas juger « {{1}} » : il exige un echantillon pour lire le
+   * message comme la personne le lira. Sans lui, le depot est refuse avec
+   * `INVALID_FORMAT`, sans un mot de plus. Mesure : les dix gabarits refuses
+   * d'un coup, puis deux essais temoins — celui qui portait un exemple est
+   * passe en examen, l'autre non.
+   *
+   * Ils vivent ICI et pas dans le script de depot : ce sont les valeurs que
+   * Meta relit a chaque revision, elles meritent d'etre versionnees et
+   * testees comme le reste.
+   */
+  exemples: string[];
   /** A qui il s'adresse — pour choisir la langue du fil. */
   destinataire: "vendeuse" | "acheteuse";
 }
@@ -68,6 +82,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
       fr: "Nouvelle commande {{1}} sur votre boutique Catalog.\nTotal : {{2}}.\nÀ livrer : {{3}}.\nRépondez à ce message pour voir le détail et coller le SMS de paiement.",
       en: "New order {{1}} on your Catalog shop.\nTotal: {{2}}.\nDeliver to: {{3}}.\nReply to this message to see the details and paste the payment SMS.",
     },
+    exemples: ["CT-482910", "15 000 FCFA", "Bafoussam, Banengo, en face du marché A"],
   },
   paiement_prouve: {
     nom: "catalog_paiement_prouve",
@@ -78,6 +93,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
       fr: "Votre paiement pour la commande {{1}} est confirmé.\nMontant reçu : {{2}}.\nRépondez à ce message pour voir votre reçu.",
       en: "Your payment for order {{1}} is confirmed.\nAmount received: {{2}}.\nReply to this message to see your receipt.",
     },
+    exemples: ["CT-482910", "7 500 FCFA"],
   },
   commande_livree: {
     nom: "catalog_commande_livree",
@@ -88,6 +104,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
       fr: "Votre commande {{1}} est marquée comme remise.\nRépondez à ce message pour la confirmer ou signaler un souci.",
       en: "Your order {{1}} has been marked as handed over.\nReply to this message to confirm it or report a problem.",
     },
+    exemples: ["CT-482910"],
   },
   acompte_attendu: {
     nom: "catalog_acompte_attendu",
@@ -98,6 +115,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
       fr: "Votre commande {{1}} attend encore un acompte de {{2}}.\nRépondez à ce message pour reprendre le paiement.",
       en: "Your order {{1}} is still waiting for a deposit of {{2}}.\nReply to this message to continue the payment.",
     },
+    exemples: ["CT-482910", "7 500 FCFA"],
   },
   reversement_absent: {
     nom: "catalog_reversement_absent",
@@ -108,6 +126,7 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
       fr: "Votre boutique {{1}} n'a pas encore de numéro de reversement.\nSans lui, vos clientes ne peuvent pas vous payer depuis Catalog.\nRépondez à ce message pour le poser.",
       en: "Your shop {{1}} does not have a payout number yet.\nWithout it, your customers cannot pay you through Catalog.\nReply to this message to set it up.",
     },
+    exemples: ["Chez Amina"],
   },
 };
 

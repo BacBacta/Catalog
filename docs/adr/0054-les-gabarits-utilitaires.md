@@ -88,6 +88,40 @@ un acte sortant et durable, examiné par Meta.
   (§8.3), et `subscriptionStatus` n'est lu nulle part dans le dépôt.
 - **Ni Flows, ni catalogue natif, ni carrousels** — WABA-2 et WABA-3.
 
+## Ce que le premier dépôt a appris — 08/08/2026
+
+Les dix gabarits ont été déposés, et **les dix ont été refusés** avec
+`INVALID_FORMAT`, sans un mot de plus. Deux enseignements, tous deux payés
+comptant.
+
+### Meta exige un exemple par variable
+
+Il ne peut pas juger « `{{1}}` » : il lui faut voir `CT-482910` pour lire le
+message comme la personne le lira. Sans `example.body_text`, le dépôt est
+refusé, et le motif rendu — `INVALID_FORMAT` — ne le dit pas.
+
+La cause a été isolée par deux essais témoins déposés côte à côte : celui qui
+portait un exemple est passé en examen, l'autre non. Les exemples vivent
+désormais dans le catalogue, pas dans le script : ce sont des valeurs que Meta
+relit à chaque révision, elles méritent d'être versionnées et testées.
+
+### Un gabarit refusé se CORRIGE, il ne se supprime pas
+
+Erreur commise dans la foulée : avoir effacé les dix refusés pour redéposer
+proprement. Chez Meta, la suppression d'un gabarit est **asynchrone**, et le
+nom reste bloqué le temps qu'elle se propage :
+
+> New French content can't be added while the existing French content is being
+> deleted. Try again in less than 1 minute.
+
+L'attente réelle a dépassé la minute annoncée de plusieurs ordres. Un nom
+supprimé peut rester retenu jusqu'à 30 jours.
+
+**La bonne manœuvre était de re-déposer sous le même nom** — Meta traite une
+soumission sur un nom existant comme une révision, et un gabarit refusé est
+précisément fait pour être corrigé. Le script porte désormais `--nettoyer`,
+mais il est réservé aux essais techniques : la voie normale est la révision.
+
 ## Conséquences
 
 - 16 tests neufs, vus rouges d'abord. 948 tests API.

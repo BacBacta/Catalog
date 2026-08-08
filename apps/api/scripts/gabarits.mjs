@@ -18,13 +18,25 @@ const CLE = process.env.WABOT_API_KEY?.trim();
 const BASE = (process.env.WABOT_BASE_URL ?? "https://waba-v2.360dialog.io").replace(/\/$/, "");
 const mode = process.argv[2] ?? "--voir";
 
-/** La forme attendue par 360dialog, une entree par langue. */
+/**
+ * La forme attendue par 360dialog, une entree par langue.
+ *
+ * `example` est OBLIGATOIRE des qu'il y a une variable : Meta ne peut pas
+ * juger « {{1}} », et refuse avec `INVALID_FORMAT` sans un mot de plus.
+ * Mesure le 08/08/2026 — dix refus d'un coup, puis deux essais temoins.
+ */
 function composants(g) {
   return Object.entries(g.corps).map(([langue, texte]) => ({
     name: g.nom,
     category: g.categorie.toUpperCase(),
     language: langue,
-    components: [{ type: "BODY", text: texte }],
+    components: [
+      {
+        type: "BODY",
+        text: texte,
+        ...(g.exemples.length > 0 ? { example: { body_text: [g.exemples] } } : {}),
+      },
+    ],
   }));
 }
 
@@ -57,6 +69,32 @@ if (mode === "--etat") {
     const s = deja.get(`${t.name}:${t.language}`);
     console.log(`${s ? s.padEnd(10) : "ABSENT".padEnd(10)} ${t.name} · ${t.language}`);
   }
+  process.exit(0);
+}
+
+if (mode === "--nettoyer") {
+  /* Un gabarit REFUSE occupe son nom : on ne peut pas en redeposer un du
+     meme nom sans retirer l'ancien. Les essais techniques partent aussi. */
+  /* L'effacement se fait par NOM, pas par identifiant — mesure le
+     08/08/2026, `DELETE .../templates/{id}` rend 404. Un nom couvre toutes
+     ses langues d'un coup, d'ou le dedoublonnage. */
+  const noms = [
+    ...new Set(
+      (enLigne.waba_templates ?? [])
+        .filter((t) => t.status === "rejected" || t.name.startsWith("catalog_essai"))
+        .map((t) => t.name),
+    ),
+  ];
+  let retires = 0;
+  for (const nom of noms) {
+    const r = await fetch(`${BASE}/v1/configs/templates/${nom}`, {
+      method: "DELETE",
+      headers: { "D360-API-KEY": CLE },
+    });
+    console.log(`${r.ok ? "🗑️  retire" : `❌ HTTP ${r.status}`} : ${nom}`);
+    if (r.ok) retires += 1;
+  }
+  console.log(`\n${retires} gabarit(s) retire(s).`);
   process.exit(0);
 }
 
