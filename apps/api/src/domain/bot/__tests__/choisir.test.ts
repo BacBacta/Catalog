@@ -144,9 +144,19 @@ describe("l'invariant du produit tient DANS le tunnel", () => {
       { nom: "ajout", slug: "chez-amina", panier: P },
       { nom: "mode", slug: "chez-amina", panier: P },
       { nom: "ville", slug: "chez-amina", panier: P },
+      { nom: "details", slug: "chez-amina", panier: P, mode: "livraison", ville: "Douala" },
+      { nom: "details", slug: "chez-amina", panier: P, mode: "retrait" },
     ] as never[];
     for (const etat of etapes) {
-      const r = reagirAcheteuse(etat, { genre: "bouton", id: "id:inconnu" }, ctx);
+      /* Un geste que l'etat ne comprend pas : c'est LA que le cul-de-sac se
+         voit. `details` attend un texte, donc on lui en envoie un mauvais. */
+      const r = reagirAcheteuse(
+        etat,
+        (etat as { nom: string }).nom === "details"
+          ? { genre: "texte", texte: "euh" }
+          : { genre: "bouton", id: "id:inconnu" },
+        ctx,
+      );
       const tous = r.messages.flatMap(choix);
       expect(tous, `etape ${(etat as { nom: string }).nom}`).toContain("vendeuse");
     }

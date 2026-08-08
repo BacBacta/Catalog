@@ -47,8 +47,22 @@ quantité, panier, mode, ville, détails, récapitulatif. Il est désormais offe
 à chaque étape, à la place d'« Annuler » quand la boutique porte un numéro.
 Sans numéro, « Annuler » ou « Menu » : jamais rien.
 
-Un refus de quantité re-propose la liste au lieu de rendre un texte nu — un
-cul-de-sac trouvé en écrivant les tests de ce lot.
+Deux culs-de-sac ont été trouvés en vérifiant, et méritent d'être racontés
+parce qu'ils disent quelque chose sur la manière de tester :
+
+- **Un refus de quantité rendait un texte nu**, sans aucune sortie. Trouvé en
+  écrivant les tests unitaires du lot.
+- **L'état `details` n'offrait rien du tout** — ni bouton, ni liste, sur les
+  six messages qu'il peut produire, y compris ses aides (« Il me manque le
+  numéro à appeler »). Trouvé seulement en déroulant le parcours ENTIER contre
+  le code déployé : mon test unitaire ne couvrait que quatre états, la sonde de
+  production en a couvert neuf. C'est exactement l'écart que l'audit reprochait
+  au dépôt — vérifier les états qu'on a écrits, pas le chemin qu'une personne
+  emprunte.
+
+`details` attend un texte, mais un message à boutons se répond aussi au
+clavier : lui donner ses sorties ne coûte rien et ferme le dernier cul-de-sac
+du tunnel.
 
 ## Décision 4 — « Corriger » corrige, il ne recommence pas
 
@@ -70,6 +84,11 @@ Le panier, lui, se retrouve par le mot « panier », qui marche partout.
   avec la saisie libre demande de choisir entre un tour de plus pour toutes et
   deux chemins distincts — un arbitrage qui mérite son propre lot, avec la
   mesure du nombre de tours en main.
+- **Le récapitulatif n'offre pas la sortie vendeuse.** Il porte déjà trois
+  boutons — Confirmer, Corriger, Annuler — et WhatsApp n'en accepte pas
+  quatre. Choisir lequel sacrifier est un arbitrage produit, pas une décision
+  d'implémentation : le mot « annuler » marche partout au clavier, mais
+  l'écrire est un geste que peu de gens devinent. Question au porteur.
 - **Le panier n'est pas visible depuis l'accueil**, et l'expiration à 24 h ne
   se dit toujours pas. Deux ajouts de confort, sans défaut derrière.
 

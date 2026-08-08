@@ -44,6 +44,9 @@ const ctx = (s: Partial<ContexteAcheteuse> = {}): ContexteAcheteuse => ({
   ...s,
 });
 const corpsTexte = (m: unknown) => (m as MessageTexte).text.body;
+/* Depuis l'ADR 0053, une aide du tunnel porte ses sorties : elle est
+   interactive, plus un texte nu. */
+const corpsBoutons = (m: unknown) => (m as MessageBoutons).interactive.body.text;
 const idsBoutons = (m: unknown) =>
   (m as MessageBoutons).interactive.action.buttons.map((b) => b.reply.id);
 
@@ -363,7 +366,10 @@ describe("les chemins defensifs de la machine", () => {
       { genre: "texte", texte: "x, 690112233" },
       ctx({ langue: "en" }),
     );
-    expect(corpsTexte(en.messages[0])).toContain("meet");
+    /* L'aide de `details` porte desormais ses SORTIES (ADR 0053) : c'est un
+       message a boutons, plus un texte nu. Le contenu, lui, ne change pas. */
+    expect(corpsBoutons(en.messages[0])).toContain("meet");
+    expect(idsBoutons(en.messages[0])).toContain("vendeuse");
   });
 
   it("l'aide de details en anglais pour la livraison sans repere", () => {

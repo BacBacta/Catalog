@@ -779,7 +779,9 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       }
       return {
         etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode },
-        messages: [texte(vers, t.questionDetailsRetrait)],
+        messages: [
+          questionDetails(vers, t.questionDetailsRetrait, t, Boolean(boutique.whatsappVendeuse)),
+        ],
       };
     }
 
@@ -798,17 +800,27 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       }
       return {
         etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode: "livraison", ville },
-        messages: [texte(vers, t.questionDetailsLivraison)],
+        messages: [
+          questionDetails(vers, t.questionDetailsLivraison, t, Boolean(boutique.whatsappVendeuse)),
+        ],
       };
     }
 
     case "details": {
       if (entree.genre !== "texte") {
-        return { etat, messages: [texte(vers, t.detailsParTexte)] };
+        return {
+          etat,
+          messages: [
+            questionDetails(vers, t.detailsParTexte, t, Boolean(boutique.whatsappVendeuse)),
+          ],
+        };
       }
       const lu = lireDetailsLivraison(entree.texte, etat.mode, etat.ville ?? boutique.ville, t);
       if (!lu.ok) {
-        return { etat, messages: [texte(vers, lu.aide)] };
+        return {
+          etat,
+          messages: [questionDetails(vers, lu.aide, t, Boolean(boutique.whatsappVendeuse))],
+        };
       }
       /**
        * RIEN ne se cree ici : on montre ce qui a ete compris — livraison
@@ -860,8 +872,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
            On rouvre la SAISIE, la ou l'erreur a ete faite. */
         /* La ville se relit de la LIVRAISON deja analysee : l'etat `recap` ne
            la porte pas a part, et c'est bien — une seule source. */
-        const villeChoisie =
-          etat.livraison.mode === "livraison" ? etat.livraison.city : null;
+        const villeChoisie = etat.livraison.mode === "livraison" ? etat.livraison.city : null;
         if (etat.mode === "livraison" && villeChoisie) {
           return {
             etat: {
@@ -871,12 +882,21 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
               mode: "livraison",
               ville: villeChoisie,
             },
-            messages: [texte(vers, t.questionDetailsLivraison)],
+            messages: [
+              questionDetails(
+                vers,
+                t.questionDetailsLivraison,
+                t,
+                Boolean(boutique.whatsappVendeuse),
+              ),
+            ],
           };
         }
         return {
           etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode: etat.mode },
-          messages: [texte(vers, t.questionDetailsRetrait)],
+          messages: [
+            questionDetails(vers, t.questionDetailsRetrait, t, Boolean(boutique.whatsappVendeuse)),
+          ],
         };
       }
       return {
@@ -1080,6 +1100,28 @@ function questionQuantite(
       : { id: "menu", titre: t.btnAccueil, description: "" },
   ];
   return liste(vers, t.questionQuantite(article.nom, article.stock), t.btnChoisirQuantite, choix);
+}
+
+/**
+ * La question de livraison, avec sa SORTIE — ADR 0053.
+ *
+ * Elle attend un texte, mais un message a boutons se repond aussi au clavier :
+ * offrir la sortie ne coute donc rien et ferme le dernier cul-de-sac du
+ * tunnel. Sans elle, l'acheteuse bloquee sur « il me manque le numero » n'a
+ * aucun moyen visible de joindre la vendeuse.
+ */
+function questionDetails(
+  vers: string,
+  corps: string,
+  t: TextesAcheteuse,
+  boutiqueJoignable: boolean,
+): MessageSortant {
+  return boutons(vers, corps, [
+    boutiqueJoignable
+      ? { id: "vendeuse", titre: t.btnParlerVendeuse }
+      : { id: "menu", titre: t.btnAccueil },
+    { id: "annuler", titre: t.btnAnnuler },
+  ]);
 }
 
 /** Les trois sorties de l'etape panier : commander, continuer, abandonner. */
