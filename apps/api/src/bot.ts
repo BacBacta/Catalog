@@ -39,6 +39,7 @@ import {
   messageBoutiqueCreee,
   normaliserEtatVendeuse,
   PREMIERE_QUESTION,
+  rappelConges,
   reagirInscription,
 } from "./domain/bot/inscription.ts";
 import type { LecteurMedia } from "./domain/bot/media.ts";
@@ -428,9 +429,19 @@ async function filInscription(
 
   if (reaction.effet?.type === "creer_article" && sellerId) {
     const article = await creerArticleDepuisFil(deps, sellerId, reaction.effet);
+    /* L'etat de conges se relit ICI, dans la base — ADR 0057. Elle a pu
+       fermer depuis un autre appareil, ou depuis l'app, entre deux messages :
+       c'est le meme principe que le verrou de creation de commande. */
+    const enConges =
+      (
+        await deps.prisma.seller.findUnique({
+          where: { id: sellerId },
+          select: { congesDepuis: true },
+        })
+      )?.congesDepuis != null;
     messages.push(
       article
-        ? messageArticlePublie(entree.de, article)
+        ? messageArticlePublie(entree.de, article, enConges)
         : texte(
             entree.de,
             "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
@@ -1522,6 +1533,12 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
 
   if (reaction.effet?.type === "envoyer_carte") {
     messages.push(...(await carteVitrine(deps, sellerIdent)));
+    /**
+     * Une carte partagee pendant les conges attire des acheteuses qui seront
+     * refusees au dernier verrou — ADR 0057. Le rappel part APRES la carte :
+     * la carte reste l'objet du geste, le rappel est ce qu'on lit ensuite.
+     */
+    if (profil?.congesDepuis) messages.push(rappelConges(entree.de));
   }
 
   if (reaction.effet?.type === "basculer_conges") {

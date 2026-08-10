@@ -305,12 +305,45 @@ export function messageBoutiqueCreee(
 export function messageArticlePublie(
   vers: string,
   a: { nom: string; prixXaf: number; avecPhoto: boolean },
+  enConges = false,
 ): MessageSortant {
   const photo = a.avecPhoto ? "" : "\nSans photo pour l'instant — envoyez-la quand vous voulez.";
-  return boutons(vers, `✅ *${a.nom}* — ${formatXaf(a.prixXaf)} est en ligne.${photo}`, [
+  /**
+   * « En ligne » ne peut pas rester seul sur une boutique fermée — ADR 0057.
+   *
+   * C'est vrai ET trompeur : l'article s'affiche, et aucune commande ne peut
+   * naitre. Le moment ou elle range son stock est precisement celui ou elle a
+   * oublie qu'elle est fermee — c'est donc la qu'il faut le dire, pas dans un
+   * ecran qu'elle ouvrira peut-etre.
+   */
+  const conges = enConges
+    ? "\n\n🌴 Rappel : votre boutique est en congés — elle ne prend aucune commande. Écrivez « je reprends » quand vous êtes prête."
+    : "";
+  return boutons(vers, `✅ *${a.nom}* — ${formatXaf(a.prixXaf)} est en ligne.${photo}${conges}`, [
+    ...(enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
     { id: "article", titre: "Autre article" },
     { id: "ma_boutique", titre: "Ma boutique" },
   ]);
+}
+
+/**
+ * Le rappel qui accompagne un geste de vente pendant les congés — ADR 0057.
+ *
+ * Il dit ce qui est fermé ET ce qui reste ouvert : sans la seconde moitié,
+ * une vendeuse peut croire que sa boutique a disparu, et ne fermera plus
+ * jamais. Le ton ne dramatise pas — rien n'est cassé, rien n'est perdu, c'est
+ * un état choisi qui dure peut-être trop.
+ *
+ * Le bouton porte le geste LUI-MEME. Renvoyer vers l'endroit où le geste se
+ * trouve ferait remettre à plus tard, et « plus tard » est le mode d'échec
+ * qu'on corrige.
+ */
+export function rappelConges(vers: string): MessageSortant {
+  return boutons(
+    vers,
+    "🌴 Votre boutique est en congés : elle reste en ligne et vos clientes peuvent vous écrire, mais aucune nouvelle commande ne peut être créée.",
+    [{ id: "rouvrir", titre: "Je reprends" }],
+  );
 }
 
 /**
