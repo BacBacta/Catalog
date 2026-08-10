@@ -67,6 +67,14 @@ export function corpsNouvelleCommande(c: {
    * pour savoir ou aller.
    */
   destination?: string | null;
+  /**
+   * Pose quand la commande part SANS prepaiement parce que le numero de
+   * reversement manque — retour du banc du 10/08/2026. La vendeuse
+   * l'apprenait par une relance ~20 h plus tard (ADR 0035) : trop tard, la
+   * vente du jour etait deja partie sans acompte. Le moment ou ca coute est
+   * le moment ou on le dit — avec le lien, pas un renvoi vague.
+   */
+  lienReversement?: string | null;
 }): string {
   return [
     `🛍️ *Nouvelle commande ${c.reference}*`,
@@ -78,6 +86,11 @@ export function corpsNouvelleCommande(c: {
           `Un SMS de ${formatXaf(c.duAvantXaf)} devrait arriver de votre opérateur — collez-le ici : il devient le reçu.`,
         ]
       : ["Sans prépaiement — vous encaissez à la remise."]),
+    ...(c.duAvantXaf === 0 && c.lienReversement
+      ? [
+          `⚠️ Cette vente est partie sans acompte : votre numéro Mobile Money n'est pas encore posé. Réglez-le une fois, et vos clientes paient d'avance : ${c.lienReversement}`,
+        ]
+      : []),
     ...(c.destination ? [`📍 ${c.destination}`] : []),
     `Numéro à appeler pour la remise : ${c.telephoneLivraison}`,
   ].join("\n");

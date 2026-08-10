@@ -197,6 +197,17 @@ export function demandeEspaceVendeuse(texteBrut: string): boolean {
 }
 
 /**
+ * « solde » — le chiffre que la vendeuse vient chercher. MESURE au banc du
+ * 10/08/2026 : tape pendant qu'un achat etait en cours (elle venait de
+ * parcourir sa propre boutique), le mot partait au fil acheteuse qui ne le
+ * connait pas — juste apres une commande, l'instant precis ou elle le tape.
+ */
+export function demandeSoldes(texteBrut: string): boolean {
+  const net = sansAccents(texteBrut.trim().toLowerCase());
+  return /^(?:solde|soldes)$/.test(net);
+}
+
+/**
  * Le mode conges — ADR 0039. `true` = fermer, `false` = rouvrir, `null` = ni
  * l'un ni l'autre.
  *

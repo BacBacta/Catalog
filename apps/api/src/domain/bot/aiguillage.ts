@@ -1,9 +1,11 @@
 import { demandeRemise, extraireSlugBoutique } from "./conversation.ts";
 import {
   demandeAjoutArticle,
+  demandeCarteVitrine,
   demandeConges,
   demandeEspaceVendeuse,
   demandeInscription,
+  demandeSoldes,
 } from "./inscription.ts";
 
 /**
@@ -97,6 +99,12 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     }
     if (entree.genre === "texte" && demandeAjoutArticle(t)) return "inscription";
     if (entree.genre === "texte" && demandeEspaceVendeuse(t)) return "vendeuse";
+    /* « solde » et « ma carte » sont du meme regime que « ma boutique » :
+       aucun n'est une reponse plausible dans un tunnel d'achat, et les
+       laisser filer a la regle 4 les faisait avaler des qu'un catalogue
+       etait ouvert — vu au banc du 10/08/2026, juste apres une commande. */
+    if (entree.genre === "texte" && demandeSoldes(t)) return "vendeuse";
+    if (entree.genre === "texte" && demandeCarteVitrine(t)) return "vendeuse";
     /* Fermer ou rouvrir sa boutique — ADR 0039. Ce geste doit passer AVANT la
        regle 4 : une vendeuse qui teste sa propre boutique, ou qui achete a une
        consoeur, a un achat en cours, et son « congés » partirait au fil

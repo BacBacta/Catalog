@@ -3,6 +3,7 @@ import type { PrismaClient } from "@catalog/db";
 import { Hono } from "hono";
 import type { OtpAttemptStore } from "../adapters/otp-attempt-store.ts";
 import type { PayoutOtpStore } from "../adapters/payout-otp-store.ts";
+import { envoyerCodeBanc, numeroDuBanc } from "../banc-essai.ts";
 import {
   appliquerChangementReversement,
   type PayoutChangeRequest,
@@ -66,6 +67,9 @@ export async function changerNumeroDeReversement(
       payoutPhoneVerifiedAt: vendeuse.payoutPhoneVerifiedAt,
     },
     { ...entree, now },
+    /* La regle +237, elargie aux seuls numeros NOMMES du banc (ADR 0058) —
+       liste vide par defaut, decision et journal inchanges. */
+    (brut) => normalizePhone(brut) ?? numeroDuBanc(brut),
   );
 
   const journal = {
@@ -173,7 +177,13 @@ export function payoutRoutes(deps: PayoutRoutesDeps) {
     if (!v.seller) return c.json({ erreur: "profil_absent" }, 409);
 
     const corps = await c.req.json().catch(() => null);
-    const numero = normalizePhone(String(corps?.nouveauNumero ?? ""));
+    const brut = String(corps?.nouveauNumero ?? "");
+    /* Les numeros NOMMES du banc d'essai (ADR 0058) sont admis aussi. La
+       liste est VIDE par defaut : sans la variable, la regle +237 est
+       exactement celle d'avant, et le journal d'audit trace le changement
+       comme n'importe quel autre. */
+    const banc = numeroDuBanc(brut);
+    const numero = normalizePhone(brut) ?? banc;
     if (!numero) {
       return c.json(
         {
@@ -189,6 +199,12 @@ export function payoutRoutes(deps: PayoutRoutesDeps) {
 
     const now = deps.maintenant?.() ?? new Date();
     const { code } = await deps.otp.emettre(v.seller.id, numero, now);
+    /* Le code d'un numero du banc part par le WhatsApp du bot : le canal
+       normal (SMS Orange Cameroun) ne livre pas hors du pays. */
+    if (banc) {
+      await envoyerCodeBanc(numero, texteSms("otp_reversement", code));
+      return c.json({ envoye: true, numero });
+    }
     await deps.sms.send({
       to: numero,
       text: texteSms("otp_reversement", code),

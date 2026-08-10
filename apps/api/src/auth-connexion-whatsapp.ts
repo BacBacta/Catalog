@@ -4,6 +4,7 @@ import type { BetterAuthPlugin } from "better-auth";
 import { createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import { z } from "zod";
+import { numeroDuBanc } from "./banc-essai.ts";
 import {
   composerCodeDefi,
   construireLienWa,
@@ -102,8 +103,10 @@ export async function appliquerMessageEntrant(
   const code = extraireCodeDefi(m.texte);
   if (!code) return "ignore";
 
-  const numero = normalizePhone(m.de);
-  if (!numero) return "ignore"; // hors Cameroun : pas un compte possible
+  /* Hors Cameroun : pas un compte possible — sauf les numeros NOMMES du
+     banc d'essai (ADR 0058), liste vide par defaut. */
+  const numero = normalizePhone(m.de) ?? numeroDuBanc(m.de);
+  if (!numero) return "ignore";
 
   const porteur = await magasin.consumeVerificationValue(CLE_CODE(code));
   if (!porteur) return "ignore";

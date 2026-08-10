@@ -920,6 +920,10 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
                OBLIGATOIRES cote acheteuse (AGENTS.md §2) et n'atteignaient
                aucune surface vendeuse : elle devait appeler pour le savoir. */
             destination: destinationLisible(b.livraison),
+            /* Sans reversement, la vente part sans acompte : c'est ICI que la
+               vendeuse doit l'apprendre, pas a la relance de ~20 h. */
+            lienReversement:
+              !boutique.reversementPose && deps.baseApp ? `${deps.baseApp}/reversement` : null,
           }),
           undefined,
           /* Hors fenetre, un gabarit ouvre la porte — ADR 0054. C'est LE cas
