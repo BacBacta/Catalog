@@ -198,6 +198,34 @@
   .noeud-nom { font-weight: 650; font-size: .92rem; line-height: 1.25; display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
   .noeud-role { font-size: .78rem; color: var(--encre-2); line-height: 1.4; }
 
+  /* conteneurs : une grande boîte dont les composants sont cliquables un à un */
+  .conteneur {
+    background: var(--surface); border: 1px solid var(--filet); border-radius: var(--r);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .conteneur.moteur-bloc { background: var(--marque); border-color: var(--marque); }
+  .tete-noeud {
+    appearance: none; background: none; border: none; cursor: pointer; font: inherit;
+    text-align: left; padding: 0; color: inherit;
+    display: flex; flex-direction: column; gap: 5px; border-radius: 6px;
+  }
+  .conteneur .tete-noeud:hover .noeud-nom, .tete-noeud[aria-pressed="true"] .noeud-nom { text-decoration: underline; text-underline-offset: 3px; }
+  .conteneur.moteur-bloc { color: #fff; }
+  .conteneur.moteur-bloc .noeud-role { color: rgba(255,255,255,.82); }
+  .sous-noeuds { display: flex; flex-wrap: wrap; gap: 6px; }
+  .sn {
+    appearance: none; cursor: pointer; font: inherit; font-size: .74rem; font-weight: 600;
+    border: none; border-radius: 8px; padding: 5px 10px;
+    background: var(--marque-doux); color: var(--marque);
+  }
+  .sn:hover { filter: brightness(.96); }
+  .sn[aria-pressed="true"] { outline: 2px solid var(--marque); outline-offset: 1px; }
+  .sn.prop { background: var(--ocre-doux); color: var(--ocre); }
+  .sn.prop[aria-pressed="true"] { outline-color: var(--ocre); }
+  .moteur-bloc .sn { background: rgba(255,255,255,.16); color: #fff; }
+  .moteur-bloc .sn:hover { background: rgba(255,255,255,.26); filter: none; }
+  .moteur-bloc .sn[aria-pressed="true"] { outline: 2px solid rgba(255,255,255,.85); }
+
   .boucle {
     margin-top: 14px; border: 1px dashed var(--marque); border-radius: var(--r);
     padding: 10px 14px; font-size: .84rem; color: var(--encre-2);
@@ -412,7 +440,9 @@
   <section class="volet" id="vol-carte" role="tabpanel" aria-labelledby="ong-carte">
     <p class="note-volet">La vente descend du haut vers le bas : elle naît dans la distribution,
     se négocie dans une conversation, se formalise à un comptoir, et <strong>tout</strong> converge
-    vers le même moteur. En dessous, trois surfaces ne font que lire. Cliquez un bloc pour sa fiche.</p>
+    vers le même moteur. En dessous, deux applications ne font que lire. Les grandes boîtes se
+    cliquent, et <strong>chaque composant à l'intérieur aussi</strong> — le moteur en a neuf, le
+    catalogue web sept pages, l'app vendeuse huit écrans.</p>
 
     <div class="carte-grille">
       <div class="schema" id="schema">
@@ -468,29 +498,63 @@
         <div class="lien-bas"><span class="fleche">▼</span><span class="lib">une seule vérité</span></div>
 
         <div class="rangee">
-          <button class="noeud moteur-bloc" data-n="moteur" aria-pressed="false">
-            <span class="noeud-nom">LE MOTEUR <span class="etat ok">Existant</span></span>
-            <span class="noeud-role">Commande · rampe USSD · preuve par SMS (7 contrôles) · reçu vérifiable ·
-            contre-signature · avis vérifiés · stats — quel que soit le comptoir d'entrée, la commande est la même.</span>
-          </button>
+          <div class="conteneur moteur-bloc">
+            <button class="tete-noeud" data-n="moteur" aria-pressed="false">
+              <span class="noeud-nom">LE MOTEUR — apps/api <span class="etat ok">Existant</span></span>
+              <span class="noeud-role">La source unique. Quel que soit le comptoir d'entrée, la commande est la
+              même. Chaque composant se clique :</span>
+            </button>
+            <div class="sous-noeuds">
+              <button class="sn" data-n="m_commande" aria-pressed="false">Commande &amp; cycle de vie</button>
+              <button class="sn" data-n="m_paiement" aria-pressed="false">Paiement &amp; rampe USSD</button>
+              <button class="sn" data-n="m_preuve" aria-pressed="false">Preuve par SMS</button>
+              <button class="sn" data-n="m_recu" aria-pressed="false">Reçu &amp; contre-signature</button>
+              <button class="sn" data-n="m_livraison" aria-pressed="false">Livraison</button>
+              <button class="sn" data-n="m_stock" aria-pressed="false">Stock</button>
+              <button class="sn" data-n="m_avis" aria-pressed="false">Avis &amp; réputation</button>
+              <button class="sn" data-n="m_stats" aria-pressed="false">Statistiques</button>
+              <button class="sn" data-n="m_notifs" aria-pressed="false">Notifications &amp; gabarits</button>
+            </div>
+          </div>
         </div>
 
         <div class="lien-bas"><span class="fleche">▼</span><span class="lib">lecture seule</span></div>
 
-        <p class="zone-titre">Les surfaces qui lisent</p>
-        <div class="rangee r3">
-          <button class="noeud" data-n="confiance" aria-pressed="false">
-            <span class="noeud-nom">Salle de vérification <span class="etat ok">Existant</span></span>
-            <span class="noeud-role">/v/ et suivi — publics, sans compte, hors WhatsApp</span>
-          </button>
-          <button class="noeud" data-n="bureau" aria-pressed="false">
-            <span class="noeud-nom">Le bureau <span class="etat ok">Existant</span></span>
-            <span class="noeud-role">App vendeuse : stats, images, reversement, historique</span>
-          </button>
-          <button class="noeud" data-n="memoire" aria-pressed="false">
-            <span class="noeud-nom">Mémoire publique <span class="etat prop">À recâbler</span></span>
-            <span class="noeud-role">Catalogue web indexable — aujourd'hui, son CTA contourne le moteur</span>
-          </button>
+        <p class="zone-titre">Les surfaces qui lisent le moteur</p>
+        <div class="rangee r2">
+          <div class="conteneur">
+            <button class="tete-noeud" data-n="memoire" aria-pressed="false">
+              <span class="noeud-nom">Le catalogue web — apps/shop <span class="etat ok">Existant</span></span>
+              <span class="noeud-role">Astro statique, ≤ 30 Ko de JS. Indexable, partageable, lisible sans
+              compte ni WhatsApp. Ses pages :</span>
+            </button>
+            <div class="sous-noeuds">
+              <button class="sn" data-n="w_accueil" aria-pressed="false">Accueil</button>
+              <button class="sn" data-n="w_boutique" aria-pressed="false">Page boutique</button>
+              <button class="sn prop" data-n="w_produit" aria-pressed="false">Fiche produit — à recâbler</button>
+              <button class="sn" data-n="w_payer" aria-pressed="false">/payer — la rampe</button>
+              <button class="sn" data-n="w_v" aria-pressed="false">/v/ — le reçu</button>
+              <button class="sn" data-n="w_suivi" aria-pressed="false">/suivi</button>
+              <button class="sn" data-n="w_statut" aria-pressed="false">/statut — état du service</button>
+            </div>
+          </div>
+          <div class="conteneur">
+            <button class="tete-noeud" data-n="bureau" aria-pressed="false">
+              <span class="noeud-nom">L'app vendeuse — apps/seller <span class="etat ok">Existant</span></span>
+              <span class="noeud-role">Le bureau : la profondeur que le fil ne porte pas, et la redondance si
+              le fil tombe. Ses écrans :</span>
+            </button>
+            <div class="sous-noeuds">
+              <button class="sn" data-n="a_dashboard" aria-pressed="false">Tableau de bord</button>
+              <button class="sn" data-n="a_articles" aria-pressed="false">Articles &amp; photos</button>
+              <button class="sn" data-n="a_commandes" aria-pressed="false">Commandes</button>
+              <button class="sn" data-n="a_coller" aria-pressed="false">Coller le SMS</button>
+              <button class="sn" data-n="a_stats" aria-pressed="false">Statistiques</button>
+              <button class="sn" data-n="a_reversement" aria-pressed="false">Reversement</button>
+              <button class="sn" data-n="a_reglages" aria-pressed="false">Réglages &amp; congés</button>
+              <button class="sn" data-n="a_verifier" aria-pressed="false">Vérifier un reçu</button>
+            </div>
+          </div>
         </div>
 
         <button class="noeud boucle" data-n="boucle" aria-pressed="false" style="text-align:left; cursor:pointer;">
@@ -666,23 +730,166 @@ const FICHES = {
     fait: ["Les 7 contrôles de la preuve — unicité de l'identifiant opérateur sur TOUT le réseau", "L'acompte floor + solde, invariant tenu par contrainte SQL", "Le journal d'audit en ajout seul, refus compris"],
     jamais: ["Encaisser — les fonds vont du portefeuille de l'acheteuse à celui de la vendeuse, sans tiers", "Prélever une commission", "Reculer un paiement"]
   },
-  confiance: {
-    nom: "La salle de vérification", ou: "apps/shop — /v/ et /suivi",
-    role: "L'infrastructure de confiance côté acheteuse : le lieu neutre, sans compte, hors WhatsApp, où l'on vérifie une vendeuse AVANT de lui envoyer un acompte — et où un tiers contrôle un reçu qu'on lui montre.",
-    fait: ["Reçu vérifiable par code (le code identifie, il n'autorise rien)", "Suivi par jeton acheteuse (lui seul autorise la contre-signature)", "C'est ce qui rend l'acompte psychologiquement possible (scénario S6)"],
-    jamais: ["Exiger un compte ou WhatsApp", "Ouvrir le suivi par la référence ou le code — il suffirait d'avoir VU un reçu pour valider le paiement d'autrui"]
+  /* ── les composants du moteur ── */
+  m_commande: {
+    nom: "Commande & cycle de vie", ou: "domain/order — lots 7 et 11",
+    role: "La machine à états d'une commande : création, acompte, remise, clôture, expiration. L'argent et l'étape sont deux axes distincts — payé le lundi, remis le jeudi.",
+    fait: ["Acompte 50 % arrondi au franc INFÉRIEUR, le solde absorbe le reste — acompte + solde = total, tenu par contrainte SQL", "La même machine décide depuis le fil (« livrée CT-… ») et depuis l'app — jamais deux vérités", "Expiration automatique si l'acompte ne vient pas (pg-boss), journal order_event en ajout seul"],
+    jamais: ["Reculer un paiement — toute transition arrière est journalisée puis ignorée", "Un flottant pour un montant : entiers XAF, toujours"]
   },
+  m_paiement: {
+    nom: "Paiement & rampe USSD", ou: "domain/ramp + routes/rampe — ADR 0020",
+    role: "Catalog ne déclenche aucun transfert : il pré-remplit le clavier. Lien tel: portant la chaîne USSD, et bloc en texte brut qui double le lien pour les forfaits où les liens échouent.",
+    fait: ["Les codes (*126# MTN, #150*50# Orange) vivent en CONFIGURATION — un seul fichier du dépôt porte un code USSD, un test parcourt les sources pour le garantir", "Changement à chaud, sans redéployer la boutique", "Les raccourcis non testés sur téléphone réel portent verifie: false — l'écran reste utilisable s'ils échouent"],
+    jamais: ["Un code USSD en constante dans le code", "Voir, demander ou stocker le code secret — il se tape UNIQUEMENT sur l'écran de l'opérateur", "Encaisser : les fonds vont de portefeuille à portefeuille, sans tiers"]
+  },
+  m_preuve: {
+    nom: "La preuve par SMS", ou: "domain/proof — lot 8, la valeur n°1",
+    role: "La vendeuse colle le SMS de SON opérateur — c'est elle qui a l'argent, donc son message qui fait autorité. Sept contrôles transforment ce texte en preuve opposable.",
+    fait: ["Analyseurs MTN/Orange, français ET anglais, copiés de la spécification (formats-sms-operateurs.md) — jamais réécrits de mémoire", "Unicité de l'identifiant opérateur sur TOUT le réseau : contrainte UNIQUE en base, pas un if", "Le sens du message compte : l'émission nomme le destinataire, la réception l'expéditeur"],
+    jamais: ["Accepter une capture d'écran comme preuve", "Rejeter sur le seul numéro discordant — mari, call-box, double SIM : avertissement, jamais rejet", "« Prouvé » sur le seul SMS d'émission de l'acheteuse"]
+  },
+  m_recu: {
+    nom: "Reçu & contre-signature", ou: "lot 10, ADR 0021 — /v/?c=<code>",
+    role: "Deux clés, deux pouvoirs : le code de vérification IDENTIFIE le reçu et devient public dès qu'on le montre ; le jeton acheteuse AUTORISE la contre-signature, et lui seul.",
+    fait: ["Reçu montrable à un tiers — mari, livreur, autre vendeuse — sans compte", "payment_proof en ajout seul : une preuve ne s'efface pas, ne s'édite pas", "La contre-signature rend la preuve à deux voix — contre la collusion à une seule"],
+    jamais: ["Ouvrir le suivi par la référence ou le code : il suffirait d'avoir VU un reçu pour valider le paiement d'autrui"]
+  },
+  m_livraison: {
+    nom: "La livraison", ou: "contracts/delivery — ADR 0005 : pas d'adresse au Cameroun",
+    role: "{ mode, ville, quartier, repère, téléphone } — le repère et le téléphone sont obligatoires, l'adresse n'existe pas. Le point de retrait est un mode de plein droit, pas un cas dégradé.",
+    fait: ["Saisie guidée en un seul message dans le fil (« Bonapriso, en face de la pharmacie, 690 11 22 33 »)", "Formulaire WhatsApp (Flow) en option quand la variable est posée — à republier sur le nouveau WABA (#46)", "Hors livraison : le prix de la course se convient avec la vendeuse, Catalog ne le fixe pas"],
+    jamais: ["Un champ adresse", "Inventer le mode « agence de voyage » : sa place est réservée, son vocabulaire se confirme à Douala"]
+  },
+  m_stock: {
+    nom: "Le stock", ou: "ADR 0038 — saisi, jamais décompté seul",
+    role: "La vendeuse annonce un nombre et le corrige à la main. Il ne se décompte pas tout seul, et c'est décidé, pas oublié : elle vend aussi hors de tout ce que Catalog voit.",
+    fait: ["Vérifié à la création de commande — « le stock a changé entre-temps » plutôt qu'une vente fantôme", "Des textes qui ne promettent pas la rareté : « La vendeuse en annonce 2 »"],
+    jamais: ["Le décompte automatique sans ADR : un compteur qui ne voit que la moitié des ventes serait plus faux que le nombre qu'elle tient elle-même"]
+  },
+  m_avis: {
+    nom: "Avis & réputation", ou: "lot 12 — avis vérifiés",
+    role: "Un avis n'est « vérifié » que s'il est adossé à un paiement prouvé. C'est ce qui rend la réputation Catalog invendable et infalsifiable — et donc précieuse.",
+    fait: ["L'invitation part au SEUL bon moment : la remise", "Réputation agrégée sur la boutique — celle qu'on montre au moment du doute (parcours ③)"],
+    jamais: ["Un avis vérifié sans paiement prouvé", "Bloquer le dépôt direct non tracé : il avance la commande, mais n'ouvre ni reçu ni avis — on distingue, on ne bloque pas"]
+  },
+  m_stats: {
+    nom: "Les statistiques", ou: "routes/stats + écran du lot 13 — ADR 0022",
+    role: "Les agrégats du moteur — ventes, commandes, paiements, réputation — lus par l'écran Statistiques de l'app. Ce que le moteur ne sait pas, l'écran le DIT au lieu de l'estimer.",
+    fait: ["Deux manques assumés et affichés : les sources de trafic n'existent nulle part, et la boutique statique ne compte pas ses pages vues (drapeau vuesInstrumentees, tenu par un test)", "Le vocabulaire des canaux (rang 0) donnera enfin les sources — côté bot, sans toucher à la boutique statique"],
+    jamais: ["Combler un chiffre manquant par une estimation", "Une bibliothèque de graphiques — trois gardes : liste refusée, test d'imports, plafond de 8 Ko"]
+  },
+  m_notifs: {
+    nom: "Notifications & gabarits", ou: "bot-notifications — ADR 0035, 0054, 0060",
+    role: "Le bot n'initie jamais : dans la fenêtre de 24 h le texte riche part, hors fenêtre un gabarit APPROUVÉ ouvre la porte, et à tout échec la notification attend en file et repart au prochain message entrant. Jamais perdue.",
+    fait: ["Liste FERMÉE de sujets — un gabarit coûte, il ne part que sur un événement qui a déjà de la valeur", "Depuis l'ADR 0060, les relances (acompte ~1 h, reversement ~20 h) passent par cette porte au lieu de la contourner"],
+    jamais: ["Initier hors gabarit", "De la promotion dans un gabarit utilitaire — refus Meta et note de qualité abîmée"]
+  },
+
+  /* ── le catalogue web, page par page ── */
+  memoire: {
+    nom: "Le catalogue web", ou: "apps/shop — Astro, un instantané JSON, jamais la base",
+    role: "La mémoire publique : indexable par Google, partageable hors WhatsApp, lisible sans compte, ≤ 30 Ko de JS par page. Il lit un instantané — c'est ce qui le rend rapide et indestructible.",
+    fait: ["Budget mesuré PAR PAGE en CI, aucune police téléchargée, images bornées à 100 Ko en amont", "À faire (rang 0) : rebuild déclenché quand une boutique naît dans le fil — et le fil le dit en attendant"],
+    jamais: ["Parler à la base — la règle de dépendance est inversée exprès", "Devenir un troisième comptoir : un checkout web s'arrêterait de toute façon à la preuve"]
+  },
+  w_accueil: {
+    nom: "L'accueil", ou: "apps/shop — index.astro",
+    role: "La liste des boutiques. C'est aussi le rendu naturel d'une future place de marché — un rendu multi-boutiques de la même vérité, si cette décision s'ouvre un jour.",
+    fait: ["Chaque boutique y mène à sa page publique"],
+    jamais: ["Classer contre rémunération sans le dire — la réputation est le seul ordre défendable"]
+  },
+  w_boutique: {
+    nom: "La page boutique", ou: "apps/shop — [slug]/index.astro",
+    role: "Le catalogue public d'une vendeuse : articles, prix affichés, réputation. La page qu'on envoie à quelqu'un qui n'a pas WhatsApp sous la main.",
+    fait: ["Réputation et avis vérifiés visibles — la salle où l'on jauge une vendeuse avant l'acompte", "À venir (sprint 3) : « Suivre la boutique » — le lien de SA chaîne WhatsApp"],
+    jamais: ["Afficher le numéro de reversement — il n'a rien à faire sur une page en cache CDN"]
+  },
+  w_produit: {
+    nom: "La fiche produit — à recâbler", ou: "apps/shop — [slug]/[produit].astro:42",
+    role: "LE défaut de câblage actuel : son bouton pointe wa.me/<numéro personnel de la vendeuse>. L'acheteuse qui clique contourne tout le moteur — pas de commande, pas de preuve, pas de stats.",
+    fait: ["Cible (rang 0) : DEUX boutons — « Commander » vers le bot (mot-clé + canal web, la commande naît dans le moteur) et « Parler à la vendeuse » vers son numéro (le lien humain, l'invariant)"],
+    jamais: ["Un seul bouton qui choisit à la place du modèle — c'est le silo qu'on referme"]
+  },
+  w_payer: {
+    nom: "/payer — la rampe", ou: "apps/shop — payer.astro, ADR 0020",
+    role: "La page qui assume son JavaScript : elle lit GET /api/rampe à l'exécution, donc un code USSD changé par l'opérateur s'applique sans redéployer la boutique.",
+    fait: ["Lien tel: pré-rempli (# encodé %23) : le composeur s'ouvre garni, l'acheteuse appuie sur appeler", "Menu manuel toujours proposé tant que le raccourci n'est pas vérifié sur téléphone réel"],
+    jamais: ["Un code de repli écrit en dur côté boutique — ce serait la constante interdite, et elle serait périmée"]
+  },
+  w_v: {
+    nom: "/v/ — le reçu vérifiable", ou: "apps/shop — v/[...code].astro, ADR 0021",
+    role: "La salle de vérification : n'importe qui contrôle un reçu qu'on lui montre, avec son code, sans compte, hors WhatsApp. C'est l'arme publique contre la capture MoMo truquée.",
+    fait: ["La forme dont le produit dépend est /v/?c=<code> — la jolie URL n'existe que par réécriture", "Montre : montant reçu, opérateur, identifiant enregistré, contre-signature"],
+    jamais: ["Exiger un compte ou WhatsApp", "Révéler quoi que ce soit qui autorise — le code identifie, il n'autorise rien"]
+  },
+  w_suivi: {
+    nom: "/suivi", ou: "apps/shop — suivi/[...jeton].astro",
+    role: "Le suivi de commande par jeton acheteuse — et le chemin de contre-signature qui sert quand l'acheteuse n'a jamais écrit au bot (parcours ①, la vente au statut).",
+    fait: ["S'ouvre par le jeton, jamais par la référence ni le code", "Contre-signer et noter, sans installer quoi que ce soit"],
+    jamais: ["Faire circuler le jeton dans un message WhatsApp générique — un message se transfère, le jeton autorise"]
+  },
+  w_statut: {
+    nom: "/statut — l'état du service", ou: "apps/shop — statut.astro",
+    role: "Servie par le CDN, exprès : une page de statut hébergée avec le service qu'elle décrit tombe avec lui, exactement au moment où on la regarde.",
+    fait: ["Dit si Catalog fonctionne, en direct, même API à terre"],
+    jamais: ["Dépendre de l'API qu'elle surveille"]
+  },
+
+  /* ── l'app vendeuse, écran par écran ── */
   bureau: {
-    nom: "Le bureau", ou: "apps/seller — l'app vendeuse",
-    role: "La profondeur : statistiques, images soignées, description, changement de reversement sous OTP, historique. Et la redondance : si le fil tombe, on colle le SMS ici.",
-    fait: ["Stats sous 8 Ko, sans bibliothèque de graphiques", "L'écran de collage du SMS — le chemin historique, toujours ouvert", "Le reversement : OTP au NOUVEAU numéro, journal dans tous les cas"],
+    nom: "L'app vendeuse", ou: "apps/seller — React Router SPA + PWA, refonte ADR 0030",
+    role: "Le bureau : la profondeur que le fil ne porte pas — et la redondance. Si le fil tombe, si Meta bannit le numéro : tout le quotidien vital reste faisable ici.",
+    fait: ["Connexion par téléphone (OTP, WhatsApp ou clé d'appareil)", "Quatre états par écran : chargement, vide, erreur, hors ligne"],
     jamais: ["Devenir obligatoire : tout le quotidien doit rester possible au comptoir (le fil)"]
   },
-  memoire: {
-    nom: "La mémoire publique", ou: "apps/shop — le catalogue web",
-    role: "Indexable par Google, partageable hors WhatsApp, léger (30 Ko de JS). Aujourd'hui mal câblé : la fiche produit pointe le numéro personnel de la vendeuse — l'acheteuse qui clique contourne tout le moteur.",
-    fait: ["Vitrine consultable sans compte", "À recâbler : « Commander » → le bot (canal « web ») ; « Parler à la vendeuse » → son numéro", "Rebuild déclenché quand une boutique naît dans le fil"],
-    jamais: ["Devenir un troisième comptoir : un checkout web s'arrêterait de toute façon à la preuve", "Parler à la base — il lit un instantané, volontairement"]
+  a_dashboard: {
+    nom: "Le tableau de bord", ou: "apps/seller — Dashboard.tsx",
+    role: "L'entrée : l'état de la boutique d'un coup d'œil, les commandes qui attendent un geste.",
+    fait: ["Mène en un tap vers ce qui attend : un SMS à coller, une remise à marquer"],
+    jamais: ["Noyer l'action du jour sous des chiffres — les chiffres ont leur écran"]
+  },
+  a_articles: {
+    nom: "Articles & photos", ou: "apps/seller — Articles.tsx, ArticleForm.tsx",
+    role: "Le catalogue en profondeur : photos soignées, descriptions, prix, stock annoncé.",
+    fait: ["Chaîne d'images : ré-encodage à qualité dégressive, 100 Ko par objet garanti par le code, pas au doigt mouillé", "L'app dit en toutes lettres que le stock se corrige à la main"],
+    jamais: ["Publier une photo qui pèse — la borne est une règle de compilation, pas une intention"]
+  },
+  a_commandes: {
+    nom: "Les commandes", ou: "apps/seller — Commandes.tsx",
+    role: "Le cycle complet : avancer les étapes, déclarer un dépôt direct non tracé, voir l'état de preuve.",
+    fait: ["La même machine à états que le fil — jamais deux vérités", "Le dépôt non tracé se déclare et se DISTINGUE : pas de reçu, pas d'avis vérifié, et c'est dit"],
+    jamais: ["Un avancement optimiste côté serveur : rien n'est optimiste sur un mouvement d'argent"]
+  },
+  a_coller: {
+    nom: "Coller le SMS", ou: "apps/seller — CollerSms.tsx, lot 8",
+    role: "L'écran historique de la preuve — et la redondance du fil. Un champ dont l'usage entier est le collage.",
+    fait: ["Verdict immédiat : prouvé, accepté sous réserve, refusé — avec la raison", "Le chemin qui reste debout si le bot tombe"],
+    jamais: ["Bloquer le collage — c'est une régression, pas une sécurité (WCAG 3.3.8, et le bon sens)"]
+  },
+  a_stats: {
+    nom: "Statistiques", ou: "apps/seller — Statistiques.tsx, lot 13, ADR 0022",
+    role: "Les ventes, les commandes, les paiements — l'évolution de la boutique, en 8 Ko.",
+    fait: ["Chaque graphique EXIGE sa vue tableau (dans un <details>, sans JavaScript) — tenu par le typage", "« Non tracé » est GRIS, jamais rouge : un dépôt direct n'est pas une faute", "Les manques sont affichés, pas comblés (sources de trafic, pages vues)"],
+    jamais: ["Une bibliothèque de graphiques — la plus légère pèse plus que l'écran entier"]
+  },
+  a_reversement: {
+    nom: "Le reversement", ou: "apps/seller — Reversement.tsx, domain/payout-phone",
+    role: "LE champ qu'un attaquant vise : c'est là que l'argent arrive. Distinct du numéro de connexion — la double SIM est la norme.",
+    fait: ["OTP envoyé au NOUVEAU numéro — la preuve qu'elle tient la puce où l'argent va", "Journal d'audit dans TOUS les cas, refus compris, dans la même transaction", "Proposé (rang 2) : alerter l'ANCIEN numéro à chaque changement — la double SIM devient une défense (parcours ④)"],
+    jamais: ["Vérifier l'ancien numéro au lieu du nouveau — posséder ce qu'on quitte ne prouve rien"]
+  },
+  a_reglages: {
+    nom: "Réglages & congés", ou: "apps/seller — Reglages.tsx, ADR 0039",
+    role: "La boutique, la langue, et le mode congés : fermer aux NOUVELLES commandes sans rien fermer d'autre.",
+    fait: ["Congés : les commandes en cours vont au bout, la boutique reste publiée, la vendeuse reste joignable", "Le verrou qui compte est dans le service, à la création — les écrans ne font qu'afficher"],
+    jamais: ["Demander une date de retour — pour la même raison que le stock ne se décompte pas"]
+  },
+  a_verifier: {
+    nom: "Vérifier un reçu", ou: "apps/seller — VerifierRecu.tsx",
+    role: "La vendeuse aussi peut recevoir une fausse preuve — un reçu d'une autre boutique, une capture. Elle vérifie ici ce qu'on lui montre.",
+    fait: ["Le même contrôle public que /v/, à portée de pouce"],
+    jamais: ["Accepter autre chose qu'un code — la capture reste illustrative"]
   },
   boucle: {
     nom: "La boucle", ou: "proposition — la carte d'avis vérifié",
@@ -693,8 +900,8 @@ const FICHES = {
 };
 
 const fiche = document.getElementById("fiche");
-document.querySelectorAll(".noeud").forEach(n => n.addEventListener("click", () => {
-  document.querySelectorAll(".noeud").forEach(x => x.setAttribute("aria-pressed", String(x === n)));
+document.querySelectorAll("[data-n]").forEach(n => n.addEventListener("click", () => {
+  document.querySelectorAll("[data-n]").forEach(x => x.setAttribute("aria-pressed", String(x === n)));
   const f = FICHES[n.dataset.n];
   if (!f) return;
   fiche.innerHTML = `
