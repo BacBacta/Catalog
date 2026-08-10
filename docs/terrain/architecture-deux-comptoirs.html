@@ -1,0 +1,939 @@
+<title>Catalog — deux comptoirs, un moteur</title>
+
+<style>
+  /* ───────────────────────────── jetons ─────────────────────────────────
+     Palette héritée de packages/ui/src/tokens.css et de bot-parcours.html :
+     la marque est #0e7a5f, les neutres tirent vers le vert. Le téléphone
+     garde SES couleurs — celles de WhatsApp — parce que c'est un objet.
+     L'ocre est réservé à UNE chose : ce qui est proposé et pas construit.  */
+  :root {
+    --ground: #eff3f1;
+    --surface: #ffffff;
+    --encre: #101c18;
+    --encre-2: #4f605a;
+    --muted: #6d7b76;
+    --filet: #dde5e1;
+    --filet-fin: #e7edea;
+    --marque: #0e7a5f;
+    --marque-doux: #e3f1ec;
+    --ocre: #a8641c;
+    --ocre-doux: #f7ecd9;
+    --alerte: #a2372e;
+    --alerte-doux: #f8e7e4;
+
+    --fil-fond: #e5ddd5;
+    --fil-entrant: #ffffff;
+    --fil-sortant: #d9fdd3;
+    --fil-encre: #111b21;
+    --fil-encre-2: #667781;
+    --fil-barre: #f0f2f5;
+    --fil-ombre: rgba(11, 20, 26, 0.13);
+
+    --serif: ui-serif, "New York", Georgia, Cambria, "Times New Roman", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --t-titre: clamp(1.8rem, 1.1rem + 2.4vw, 2.9rem);
+    --r: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0b100e;
+      --surface: #141b18;
+      --encre: #f2f6f4;
+      --encre-2: #a9b8b2;
+      --muted: #8b9a94;
+      --filet: #26302c;
+      --filet-fin: #1c2421;
+      --marque: #17a37f;
+      --marque-doux: #10241f;
+      --ocre: #d99a4e;
+      --ocre-doux: #2b2012;
+      --alerte: #d67c6f;
+      --alerte-doux: #2b1512;
+
+      --fil-fond: #0b141a;
+      --fil-entrant: #202c33;
+      --fil-sortant: #005c4b;
+      --fil-encre: #e9edef;
+      --fil-encre-2: #8696a0;
+      --fil-barre: #202c33;
+      --fil-ombre: rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0b100e;
+    --surface: #141b18;
+    --encre: #f2f6f4;
+    --encre-2: #a9b8b2;
+    --muted: #8b9a94;
+    --filet: #26302c;
+    --filet-fin: #1c2421;
+    --marque: #17a37f;
+    --marque-doux: #10241f;
+    --ocre: #d99a4e;
+    --ocre-doux: #2b2012;
+    --alerte: #d67c6f;
+    --alerte-doux: #2b1512;
+
+    --fil-fond: #0b141a;
+    --fil-entrant: #202c33;
+    --fil-sortant: #005c4b;
+    --fil-encre: #e9edef;
+    --fil-encre-2: #8696a0;
+    --fil-barre: #202c33;
+    --fil-ombre: rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--encre);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 1080px; margin: 0 auto; padding: 28px 20px 90px; }
+
+  /* ── en-tête ── */
+  .entete { margin-bottom: 10px; }
+  .surtitre {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--marque); margin: 0 0 6px;
+  }
+  h1 {
+    font-family: var(--serif); font-size: var(--t-titre); font-weight: 600;
+    margin: 0 0 8px; line-height: 1.12; text-wrap: balance;
+  }
+  .chapo { color: var(--encre-2); max-width: 62ch; margin: 0; }
+  .chapo strong { color: var(--encre); }
+
+  .legende-etats {
+    display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 6px;
+    font-size: .78rem; color: var(--encre-2); align-items: center;
+  }
+
+  /* ── chips d'état ── */
+  .etat {
+    display: inline-block; font-family: var(--mono); font-size: .62rem;
+    letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px;
+    border-radius: 99px; white-space: nowrap;
+  }
+  .etat.ok   { background: var(--marque-doux); color: var(--marque); }
+  .etat.prop { background: var(--ocre-doux);   color: var(--ocre); }
+  .etat.hors { background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--filet); }
+
+  /* ── onglets ── */
+  .onglets {
+    position: sticky; top: 0; z-index: 30;
+    display: flex; gap: 4px; margin: 18px -20px 26px; padding: 6px 20px 0;
+    background: var(--ground); border-bottom: 1px solid var(--filet);
+  }
+  .onglet {
+    appearance: none; background: none; border: none; cursor: pointer;
+    font: inherit; font-size: .92rem; color: var(--muted);
+    padding: 10px 14px 12px; border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .onglet:hover { color: var(--encre); }
+  .onglet[aria-selected="true"] { color: var(--encre); border-bottom-color: var(--marque); font-weight: 600; }
+  .onglet:focus-visible, .noeud:focus-visible, .puce:focus-visible, .cmd:focus-visible {
+    outline: 2px solid var(--marque); outline-offset: 2px; border-radius: 6px;
+  }
+
+  .volet[hidden] { display: none; }
+
+  h2 {
+    font-family: var(--serif); font-size: 1.35rem; font-weight: 600;
+    margin: 34px 0 6px;
+  }
+  .note-volet { color: var(--encre-2); font-size: .9rem; max-width: 64ch; margin: 0 0 20px; }
+
+  /* ═══════════════════ ONGLET 1 — LA CARTE ═══════════════════ */
+  .carte-grille { display: grid; grid-template-columns: 1fr 340px; gap: 22px; align-items: start; }
+  @media (max-width: 900px) { .carte-grille { grid-template-columns: 1fr; } }
+
+  .schema { display: flex; flex-direction: column; align-items: stretch; }
+  .zone-titre {
+    font-family: var(--mono); font-size: .66rem; letter-spacing: .13em;
+    text-transform: uppercase; color: var(--muted); margin: 0 0 8px;
+  }
+  .rangee { display: grid; gap: 10px; }
+  .rangee.r2 { grid-template-columns: 1fr 1fr; }
+  .rangee.r4 { grid-template-columns: repeat(4, 1fr); }
+  .rangee.r3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 640px) {
+    .rangee.r4 { grid-template-columns: 1fr 1fr; }
+    .rangee.r3 { grid-template-columns: 1fr; }
+  }
+
+  .lien-bas {
+    display: flex; flex-direction: column; align-items: center;
+    color: var(--muted); padding: 4px 0; font-size: .78rem;
+  }
+  .lien-bas::before { content: ""; width: 2px; height: 16px; background: var(--filet); }
+  .lien-bas .fleche { line-height: 1; margin-top: -1px; }
+  .lien-bas .lib { font-family: var(--mono); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; margin-top: 2px; }
+
+  .noeud {
+    appearance: none; text-align: left; cursor: pointer; font: inherit;
+    background: var(--surface); color: var(--encre);
+    border: 1px solid var(--filet); border-radius: var(--r);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 5px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .noeud:hover { border-color: var(--marque); }
+  .noeud[aria-pressed="true"] {
+    border-color: var(--marque);
+    box-shadow: 0 0 0 3px var(--marque-doux);
+  }
+  .noeud.moteur-bloc {
+    background: var(--marque); border-color: var(--marque); color: #fff;
+  }
+  .noeud.moteur-bloc .noeud-role { color: rgba(255,255,255,.82); }
+  .noeud.moteur-bloc[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--marque-doux); }
+  .noeud-nom { font-weight: 650; font-size: .92rem; line-height: 1.25; display: flex; gap: 8px; align-items: baseline; justify-content: space-between; }
+  .noeud-role { font-size: .78rem; color: var(--encre-2); line-height: 1.4; }
+
+  .boucle {
+    margin-top: 14px; border: 1px dashed var(--marque); border-radius: var(--r);
+    padding: 10px 14px; font-size: .84rem; color: var(--encre-2);
+    background: var(--marque-doux);
+  }
+  .boucle strong { color: var(--marque); }
+
+  /* fiche de détail */
+  .fiche {
+    position: sticky; top: 64px;
+    background: var(--surface); border: 1px solid var(--filet);
+    border-radius: var(--r); padding: 18px;
+  }
+  .fiche h3 { margin: 0 0 2px; font-family: var(--serif); font-size: 1.1rem; }
+  .fiche .ou { font-family: var(--mono); font-size: .7rem; color: var(--muted); margin: 0 0 12px; word-break: break-all; }
+  .fiche dl { margin: 0; display: grid; gap: 12px; }
+  .fiche dt {
+    font-family: var(--mono); font-size: .64rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 3px;
+  }
+  .fiche dd { margin: 0; font-size: .87rem; }
+  .fiche dd ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+  .fiche .jamais dt { color: var(--alerte); }
+  .fiche .jamais li::marker { color: var(--alerte); }
+  @media (max-width: 900px) { .fiche { position: static; } }
+
+  /* ═══════════════════ ONGLET 2 — LES PARCOURS ═══════════════════ */
+  .puces { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 18px; }
+  .puce {
+    appearance: none; cursor: pointer; font: inherit; font-size: .86rem;
+    background: var(--surface); color: var(--encre-2);
+    border: 1px solid var(--filet); border-radius: 99px; padding: 8px 15px;
+  }
+  .puce:hover { color: var(--encre); border-color: var(--marque); }
+  .puce[aria-pressed="true"] {
+    background: var(--marque); border-color: var(--marque); color: #fff; font-weight: 600;
+  }
+
+  .parcours-tete { margin: 0 0 4px; font-family: var(--serif); font-size: 1.2rem; font-weight: 600; }
+  .parcours-sous { color: var(--encre-2); font-size: .88rem; max-width: 66ch; margin: 0 0 16px; }
+
+  .scene { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .scene { grid-template-columns: 1fr; } }
+
+  .telephones { display: grid; gap: 16px; }
+  .telephones.deux { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 720px) { .telephones.deux { grid-template-columns: 1fr; } }
+
+  .tel {
+    border-radius: 18px; overflow: hidden;
+    border: 1px solid var(--filet);
+    box-shadow: 0 6px 22px var(--fil-ombre);
+    background: var(--fil-fond);
+    display: flex; flex-direction: column;
+  }
+  .tel-tete {
+    background: var(--fil-barre); padding: 10px 14px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--filet-fin);
+  }
+  .tel-avatar {
+    width: 30px; height: 30px; border-radius: 50%; flex: none;
+    background: var(--marque); color: #fff;
+    display: grid; place-items: center; font-size: .8rem; font-weight: 700;
+  }
+  .tel-avatar.perso { background: #7a5c8f; }
+  .tel-qui { min-width: 0; }
+  .tel-nom { font-weight: 650; font-size: .84rem; color: var(--fil-encre); line-height: 1.2; }
+  .tel-note { font-size: .68rem; color: var(--fil-encre-2); }
+  .tel-fil {
+    padding: 12px 10px; display: flex; flex-direction: column; gap: 7px;
+    min-height: 220px; max-height: 460px; overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) { .tel-fil { scroll-behavior: auto; } }
+
+  .msg {
+    max-width: 88%; border-radius: 10px; padding: 7px 10px 6px;
+    font-size: .8rem; line-height: 1.42; color: var(--fil-encre);
+    box-shadow: 0 1px 1px var(--fil-ombre);
+    white-space: pre-line; overflow-wrap: break-word;
+  }
+  .msg.entrant { background: var(--fil-entrant); align-self: flex-start; border-top-left-radius: 3px; }
+  .msg.sortant { background: var(--fil-sortant); align-self: flex-end; border-top-right-radius: 3px; }
+  .msg .de { font-size: .66rem; font-weight: 700; color: var(--marque); margin-bottom: 2px; }
+  .msg .transfere {
+    font-size: .66rem; color: var(--fil-encre-2); font-style: italic; margin-bottom: 2px;
+  }
+  .msg .transfere::before { content: "⏩ "; font-style: normal; }
+  .msg .marque-prop {
+    display: inline-block; margin-top: 5px; font-family: var(--mono);
+    font-size: .58rem; letter-spacing: .08em; text-transform: uppercase;
+    background: var(--ocre-doux); color: var(--ocre);
+    padding: 1px 6px; border-radius: 99px;
+  }
+  .msg .boutons { display: flex; flex-direction: column; gap: 4px; margin-top: 7px; }
+  .msg .bouton-wa {
+    text-align: center; font-size: .76rem; font-weight: 600; color: #027eb5;
+    background: var(--fil-entrant); border-radius: 7px; padding: 5px 8px;
+    box-shadow: 0 1px 1px var(--fil-ombre);
+  }
+  .msg .mono { font-family: var(--mono); font-size: .74rem; }
+
+  .msg.sys {
+    align-self: center; max-width: 94%; text-align: center;
+    background: none; box-shadow: none; color: var(--fil-encre-2);
+    font-size: .72rem; font-style: italic; padding: 3px 6px;
+  }
+  .msg.sys .marque-prop { font-style: normal; }
+
+  /* la « page web » simulée */
+  .webcarte {
+    border-radius: 14px; overflow: hidden; border: 1px solid var(--filet);
+    background: var(--surface); box-shadow: 0 6px 22px var(--fil-ombre);
+  }
+  .webcarte-barre {
+    background: var(--filet-fin); padding: 8px 12px;
+    font-family: var(--mono); font-size: .68rem; color: var(--muted);
+    display: flex; gap: 8px; align-items: center;
+  }
+  .webcarte-barre::before { content: "🔒"; font-size: .7rem; }
+  .webcarte-corps { padding: 16px; display: none; }
+  .webcarte-corps.visible { display: block; }
+  .webcarte-corps h4 { margin: 0 0 2px; font-family: var(--serif); font-size: 1.02rem; }
+  .webcarte-corps .v-ref { font-family: var(--mono); font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
+  .v-lignes { display: grid; gap: 6px; font-size: .84rem; }
+  .v-lignes .ok::before { content: "✓ "; color: var(--marque); font-weight: 700; }
+
+  /* rail du moteur */
+  .rail {
+    background: var(--surface); border: 1px solid var(--filet);
+    border-radius: var(--r); padding: 14px 16px;
+    position: sticky; top: 64px;
+  }
+  @media (max-width: 900px) { .rail { position: static; } }
+  .rail h3 {
+    margin: 0 0 2px; font-family: var(--mono); font-size: .68rem;
+    letter-spacing: .13em; text-transform: uppercase; color: var(--marque);
+  }
+  .rail .rail-note { font-size: .74rem; color: var(--muted); margin: 0 0 10px; }
+  .rail ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .rail li {
+    font-size: .78rem; padding-left: 14px; position: relative; color: var(--encre-2);
+  }
+  .rail li::before {
+    content: ""; position: absolute; left: 0; top: .42em;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--marque);
+  }
+  .rail li.prop::before { background: var(--ocre); }
+  .rail li strong { color: var(--encre); font-weight: 650; }
+  .rail li .mono { font-family: var(--mono); font-size: .72rem; }
+  .rail .vide { color: var(--muted); font-size: .78rem; font-style: italic; }
+
+  .commandes { display: flex; gap: 8px; margin: 16px 0 0; flex-wrap: wrap; }
+  .cmd {
+    appearance: none; cursor: pointer; font: inherit; font-size: .86rem; font-weight: 600;
+    border-radius: 10px; padding: 9px 18px; border: 1px solid var(--filet);
+    background: var(--surface); color: var(--encre);
+  }
+  .cmd.principal { background: var(--marque); border-color: var(--marque); color: #fff; }
+  .cmd:disabled { opacity: .45; cursor: default; }
+  .avancement { font-size: .76rem; color: var(--muted); align-self: center; }
+
+  /* ═══════════════════ ONGLET 3 — LES RÈGLES ═══════════════════ */
+  .table-roule { overflow-x: auto; border: 1px solid var(--filet); border-radius: var(--r); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: .86rem; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--filet-fin); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  th {
+    font-family: var(--mono); font-size: .64rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); font-weight: 600;
+  }
+  td:first-child { font-weight: 600; width: 38%; }
+  .num-rang { font-family: var(--mono); color: var(--marque); font-weight: 700; }
+
+  .interdits { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .interdits li {
+    background: var(--surface); border: 1px solid var(--filet); border-left: 3px solid var(--alerte);
+    border-radius: 10px; padding: 10px 14px; font-size: .86rem;
+  }
+  .interdits li strong { color: var(--alerte); }
+
+  .pied {
+    margin-top: 46px; padding-top: 14px; border-top: 1px solid var(--filet);
+    font-size: .76rem; color: var(--muted); max-width: 70ch;
+  }
+</style>
+
+<div class="page">
+
+  <header class="entete">
+    <p class="surtitre">Catalog · instrument de terrain · proposition d'architecture</p>
+    <h1>Deux comptoirs, un moteur</h1>
+    <p class="chapo">L'architecture totale du produit, construite depuis les habitudes de vente
+    camerounaises. Tout ce qui est <strong>vert</strong> existe et tourne ; tout ce qui est
+    <strong>ocre</strong> est proposé et reste à construire. Cliquez : chaque bloc s'explique,
+    chaque parcours se joue message par message.</p>
+    <div class="legende-etats">
+      <span class="etat ok">Existant</span> déjà en production
+      <span class="etat prop">À construire</span> proposé, pas encore décidé
+      <span class="etat hors">Hors produit</span> le réel qu'on ne contrôle pas
+    </div>
+  </header>
+
+  <nav class="onglets" role="tablist" aria-label="Sections">
+    <button class="onglet" role="tab" id="ong-carte" aria-selected="true" aria-controls="vol-carte">1 · La carte</button>
+    <button class="onglet" role="tab" id="ong-parcours" aria-selected="false" aria-controls="vol-parcours">2 · Les parcours</button>
+    <button class="onglet" role="tab" id="ong-regles" aria-selected="false" aria-controls="vol-regles">3 · Les règles</button>
+  </nav>
+
+  <!-- ═══════════════ 1 · LA CARTE ═══════════════ -->
+  <section class="volet" id="vol-carte" role="tabpanel" aria-labelledby="ong-carte">
+    <p class="note-volet">La vente descend du haut vers le bas : elle naît dans la distribution,
+    se négocie dans une conversation, se formalise à un comptoir, et <strong>tout</strong> converge
+    vers le même moteur. En dessous, trois surfaces ne font que lire. Cliquez un bloc pour sa fiche.</p>
+
+    <div class="carte-grille">
+      <div class="schema" id="schema">
+
+        <p class="zone-titre">Distribution — elle poste, ça circule, ça survit au transfert</p>
+        <div class="rangee r4">
+          <button class="noeud" data-n="carte" aria-pressed="false">
+            <span class="noeud-nom">Carte-vitrine <span class="etat ok">Existant</span></span>
+            <span class="noeud-role">Image QR + mot-clé, générée dans le fil</span>
+          </button>
+          <button class="noeud" data-n="statut" aria-pressed="false">
+            <span class="noeud-nom">Pack statut <span class="etat prop">À construire</span></span>
+            <span class="noeud-role">Carte verticale par article + légende à coller</span>
+          </button>
+          <button class="noeud" data-n="chaine" aria-pressed="false">
+            <span class="noeud-nom">Sa chaîne <span class="etat prop">À construire</span></span>
+            <span class="noeud-role">Lien enregistré, munitions fournies, elle poste</span>
+          </button>
+          <button class="noeud" data-n="groupes" aria-pressed="false">
+            <span class="noeud-nom">Groupes &amp; transferts <span class="etat hors">Hors produit</span></span>
+            <span class="noeud-role">« Marché en ligne Douala », 5 000 membres</span>
+          </button>
+        </div>
+
+        <div class="lien-bas"><span class="fleche">▼</span><span class="lib">liens et images marqués (canal)</span></div>
+
+        <p class="zone-titre">Conversation — là où la vente se négocie</p>
+        <div class="rangee r2">
+          <button class="noeud" data-n="filhumain" aria-pressed="false">
+            <span class="noeud-nom">Le fil humain <span class="etat hors">Hors produit</span></span>
+            <span class="noeud-role">SON numéro : réponses au statut, négociation, clientèle existante</span>
+          </button>
+          <button class="noeud" data-n="filbot" aria-pressed="false">
+            <span class="noeud-nom">Le fil du bot <span class="etat ok">Existant</span></span>
+            <span class="noeud-role">Numéro partagé : prix affiché, self-service, nouvelles clientes</span>
+          </button>
+        </div>
+
+        <div class="lien-bas"><span class="fleche">▼</span><span class="lib">la vente se formalise</span></div>
+
+        <p class="zone-titre">Les deux comptoirs — où la commande naît</p>
+        <div class="rangee r2">
+          <button class="noeud" data-n="comptoirv" aria-pressed="false">
+            <span class="noeud-nom">Comptoir vendeuse <span class="etat prop">À construire</span></span>
+            <span class="noeud-role">« commande : Awa, 2 pommades, 3 500 » → message de paiement à transférer</span>
+          </button>
+          <button class="noeud" data-n="comptoira" aria-pressed="false">
+            <span class="noeud-nom">Comptoir acheteuse <span class="etat ok">Existant</span></span>
+            <span class="noeud-role">Mini-catalogue, panier, livraison, récap, confirmation</span>
+          </button>
+        </div>
+
+        <div class="lien-bas"><span class="fleche">▼</span><span class="lib">une seule vérité</span></div>
+
+        <div class="rangee">
+          <button class="noeud moteur-bloc" data-n="moteur" aria-pressed="false">
+            <span class="noeud-nom">LE MOTEUR <span class="etat ok">Existant</span></span>
+            <span class="noeud-role">Commande · rampe USSD · preuve par SMS (7 contrôles) · reçu vérifiable ·
+            contre-signature · avis vérifiés · stats — quel que soit le comptoir d'entrée, la commande est la même.</span>
+          </button>
+        </div>
+
+        <div class="lien-bas"><span class="fleche">▼</span><span class="lib">lecture seule</span></div>
+
+        <p class="zone-titre">Les surfaces qui lisent</p>
+        <div class="rangee r3">
+          <button class="noeud" data-n="confiance" aria-pressed="false">
+            <span class="noeud-nom">Salle de vérification <span class="etat ok">Existant</span></span>
+            <span class="noeud-role">/v/ et suivi — publics, sans compte, hors WhatsApp</span>
+          </button>
+          <button class="noeud" data-n="bureau" aria-pressed="false">
+            <span class="noeud-nom">Le bureau <span class="etat ok">Existant</span></span>
+            <span class="noeud-role">App vendeuse : stats, images, reversement, historique</span>
+          </button>
+          <button class="noeud" data-n="memoire" aria-pressed="false">
+            <span class="noeud-nom">Mémoire publique <span class="etat prop">À recâbler</span></span>
+            <span class="noeud-role">Catalogue web indexable — aujourd'hui, son CTA contourne le moteur</span>
+          </button>
+        </div>
+
+        <button class="noeud boucle" data-n="boucle" aria-pressed="false" style="text-align:left; cursor:pointer;">
+          <strong>↻ La boucle</strong> — chaque vente prouvée fabrique une <strong>carte d'avis vérifié</strong>
+          que la vendeuse reposte à son statut : la preuve redevient de la distribution.
+          <span class="etat prop">À construire</span>
+        </button>
+      </div>
+
+      <aside class="fiche" id="fiche" aria-live="polite">
+        <h3>Choisissez un bloc</h3>
+        <p class="ou">la fiche s'affiche ici</p>
+        <dl></dl>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 2 · LES PARCOURS ═══════════════ -->
+  <section class="volet" id="vol-parcours" role="tabpanel" aria-labelledby="ong-parcours" hidden>
+    <p class="note-volet">Quatre scènes tirées des habitudes réelles. Les messages verts sortent du
+    téléphone affiché, les blancs y entrent. Quand un parcours existe déjà, les textes sont
+    <strong>copiés des sources du bot</strong>, mot pour mot ; ce qui est proposé porte l'étiquette ocre.</p>
+
+    <div class="puces" role="group" aria-label="Choisir un parcours">
+      <button class="puce" data-p="statut" aria-pressed="true">① La vente au statut</button>
+      <button class="puce" data-p="self" aria-pressed="false">② Le self-service</button>
+      <button class="puce" data-p="doute" aria-pressed="false">③ Le doute de l'acompte</button>
+      <button class="puce" data-p="puce" aria-pressed="false">④ La puce volée</button>
+    </div>
+
+    <h3 class="parcours-tete" id="p-titre"></h3>
+    <p class="parcours-sous" id="p-sous"></p>
+
+    <div class="scene">
+      <div>
+        <div class="telephones" id="p-panes"></div>
+        <div class="commandes">
+          <button class="cmd principal" id="p-suivant">Étape suivante</button>
+          <button class="cmd" id="p-tout">Tout dérouler</button>
+          <button class="cmd" id="p-reset">Recommencer</button>
+          <span class="avancement" id="p-avancement"></span>
+        </div>
+      </div>
+      <aside class="rail">
+        <h3>Ce que le moteur écrit</h3>
+        <p class="rail-note">La même base, quel que soit le comptoir. Points ocre = chemins proposés.</p>
+        <ol id="p-rail"></ol>
+        <p class="vide" id="p-rail-vide">Rien encore — avancez le parcours.</p>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 3 · LES RÈGLES ═══════════════ -->
+  <section class="volet" id="vol-regles" role="tabpanel" aria-labelledby="ong-regles" hidden>
+
+    <h2>Les questions que le modèle tranche d'avance</h2>
+    <p class="note-volet">Si une décision future contredit une de ces lignes, ce n'est pas un détail :
+    c'est l'architecture qu'on rouvre, et ça se fait par ADR.</p>
+    <div class="table-roule">
+      <table>
+        <thead><tr><th>Question</th><th>Réponse du modèle</th></tr></thead>
+        <tbody>
+          <tr><td>Où naît une commande ?</td><td>Dans le moteur, par un des deux comptoirs. Jamais un troisième chemin.</td></tr>
+          <tr><td>Vers où pointe « commander », où qu'il soit ?</td><td>Le bot, mot-clé de la boutique + canal marqué (<span class="mono">statut</span>, <span class="mono">chaine</span>, <span class="mono">carte</span>, <span class="mono">web</span>, <span class="mono">direct</span>).</td></tr>
+          <tr><td>Le numéro personnel de la vendeuse ?</td><td>Le lien humain — négociation, confiance, relation. Jamais le comptoir : ce qui s'y conclut se formalise ensuite au comptoir vendeuse.</td></tr>
+          <tr><td>Un prix négocié ?</td><td>Le catalogue affiche le prix de départ ; la commande se crée au prix convenu, par la vendeuse.</td></tr>
+          <tr><td>Une boutique née dans le fil a-t-elle sa page web ?</td><td>Oui — la reconstruction cesse d'être une option, c'est une conséquence du modèle.</td></tr>
+          <tr><td>Le paiement depuis le téléphone du mari, du call-box ?</td><td>Avertissement, jamais rejet. La clé est l'identifiant de transaction — durcir le contrôle 3 casserait les paiements légitimes.</td></tr>
+          <tr><td>Et si le bot tombe, ou si Meta bannit le numéro ?</td><td>Le catalogue web, /v/, le suivi et l'app vendeuse restent debout. C'est la redondance voulue — la raison de ne jamais tout fondre dans le fil.</td></tr>
+          <tr><td>La revendeuse qui transfère les photos avec sa marge ?</td><td>On ne la combat pas : elle ouvre SA boutique en trois minutes. Une porte pour elle, rien contre elle.</td></tr>
+          <tr><td>Qui écrit = qui possède ?</td><td>Jamais supposé. La nièce tape, la tante encaisse : l'OTP de reversement va à la puce du reversement.</td></tr>
+          <tr><td>La chaîne, le statut ?</td><td>De la distribution : des liens et des images marqués. Jamais un état, jamais une vérité.</td></tr>
+          <tr><td>L'expédition par agence de voyage ?</td><td>Place réservée, pas remplie : le vocabulaire réel se demande à Douala. <span class="mono">payMode integral</span> existe déjà pour « payé avant le bus ».</td></tr>
+          <tr><td>La place de marché, le catalogue natif WhatsApp ?</td><td>Des rendus multi-boutiques de la même vérité — décisions séparées, jamais un moteur bis.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Ce qui ne se fait jamais</h2>
+    <ul class="interdits">
+      <li><strong>Jamais de troisième comptoir.</strong> Un checkout web s'arrêterait de toute façon à la preuve — le SMS se colle dans une conversation.</li>
+      <li><strong>Jamais de fonds chez Catalog.</strong> Pas de séquestre « pour rassurer » : la réputation montrée au bon moment est le seul outil, et il suffit.</li>
+      <li><strong>Jamais de parcours qui exige un lien externe.</strong> Le forfait « WhatsApp seul » est la norme : tout parcours critique se termine en texte brut.</li>
+      <li><strong>Jamais un rejet sur le seul numéro discordant.</strong> Double SIM, mari, call-box : le numéro avertit, l'identifiant de transaction décide.</li>
+      <li><strong>Jamais une surface qui garde sa propre vérité.</strong> Toute surface lit le moteur ou y écrit — aucune ne mémorise à part.</li>
+    </ul>
+
+    <h2>L'ordre de marche</h2>
+    <div class="table-roule">
+      <table>
+        <thead><tr><th>Rang</th><th>Chantier</th><th>Pourquoi ce rang</th></tr></thead>
+        <tbody>
+          <tr><td><span class="num-rang">0</span> Recâblage</td><td>CTA web → bot (+ « parler à la vendeuse »), rebuild auto de la boutique, vocabulaire des canaux</td><td>Ferme la fuite actuelle : aujourd'hui la fiche produit web contourne le moteur</td></tr>
+          <tr><td><span class="num-rang">1</span> Comptoir vendeuse</td><td>La commande créée par la vendeuse + message de paiement à transférer</td><td>Sans elle, le moteur rate la vente au statut — majoritaire</td></tr>
+          <tr><td><span class="num-rang">2</span> Confiance</td><td>Réputation au moment de l'acompte · alerte à l'ancien numéro au changement de reversement</td><td>Les deux gestes de S6 et S8 — petits tous les deux</td></tr>
+          <tr><td><span class="num-rang">3</span> Distribution</td><td>Pack statut, puis chaîne (champ, munitions, comptage), puis carte d'avis</td><td>La boucle s'appuie enfin sur des comptoirs complets</td></tr>
+          <tr><td><span class="num-rang">⌖</span> Terrain</td><td>L'agence de voyage : vocabulaire, mode à part ou non</td><td>Se demande à Douala, ne s'invente pas</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="pied">Maquette d'architecture — proposition, pas décision. Les textes des parcours existants
+    sont copiés des sources (<span class="mono">domain/bot/textes.ts</span>) ; les SMS opérateurs ne sont
+    jamais reproduits ici, leur format est une spécification (<span class="mono">docs/formats-sms-operateurs.md</span>).
+    Si le modèle est validé, il devient l'ADR 0061 « Deux comptoirs, un moteur ».</p>
+  </section>
+</div>
+
+<script>
+/* ───────────────────────── onglets ───────────────────────── */
+const onglets = [...document.querySelectorAll(".onglet")];
+onglets.forEach(o => o.addEventListener("click", () => {
+  onglets.forEach(x => {
+    const actif = x === o;
+    x.setAttribute("aria-selected", String(actif));
+    document.getElementById(x.getAttribute("aria-controls")).hidden = !actif;
+  });
+}));
+
+/* ───────────────────────── la carte ───────────────────────── */
+const FICHES = {
+  carte: {
+    nom: "La carte-vitrine", ou: "domain/bot/carte-vitrine.ts · ADR 0037, 0059",
+    role: "L'image que la vendeuse partage partout : photos, mot-clé de SA boutique en grand, QR qui se scanne (1080 × 1920, plaque blanche, 7,3 px par module).",
+    fait: ["Se demande dans le fil (« ma carte »)", "Porte le mot-clé et le QR DANS l'image : survit au transfert", "Grille adaptée au nombre d'articles (1, 2 ou 3)"],
+    jamais: ["Porter le numéro personnel de la vendeuse en dominante — le mot-clé de la boutique passe premier (défaut 4 du banc, corrigé)"]
+  },
+  statut: {
+    nom: "Le pack statut", ou: "proposition — sprint 3",
+    role: "La vitrine n°1 du Cameroun est le statut WhatsApp. Le pack : une carte verticale par article (photo, prix, mot-clé, QR) + une légende prête à coller avec le lien marqué « statut ». Elle poste en deux gestes, chaque matin si elle veut.",
+    fait: ["Réutilise le format exact du statut (1080 × 1920 — celui de la carte)", "Proposé automatiquement après la publication d'un article", "Le lien marqué permet de compter les entrées venues du statut"],
+    jamais: ["Poster à sa place — la Cloud API ne poste pas de statut, et les outils non officiels font bannir le numéro"]
+  },
+  chaine: {
+    nom: "Sa chaîne WhatsApp", ou: "proposition — sprint 3",
+    role: "La seule surface de l'onglet Actus qui dépasse ses contacts. Elle la crée (3 minutes, dans son app) ; Catalog enregistre le lien, l'affiche sur la page boutique et la carte, et fournit les munitions à poster.",
+    fait: ["Champ « ma chaîne » dans le fil vendeuse", "Chaque post porte le lien de commande marqué « chaine »", "La page boutique recrute des abonnées : « Suivre la boutique »"],
+    jamais: ["Créer ou alimenter la chaîne par API — pas d'API officielle ; le jour où Meta en ouvre une, seul l'adaptateur d'envoi s'ajoute"]
+  },
+  groupes: {
+    nom: "Groupes et transferts", ou: "le réel — aucun code",
+    role: "Les photos circulent dans des groupes de milliers de membres et se transfèrent de proche en proche, arrachées à leur contexte.",
+    fait: ["Rien — on ne contrôle pas ce canal, on s'y prépare"],
+    jamais: ["Compter sur une légende ou un contexte : toute munition doit être auto-portante une fois transférée cinq fois"]
+  },
+  filhumain: {
+    nom: "Le fil humain", ou: "SON numéro — hors produit, et c'est voulu",
+    role: "Là où la vente se négocie vraiment : la cliente répond au statut, on discute le prix, on se connaît. « L'acheteuse et la vendeuse continuent de se parler sur WhatsApp » est un invariant produit.",
+    fait: ["Réception des réponses au statut — le geste d'achat n°1", "Négociation (« dernier prix ? »)", "La relation, la fidélité, la discrétion"],
+    jamais: ["Être remplacé par le bot", "Rester invisible du moteur : ce qui s'y conclut se formalise au comptoir vendeuse — sinon pas de preuve, pas de reçu, pas de stats"]
+  },
+  filbot: {
+    nom: "Le fil du bot", ou: "bot.ts · domain/bot/ — le numéro partagé",
+    role: "Le guichet self-service : une inconnue arrive par un lien marqué, parcourt le mini-catalogue au prix affiché, commande sans que la vendeuse soit réveillée.",
+    fait: ["Mini-catalogue photos + prix", "Panier multi-articles, livraison sans adresse (quartier + repère + téléphone)", "FR/EN, mémoire d'après-achat, mode congés"],
+    jamais: ["Négocier un prix — la négociation vit dans le fil humain, et se conclut au comptoir vendeuse", "Initier une conversation hors gabarit approuvé (fenêtre de 24 h)"]
+  },
+  comptoirv: {
+    nom: "Le comptoir vendeuse", ou: "proposition — sprint 1, LA porte manquante",
+    role: "La trouvaille structurante : aujourd'hui, une seule ligne du dépôt crée une commande (bot.ts:1468), et c'est le parcours acheteuse. La vente née au statut et conclue par négociation n'a aucun chemin vers le moteur.",
+    fait: ["« commande : Awa, 2 pommades, 3 500 » dans son fil Catalog", "Le moteur crée la commande AU PRIX CONVENU", "Il rend un message de paiement autosuffisant — référence, code, acompte, USSD — qu'elle transfère à sa cliente", "La suite est identique : rampe, preuve, reçu, avis"],
+    jamais: ["Demander à la cliente de changer de fil : elle reste dans SA conversation avec la vendeuse", "Créer une commande sans journal — même moteur, même audit"]
+  },
+  comptoira: {
+    nom: "Le comptoir acheteuse", ou: "bot.ts · conversation.ts — existant",
+    role: "La commande self-service, au prix affiché : panier, livraison, récapitulatif, confirmation avec référence et code de vérification.",
+    fait: ["Récap avant confirmation, boutons Confirmer / Corriger", "Acompte 50 % (floor) ou sans prépaiement si pas de reversement", "Bloc de paiement en texte brut — le lien est un confort, jamais le porteur"],
+    jamais: ["Inventer référence ou code avant la création — ils n'existent qu'une fois la commande née"]
+  },
+  moteur: {
+    nom: "Le moteur", ou: "apps/api/src/domain — la source unique",
+    role: "Commande, rampe, preuve, reçu, réputation, stats. Pur : sans horloge implicite, sans réseau, testé à 90 %. Quel que soit le comptoir, la commande créée est la même — mêmes contrôles, même journal, même reçu.",
+    fait: ["Les 7 contrôles de la preuve — unicité de l'identifiant opérateur sur TOUT le réseau", "L'acompte floor + solde, invariant tenu par contrainte SQL", "Le journal d'audit en ajout seul, refus compris"],
+    jamais: ["Encaisser — les fonds vont du portefeuille de l'acheteuse à celui de la vendeuse, sans tiers", "Prélever une commission", "Reculer un paiement"]
+  },
+  confiance: {
+    nom: "La salle de vérification", ou: "apps/shop — /v/ et /suivi",
+    role: "L'infrastructure de confiance côté acheteuse : le lieu neutre, sans compte, hors WhatsApp, où l'on vérifie une vendeuse AVANT de lui envoyer un acompte — et où un tiers contrôle un reçu qu'on lui montre.",
+    fait: ["Reçu vérifiable par code (le code identifie, il n'autorise rien)", "Suivi par jeton acheteuse (lui seul autorise la contre-signature)", "C'est ce qui rend l'acompte psychologiquement possible (scénario S6)"],
+    jamais: ["Exiger un compte ou WhatsApp", "Ouvrir le suivi par la référence ou le code — il suffirait d'avoir VU un reçu pour valider le paiement d'autrui"]
+  },
+  bureau: {
+    nom: "Le bureau", ou: "apps/seller — l'app vendeuse",
+    role: "La profondeur : statistiques, images soignées, description, changement de reversement sous OTP, historique. Et la redondance : si le fil tombe, on colle le SMS ici.",
+    fait: ["Stats sous 8 Ko, sans bibliothèque de graphiques", "L'écran de collage du SMS — le chemin historique, toujours ouvert", "Le reversement : OTP au NOUVEAU numéro, journal dans tous les cas"],
+    jamais: ["Devenir obligatoire : tout le quotidien doit rester possible au comptoir (le fil)"]
+  },
+  memoire: {
+    nom: "La mémoire publique", ou: "apps/shop — le catalogue web",
+    role: "Indexable par Google, partageable hors WhatsApp, léger (30 Ko de JS). Aujourd'hui mal câblé : la fiche produit pointe le numéro personnel de la vendeuse — l'acheteuse qui clique contourne tout le moteur.",
+    fait: ["Vitrine consultable sans compte", "À recâbler : « Commander » → le bot (canal « web ») ; « Parler à la vendeuse » → son numéro", "Rebuild déclenché quand une boutique naît dans le fil"],
+    jamais: ["Devenir un troisième comptoir : un checkout web s'arrêterait de toute façon à la preuve", "Parler à la base — il lit un instantané, volontairement"]
+  },
+  boucle: {
+    nom: "La boucle", ou: "proposition — la carte d'avis vérifié",
+    role: "Chaque vente prouvée fabrique la munition de la suivante : après un avis vérifié, le bot rend une carte « ★★★★★ — avis vérifié par paiement » que la vendeuse reposte à son statut. Aucune concurrente ne peut poster ça : aucune ne peut le prouver.",
+    fait: ["Transforme la valeur n°1 (la preuve) en contenu de distribution", "Se propose au bon moment : quand l'avis tombe"],
+    jamais: ["Fabriquer une carte pour un avis non vérifié — ce serait la fausse capture, version Catalog"]
+  }
+};
+
+const fiche = document.getElementById("fiche");
+document.querySelectorAll(".noeud").forEach(n => n.addEventListener("click", () => {
+  document.querySelectorAll(".noeud").forEach(x => x.setAttribute("aria-pressed", String(x === n)));
+  const f = FICHES[n.dataset.n];
+  if (!f) return;
+  fiche.innerHTML = `
+    <h3>${f.nom}</h3>
+    <p class="ou">${f.ou}</p>
+    <dl>
+      <div><dt>Rôle</dt><dd>${f.role}</dd></div>
+      <div><dt>Ce que ça fait</dt><dd><ul>${f.fait.map(x => `<li>${x}</li>`).join("")}</ul></dd></div>
+      <div class="jamais"><dt>Jamais</dt><dd><ul>${f.jamais.map(x => `<li>${x}</li>`).join("")}</ul></dd></div>
+    </dl>`;
+}));
+
+/* ───────────────────────── les parcours ─────────────────────────
+   Chaque étape : { pane, de: "moi"|"eux"|"sys", nom?, texte, boutons?,
+   transfere?, prop?: bool, moteur?: {texte, prop} }
+   « moi » = la personne dont on regarde le téléphone (bulle verte, à droite). */
+
+const PARCOURS = {
+  statut: {
+    titre: "① La vente au statut — le comptoir vendeuse",
+    sous: "Le geste d'achat n°1 du Cameroun : répondre à un statut. La négociation vit dans le fil humain ; la formalisation, l'argent et la preuve passent par le moteur. Deux téléphones : les deux fils de Mama Ngo.",
+    panes: [
+      { id: "humain", type: "tel", avatar: "A", persoAvatar: true, nom: "Awa 🌸", note: "le fil humain — le numéro personnel de Mama Ngo" },
+      { id: "bot", type: "tel", avatar: "C", nom: "Catalog", note: "le fil Catalog de Mama Ngo — numéro partagé" }
+    ],
+    etapes: [
+      { pane: "humain", de: "sys", texte: "Mardi, 6 h 12 — Mama Ngo poste cinq photos à son statut, dont la pommade au karité." },
+      { pane: "humain", de: "eux", texte: "Bonjour ma sœur, c'est combien la pommade karité du statut ?",
+        moteur: { texte: "Rien — et c'est normal : la réponse au statut arrive sur SON numéro, hors produit.", prop: false } },
+      { pane: "humain", de: "moi", texte: "2 000 FCFA ma chérie, elle part vite oh 😊" },
+      { pane: "humain", de: "eux", texte: "J'en prends 2. Dernier prix ?" },
+      { pane: "humain", de: "moi", texte: "Pour toi, 3 500 FCFA les deux 🙏",
+        moteur: { texte: "Toujours rien. La négociation appartient au fil humain — le modèle ne cherche pas à la capter, il attend la formalisation.", prop: false } },
+      { pane: "bot", de: "moi", texte: "commande : Awa, 2 pommades karité, 3500", prop: true,
+        moteur: { texte: "PROPOSITION — le comptoir vendeuse : la commande naît au prix CONVENU (3 500 FCFA), pas au prix affiché (4 000 FCFA).", prop: true } },
+      { pane: "bot", de: "eux", nom: "Catalog", prop: true,
+        texte: "*Commande CT-483217 — Chez Ngo Beauté*\nPommade karité × 2 : 1 750 FCFA l'unité\nTotal : *3 500 FCFA*\nAcompte pour confirmer : *1 750 FCFA*\nCode de vérification : MK47-PQ63\n\nTransférez le message suivant à votre cliente 👇",
+        moteur: { texte: "order.create — CT-483217, acompte 1 750 FCFA (floor), solde 1 750 FCFA. Contrainte SQL : acompte + solde = total, exactement.", prop: true } },
+      { pane: "bot", de: "eux", nom: "Catalog", prop: true,
+        texte: "*Chez Ngo Beauté — commande CT-483217*\nPommade karité × 2 : 1 750 FCFA l'unité\nTotal : *3 500 FCFA*\nAcompte pour confirmer : *1 750 FCFA*\nCode de vérification : MK47-PQ63\n💳 *À payer maintenant : 1 750 FCFA*\nOrange Money : 699 88 77 66\nComposez #150*50#, puis suivez le menu de transfert d'argent.\nVotre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.\nSuivi et reçu vérifiable : catalog.example/suivi/…" },
+      { pane: "humain", de: "moi", transfere: true,
+        texte: "*Chez Ngo Beauté — commande CT-483217*\nPommade karité × 2 : 1 750 FCFA l'unité\nTotal : *3 500 FCFA*\nAcompte pour confirmer : *1 750 FCFA*\nCode de vérification : MK47-PQ63\n💳 *À payer maintenant : 1 750 FCFA*\nOrange Money : 699 88 77 66\nComposez #150*50#, puis suivez le menu de transfert d'argent.\nVotre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.\nSuivi et reçu vérifiable : catalog.example/suivi/…",
+        moteur: { texte: "Le message est AUTOSUFFISANT : même sur un forfait « WhatsApp seul » où les liens échouent, tout y est — montant, numéro, code d'entrée USSD, référence.", prop: false } },
+      { pane: "humain", de: "sys", texte: "Awa compose #150*50# et envoie 1 750 FCFA. L'opérateur envoie un SMS à chacune — celui de Mama Ngo fait foi : c'est elle qui a l'argent." },
+      { pane: "bot", de: "sys", texte: "Mama Ngo colle le SMS Orange reçu — le vrai texte de l'opérateur, tel quel. (Jamais reproduit dans cette maquette : son format est une spécification.)",
+        moteur: { texte: "Les 7 contrôles : format reconnu, montant, contrepartie, horodatage, unicité RÉSEAU-LARGE de l'identifiant opérateur, auto-cohérence Orange. → prouvé.", prop: false } },
+      { pane: "bot", de: "eux", nom: "Catalog", texte: "✅ Preuve acceptée — le reçu vérifiable de CT-483217 est émis.",
+        moteur: { texte: "payment_proof en AJOUT SEUL ; l'identifiant opérateur ne pourra plus jamais être réclamé, chez aucune vendeuse.", prop: false } },
+      { pane: "humain", de: "sys",
+        texte: "Awa n'a jamais écrit au bot : sa contre-signature passe par le lien de suivi (page web, jeton acheteuse) — le chemin du lot 10. Si elle écrit au bot un jour, le fil prend le relais.",
+        moteur: { texte: "Contre-signature par buyerToken — la preuve à deux voix. Le code identifie, le jeton autorise : jamais l'inverse.", prop: false } },
+      { pane: "bot", de: "eux", nom: "Catalog", prop: true,
+        texte: "🌟 Awa a laissé un avis vérifié (5★) sur Chez Ngo Beauté.\nVoici votre carte à poster au statut 👇\n📎 carte-avis-CT-483217.jpg",
+        moteur: { texte: "PROPOSITION — la boucle : l'avis vérifié redevient de la distribution. Personne d'autre ne peut poster ça : personne d'autre ne peut le prouver.", prop: true } }
+    ]
+  },
+
+  self: {
+    titre: "② Le self-service — le comptoir acheteuse",
+    sous: "Le parcours qui existe et tourne : une inconnue arrive par la carte transférée dans un groupe, commande au prix affiché sans réveiller la vendeuse. Tous les textes sont copiés des sources.",
+    panes: [
+      { id: "awa", type: "tel", avatar: "C", nom: "Catalog", note: "le fil Catalog d'Awa — elle vient d'un groupe WhatsApp" }
+    ],
+    etapes: [
+      { pane: "awa", de: "sys", texte: "La carte-vitrine de Chez Ngo Beauté a été transférée dans « Marché en ligne Douala » (5 000 membres). Le mot-clé et le QR sont DANS l'image : ils survivent au transfert." },
+      { pane: "awa", de: "moi", texte: "boutique chez-ngo",
+        moteur: { texte: "Entrée par mot-clé. Avec le vocabulaire des canaux (rang 0), « … carte » dirait d'où elle vient.", prop: false } },
+      { pane: "awa", de: "sys", texte: "Fiche boutique, puis mini-catalogue : photos, prix affichés. Awa met 2 pommades au panier — 4 000 FCFA, le prix public, sans négociation : c'est le régime de ce comptoir." },
+      { pane: "awa", de: "eux", nom: "Catalog", texte: "Livraison ou retrait ?\nChoisissez avec les boutons ci-dessous.", boutons: ["Livraison", "Point de retrait"] },
+      { pane: "awa", de: "moi", texte: "Livraison" },
+      { pane: "awa", de: "eux", nom: "Catalog", texte: "Votre quartier, un repère, puis le numéro à appeler — en un seul message.\nExemple : Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33",
+        moteur: { texte: "Pas d'adresse au Cameroun : quartier + repère + téléphone. Le repère et le téléphone sont obligatoires, l'adresse n'existe pas.", prop: false } },
+      { pane: "awa", de: "moi", texte: "Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33" },
+      { pane: "awa", de: "eux", nom: "Catalog",
+        texte: "*Récapitulatif — Chez Ngo Beauté*\nPommade karité × 2 : 2 000 FCFA l'unité\nTotal : *4 000 FCFA*\nAcompte pour confirmer : *2 000 FCFA*\nLivraison à Douala : Bonapriso, en face de la pharmacie du Rond-Point\nNuméro à appeler : 690 11 22 33",
+        boutons: ["Confirmer", "Corriger"] },
+      { pane: "awa", de: "moi", texte: "Confirmer",
+        moteur: { texte: "order.create — CT-521904, acompte 2 000 FCFA. Même moteur, même journal que le comptoir vendeuse : seule la porte diffère.", prop: false } },
+      { pane: "awa", de: "eux", nom: "Catalog",
+        texte: "*Commande CT-521904 — Chez Ngo Beauté*\nCode de vérification : TW34-HD79\n💳 *À payer maintenant : 2 000 FCFA*\nOrange Money : 699 88 77 66\nComposez #150*50#, puis suivez le menu de transfert d'argent.\nVotre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.\nEn un tap, le clavier pré-rempli : catalog.example/payer…\nDès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici." },
+      { pane: "awa", de: "sys", texte: "Awa paie. L'opérateur envoie son SMS à Mama Ngo, qui le colle dans SON fil Catalog — seul le SMS de celle qui reçoit l'argent fait foi." },
+      { pane: "awa", de: "eux", nom: "Catalog",
+        texte: "✅ *Votre paiement sur CT-521904 est prouvé* — le reçu vérifiable est émis.\nReste à payer à la remise : 2 000 FCFA.\nVotre lien de suivi est dans le message de confirmation, plus haut dans ce fil.",
+        boutons: ["Je confirme ✓", "Ce n'est pas moi"],
+        moteur: { texte: "Notification à la valeur n°1 : gabarit approuvé si la fenêtre est fermée, file d'attente à tout échec — jamais perdue.", prop: false } },
+      { pane: "awa", de: "moi", texte: "Je confirme ✓",
+        moteur: { texte: "Contre-signature — la preuve à deux voix. « Ce n'est pas moi » existe aussi : c'est le bouton honnête, et le sujet du gabarit paiement_conteste (#45).", prop: false } },
+      { pane: "awa", de: "sys", texte: "Jeudi : remise. Mama Ngo écrit « livrée CT-521904 » dans son fil." },
+      { pane: "awa", de: "eux", nom: "Catalog", texte: "📦 *CT-521904 est marquée livrée* par Chez Ngo Beauté.\nUn mot sur la boutique ?", boutons: ["Donner mon avis"],
+        moteur: { texte: "L'invitation part au SEUL bon moment. L'avis sera vérifié : adossé à un paiement prouvé.", prop: false } }
+    ]
+  },
+
+  doute: {
+    titre: "③ Le doute de l'acompte — la salle de vérification",
+    sous: "La peur symétrique de la fausse capture : payer d'avance une inconnue. Catalog ne séquestre jamais les fonds — la réputation montrée au bon moment est le seul outil, et il suffit.",
+    panes: [
+      { id: "awa", type: "tel", avatar: "C", nom: "Catalog", note: "le fil Catalog d'Awa — au moment de payer l'acompte" },
+      { id: "web", type: "web", url: "catalog.example/v/?c=MK47-PQ63", note: "la page publique de vérification" }
+    ],
+    etapes: [
+      { pane: "awa", de: "sys", texte: "Awa ne connaît pas cette boutique. Envoyer 2 000 FCFA d'avance à une inconnue ? C'est exactement l'arnaque inverse dont tout le monde parle." },
+      { pane: "awa", de: "moi", texte: "comment je sais que c'est sérieux ?" },
+      { pane: "awa", de: "eux", nom: "Catalog", prop: true,
+        texte: "Cette boutique a *47 paiements prouvés* et *12 avis vérifiés* (4,8★).\nChaque reçu se contrôle publiquement, sans compte, ici : catalog.example/chez-ngo\nOn vous montre un reçu ? Vérifiez-le vous-même avec son code : catalog.example/v/",
+        moteur: { texte: "PROPOSITION — les compteurs existent (réputation, lot 12) ; les montrer AU MOMENT du doute est le geste nouveau (rang 2).", prop: true } },
+      { pane: "web", de: "web", texte: "",
+        moteur: { texte: "La salle de vérification : publique, sans compte, hors WhatsApp. C'est elle qui rend l'acompte psychologiquement possible.", prop: false } },
+      { pane: "awa", de: "sys", texte: "Un tiers peut faire pareil : le mari méfiant, une autre vendeuse, un livreur. Le code IDENTIFIE le reçu — il n'autorise rien. Seul le jeton d'Awa autorise sa contre-signature." },
+      { pane: "awa", de: "moi", texte: "ok je paie 👍",
+        moteur: { texte: "Pas de séquestre, pas de garantie vendue : de la preuve accumulée, vérifiable par n'importe qui. L'interdit fondateur (les fonds ne transitent jamais par Catalog) reste entier.", prop: false } }
+    ]
+  },
+
+  puce: {
+    titre: "④ La puce volée — la double SIM comme défense",
+    sous: "Le téléphone EST le fonds de commerce, et il se vole. Le numéro de reversement est LE champ qu'un attaquant vise. Aujourd'hui le journal d'audit voit tout — mais n'alerte personne.",
+    panes: [
+      { id: "vieux", type: "tel", avatar: "C", nom: "Catalog", note: "l'ancienne puce Orange de Mama Ngo — restée à la maison" }
+    ],
+    etapes: [
+      { pane: "vieux", de: "sys", texte: "Marché central, 11 h : le téléphone de Mama Ngo est volé. Le voleur tient sa puce de connexion MTN." },
+      { pane: "vieux", de: "sys", texte: "Il se connecte à l'app (l'OTP de connexion arrive sur la puce volée) et demande le changement du numéro de reversement — vers SA puce à lui.",
+        moteur: { texte: "L'OTP de reversement part au NOUVEAU numéro — c'est la bonne règle (elle prouve qu'on tient la puce où l'argent va), mais ici elle sert le voleur.", prop: false } },
+      { pane: "vieux", de: "sys", texte: "Le journal d'audit enregistre tout : ancien numéro, nouveau, heure, adresse. Mais il est muet — personne n'est prévenu.",
+        moteur: { texte: "seller_audit_event — en ajout seul, refus compris. La trace existe déjà ; l'alarme manque.", prop: false } },
+      { pane: "vieux", de: "eux", nom: "Catalog", prop: true,
+        texte: "⚠️ Votre numéro de reversement vient de changer sur Chez Ngo Beauté.\nSi c'est vous, tout est en ordre — ne répondez rien.\nSi ce n'est PAS vous, répondez STOP : le reversement sera gelé et nous vous rappelons.",
+        moteur: { texte: "PROPOSITION (rang 2) — notifier l'ANCIEN numéro. La double SIM est la norme : la vraie propriétaire tient encore l'autre puce.", prop: true } },
+      { pane: "vieux", de: "moi", texte: "STOP", prop: true },
+      { pane: "vieux", de: "sys", texte: "Le prochain acompte ne part pas chez le voleur. Coût du geste : une notification. Coût de son absence : la caisse.",
+        moteur: { texte: "PROPOSITION — gel du reversement + rappel support. La décision de gel est du domaine pur, journalisée comme le reste.", prop: true } }
+    ]
+  }
+};
+
+const pTitre = document.getElementById("p-titre");
+const pSous = document.getElementById("p-sous");
+const pPanes = document.getElementById("p-panes");
+const pRail = document.getElementById("p-rail");
+const pRailVide = document.getElementById("p-rail-vide");
+const pSuivant = document.getElementById("p-suivant");
+const pTout = document.getElementById("p-tout");
+const pReset = document.getElementById("p-reset");
+const pAvance = document.getElementById("p-avancement");
+
+let scenario = "statut";
+let index = 0;
+
+function monterScene() {
+  const s = PARCOURS[scenario];
+  pTitre.textContent = s.titre;
+  pSous.textContent = s.sous;
+  pPanes.className = "telephones" + (s.panes.length > 1 ? " deux" : "");
+  pPanes.innerHTML = s.panes.map(p => {
+    if (p.type === "web") {
+      return `<div class="webcarte" data-pane="${p.id}">
+        <div class="webcarte-barre">${p.url}</div>
+        <div class="webcarte-corps" data-corps>
+          <h4>Reçu vérifiable — Chez Ngo Beauté</h4>
+          <p class="v-ref">CT-483217 · code MK47-PQ63</p>
+          <div class="v-lignes">
+            <span class="ok">1 750 FCFA reçus le 12/08/2026 (Orange Money)</span>
+            <span class="ok">Identifiant opérateur enregistré — unique sur tout le réseau</span>
+            <span class="ok">Contre-signé par l'acheteuse</span>
+          </div>
+        </div>
+      </div>`;
+    }
+    return `<div class="tel" data-pane="${p.id}">
+      <div class="tel-tete">
+        <div class="tel-avatar${p.persoAvatar ? " perso" : ""}">${p.avatar}</div>
+        <div class="tel-qui"><div class="tel-nom">${p.nom}</div><div class="tel-note">${p.note}</div></div>
+      </div>
+      <div class="tel-fil" data-fil></div>
+    </div>`;
+  }).join("");
+  pRail.innerHTML = "";
+  pRailVide.style.display = "";
+  index = 0;
+  majCommandes();
+}
+
+function jouerEtape() {
+  const s = PARCOURS[scenario];
+  if (index >= s.etapes.length) return;
+  const e = s.etapes[index++];
+  const pane = pPanes.querySelector(`[data-pane="${e.pane}"]`);
+
+  if (e.de === "web") {
+    pane.querySelector("[data-corps]").classList.add("visible");
+  } else {
+    const fil = pane.querySelector("[data-fil]");
+    const d = document.createElement("div");
+    d.className = "msg " + (e.de === "sys" ? "sys" : e.de === "moi" ? "sortant" : "entrant");
+    let html = "";
+    if (e.transfere) html += `<div class="transfere">Transféré</div>`;
+    else if (e.de === "eux" && e.nom) html += `<div class="de">${e.nom}</div>`;
+    html += e.texte
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>")
+      .replace(/(CT-\d{6}|[A-Z0-9]{4}-[A-Z0-9]{4}|#150\*50#|\*126#)/g, '<span class="mono">$1</span>');
+    if (e.boutons) html += `<div class="boutons">${e.boutons.map(b => `<div class="bouton-wa">${b}</div>`).join("")}</div>`;
+    if (e.prop) html += `<div><span class="marque-prop">À construire</span></div>`;
+    d.innerHTML = html;
+    fil.appendChild(d);
+    fil.scrollTop = fil.scrollHeight;
+  }
+
+  if (e.moteur) {
+    const li = document.createElement("li");
+    if (e.moteur.prop) li.className = "prop";
+    li.innerHTML = e.moteur.texte
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/^(PROPOSITION[^—]*—\s*)/, "<strong>$1</strong>")
+      .replace(/(order\.create|payment_proof|seller_audit_event)/g, '<span class="mono">$1</span>');
+    pRail.appendChild(li);
+    pRailVide.style.display = "none";
+  }
+  majCommandes();
+}
+
+function majCommandes() {
+  const total = PARCOURS[scenario].etapes.length;
+  pSuivant.disabled = index >= total;
+  pTout.disabled = index >= total;
+  pAvance.textContent = `${index} / ${total}`;
+}
+
+pSuivant.addEventListener("click", jouerEtape);
+pTout.addEventListener("click", () => { const t = PARCOURS[scenario].etapes.length; while (index < t) jouerEtape(); });
+pReset.addEventListener("click", monterScene);
+document.querySelectorAll(".puce").forEach(p => p.addEventListener("click", () => {
+  document.querySelectorAll(".puce").forEach(x => x.setAttribute("aria-pressed", String(x === p)));
+  scenario = p.dataset.p;
+  monterScene();
+}));
+
+monterScene();
+/* la fiche du moteur s'affiche d'entrée : c'est le centre de la carte */
+document.querySelector('[data-n="moteur"]').click();
+</script>
