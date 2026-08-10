@@ -1,0 +1,555 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Banc d'essai — parcours vendeuse</title>
+<style>
+  /* Jetons Catalog (packages/ui/src/tokens.css), reduits a ce que la page
+     consomme. Pile systeme : la regle du produit vaut pour son banc. */
+  :root {
+    --brand: #0e7a5f;
+    --brand-soft: #e6f4f0;
+    --ink: #1a2420;
+    --muted: #5b6a64;
+    --paper: #f6faf8;
+    --surface: #ffffff;
+    --line: #dbe6e1;
+    --warn: #8f5c13;
+    --warn-soft: #fdf4e4;
+    --ko: #8c2f39;
+    --ko-soft: #faecec;
+    --bulle-envoi: #0e7a5f;
+    --bulle-envoi-encre: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --brand: #17a37f;
+      --brand-soft: #10241f;
+      --ink: #e6efeb;
+      --muted: #93a49d;
+      --paper: #0c1310;
+      --surface: #131c18;
+      --line: #24312b;
+      --warn: #eda100;
+      --warn-soft: #2a2110;
+      --ko: #e08a93;
+      --ko-soft: #2a1518;
+      --bulle-envoi: #0f5c48;
+      --bulle-envoi-encre: #e6efeb;
+    }
+  }
+  :root[data-theme="dark"] {
+    --brand: #17a37f;
+    --brand-soft: #10241f;
+    --ink: #e6efeb;
+    --muted: #93a49d;
+    --paper: #0c1310;
+    --surface: #131c18;
+    --line: #24312b;
+    --warn: #eda100;
+    --warn-soft: #2a2110;
+    --ko: #e08a93;
+    --ko-soft: #2a1518;
+    --bulle-envoi: #0f5c48;
+    --bulle-envoi-encre: #e6efeb;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 42rem; margin: 0 auto; padding: 1rem 1rem 4rem; }
+
+  header.page { padding: 1.5rem 0 0.5rem; }
+  .jalon {
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--brand); margin: 0 0 0.5rem;
+  }
+  h1 { font-size: 1.7rem; line-height: 1.15; margin: 0 0 0.6rem; text-wrap: balance; }
+  .chapeau { color: var(--muted); margin: 0; }
+
+  /* La barre d'avancement : posee, elle suit le pouce. */
+  #avancement {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--paper);
+    padding: 0.6rem 0; margin: 0.8rem 0 0;
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  #avancement .piste {
+    flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden;
+  }
+  #avancement .fait { height: 100%; width: 0; background: var(--brand); }
+  #avancement output { font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+
+  section.scene {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1rem 1rem 1.1rem;
+    margin: 1.1rem 0;
+  }
+  .scene h2 { font-size: 1.05rem; margin: 0 0 0.15rem; }
+  .scene h2 .no { color: var(--brand); font-variant-numeric: tabular-nums; }
+  .but { color: var(--muted); font-size: 0.9rem; margin: 0 0 0.8rem; }
+
+  /* Le fil : ce banc teste une conversation, il se lit comme une
+     conversation. Sortant a droite en vert, entrant a gauche sur carte. */
+  .fil { display: flex; flex-direction: column; gap: 0.45rem; margin: 0.6rem 0 0.9rem; }
+  .bulle {
+    max-width: 88%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.92rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .envoi {
+    align-self: flex-end;
+    background: var(--bulle-envoi); color: var(--bulle-envoi-encre);
+    border-bottom-right-radius: 4px;
+    font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+    font-size: 0.88rem;
+  }
+  .recu {
+    align-self: flex-start;
+    background: var(--paper); border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+  }
+  .recu .btn-attendu {
+    display: inline-block; margin: 0.35rem 0.3rem 0 0;
+    padding: 0.1rem 0.55rem;
+    border: 1px solid var(--brand); border-radius: 999px;
+    color: var(--brand); font-size: 0.82rem; font-weight: 600;
+  }
+  .geste { align-self: center; color: var(--muted); font-size: 0.82rem; font-style: italic; }
+
+  /* Les criteres : de vraies cases, retenues dans le navigateur. */
+  ul.criteres { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+  .criteres label {
+    display: flex; gap: 0.6rem; align-items: flex-start;
+    padding: 0.35rem 0.4rem; border-radius: 8px; font-size: 0.92rem;
+  }
+  .criteres label:hover { background: var(--brand-soft); }
+  .criteres input {
+    width: 1.15rem; height: 1.15rem; margin: 0.15rem 0 0;
+    accent-color: var(--brand); flex: none;
+  }
+  .criteres input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .premium { color: var(--muted); }
+  .premium b { color: var(--ink); font-weight: 600; }
+
+  textarea.notes {
+    width: 100%; min-height: 2.6rem; margin-top: 0.7rem;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--line); border-radius: 8px;
+    background: var(--paper); color: var(--ink);
+    font: inherit; font-size: 0.9rem; resize: vertical;
+  }
+  textarea.notes:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+  .prealable { background: var(--warn-soft); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+  .prealable code, pre.cmd {
+    font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+    font-size: 0.84rem;
+  }
+  pre.cmd {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 0.6rem 0.75rem; overflow-x: auto; margin: 0.5rem 0;
+  }
+
+  /* La carte des attentes : un tableau, deroulable a l'horizontale. */
+  .deroule { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 34rem; font-size: 0.88rem; }
+  th, td { text-align: left; vertical-align: top; padding: 0.5rem 0.6rem; border-top: 1px solid var(--line); }
+  th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border-top: none; }
+  .etat { display: inline-block; padding: 0.05rem 0.5rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; white-space: nowrap; }
+  .etat.ok { background: var(--brand-soft); color: var(--brand); }
+  .etat.partiel { background: var(--warn-soft); color: var(--warn); }
+  .etat.non { background: var(--ko-soft); color: var(--ko); }
+
+  button.rapport {
+    margin-top: 1rem; padding: 0.65rem 1.1rem;
+    background: var(--brand); color: var(--bulle-envoi-encre);
+    border: none; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer;
+  }
+  button.rapport:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  footer { color: var(--muted); font-size: 0.82rem; margin-top: 2rem; }
+</style>
+
+<main>
+  <header class="page">
+    <p class="jalon">Catalog · instrument de terrain</p>
+    <h1>Banc d'essai du parcours vendeuse</h1>
+    <p class="chapeau">
+      À dérouler sur deux téléphones, dans l'ordre. Chaque scène dit ce que vous envoyez,
+      ce que le bot doit répondre, et ce que « premium » exige à ce moment-là.
+      Les cases restent cochées sur cet appareil ; le bouton final assemble votre rapport.
+    </p>
+  </header>
+
+  <div id="avancement" aria-label="Avancement du banc">
+    <div class="piste" aria-hidden="true"><div class="fait"></div></div>
+    <output>0 / 0</output>
+  </div>
+
+  <section class="scene prealable">
+    <h2>Avant de commencer</h2>
+    <p class="but">Quatre préalables. Sans eux, les échecs du banc ne prouvent rien.</p>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="p1" />
+        La remise à zéro a tourné. Depuis un terminal :
+      </label></li>
+    </ul>
+    <pre class="cmd">flyctl ssh console --app catalog-api-preprod \
+  -C "node /app/apps/api/scripts/banc-essai-reinitialiser.mjs --oui-j-efface-tout"</pre>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="p2" />
+        L'application Meta est <b>En ligne</b> (pas « Développement ») — sinon aucune
+        livraison entrante n'est transmise.</label></li>
+      <li><label><input type="checkbox" data-cle="p3" />
+        Les gabarits du compte <code>Horizon Services Sarl</code> sont <b>approuvés</b>
+        (WhatsApp Manager → Modèles de message). L'API du compte se bloque par
+        intermittence : la console fait foi.</label></li>
+      <li><label><input type="checkbox" data-cle="p4" />
+        Deux téléphones prêts : <b>V</b> (la vendeuse) et <b>A</b> (l'acheteuse), tous
+        deux hors de toute boutique existante après la remise à zéro.</label></li>
+    </ul>
+    <p class="but" style="margin:0.8rem 0 0">
+      Le numéro du bot : <b>+32 451 05 51 44</b>. Un message de V ou A y ouvre le fil.
+    </p>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S1</span> — Le premier contact</h2>
+    <p class="but">Un numéro inconnu écrit n'importe quoi : l'entonnoir ne fuit pas.</p>
+    <div class="fil">
+      <div class="bulle envoi">Bonjour</div>
+      <div class="bulle recu">Aide acheteuse : à quoi sert ce numéro, comment ouvrir une
+        boutique.<span class="btn-attendu">Vendre</span></div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s1a" />La réponse arrive vite, avec
+        l'accusé de lecture puis l'indicateur de frappe.</label></li>
+      <li><label><input type="checkbox" data-cle="s1b" /><span class="premium"><b>Premium :</b>
+        aucun jargon, aucun lien mort, une seule sortie claire vers « Vendre ».</span></label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns1" placeholder="Ce qui cloche, mot pour mot…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S2</span> — Ouvrir sa boutique</h2>
+    <p class="but">De « vendre » à la boutique ouverte : deux questions, pas une de plus.</p>
+    <div class="fil">
+      <div class="bulle envoi">vendre</div>
+      <div class="bulle recu">Bienvenue ! Ouvrons votre boutique — ça prend deux minutes,
+        ici même.
+*Comment s'appelle votre boutique ?*
+Exemple : Chez Amina</div>
+      <div class="bulle envoi">Chez Bea Test</div>
+      <div class="bulle recu">*Dans quelle ville vendez-vous ?*
+Exemple : Douala</div>
+      <div class="bulle envoi">Bafoussam</div>
+      <div class="bulle recu">✅ *Chez Bea Test* est ouverte. — puis le lien de boutique à
+        partager, le rappel du numéro de reversement, le lien de parrainage.
+        <span class="btn-attendu">Premier article</span><span class="btn-attendu">Plus tard</span></div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s2a" />Toute ville du Cameroun passe —
+        pas seulement Douala et Yaoundé.</label></li>
+      <li><label><input type="checkbox" data-cle="s2b" />« annuler » sort proprement à
+        chaque étape ; « aide » et « menu » répondent au lieu d'être avalés.</label></li>
+      <li><label><input type="checkbox" data-cle="s2c" />Le lien de boutique reçu s'ouvre
+        et porte le bon nom.</label></li>
+      <li><label><input type="checkbox" data-cle="s2d" /><span class="premium"><b>Premium :</b>
+        clé en main — à aucun moment on ne se demande « et maintenant ? ».</span></label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns2" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S3</span> — Le premier article, par la photo</h2>
+    <p class="but">Le geste naturel du canal : une photo légendée « nom prix ».</p>
+    <div class="fil">
+      <div class="geste">V envoie une photo, légende : « Robe wax 15000 »</div>
+      <div class="bulle recu">✅ *Robe wax* — 15 000 FCFA est en ligne.
+        <span class="btn-attendu">Autre article</span><span class="btn-attendu">Ma boutique</span></div>
+      <div class="bulle recu">La carte-vitrine arrive seule au premier article : une image
+        à poster en statut, avec le lien de la boutique.</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s3a" />La légende « nom prix » saute les
+        questions ; sans légende, le bot les pose une à une.</label></li>
+      <li><label><input type="checkbox" data-cle="s3b" />La photo apparaît sur la boutique
+        publique (ouvrir le lien de S2).</label></li>
+      <li><label><input type="checkbox" data-cle="s3c" /><span class="premium"><b>Premium :</b>
+        la carte-vitrine est belle, lisible, aux couleurs du produit — on a envie de la
+        partager telle quelle.</span></label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns3" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S4</span> — « ma boutique », le poste de pilotage</h2>
+    <p class="but">Tout l'état en un message : articles, encaissements, liens, gestes.</p>
+    <div class="fil">
+      <div class="bulle envoi">ma boutique</div>
+      <div class="bulle recu">*Chez Bea Test* — le nombre d'articles en ligne, ce qu'il y a
+        à encaisser, le lien de boutique, le lien de l'espace vendeuse — et les gestes
+        annoncés en clair : coller un SMS, « livrée CT-… », « congés ».</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s4a" />« solde » répond le total exact à
+        encaisser (zéro pour l'instant).</label></li>
+      <li><label><input type="checkbox" data-cle="s4b" />« ma carte » régénère la
+        carte-vitrine à la demande.</label></li>
+      <li><label><input type="checkbox" data-cle="s4c" /><span class="premium"><b>Premium :</b>
+        aucun mot-clé secret — tout geste utile est annoncé quelque part.</span></label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns4" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S5</span> — L'espace vendeuse et le reversement</h2>
+    <p class="but">Le seul détour hors de WhatsApp, et il doit en valoir la peine.</p>
+    <div class="fil">
+      <div class="geste">V ouvre le lien de l'espace vendeuse reçu en S2/S4</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s5a" />Connexion par le numéro, sans mot
+        de passe, champ code qui accepte le collage.</label></li>
+      <li><label><input type="checkbox" data-cle="s5b" />Le numéro de reversement se pose
+        avec son propre code de vérification — c'est le numéro qui reçoit l'argent.</label></li>
+      <li><label><input type="checkbox" data-cle="s5c" />Stock et description d'un article
+        se corrigent et se voient sur la boutique publique.</label></li>
+      <li><label><input type="checkbox" data-cle="s5d" /><span class="premium"><b>Premium :</b>
+        l'écran Statistiques est net, rapide, honnête sur ce qu'il ne mesure pas.</span></label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns5" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S6</span> — Une vraie vente, vue du comptoir</h2>
+    <p class="but">A achète ; V doit tout recevoir sans rien demander.</p>
+    <div class="fil">
+      <div class="geste">Depuis A : ouvrir le lien de boutique de S2, choisir la robe,
+        quantité 1, livraison, ville, « quartier, repère, téléphone », Confirmer</div>
+      <div class="bulle recu">Chez V : la commande arrive — référence CT-…, articles,
+        total, destination lisible. Hors fenêtre de 24 h, c'est le gabarit
+        « nouvelle commande » qui ouvre la porte.</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s6a" />La notification nomme la
+        référence, le montant, et OÙ livrer (quartier + repère).</label></li>
+      <li><label><input type="checkbox" data-cle="s6b" />« solde » chez V affiche
+        maintenant le montant attendu.</label></li>
+      <li><label><input type="checkbox" data-cle="s6c" /><span class="premium"><b>Premium :</b>
+        V n'a jamais besoin de demander « c'est quoi la commande ? » à sa cliente.</span></label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns6" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S7</span> — La preuve, cœur du produit</h2>
+    <p class="but">Le SMS opérateur collé devient un reçu vérifiable.</p>
+    <div class="fil">
+      <div class="geste">A paie l'acompte sur le numéro Mobile Money de V (ou simule) ;
+        V reçoit le SMS de son opérateur et le COLLE dans le fil</div>
+      <div class="bulle recu">SMS MTN reconnu. Pour vérifier les sept contrôles et émettre
+        le reçu de CT-…, collez-le ici : (lien vers l'écran de preuve)</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s7a" />Le collage n'est bloqué nulle
+        part ; l'écran de preuve déroule les sept contrôles un à un.</label></li>
+      <li><label><input type="checkbox" data-cle="s7b" />Le reçu émis s'ouvre par son code
+        de vérification ; A est prévenue dans son fil (« paiement prouvé »).</label></li>
+      <li><label><input type="checkbox" data-cle="s7c" />Un SMS retouché (montant modifié)
+        est refusé avec une explication nette.</label></li>
+      <li><label><input type="checkbox" data-cle="s7d" /><span class="premium"><b>Premium :</b>
+        la vendeuse comprend POURQUOI ce reçu la protège de la fausse capture.</span></label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns7" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S8</span> — Remise, avis, réputation</h2>
+    <p class="but">La fin du cycle nourrit la boutique.</p>
+    <div class="fil">
+      <div class="bulle envoi">livrée CT-XXXXXX</div>
+      <div class="bulle recu">La remise est notée ; A est invitée à contre-signer puis à
+        noter (étoiles, puis un mot). L'avis vérifié apparaît sur la boutique.</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s8a" />La contre-signature vient du fil
+        de A — jamais d'un code tapé par quelqu'un d'autre.</label></li>
+      <li><label><input type="checkbox" data-cle="s8b" />La note et le nombre d'avis
+        vérifiés remontent sur l'accueil de la boutique.</label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns8" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S9</span> — Congés : fermer sans disparaître</h2>
+    <p class="but">Déployé aujourd'hui : l'état se rappelle au bon moment.</p>
+    <div class="fil">
+      <div class="bulle envoi">congés</div>
+      <div class="bulle recu">🌴 C'est noté. Votre boutique reste en ligne — lien,
+        articles, avis — mais n'accepte plus de nouvelle commande.</div>
+      <div class="geste">V publie un article PENDANT les congés</div>
+      <div class="bulle recu">✅ … est en ligne. + 🌴 Rappel : votre boutique est en
+        congés — elle ne prend aucune commande.
+        <span class="btn-attendu">Je reprends</span></div>
+      <div class="bulle envoi">je reprends</div>
+      <div class="bulle recu">☀️ C'est reparti — votre boutique accepte de nouveau les
+        commandes.</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s9a" />Pendant les congés, A peut
+        regarder le catalogue mais pas confirmer une commande.</label></li>
+      <li><label><input type="checkbox" data-cle="s9b" />« ma carte » pendant les congés
+        ajoute le rappel après la carte.</label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns9" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2><span class="no">S10</span> — Plusieurs vendeuses, un seul numéro</h2>
+    <p class="but">Le second téléphone ouvre SA boutique ; rien ne se mélange.</p>
+    <div class="fil">
+      <div class="bulle envoi">vendre avec chez-bea-test</div>
+      <div class="bulle recu">L'inscription démarre, parrainée par la première boutique.
+        Deux boutiques, deux liens, deux catalogues — le même numéro Catalog.</div>
+    </div>
+    <ul class="criteres">
+      <li><label><input type="checkbox" data-cle="s10a" />Un numéro = une boutique : V ne
+        peut pas en ouvrir une seconde, le bot la renvoie à la sienne.</label></li>
+      <li><label><input type="checkbox" data-cle="s10b" />Une vendeuse peut ACHETER chez
+        l'autre : le lien de boutique prime sur son statut.</label></li>
+    </ul>
+    <textarea class="notes" data-cle="ns10" placeholder="Notes…"></textarea>
+  </section>
+
+  <section class="scene">
+    <h2>La carte des attentes</h2>
+    <p class="but">Vos attentes du 10/08, face à l'état réel — et ce qui reste une
+      décision à prendre, pas un oubli.</p>
+    <div class="deroule">
+      <table>
+        <thead><tr><th>Attente</th><th>État</th><th>Ce qui existe / ce qui manque</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Plusieurs vendeuses, boutiques clé en main</td>
+            <td><span class="etat ok">Prêt</span></td>
+            <td>Inscription entière dans le fil, un numéro = une boutique (anti-squat),
+              parrainage « vendre avec … ».</td>
+          </tr>
+          <tr>
+            <td>Catalogue externe où l'acheteuse achète</td>
+            <td><span class="etat ok">Prêt</span></td>
+            <td>Boutique publique par vendeuse, ≤ 30 Ko de JS, tous les articles ;
+              l'achat repart dans WhatsApp — c'est l'invariant du produit, pas une
+              limite.</td>
+          </tr>
+          <tr>
+            <td>Suivi ventes, stats, paiements</td>
+            <td><span class="etat ok">Prêt</span></td>
+            <td>« solde » dans le fil ; Commandes + Statistiques dans l'espace vendeuse ;
+              reçus vérifiables. Dit honnêtement : les vues de la boutique ne sont pas
+              comptées (choix documenté), le stock ne se décompte pas seul.</td>
+          </tr>
+          <tr>
+            <td>Tous les gabarits et modèles Meta</td>
+            <td><span class="etat partiel">Partiel</span></td>
+            <td>Dix gabarits utilitaires déposés sur VOTRE compte ; « nouvelle commande »
+              et « paiement prouvé » branchés. Restent à brancher : commande livrée,
+              acompte attendu, reversement absent. Le formulaire de livraison est à
+              republier sur votre compte (5 minutes, un identifiant à poser).</td>
+          </tr>
+          <tr>
+            <td>Mini catalogue WhatsApp par vendeuse</td>
+            <td><span class="etat non">À décider</span></td>
+            <td>Fait dur de la plateforme : UN catalogue natif par numéro WhatsApp.
+              Sur un numéro partagé, la forme possible : un catalogue Catalog unique,
+              et des messages-produits par vendeuse (jusqu'à 30 articles par message,
+              choisis dans le catalogue). Exige la permission catalog_management sur le
+              jeton et un catalogue Commerce Manager. C'est le prochain grand lot, sur
+              votre feu vert.</td>
+          </tr>
+          <tr>
+            <td>Vitrine multi-vendeuses (place de marché)</td>
+            <td><span class="etat non">À décider</span></td>
+            <td>N'existe pas et n'a jamais été décidé : chaque boutique a sa vitrine,
+              aucune page ne les liste toutes. C'est une décision produit (référencement,
+              ordre d'affichage, arbitrage entre vendeuses) avant d'être du code.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="scene">
+    <h2>Votre rapport</h2>
+    <p class="but">Assemble tout ce que vous avez coché et noté, prêt à coller dans la
+      conversation avec Claude.</p>
+    <button class="rapport" id="copier">Copier le rapport du banc</button>
+    <p class="but" id="copie-fait" role="status" aria-live="polite" style="margin-top:0.5rem"></p>
+  </section>
+
+  <footer>
+    Catalog — banc d'essai du 10/08/2026 · docs/terrain/banc-essai-parcours-vendeur.html ·
+    les cases et notes ne quittent pas cet appareil.
+  </footer>
+</main>
+
+<script>
+  (function () {
+    var CLE = "catalog-banc-vendeuse-v1";
+    var etat = {};
+    try { etat = JSON.parse(localStorage.getItem(CLE) || "{}"); } catch (e) { etat = {}; }
+    var cases = Array.prototype.slice.call(document.querySelectorAll("input[type=checkbox][data-cle]"));
+    var notes = Array.prototype.slice.call(document.querySelectorAll("textarea[data-cle]"));
+    var jauge = document.querySelector("#avancement .fait");
+    var sortie = document.querySelector("#avancement output");
+
+    function sauver() { try { localStorage.setItem(CLE, JSON.stringify(etat)); } catch (e) {} }
+    function jauger() {
+      var faites = cases.filter(function (c) { return c.checked; }).length;
+      jauge.style.width = (cases.length ? (faites / cases.length) * 100 : 0) + "%";
+      sortie.textContent = faites + " / " + cases.length;
+    }
+    cases.forEach(function (c) {
+      c.checked = !!etat[c.dataset.cle];
+      c.addEventListener("change", function () { etat[c.dataset.cle] = c.checked; sauver(); jauger(); });
+    });
+    notes.forEach(function (n) {
+      n.value = etat[n.dataset.cle] || "";
+      n.addEventListener("input", function () { etat[n.dataset.cle] = n.value; sauver(); });
+    });
+    jauger();
+
+    document.getElementById("copier").addEventListener("click", function () {
+      var lignes = ["Banc d'essai — parcours vendeuse"];
+      document.querySelectorAll("section.scene").forEach(function (s) {
+        var titre = s.querySelector("h2");
+        if (!titre) return;
+        var bloc = [];
+        s.querySelectorAll("label").forEach(function (l) {
+          var c = l.querySelector("input[type=checkbox]");
+          if (c) bloc.push((c.checked ? "[x] " : "[ ] ") + l.textContent.trim().replace(/\s+/g, " "));
+        });
+        var n = s.querySelector("textarea");
+        if (n && n.value.trim()) bloc.push("Notes : " + n.value.trim());
+        if (bloc.length) lignes.push("", "## " + titre.textContent.trim(), bloc.join("\n"));
+      });
+      var texte = lignes.join("\n");
+      var dit = document.getElementById("copie-fait");
+      function ok() { dit.textContent = "Rapport copié — collez-le dans la conversation."; }
+      function rate() { dit.textContent = "Copie refusée par le navigateur — sélectionnez et copiez à la main."; }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texte).then(ok, rate);
+      } else { rate(); }
+    });
+  })();
+</script>
