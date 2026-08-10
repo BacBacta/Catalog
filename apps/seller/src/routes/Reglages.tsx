@@ -1,10 +1,11 @@
 import { Badge, Button, Card, CardNote, CardTitle, Separator } from "@catalog/ui";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { Link } from "react-router";
+import { useConges } from "../components/conges.tsx";
 import { Ecran } from "../components/Ecran.tsx";
 import { IconeAppareil, IconeBoutique, IconeChevron, IconeRecu } from "../components/icones.tsx";
 import { Protege } from "../components/Protege.tsx";
-import { api, messageDErreur, type Vendeuse } from "../lib/api.ts";
+import type { Vendeuse } from "../lib/api.ts";
 import { useSession } from "../lib/session.tsx";
 
 /**
@@ -67,21 +68,9 @@ function LigneLien({
  * (ADR 0038) — on ne promet pas ce qu'on ne tient pas.
  */
 function CarteConges({ depuis }: { depuis: string | null }) {
-  const [ferme, setFerme] = useState(depuis !== null);
-  const [enCours, setEnCours] = useState(false);
-  const [erreur, setErreur] = useState<string | null>(null);
-
-  async function basculer() {
-    setErreur(null);
-    setEnCours(true);
-    const r = await api.basculerConges(!ferme);
-    setEnCours(false);
-    if (!r.ok) {
-      setErreur(messageDErreur(r, "La bascule n'a pas abouti."));
-      return;
-    }
-    setFerme(r.donnees?.congesDepuis != null);
-  }
+  /* La requete et l'etat vivent dans `components/conges.tsx` — ADR 0056.
+     L'accueil porte le meme geste ; deux copies auraient derive. */
+  const { ferme, enCours, erreur, basculer } = useConges(depuis);
 
   return (
     <Card>

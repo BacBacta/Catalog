@@ -12,6 +12,7 @@ import {
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
+import { BanniereConges } from "../components/conges.tsx";
 import { Ecran } from "../components/Ecran.tsx";
 import { IconeChiffres, IconeCommandes, IconePlus, IconeRecu } from "../components/icones.tsx";
 import { Protege } from "../components/Protege.tsx";
@@ -77,6 +78,14 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
         </Button>
       }
     >
+      {/*
+        Fermee aux commandes ? Ca se dit ICI, avant tout le reste — ADR 0056.
+        L'oubli de rouvrir ne coute rien de visible : le lien marche, le
+        catalogue s'affiche, et les ventes s'arretent en silence. Le bandeau
+        ne parait que fermee, et il porte le geste de retour lui-meme.
+      */}
+      <BanniereConges depuis={seller.congesDepuis} />
+
       {/*
         La tuile des soldes ouvre le tableau de bord : c'est le chiffre qu'une
         vendeuse vient chercher en premier. Elle reste MUETTE tant que le total
