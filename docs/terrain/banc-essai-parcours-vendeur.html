@@ -493,8 +493,10 @@ Exemple : Douala</div>
     <h2>Votre rapport</h2>
     <p class="but">Assemble tout ce que vous avez coché et noté, prêt à coller dans la
       conversation avec Claude.</p>
-    <button class="rapport" id="copier">Copier le rapport du banc</button>
+    <button class="rapport" id="copier">Assembler le rapport du banc</button>
     <p class="but" id="copie-fait" role="status" aria-live="polite" style="margin-top:0.5rem"></p>
+    <textarea id="rapport-texte" class="notes" hidden readonly
+      aria-label="Rapport assemble, pret a copier" style="min-height:12rem"></textarea>
   </section>
 
   <footer>
@@ -545,8 +547,23 @@ Exemple : Douala</div>
       });
       var texte = lignes.join("\n");
       var dit = document.getElementById("copie-fait");
+      /* Le presse-papiers est souvent REFUSE dans un cadre integre (la
+         fenetre Claude, un aperçu). Le rapport s'affiche donc TOUJOURS,
+         deja selectionne : au pire, c'est appui long puis « copier ». */
+      var champ = document.getElementById("rapport-texte");
+      champ.hidden = false;
+      champ.value = texte;
+      champ.focus();
+      champ.select();
+      champ.setSelectionRange(0, texte.length);
       function ok() { dit.textContent = "Rapport copié — collez-le dans la conversation."; }
-      function rate() { dit.textContent = "Copie refusée par le navigateur — sélectionnez et copiez à la main."; }
+      function rate() {
+        var repris = false;
+        try { repris = document.execCommand("copy"); } catch (e) { repris = false; }
+        dit.textContent = repris
+          ? "Rapport copié — collez-le dans la conversation."
+          : "Le rapport est affiché ci-dessous, déjà sélectionné : appui long → Copier.";
+      }
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(texte).then(ok, rate);
       } else { rate(); }
