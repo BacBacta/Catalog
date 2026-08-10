@@ -26,16 +26,39 @@ export const ARTICLES_MAX = 3;
  * la premiere carte rendue avait le nom du grand article masque par la
  * rangee suivante.
  */
-export const EMPLACEMENTS_PHOTOS: ReadonlyArray<{
+export interface Emplacement {
   x: number;
   y: number;
   largeur: number;
   hauteur: number;
-}> = [
+}
+
+/** La disposition a trois articles — celle qui remplit le mieux la carte. */
+export const EMPLACEMENTS_PHOTOS: ReadonlyArray<Emplacement> = [
   { x: 90, y: 520, largeur: 900, hauteur: 420 },
   { x: 90, y: 1100, largeur: 435, hauteur: 300 },
   { x: 555, y: 1100, largeur: 435, hauteur: 300 },
 ];
+
+/**
+ * La disposition suit le NOMBRE d'articles — ADR 0059.
+ *
+ * La grille etait figee sur trois : une boutique qui en a un seul sortait
+ * une carte au tiers rempli, avec 600 px de creme vide entre l'article et le
+ * bandeau. C'est la premiere carte que fabrique une vendeuse — au moment
+ * precis ou elle vient de publier son premier article — donc le cas le plus
+ * frequent, et le plus mal servi.
+ */
+export function emplacementsPour(nb: number): ReadonlyArray<Emplacement> {
+  if (nb <= 1) return [{ x: 90, y: 520, largeur: 900, hauteur: 860 }];
+  if (nb === 2) {
+    return [
+      { x: 90, y: 520, largeur: 900, hauteur: 460 },
+      { x: 90, y: 1100, largeur: 900, hauteur: 320 },
+    ];
+  }
+  return EMPLACEMENTS_PHOTOS;
+}
 
 export interface ArticleCarte {
   nom: string;
@@ -106,8 +129,9 @@ export function composerCarte(d: DonneesCarte): string {
       ? `★ ${rep.note != null ? `${noteFr(rep.note)} · ` : ""}${rep.nbVerifies} vente${rep.nbVerifies > 1 ? "s" : ""} prouvée${rep.nbVerifies > 1 ? "s" : ""}`
       : "Chaque paiement prouvé donne un reçu vérifiable";
 
+  const emplacements = emplacementsPour(articles.length);
   const cartouches = articles.map((a, i) => {
-    const e = EMPLACEMENTS_PHOTOS[i];
+    const e = emplacements[i];
     if (!e) return "";
     /* L'aplat est TOUJOURS dessine : il sert de fond a la photo que
        l'adaptateur composera par-dessus, et de secours si elle est illisible.
@@ -129,11 +153,27 @@ export function composerCarte(d: DonneesCarte): string {
       <text x="${e.x}" y="${yTexte + (grand ? 46 : 36)}" font-size="${grand ? 38 : 28}" fill="${VERT}" font-family="DejaVu Sans, sans-serif">${xml(formatXaf(a.prixXaf))}</text>`;
   });
 
-  /* Le QR vient du generateur sous forme de chemin, dans son propre systeme
-     d'unites : on le met a l'echelle plutot que de le supposer. */
-  const qrCote = 210;
+  /**
+   * Le QR — ADR 0059, apres la carte « Chez oumar » du banc.
+   *
+   * Il vient du generateur sous forme de chemin, dans son propre systeme
+   * d'unites : on le met a l'echelle plutot que de le supposer. Deux choses
+   * comptent autant que sa taille, et manquaient toutes les deux :
+   *
+   * - **une plaque CLAIRE dessous.** Il etait pose en `ENCRE` sur le vert du
+   *   bandeau : sombre sur sombre, aucun lecteur n'y arrive, quelle que soit
+   *   la definition. C'est le contraste qui porte la lecture, pas les pixels.
+   * - **une zone de silence.** Le standard demande quatre modules de marge
+   *   claire tout autour ; sans elle, le lecteur ne trouve pas les coins.
+   */
+  const qrCote = 240;
+  const qrMarge = 34;
+  const plaque = qrCote + qrMarge * 2;
+  const qrX = 80;
+  const qrY = 1600;
   const qr = d.qrChemin
-    ? `<g transform="translate(90, 1640) scale(${(qrCote / (d.qrTaille ?? 25)).toFixed(4)})">
+    ? `<rect class="qr-plaque" x="${qrX}" y="${qrY}" width="${plaque}" height="${plaque}" rx="20" fill="#ffffff"/>
+       <g class="qr-code" data-cote="${qrCote}" transform="translate(${qrX + qrMarge}, ${qrY + qrMarge}) scale(${(qrCote / (d.qrTaille ?? 25)).toFixed(4)})">
          <path d="${d.qrChemin}" fill="${ENCRE}"/>
        </g>`
     : "";
@@ -148,9 +188,9 @@ export function composerCarte(d: DonneesCarte): string {
   ${cartouches.join("\n")}
   <rect x="0" y="1560" width="${CARTE_LARGEUR}" height="360" fill="${VERT_FONCE}"/>
   ${qr}
-  <text x="350" y="1700" font-size="32" font-weight="700" fill="#ffffff" font-family="DejaVu Sans, sans-serif">Scannez, ou écrivez sur WhatsApp</text>
-  <text x="350" y="1762" font-size="40" font-weight="700" fill="#ffffff" font-family="DejaVu Sans, sans-serif">${xml(couper(d.lienAffiche, 26))}</text>
-  <text x="350" y="1814" font-size="30" fill="#9fd3c9" font-family="DejaVu Sans, sans-serif">puis : ${xml(couper(d.motCle, 28))}</text>
-  <text x="350" y="1870" font-size="26" fill="#cfe6e1" font-family="DejaVu Sans, sans-serif">Reçu vérifiable à chaque paiement prouvé</text>
+  <text x="420" y="1668" font-size="30" fill="#9fd3c9" font-family="DejaVu Sans, sans-serif">Scannez — vous arrivez ici</text>
+  <text x="420" y="1724" font-size="28" fill="#cfe6e1" font-family="DejaVu Sans, sans-serif">ou sur WhatsApp au ${xml(couper(d.lienAffiche, 24))}</text>
+  <text x="420" y="1790" font-size="44" font-weight="700" fill="#ffffff" font-family="DejaVu Sans, sans-serif">${xml(couper(d.motCle, 22))}</text>
+  <text x="420" y="1856" font-size="26" fill="#cfe6e1" font-family="DejaVu Sans, sans-serif">Reçu vérifiable à chaque paiement prouvé</text>
 </svg>`;
 }

@@ -259,7 +259,14 @@ export function lireLegendeArticle(legende: string): { nom: string; prixXaf: num
     net,
   );
   if (!motif?.[1] || !motif[2]) return null;
-  const nom = motif[1].trim();
+  /**
+   * La ponctuation de FIN part avec le separateur — carte « Eau, » du banc du
+   * 10/08/2026. « Eau, 1000 » ecrit avec une virgule est la facon la plus
+   * naturelle de legender une photo, et le nom gardait la virgule jusque sur
+   * la carte imprimee. La ponctuation INTERNE reste : « Eau, sachet » est un
+   * nom, pas un accident.
+   */
+  const nom = motif[1].trim().replace(/[\s,;.:—–-]+$/, "");
   const prix = lirePrix(motif[2]);
   if (nom.length < NOM_MIN || prix === null) return null;
   return { nom, prixXaf: prix };

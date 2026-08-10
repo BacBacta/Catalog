@@ -2,6 +2,15 @@
    paquet navigateur de la boutique, pas l'API. */
 
 import { randomBytes } from "node:crypto";
+
+/**
+ * Le plafond d'octets de la carte-vitrine — ADR 0059. Trois fois celui d'une
+ * photo de catalogue, parce que ce n'en est pas une : un objet, un envoi,
+ * et un code a scanner. WhatsApp accepte tres au-dela ; la borne existe pour
+ * que la carte reste une image et pas un telechargement.
+ */
+const CARTE_CIBLE_OCTETS = 300_000;
+
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
@@ -12,7 +21,7 @@ import { reencoderImage } from "./adapters/image-pipeline.ts";
 import { emailTechnique } from "./auth.ts";
 import { livrerNotificationsEnAttente, notifier, notifierLivree } from "./bot-notifications.ts";
 import { aiguiller } from "./domain/bot/aiguillage.ts";
-import { ARTICLES_MAX } from "./domain/bot/carte-vitrine.ts";
+import { ARTICLES_MAX, CARTE_HAUTEUR } from "./domain/bot/carte-vitrine.ts";
 import {
   type ArticleBot,
   type BoutiqueBot,
@@ -1074,9 +1083,24 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
     photos,
   });
 
-  /* Le MEME pipeline que les photos d'articles : sous 100 Ko, trois
-     declinaisons, cle opaque (ADR 0016). Pas de second chemin d'image. */
-  const resultat = await reencoderImage(png);
+  /**
+   * Le meme pipeline que les photos, mais PAS le meme calibrage — ADR 0059.
+   *
+   * `reencoderImage` reduit par defaut a 640 px sur le plus grand cote et
+   * vise 100 Ko : c'est la regle des photos de catalogue, qui borne le poids
+   * de la boutique publique (ADR 0016). Appliquee a la carte, elle ramenait
+   * un 1080x1920 a 360x640 — le QR passait de 240 a 80 px, soit moins de
+   * trois pixels par module. Illisible par construction, et la carte floue
+   * avec lui.
+   *
+   * La carte n'est PAS une photo de catalogue : elle ne parait sur aucune
+   * page, elle part une fois dans un fil, et son objet est d'etre scannee.
+   * Elle garde donc sa definition, et son propre plafond d'octets.
+   */
+  const resultat = await reencoderImage(png, {
+    plusGrandCote: CARTE_HAUTEUR,
+    cibleOctets: CARTE_CIBLE_OCTETS,
+  });
   if (!resultat.ok || !deps.storage) {
     return [texte(a, "La carte n'a pas pu être fabriquée. Réessayez dans un instant.")];
   }

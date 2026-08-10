@@ -5,7 +5,7 @@ import {
   CARTE_LARGEUR,
   composerCarte,
   type DonneesCarte,
-  EMPLACEMENTS_PHOTOS,
+  emplacementsPour,
 } from "../domain/bot/carte-vitrine.ts";
 
 /**
@@ -79,9 +79,12 @@ export async function rendreCarte(entree: EntreeCarte): Promise<Uint8Array> {
 
   /* Les photos, redimensionnees a leur emplacement exact. `cover` remplit le
      cadre sans deformer — un pagne etire ne donne envie a personne. */
+  /* La grille depend du nombre d'articles (ADR 0059) : l'adaptateur pose ses
+     photos aux MEMES emplacements que ceux dessines par le domaine. */
+  const emplacements = emplacementsPour(entree.photos.length);
   const calques = await Promise.all(
-    entree.photos.slice(0, EMPLACEMENTS_PHOTOS.length).map(async (photo, i) => {
-      const e = EMPLACEMENTS_PHOTOS[i];
+    entree.photos.slice(0, emplacements.length).map(async (photo, i) => {
+      const e = emplacements[i];
       if (!photo || !e) return null;
       try {
         const vignette = await sharp(Buffer.from(photo.octets), { failOn: "error" })
