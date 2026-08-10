@@ -5,7 +5,15 @@ import { planDePaiement } from "../order/paiement.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import { lireReponseFlux, messageFlux } from "./flux.ts";
 import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
-import { boutons, image, liste, type MessageSortant, reaction, texte } from "./messages.ts";
+import {
+  boutons,
+  demandeLocalisation,
+  image,
+  liste,
+  type MessageSortant,
+  reaction,
+  texte,
+} from "./messages.ts";
 import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
 
 /**
@@ -138,6 +146,12 @@ export type EtatConv =
       mode: "livraison" | "retrait";
       /** Absente en retrait ; presente des que le mode est « livraison ». */
       ville?: string;
+      /**
+       * Le point deja envoye, en attente des champs obligatoires. Il ne fait
+       * PAS avancer l'etape : il patiente ici jusqu'a ce que le quartier, le
+       * repere et le telephone soient donnes.
+       */
+      geo?: { lat: number; lng: number };
     }
   | {
       nom: "recap";
@@ -272,6 +286,13 @@ export type Entree =
   | { genre: "image"; mediaId: string; legende?: string; messageId?: string }
   /** Une forme que le bot ne sait pas traiter — ADR 0049. */
   | { genre: "autre"; forme: FormeNonLue; messageId?: string }
+  /**
+   * UN POINT sur la carte. Il s'AJOUTE a la livraison, il n'en remplace aucun
+   * champ : l'ADR 0005 exige le quartier, le repere et le telephone, et un
+   * point GPS ne dit ni l'etage, ni « en face de la pharmacie », ni qui
+   * appeler en arrivant.
+   */
+  | { genre: "localisation"; lat: number; lng: number; messageId?: string }
   /**
    * La reponse d'un Flow — ADR 0055. Le contenu voyage BRUT : c'est le
    * domaine qui le relit (`lireReponseFlux`), pas le parseur d'entrees.
@@ -812,9 +833,13 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       }
       return {
         etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode },
-        messages: [
-          questionDetails(vers, t.questionDetailsRetrait, t, Boolean(boutique.whatsappVendeuse)),
-        ],
+        messages: messagesDetails(
+          vers,
+          t.questionDetailsRetrait,
+          t,
+          Boolean(boutique.whatsappVendeuse),
+          mode,
+        ),
       };
     }
 
@@ -858,13 +883,41 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
       }
       return {
         etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode: "livraison", ville },
-        messages: [
-          questionDetails(vers, t.questionDetailsLivraison, t, Boolean(boutique.whatsappVendeuse)),
-        ],
+        messages: messagesDetails(
+          vers,
+          t.questionDetailsLivraison,
+          t,
+          Boolean(boutique.whatsappVendeuse),
+          "livraison",
+        ),
       };
     }
 
     case "details": {
+      /**
+       * Un POINT recu pendant la saisie. Il se retient et l'etape ne bouge
+       * PAS : le quartier, le repere et le telephone restent exiges
+       * (ADR 0005). Le point ne dit pas l'etage, ni « en face de la pharmacie
+       * du Rond-Point », ni qui appeler en arrivant — c'est le repere qui
+       * fait le travail au Cameroun, et le point qui vient en plus.
+       *
+       * On ne redemande PAS la position : elle vient d'etre donnee.
+       */
+      if (entree.genre === "localisation") {
+        return {
+          etat: { ...etat, geo: { lat: entree.lat, lng: entree.lng } },
+          messages: [
+            questionDetails(
+              vers,
+              t.positionRecue(
+                etat.mode === "livraison" ? t.questionDetailsLivraison : t.questionDetailsRetrait,
+              ),
+              t,
+              Boolean(boutique.whatsappVendeuse),
+            ),
+          ],
+        };
+      }
       if (entree.genre !== "texte") {
         return {
           etat,
@@ -886,15 +939,22 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
        * l'acheteuse peut voir une adresse mal decoupee AVANT qu'elle entre
        * dans une commande (ADR 0032).
        */
+      /* Le point retenu rejoint la livraison ICI, une fois les champs
+         obligatoires donnes — et seulement en livraison : `geo` n'existe pas
+         sur un retrait, c'est le schema qui le dit. */
+      const livraison =
+        etat.geo && lu.livraison.mode === "livraison"
+          ? { ...lu.livraison, geo: etat.geo }
+          : lu.livraison;
       return {
         etat: {
           nom: "recap",
           slug: etat.slug,
           panier: etat.panier,
           mode: etat.mode,
-          livraison: lu.livraison,
+          livraison,
         },
-        messages: [messageRecap(vers, boutique, etat.panier, lu.livraison, t)],
+        messages: [messageRecap(vers, boutique, etat.panier, livraison, t)],
       };
     }
 
@@ -911,6 +971,20 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
        * articles, le total et la livraison — l'engagement est informe qu'elle
        * tape ou qu'elle appuie.
        */
+      /**
+       * Le point envoye APRES coup — elle a lu le recapitulatif, puis a
+       * pense a sa position. Il s'attache et le recapitulatif se RE-MONTRE :
+       * on ne confirme jamais une livraison qu'elle vient de modifier sans
+       * la lui remontrer (ADR 0032).
+       */
+      if (entree.genre === "localisation" && etat.livraison.mode === "livraison") {
+        const livraison = { ...etat.livraison, geo: { lat: entree.lat, lng: entree.lng } };
+        return {
+          etat: { ...etat, livraison },
+          messages: [messageRecap(vers, boutique, etat.panier, livraison, t)],
+        };
+      }
+
       const mot = entree.genre === "texte" ? sansAccents(entree.texte.trim().toLowerCase()) : "";
       if (id === "confirmer" || mot === "confirmer" || mot === "confirm") {
         return {
@@ -1168,6 +1242,30 @@ function questionQuantite(
  * tunnel. Sans elle, l'acheteuse bloquee sur « il me manque le numero » n'a
  * aucun moyen visible de joindre la vendeuse.
  */
+/**
+ * La saisie de livraison : la question, PUIS la demande de position.
+ *
+ * Deux messages et non un, parce que `location_request_message` n'accepte
+ * qu'une seule action : en faire la question ferait disparaitre « parler a la
+ * vendeuse » et « annuler » de l'ecran, au moment ou l'acheteuse tape le plus
+ * long message de son parcours. Les sorties de secours restent sur la
+ * question ; le point vient en plus, et son texte dit qu'il est facultatif.
+ *
+ * Le RETRAIT n'en recoit pas : le point de rendez-vous est celui de la
+ * vendeuse, la position de l'acheteuse n'y veut rien dire.
+ */
+function messagesDetails(
+  vers: string,
+  corps: string,
+  t: TextesAcheteuse,
+  boutiqueJoignable: boolean,
+  mode: "livraison" | "retrait",
+): MessageSortant[] {
+  const question = questionDetails(vers, corps, t, boutiqueJoignable);
+  if (mode !== "livraison") return [question];
+  return [question, demandeLocalisation(vers, t.demandePosition)];
+}
+
 function questionDetails(
   vers: string,
   corps: string,

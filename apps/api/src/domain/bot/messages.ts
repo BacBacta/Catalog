@@ -156,6 +156,31 @@ export interface MessageFlux {
   };
 }
 
+/**
+ * La demande de position — sprint « le bot devient une application ».
+ *
+ * Meta ouvre la carte du telephone et renvoie un point. Il n'y a pas de
+ * bouton de reponse a cote : cette forme n'accepte qu'une action, `send_location`.
+ * C'est pour cela qu'elle est envoyee EN PLUS de la question de livraison, et
+ * jamais a sa place — les sorties de secours (« parler a la vendeuse »,
+ * « annuler ») restent sur la question, la ou elles doivent etre.
+ *
+ * **Le point ne remplace rien** (ADR 0005) : il n'existe pas d'adresse au
+ * Cameroun, le quartier, le repere et le telephone restent obligatoires. Ce
+ * message dit « en plus, si vous voulez », et son texte doit le dire aussi.
+ */
+export interface MessageDemandeLocalisation {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "interactive";
+  interactive: {
+    type: "location_request_message";
+    body: { text: string };
+    action: { name: "send_location" };
+  };
+}
+
 export type MessageSortant =
   | MessageTexte
   | MessageBoutons
@@ -163,7 +188,8 @@ export type MessageSortant =
   | MessageImage
   | MessageReaction
   | MessageGabarit
-  | MessageFlux;
+  | MessageFlux
+  | MessageDemandeLocalisation;
 
 /**
  * L'accuse de lecture, et l'indicateur de frappe qui voyage avec — ADR 0049.
@@ -285,6 +311,25 @@ export function image(vers: string, lien: string, legende?: string): MessageImag
     /* La legende vient des DONNEES (nom d'article, prix) : troncature propre,
        jamais de levee — une vendeuse au nom trop long vend quand meme. */
     image: { link: lien, ...(nette ? { caption: tronquer(nette, LEGENDE_MAX) } : {}) },
+  };
+}
+
+/**
+ * Demande la position de l'acheteuse. Le corps est EXIGE : un bouton
+ * « envoyer ma position » sans phrase au-dessus ne dit ni pourquoi, ni que
+ * c'est facultatif.
+ */
+export function demandeLocalisation(vers: string, corps: string): MessageDemandeLocalisation {
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: vers,
+    type: "interactive",
+    interactive: {
+      type: "location_request_message",
+      body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
+      action: { name: "send_location" },
+    },
   };
 }
 

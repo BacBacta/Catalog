@@ -35,6 +35,8 @@ const FORMES: Record<string, FormeNonLue> = {
   video: "video",
   document: "document",
   sticker: "sticker",
+  /* `location` reste ici : une localisation SANS coordonnees exploitables
+     retombe sur la forme non lue plutot que de devenir un faux point. */
   location: "localisation",
   contacts: "contact",
 };
@@ -57,6 +59,15 @@ export type EntreeBot =
    * ailleurs, et n'entrent jamais dans l'etat de conversation.
    */
   | { de: string; genre: "image"; mediaId: string; legende?: string; messageId?: string }
+  /**
+   * UN POINT sur la carte — sprint « le bot devient une application ».
+   *
+   * On ne retient que les deux coordonnees. Meta joint parfois un `name` et
+   * une `address` saisis par l'expediteur : ils ne sont PAS lus, et c'est
+   * l'ADR 0005 qui l'exige — il n'existe pas d'adresse au Cameroun, et un
+   * champ d'adresse qui entre par la fenetre reste un champ d'adresse.
+   */
+  | { de: string; genre: "localisation"; lat: number; lng: number; messageId?: string }
   /**
    * Une forme que le bot ne sait pas traiter — ADR 0049. Elle est lue POUR
    * pouvoir repondre : le silence est la pire des reponses sur un canal ou
@@ -100,6 +111,7 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
         type?: unknown;
         text?: { body?: unknown };
         image?: { id?: unknown; caption?: unknown };
+        location?: { latitude?: unknown; longitude?: unknown };
         interactive?: {
           type?: unknown;
           button_reply?: { id?: unknown };
@@ -124,6 +136,32 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
         });
         continue;
       }
+      /**
+       * La position — lue POUR de bon, la ou elle n'etait qu'une « forme non
+       * traitee ». `deliverySchema` porte un `geo?` optionnel depuis le lot 7,
+       * prevu et jamais alimente : c'est ce chemin-la qui manquait.
+       *
+       * Les deux coordonnees sont EXIGEES et doivent etre finies. Zero degre
+       * de latitude est un point REEL — le golfe de Guinee, a 300 km de
+       * Douala : une coordonnee absente ne devient jamais un 0, elle retombe
+       * sur la forme non lue.
+       */
+      if (m.type === "location") {
+        const lat = m.location?.latitude;
+        const lng = m.location?.longitude;
+        if (
+          typeof lat === "number" &&
+          Number.isFinite(lat) &&
+          typeof lng === "number" &&
+          Number.isFinite(lng)
+        ) {
+          sortie.push({ de: m.from, genre: "localisation", lat, lng, ...messageId });
+          continue;
+        }
+        /* Coordonnees inexploitables : rien n'est retenu, et la suite traite
+           le message comme une forme non lue. */
+      }
+
       if (m.type === "interactive") {
         const i = m.interactive;
         if (i?.type === "button_reply" && typeof i.button_reply?.id === "string") {

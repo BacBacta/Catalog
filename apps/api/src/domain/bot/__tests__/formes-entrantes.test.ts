@@ -29,11 +29,11 @@ describe("le parseur lit les formes qu'il ne sait pas traiter", () => {
     ["video", { type: "video", video: { id: "m2" } }, "video"],
     ["document", { type: "document", document: { id: "m3" } }, "document"],
     ["sticker", { type: "sticker", sticker: { id: "m4" } }, "sticker"],
-    [
-      "location",
-      { type: "location", location: { latitude: 4.05, longitude: 9.7 } },
-      "localisation",
-    ],
+    /* `location` a QUITTE cette liste : depuis le sprint « le bot devient une
+       application », une position portant ses deux coordonnees est LUE
+       (`genre: "localisation"`) et sert le champ `geo?` de la livraison. Seule
+       la position inexploitable retombe ici — le cas ci-dessous. */
+    ["location sans coordonnees", { type: "location", location: {} }, "localisation"],
     ["contacts", { type: "contacts", contacts: [{ name: { first_name: "A" } }] }, "contact"],
   ];
 

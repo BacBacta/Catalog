@@ -89,6 +89,14 @@ export interface TextesAcheteuse {
   questionDetailsLivraison: string;
   questionDetailsRetrait: string;
   detailsParTexte: string;
+  /**
+   * Le corps de la demande de position. Il doit dire FACULTATIF : l'ADR 0005
+   * exige le quartier, le repere et le telephone, et une acheteuse qui croit
+   * que son point suffit s'arretera la.
+   */
+  demandePosition: string;
+  /** Accuse de reception du point, suivi de ce qui manque encore. */
+  positionRecue: (question: string) => string;
   aideSansTelephone: string;
   aideSansLieu: string;
   aideSansRepere: string;
@@ -274,6 +282,9 @@ const fr: TextesAcheteuse = {
   questionDetailsRetrait:
     "Où se retrouve-t-on, et quel numéro appeler ?\nExemple : Marché central, entrée B, 690 11 22 33",
   detailsParTexte: "Écrivez-le en un message, comme dans l'exemple.",
+  demandePosition:
+    "Facultatif : envoyez aussi votre position, le livreur vous trouvera plus vite. Le quartier, le repère et le numéro restent nécessaires.",
+  positionRecue: (question) => `📍 Position bien reçue, merci.\n${question}`,
   aideSansTelephone:
     "Il me manque le numéro à appeler, à la fin du message. Exemple : Bonapriso, en face de la pharmacie, 690 11 22 33",
   aideSansLieu: "Dites-moi où se retrouver (ex. : Marché central, entrée B), puis le numéro.",
@@ -464,6 +475,9 @@ const en: TextesAcheteuse = {
   questionDetailsRetrait:
     "Where do we meet, and what number should we call?\nExample: Central market, entrance B, 690 11 22 33",
   detailsParTexte: "Write it in one message, like in the example.",
+  demandePosition:
+    "Optional: you can also share your location so the courier finds you faster. The neighbourhood, the landmark and the phone number are still needed.",
+  positionRecue: (question) => `📍 Location received, thank you.\n${question}`,
   aideSansTelephone:
     "I am missing the phone number to call, at the end of the message. Example: Bonapriso, opposite the pharmacy, 690 11 22 33",
   aideSansLieu: "Tell me where to meet (e.g.: Central market, entrance B), then the number.",

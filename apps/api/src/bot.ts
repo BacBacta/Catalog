@@ -482,7 +482,9 @@ async function filInscription(
  * le geste, sans l'expediteur. Les deux machines acceptent cette union — le
  * fil acheteuse l'a typee, l'inscription lui est structurellement compatible.
  */
-function entreePourMachine(entree: EntreeBot): Exclude<EntreeMachine, { genre: "flux" }> {
+function entreePourMachine(
+  entree: EntreeBot,
+): Exclude<EntreeMachine, { genre: "flux" } | { genre: "localisation" }> {
   const id = entree.messageId ? { messageId: entree.messageId } : {};
   switch (entree.genre) {
     case "texte":
@@ -502,6 +504,11 @@ function entreePourMachine(entree: EntreeBot): Exclude<EntreeMachine, { genre: "
        `entreePourAcheteuse` est la seule a la laisser passer entiere. */
     case "flux":
       return { genre: "autre", forme: "inconnue", ...id };
+    /* Une position n'a de sens que dans le fil ACHETEUSE, a l'etape livraison.
+       Ailleurs — inscription, fil vendeuse — elle devient une forme non lue,
+       donc une phrase plutot qu'un silence (ADR 0049). */
+    case "localisation":
+      return { genre: "autre", forme: "localisation", ...id };
     default:
       return { genre: entree.genre, id: entree.id, ...id };
   }
@@ -513,12 +520,14 @@ function entreePourMachine(entree: EntreeBot): Exclude<EntreeMachine, { genre: "
  * relit dans le domaine, ou il est teste.
  */
 function entreePourAcheteuse(entree: EntreeBot): EntreeMachine {
-  if (entree.genre !== "flux") return entreePourMachine(entree);
-  return {
-    genre: "flux",
-    reponse: entree.reponse,
-    ...(entree.messageId ? { messageId: entree.messageId } : {}),
-  };
+  const id = entree.messageId ? { messageId: entree.messageId } : {};
+  if (entree.genre === "flux") return { genre: "flux", reponse: entree.reponse, ...id };
+  /* La position entiere, avec ses deux coordonnees — seule la machine
+     acheteuse sait quoi en faire, et seulement a l'etape livraison. */
+  if (entree.genre === "localisation") {
+    return { genre: "localisation", lat: entree.lat, lng: entree.lng, ...id };
+  }
+  return entreePourMachine(entree);
 }
 
 /**
