@@ -3,7 +3,7 @@ import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
 import type { FormeNonLue } from "./entrees.ts";
-import { lireReponseFlux, messageFlux } from "./flux.ts";
+import { genreDuJeton, jetonFlux, lireAvisFlux, lireReponseFlux, messageFlux } from "./flux.ts";
 import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
 import {
   boutons,
@@ -318,7 +318,12 @@ export type EffetBot =
   | { type: "contresigner" }
   | { type: "contester" }
   | { type: "deposer_avis"; note: number }
-  | { type: "completer_avis"; texte: string };
+  | { type: "completer_avis"; texte: string }
+  /**
+   * Le formulaire rend la note ET le mot d'un coup — un seul effet, donc, et
+   * pas deux qui se suivraient : le service ecrit l'avis complet en une fois.
+   */
+  | { type: "deposer_avis_complet"; note: number; texte: string };
 
 export interface Reaction {
   etat: EtatConv;
@@ -456,6 +461,13 @@ export interface ContexteAcheteuse {
    * parce qu'un Flow ne s'affiche pas sur un WhatsApp ancien.
    */
   fluxLivraisonId?: string;
+  /**
+   * L'identifiant du Flow d'AVIS — meme regime que celui de livraison :
+   * absent par defaut, et le fil est alors exactement celui d'avant. Present,
+   * le formulaire s'AJOUTE a la liste d'etoiles ; il ne la remplace jamais,
+   * parce qu'un Flow ne s'affiche pas sur un WhatsApp ancien.
+   */
+  fluxAvisId?: string;
 }
 
 /**
@@ -818,7 +830,7 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
                 vers,
                 ctx.fluxLivraisonId,
                 t.btnFluxLivraison,
-                jetonFlux(etat.slug),
+                jetonFlux("livraison", etat.slug),
                 t.corpsFluxLivraison,
               ),
             ]
@@ -1102,11 +1114,16 @@ function reagirApresAchat(
   const veutContester = id === "contester";
   const veutNoter = id === "avis" || tape === "avis" || tape === "noter" || tape === "review";
   const note = id?.startsWith("note:") ? Number(id.slice(5)) : null;
+  /* Une reponse de formulaire n'arrive ici QUE si son jeton dit « avis ».
+     Une reponse de LIVRAISON emprunte le meme chemin technique (`nfm_reply`)
+     et n'a rien a faire dans l'apres-achat : c'est tout l'objet du jeton. */
+  const avisParFormulaire = entree.genre === "flux" && genreDuJeton(entree.reponse) === "avis";
 
   if (
     !veutContresigner &&
     !veutContester &&
     !veutNoter &&
+    !avisParFormulaire &&
     note === null &&
     id !== "contester:oui"
   ) {
@@ -1142,6 +1159,35 @@ function reagirApresAchat(
     };
   }
 
+  /**
+   * La reponse du formulaire d'avis : la note ET le mot arrivent ensemble,
+   * la ou le chemin question-par-question les separe en deux etapes. Les deux
+   * effets partent donc a la suite, dans cet ordre — la note d'abord, c'est
+   * elle qui cree l'avis.
+   */
+  if (avisParFormulaire && entree.genre === "flux") {
+    const lu = lireAvisFlux(entree.reponse);
+    if (!lu) return { etat, messages: [texte(vers, t.avisImpossible)] };
+    if (commande.avisDejaDepose) {
+      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+    }
+    if (!commande.avisPossible) {
+      return { etat, messages: [texte(vers, t.avisImpossible)] };
+    }
+    if (lu.mot) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [texte(vers, t.avisMotMerci)],
+        effet: { type: "deposer_avis_complet", note: lu.note, texte: lu.mot },
+      };
+    }
+    return {
+      etat: ETAT_INITIAL,
+      messages: [texte(vers, t.avisMotMerci)],
+      effet: { type: "deposer_avis", note: lu.note },
+    };
+  }
+
   if (id === "contester:oui") {
     return {
       etat,
@@ -1157,9 +1203,25 @@ function reagirApresAchat(
     if (!commande.avisPossible) {
       return { etat, messages: [texte(vers, t.avisImpossible)] };
     }
+    /* Le formulaire s'AJOUTE a la liste d'etoiles — meme regle que la
+       livraison (ADR 0055) : un Flow exige un WhatsApp recent, la liste
+       marche partout. Celle qui peut l'ouvrir note et commente d'un geste ;
+       les autres suivent le chemin d'avant, intact. */
+    const formulaire = ctx.fluxAvisId
+      ? [
+          messageFlux(
+            vers,
+            ctx.fluxAvisId,
+            t.btnNoter,
+            jetonFlux("avis"),
+            t.avisInvitation(commande.boutique),
+          ),
+        ]
+      : [];
     return {
       etat,
       messages: [
+        ...formulaire,
         liste(
           vers,
           t.avisInvitation(commande.boutique),
@@ -1344,10 +1406,6 @@ function messageAjout(
  * il ne voyage JAMAIS dans un message que WhatsApp nous renverra. Le numero
  * n'y entre pas non plus — le fil le porte deja, l'y recopier n'ajoute rien.
  */
-function jetonFlux(slug: string): string {
-  return `livraison:${slug}`;
-}
-
 function questionVille(
   vers: string,
   villeBoutique: string,

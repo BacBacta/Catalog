@@ -132,6 +132,10 @@ const bot =
         ...(process.env.WABOT_FLUX_LIVRAISON_ID?.trim()
           ? { fluxLivraisonId: process.env.WABOT_FLUX_LIVRAISON_ID.trim() }
           : {}),
+        /* Le Flow d'AVIS, meme regime et meme raison. */
+        ...(process.env.WABOT_FLUX_AVIS_ID?.trim()
+          ? { fluxAvisId: process.env.WABOT_FLUX_AVIS_ID.trim() }
+          : {}),
       }
     : null;
 

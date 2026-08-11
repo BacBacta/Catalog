@@ -1,6 +1,7 @@
 import { normalizePhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import type { MessageFlux } from "./messages.ts";
+import type { Langue } from "./textes.ts";
 
 /**
  * Le Flow de livraison — ADR 0055.
@@ -81,6 +82,110 @@ export function lireReponseFlux(brut: string): LivraisonLue | null {
   if (!phone) return null;
 
   return { mode: "livraison", city, quartier, landmark, phone };
+}
+
+/* ═══════════════════ TROIS formulaires, un seul fil ═══════════════════════
+ *
+ * Une reponse de Flow arrive TOUJOURS par le meme chemin (`nfm_reply`) : rien
+ * dans le message ne dit quel formulaire a repondu. C'est le `flow_token`,
+ * choisi par nous a l'envoi et renvoye tel quel par Meta, qui porte cette
+ * information — et c'est pour cela qu'il ne porte jamais rien d'autre.
+ *
+ * ⚠️ L'echo du jeton dans `response_json` est le comportement DOCUMENTE de
+ * Meta, pas une mesure faite ici : aucun Flow n'a encore ete depose sur notre
+ * WABA. Le repli assume ci-dessous (« sans jeton = livraison ») rend l'erreur
+ * benigne si le comportement differe : le seul Flow deploye avant eux est la
+ * livraison.
+ */
+
+export type GenreFlux = "livraison" | "inscription" | "avis";
+
+const GENRES: readonly GenreFlux[] = ["livraison", "inscription", "avis"];
+
+/**
+ * Le jeton d'un envoi : le genre, puis une reference facultative.
+ *
+ * Il ne porte JAMAIS de secret (ADR 0021) — ni `buyerToken`, qui autorise la
+ * contre-signature, ni le numero, que le fil porte deja. Ce qui part dans un
+ * message que WhatsApp nous renverra doit pouvoir etre lu par n'importe qui.
+ */
+export function jetonFlux(genre: GenreFlux, reference = ""): string {
+  return `${genre}:${reference}`;
+}
+
+/** Le genre d'un jeton relu, ou `null` s'il n'en designe aucun. */
+export function genreDuJeton(brut: string): GenreFlux | null {
+  const d = objetDe(brut);
+  if (!d) return null;
+  const jeton = typeof d.flow_token === "string" ? d.flow_token : "";
+  /* Pas de jeton : c'est la livraison. Une reponse en vol au moment du
+     deploiement, ou un Flow ancien encore publie, ne doit pas se perdre. */
+  if (!jeton) return "livraison";
+  const genre = jeton.split(":", 1)[0];
+  return GENRES.find((g) => g === genre) ?? null;
+}
+
+function objetDe(brut: string): Record<string, unknown> | null {
+  let donnees: unknown;
+  try {
+    donnees = JSON.parse(brut);
+  } catch {
+    return null;
+  }
+  if (!donnees || typeof donnees !== "object" || Array.isArray(donnees)) return null;
+  return donnees as Record<string, unknown>;
+}
+
+function champ(d: Record<string, unknown>, cle: string): string {
+  return typeof d[cle] === "string" ? (d[cle] as string).trim() : "";
+}
+
+/** Ce que le formulaire d'inscription rend — la meme forme que les questions. */
+export interface InscriptionLue {
+  nomBoutique: string;
+  ville: string;
+  langue: Langue;
+}
+
+/**
+ * Lit une inscription. Les MEMES bornes que la saisie libre : un formulaire ne
+ * doit pas faire entrer ce que la question refuse.
+ *
+ * La langue est la seule tolerance — une valeur inconnue retombe sur le
+ * francais plutot que de faire echouer une inscription entiere pour un champ
+ * de confort.
+ */
+export function lireInscriptionFlux(brut: string): InscriptionLue | null {
+  const d = objetDe(brut);
+  if (!d) return null;
+  const nomBoutique = champ(d, "boutique");
+  const ville = champ(d, "ville");
+  if (nomBoutique.length < 2) return null;
+  if (!villeAcceptable(ville)) return null;
+  const langueLue = champ(d, "langue");
+  return { nomBoutique, ville, langue: langueLue === "en" ? "en" : "fr" };
+}
+
+/** Ce que le formulaire d'avis rend. Le mot est facultatif — il l'est partout. */
+export interface AvisLu {
+  note: number;
+  mot?: string;
+}
+
+/** La meme borne que la saisie libre du commentaire. */
+const MOT_MAX = 1000;
+
+/**
+ * Lit un avis. La note est ENTIERE et bornee a 1..5, comme la machine le
+ * verifie deja : une note fabriquee ne doit pas entrer par le formulaire.
+ */
+export function lireAvisFlux(brut: string): AvisLu | null {
+  const d = objetDe(brut);
+  if (!d) return null;
+  const brutNote = champ(d, "note");
+  if (!/^[1-5]$/.test(brutNote)) return null;
+  const mot = champ(d, "mot").slice(0, MOT_MAX);
+  return { note: Number(brutNote), ...(mot ? { mot } : {}) };
 }
 
 /**

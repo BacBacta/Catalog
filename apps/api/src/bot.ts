@@ -145,6 +145,8 @@ export interface BotDeps {
    * un WhatsApp ancien, et la question doit rester atteignable.
    */
   fluxLivraisonId?: string;
+  /** Le Flow d'AVIS — meme regime : absent, le fil est celui d'avant. */
+  fluxAvisId?: string;
   maintenant?: () => Date;
   aleatoire?: (n: number) => Uint8Array;
 }
@@ -845,6 +847,7 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     derniereCommande,
     langue,
     ...(deps.fluxLivraisonId ? { fluxLivraisonId: deps.fluxLivraisonId } : {}),
+    ...(deps.fluxAvisId ? { fluxAvisId: deps.fluxAvisId } : {}),
   });
   etat = reaction.etat;
   const messages = [...reaction.messages];
@@ -983,6 +986,9 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
   }
   if (idApresAchat && reaction.effet?.type === "deposer_avis") {
     await deposerAvis(deps, idApresAchat, reaction.effet.note);
+  }
+  if (idApresAchat && reaction.effet?.type === "deposer_avis_complet") {
+    await deposerAvis(deps, idApresAchat, reaction.effet.note, reaction.effet.texte);
   }
   if (idApresAchat && reaction.effet?.type === "completer_avis") {
     await deps.prisma.review
@@ -1190,7 +1196,15 @@ async function transitionApresAchat(
  *
  * La note s'ecrit MAINTENANT ; le mot l'enrichira peut-etre ensuite.
  */
-async function deposerAvis(deps: BotDeps, commandeId: string, note: number): Promise<void> {
+async function deposerAvis(
+  deps: BotDeps,
+  commandeId: string,
+  note: number,
+  /* Le formulaire rend la note ET le mot d'un coup : l'avis s'ecrit complet,
+     dans la MEME transaction. Le chemin question-par-question, lui, passe le
+     mot ensuite par `completer_avis` — les deux finissent au meme endroit. */
+  mot?: string,
+): Promise<void> {
   const commande = await deps.prisma.order.findUnique({
     where: { id: commandeId },
     select: {
@@ -1237,6 +1251,7 @@ async function deposerAvis(deps: BotDeps, commandeId: string, note: number): Pro
           sellerId: commande.sellerId,
           ...(productId ? { productId } : {}),
           rating: note,
+          ...(mot ? { body: mot } : {}),
           verified: droit.verifie,
           createdAt: maintenant,
         },
