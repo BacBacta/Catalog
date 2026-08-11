@@ -3,7 +3,14 @@ import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
 import type { FormeNonLue } from "./entrees.ts";
-import { genreDuJeton, jetonFlux, lireAvisFlux, lireReponseFlux, messageFlux } from "./flux.ts";
+import {
+  genreDuJeton,
+  jetonFlux,
+  lireAvisFlux,
+  lireReponseFlux,
+  messageFlux,
+  veutPositionFlux,
+} from "./flux.ts";
 import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
 import {
   boutons,
@@ -873,6 +880,12 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
             messages: [questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse))],
           };
         }
+        /* La case cochee dans le formulaire n'est qu'une INTENTION : seul le
+           message natif sait capter un point (aucun composant de carte
+           n'existe — mesure du 11/08/2026, ADR 0063). Le recapitulatif passe
+           EN PREMIER : elle relit ce qu'elle a saisi avant qu'on lui demande
+           autre chose. Le point recu ensuite s'attache au recapitulatif, qui
+           se re-montre — le chemin est deja ecrit (ADR 0062). */
         return {
           etat: {
             nom: "recap",
@@ -881,7 +894,12 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
             mode: "livraison",
             livraison: lu,
           },
-          messages: [messageRecap(vers, boutique, etat.panier, lu, t)],
+          messages: [
+            messageRecap(vers, boutique, etat.panier, lu, t),
+            ...(veutPositionFlux(entree.reponse)
+              ? [demandeLocalisation(vers, t.positionApresFormulaire)]
+              : []),
+          ],
         };
       }
       const proposee = id === "ville:boutique" ? boutique.ville : null;

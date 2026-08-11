@@ -40,8 +40,12 @@ const FLUX = [
     fichier: "docs/flux-livraison.json",
     variable: "WABOT_FLUX_LIVRAISON_ID",
     categories: ["OTHER"],
-    /** Les champs que le domaine relira. Le contrat, en une ligne. */
-    champs: ["ville", "quartier", "repere", "telephone"],
+    /** Les champs que le domaine relira. Le contrat, en une ligne.
+        `position` est la case a cocher : une INTENTION, pas une donnee de
+        livraison. Meta n'a pas de composant de carte — mesure du 11/08/2026,
+        addendum de l'ADR 0063 — donc la capture se fait par le message natif,
+        juste apres le recapitulatif. */
+    champs: ["ville", "quartier", "repere", "telephone", "position"],
   },
   {
     cle: "inscription",

@@ -97,6 +97,12 @@ export interface TextesAcheteuse {
   demandePosition: string;
   /** Accuse de reception du point, suivi de ce qui manque encore. */
   positionRecue: (question: string) => string;
+  /**
+   * Apres le formulaire : les champs obligatoires sont DEJA donnes, donc ce
+   * texte ne les redemande pas — il dirait le contraire de ce qu'elle vient
+   * de faire.
+   */
+  positionApresFormulaire: string;
   aideSansTelephone: string;
   aideSansLieu: string;
   aideSansRepere: string;
@@ -285,6 +291,8 @@ const fr: TextesAcheteuse = {
   demandePosition:
     "Facultatif : envoyez aussi votre position, le livreur vous trouvera plus vite. Le quartier, le repère et le numéro restent nécessaires.",
   positionRecue: (question) => `📍 Position bien reçue, merci.\n${question}`,
+  positionApresFormulaire:
+    "Vous avez demandé à envoyer votre position — c'est le moment. Le livreur vous trouvera plus vite.",
   aideSansTelephone:
     "Il me manque le numéro à appeler, à la fin du message. Exemple : Bonapriso, en face de la pharmacie, 690 11 22 33",
   aideSansLieu: "Dites-moi où se retrouver (ex. : Marché central, entrée B), puis le numéro.",
@@ -478,6 +486,8 @@ const en: TextesAcheteuse = {
   demandePosition:
     "Optional: you can also share your location so the courier finds you faster. The neighbourhood, the landmark and the phone number are still needed.",
   positionRecue: (question) => `📍 Location received, thank you.\n${question}`,
+  positionApresFormulaire:
+    "You asked to share your location — now is the moment. The courier will find you faster.",
   aideSansTelephone:
     "I am missing the phone number to call, at the end of the message. Example: Bonapriso, opposite the pharmacy, 690 11 22 33",
   aideSansLieu: "Tell me where to meet (e.g.: Central market, entrance B), then the number.",

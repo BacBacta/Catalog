@@ -46,6 +46,11 @@
                 "helper-text": "Exemple : 690 11 22 33"
               },
               {
+                "type": "OptIn",
+                "name": "position",
+                "label": "Envoyer aussi ma position exacte (facultatif)"
+              },
+              {
                 "type": "Footer",
                 "label": "Valider",
                 "on-click-action": {
@@ -54,7 +59,8 @@
                     "ville": "${form.ville}",
                     "quartier": "${form.quartier}",
                     "repere": "${form.repere}",
-                    "telephone": "${form.telephone}"
+                    "telephone": "${form.telephone}",
+                    "position": "${form.position}"
                   }
                 }
               }

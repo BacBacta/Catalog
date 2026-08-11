@@ -120,3 +120,50 @@ Tant que ce n'est pas fait, les variables restent absentes, et rien ne change.
 - `jetonFlux` quitte `conversation.ts` pour `flux.ts` : une seule source pour
   les trois formulaires.
 - Trois variables d'environnement, absentes par défaut.
+
+---
+
+## Addendum du 11/08/2026 — il n'existe pas de champ de localisation
+
+Le premier essai à Douala a validé le formulaire de livraison de bout en bout
+(ville, quartier, repère, téléphone lus correctement, récapitulatif exact), et
+il a révélé un défaut de composition : **le formulaire saute l'étape `details`,
+donc la demande de position de l'ADR 0062 ne partait jamais** pour celles qui
+remplissent en une fois — précisément la population au WhatsApp le plus récent.
+
+Avant d'ajouter un champ de carte, la question a été **mesurée** plutôt que
+supposée. Un formulaire jetable a été créé, quatre définitions candidates lui
+ont été téléversées, puis il a été supprimé :
+
+| Composant essayé | Réponse de Meta |
+|---|---|
+| `LocationPicker` | Invalid value found for property 'type' |
+| `LocationRequest` | Invalid value found for property 'type' |
+| `MapPicker` | Invalid value found for property 'type' |
+| `Location` | Invalid value found for property 'type' |
+| `OptIn` *(témoin)* | **accepté** |
+
+Le témoin passe : la sonde est fiable, et le refus est réel. **Aucun composant
+de localisation n'existe dans les formulaires Meta.** Le seul objet capable de
+capter un point est le message natif `location_request_message`, qui vit hors
+du formulaire.
+
+### La composition retenue
+
+Le formulaire porte une **case à cocher** — « Envoyer aussi ma position exacte
+(facultatif) » —, qui est une **intention**, pas une donnée de livraison :
+elle ne rejoint jamais l'objet enregistré, et un test le tient.
+
+Cochée, la demande native part **après** le récapitulatif : l'acheteuse relit
+d'abord ce qu'elle a saisi. Le point reçu ensuite s'attache et le
+récapitulatif se re-montre — ce chemin existait déjà (ADR 0062), il n'a pas
+fallu l'écrire.
+
+Non cochée, rien ne part. On ne réclame pas une position que personne n'a
+proposée.
+
+### Ce que le premier essai n'a PAS tranché
+
+L'écho du `flow_token` reste non vérifié : la branche `ville` lit la réponse
+sans regarder le jeton, elle aurait donc marché dans les deux cas. Le jeton ne
+devient critique qu'au premier usage du formulaire d'avis.

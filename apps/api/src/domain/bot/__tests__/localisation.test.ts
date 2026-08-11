@@ -231,3 +231,72 @@ describe("l'aiguillage laisse passer la position", () => {
     ).toBe("acheteuse");
   });
 });
+
+/* ────────────────────────────────────────────────────────────────────────
+   Le formulaire et la position se composent — par une CASE, pas par un
+   champ de carte : Meta n'en a pas (mesure du 11/08/2026, ADR 0063).
+   ──────────────────────────────────────────────────────────────────────── */
+
+describe("le formulaire demande la position par une case a cocher", () => {
+  const rempli = (position?: boolean | string) =>
+    JSON.stringify({
+      flow_token: "livraison:chez-amina",
+      ville: "Douala",
+      quartier: "Bonapriso",
+      repere: "en face de la pharmacie du Rond-Point",
+      telephone: "690112233",
+      ...(position === undefined ? {} : { position }),
+    });
+
+  it("lit la case, qu'elle arrive en booleen ou en chaine", async () => {
+    const { veutPositionFlux } = await import("../flux.ts");
+    expect(veutPositionFlux(rempli(true))).toBe(true);
+    expect(veutPositionFlux(rempli("true"))).toBe(true);
+    expect(veutPositionFlux(rempli(false))).toBe(false);
+    expect(veutPositionFlux(rempli("false"))).toBe(false);
+  });
+
+  it("case absente = pas de demande — on n'insiste jamais tout seul", async () => {
+    const { veutPositionFlux } = await import("../flux.ts");
+    expect(veutPositionFlux(rempli(undefined))).toBe(false);
+    expect(veutPositionFlux("pas du json")).toBe(false);
+  });
+
+  it("cochee : la demande de position suit le recapitulatif", async () => {
+    const { reagirAcheteuse } = await import("../conversation.ts");
+    const r = reagirAcheteuse(
+      { nom: "ville", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 1 }] } as never,
+      { genre: "flux", reponse: rempli(true) },
+      { vers: VERS, boutique: BOUTIQUE } as never,
+    );
+    expect((r.etat as { nom: string }).nom).toBe("recap");
+    expect(r.messages.some(estDemandePosition)).toBe(true);
+    /* Le recapitulatif reste EN PREMIER : elle lit ce qu'elle a saisi avant
+       qu'on lui demande autre chose. */
+    expect(estDemandePosition(r.messages[0])).toBe(false);
+  });
+
+  it("non cochee : le recapitulatif seul, comme avant", async () => {
+    const { reagirAcheteuse } = await import("../conversation.ts");
+    const r = reagirAcheteuse(
+      { nom: "ville", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 1 }] } as never,
+      { genre: "flux", reponse: rempli(false) },
+      { vers: VERS, boutique: BOUTIQUE } as never,
+    );
+    expect(r.messages.some(estDemandePosition)).toBe(false);
+  });
+
+  it("la case ne salit PAS la livraison enregistree", async () => {
+    /* `position` est une intention, pas une donnee de livraison : elle ne doit
+       pas se retrouver en base a cote du quartier et du repere. */
+    const { reagirAcheteuse } = await import("../conversation.ts");
+    const r = reagirAcheteuse(
+      { nom: "ville", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 1 }] } as never,
+      { genre: "flux", reponse: rempli(true) },
+      { vers: VERS, boutique: BOUTIQUE } as never,
+    );
+    expect((r.etat as { livraison: Record<string, unknown> }).livraison).not.toHaveProperty(
+      "position",
+    );
+  });
+});

@@ -39,6 +39,12 @@ export const CHAMPS_FLUX = {
   quartier: "quartier",
   repere: "repere",
   telephone: "telephone",
+  /**
+   * La case « envoyer aussi ma position ». C'est une INTENTION, pas une
+   * donnee de livraison : elle ne rejoint jamais l'objet enregistre, et un
+   * test le tient.
+   */
+  position: "position",
 } as const;
 
 /** Ce que le Flow rend, une fois relu — la meme forme que la saisie libre. */
@@ -186,6 +192,34 @@ export function lireAvisFlux(brut: string): AvisLu | null {
   if (!/^[1-5]$/.test(brutNote)) return null;
   const mot = champ(d, "mot").slice(0, MOT_MAX);
   return { note: Number(brutNote), ...(mot ? { mot } : {}) };
+}
+
+/**
+ * La case « envoyer aussi ma position exacte » — sprint « le bot devient une
+ * application ».
+ *
+ * ── Pourquoi une CASE et pas un champ de carte ────────────────────────────
+ *
+ * Mesure du 11/08/2026, sur un formulaire jetable depose puis supprime :
+ * `LocationPicker`, `LocationRequest`, `MapPicker` et `Location` sont TOUS
+ * refuses par Meta (« Invalid value found for property 'type' »), tandis que
+ * le temoin `OptIn` passe. **Il n'existe pas de composant de localisation
+ * dans les formulaires.** Le seul objet qui sait capter un point est le
+ * message natif `location_request_message`, qui vit hors du formulaire.
+ *
+ * La case porte donc l'INTENTION ; la demande native, envoyee juste apres le
+ * recapitulatif, fait la capture. Sans elle, une acheteuse qui remplit le
+ * formulaire ne se verrait jamais proposer sa position — le formulaire saute
+ * l'etape ou la demande partait.
+ *
+ * Tolerante a la forme : `true` booleen comme "true" en chaine. Absente vaut
+ * NON — on ne demande jamais une position que personne n'a proposee.
+ */
+export function veutPositionFlux(brut: string): boolean {
+  const d = objetDe(brut);
+  if (!d) return false;
+  const v = d[CHAMPS_FLUX.position];
+  return v === true || v === "true";
 }
 
 /**
