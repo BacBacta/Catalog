@@ -6,6 +6,7 @@ import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { LONGUEUR_JETON } from "../domain/receipt/jeton.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
 import { recuRoutes, suiviRoutes } from "../routes/recu.ts";
+import { identifiants } from "./_identifiants.ts";
 import {
   MTN_PAIEMENT_SORTANT,
   MTN_RECEPTION,
@@ -65,10 +66,12 @@ const chiffreur = new ChiffreurInerte({ NODE_ENV: "test" });
  * Reutiliser l'identifiant d'une fixture ferait echouer la deuxieme execution
  * pour la bonne raison, au mauvais endroit.
  */
-let compteur = 0;
-const txMtn = (): string => `176${(RUN + ++compteur * 7).toString().padStart(8, "0").slice(-8)}`;
-const txOrange = (): string =>
-  `MP260623.1403.C${(RUN + ++compteur * 13).toString().padStart(5, "0").slice(-5)}`;
+/* Le PAS arithmetique — `RUN + compteur * 7` — etait le defaut : il etalait les
+   identifiants sur ~273 des 1 000 valeurs de la tranche, si bien que deux
+   executions se recouvraient des que l'ecart de leurs sels etait un multiple de
+   7. Mesure : ~7 %, et la CI enchaine `test` puis `test:coverage` sur la MEME
+   base. Le compteur a maintenant ses propres chiffres — voir `_identifiants.ts`. */
+const { txMtn, txOrange } = identifiants("attaques-preuve");
 
 function codeDeTest(graine: number): string {
   let n = graine;
