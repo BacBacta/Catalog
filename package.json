@@ -21,6 +21,7 @@
     "db:constraints": "pnpm --filter @catalog/db constraints",
     "db:reset": "pnpm --filter @catalog/db db:reset",
     "shop:snapshot": "node apps/api/scripts/exporter-catalogue.mjs",
+    "shop:snapshot:distant": "node apps/api/scripts/recuperer-catalogue.mjs",
     "shop:lighthouse": "pnpm --filter @catalog/shop lighthouse",
     "test:coverage": "pnpm --filter @catalog/api test:coverage",
     "charge": "node scripts/charge/charge.mjs",

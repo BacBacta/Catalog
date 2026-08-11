@@ -77,6 +77,9 @@ importers:
       hono:
         specifier: 4.12.32
         version: 4.12.32
+      jose:
+        specifier: 6.2.4
+        version: 6.2.4
       pg-boss:
         specifier: ^12.26.4
         version: 12.26.4

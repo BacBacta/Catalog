@@ -148,7 +148,16 @@ Côté dépôt GitHub, pour le workflow :
 |---|---|
 | `FLY_API_TOKEN` | `flyctl deploy` |
 | `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` | `vercel deploy` |
-| `DATABASE_URL` | l'instantané du catalogue, **uniquement** |
+
+> **`DATABASE_URL` n'est PAS dans cette liste, et ne doit pas y entrer.**
+> Le job de la boutique l'exigeait pour l'instantané du catalogue ; il ne le
+> fait plus depuis l'ADR 0070. Ce serait la chaîne de connexion complète de la
+> base de production — hôte, identifiant, mot de passe — déposée chez un
+> fournisseur qui exécute du code écrit dans des branches, et sans granularité
+> possible : elle n'ouvre pas « le catalogue », elle ouvre les commandes, les
+> preuves et les numéros de reversement. L'API sert désormais l'instantané sur
+> `GET /api/instantane`, et l'exécution s'y identifie par le jeton signé que
+> GitHub délivre — **aucun secret à poser, d'aucun côté**.
 
 Et deux variables, pas des secrets — ce sont des URL publiques :
 
@@ -304,12 +313,16 @@ information différente d'un silence, et c'est pour cela que la page existe.
 Le projet Vercel se crée avec **aucune commande de construction** : le workflow
 construit, Vercel ne fait que servir. Faire construire Vercel demanderait de lui
 donner `DATABASE_URL` pour l'instantané, ce qui n'a aucune raison d'être.
+Le workflow, lui, ne l'a plus non plus : il demande l'instantané à l'API
+(ADR 0070).
 
 > **Le répertoire de sortie du projet reste VIDE — surtout pas
 > `apps/shop/dist`.** `vercel deploy apps/shop/dist` fait déjà de ce répertoire
 > la racine du déploiement ; le réglage du projet s'appliquerait *par-dessus*, et
 > Vercel chercherait `apps/shop/dist/apps/shop/dist`. Le chemin ne se donne
 > qu'une fois, et c'est sur la ligne de commande.
+
+À la main, depuis un poste qui a la base à portée (développement) :
 
 ```bash
 pnpm db:generate                      # le client Prisma, que l'instantané importe

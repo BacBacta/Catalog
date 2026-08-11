@@ -1,6 +1,8 @@
 import { IMAGE_TAILLE_MAX_OCTETS } from "@catalog/contracts";
 import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
+import { construireInstantane } from "./adapters/instantane-catalogue.ts";
+import { verificateurDepuisEnv } from "./adapters/jeton-actions-github.ts";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
 import { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
 import { declencheurDepuisEnv } from "./adapters/reconstruction-boutique.ts";
@@ -32,6 +34,7 @@ import { accuseLivraisonRoutes } from "./routes/accuse-livraison.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { commandeRoutes } from "./routes/commandes.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
+import { instantaneRoutes } from "./routes/instantane.ts";
 import { mediaRoutes } from "./routes/media.ts";
 import { payoutRoutes } from "./routes/payout.ts";
 import { preuveRoutes } from "./routes/preuve.ts";
@@ -187,6 +190,29 @@ app.route(
       : {}),
   }),
 );
+
+/**
+ * L'instantane du catalogue, servi a la CONSTRUCTION de la boutique — ADR 0070.
+ *
+ * Il evite de deposer `DATABASE_URL` chez GitHub : le seul endroit qui a besoin
+ * du secret de la base est celui dont c'est le travail. L'appelant s'identifie
+ * par le jeton signe de son execution — aucun secret partage, donc aucun secret
+ * a inventer, a transmettre, ni a faire tourner.
+ *
+ * **Dormant sans `SHOP_REBUILD_GITHUB_REPO`** : la meme variable que le
+ * declencheur, vue dans l'autre sens. L'API reveille le workflow, il revient
+ * chercher la photo.
+ */
+const verificateurActions = verificateurDepuisEnv();
+if (verificateurActions) {
+  app.route(
+    "/api/instantane",
+    instantaneRoutes({
+      verificateur: verificateurActions,
+      construire: () => construireInstantane(prisma),
+    }),
+  );
+}
 
 app.route("/api/rampe", rampeRoutes(rampe));
 
