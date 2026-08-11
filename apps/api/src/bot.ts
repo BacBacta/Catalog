@@ -945,6 +945,9 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
                vendeuse doit l'apprendre, pas a la relance de ~20 h. */
             lienReversement:
               !boutique.reversementPose && deps.baseApp ? `${deps.baseApp}/reversement` : null,
+            /* Ou marquer « preparee » et « chez le livreur » : le fil ne sait
+               que la remise. Sans ce lien, la notification est une impasse. */
+            lienEspace: deps.baseApp ? `${deps.baseApp}/commandes` : null,
           }),
           undefined,
           /* Hors fenetre, un gabarit ouvre la porte — ADR 0054. C'est LE cas

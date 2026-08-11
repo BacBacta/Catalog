@@ -75,6 +75,13 @@ export function corpsNouvelleCommande(c: {
    * le moment ou on le dit — avec le lien, pas un renvoi vague.
    */
   lienReversement?: string | null;
+  /**
+   * L'espace vendeuse, ou les etapes intermediaires se marquent — preparee,
+   * chez le livreur. Le fil ne connait que « livree » (ADR 0035) : sans ce
+   * lien, la notification est une IMPASSE, et c'est le reproche du banc du
+   * 11/08/2026. Absent quand la base n'est pas configuree.
+   */
+  lienEspace?: string | null;
 }): string {
   return [
     `🛍️ *Nouvelle commande ${c.reference}*`,
@@ -93,6 +100,16 @@ export function corpsNouvelleCommande(c: {
       : []),
     ...(c.destination ? [`📍 ${c.destination}`] : []),
     `Numéro à appeler pour la remise : ${c.telephoneLivraison}`,
+    /**
+     * **Ce qui suit, et ou.** Une notification qui annonce sans dire la suite
+     * laisse la vendeuse devant un fait, pas devant un geste — c'est ce que le
+     * banc du 11/08/2026 a appele « le flow est mort cote vendeur ».
+     *
+     * Le fil porte le geste le plus frequent (la remise) ; l'espace porte les
+     * etapes intermediaires, que la conversation ne sait pas marquer.
+     */
+    `\nQuand c'est remis, écrivez ici : *livrée ${c.reference}*`,
+    ...(c.lienEspace ? [`Préparée, chez le livreur, historique : ${c.lienEspace}`] : []),
   ].join("\n");
 }
 

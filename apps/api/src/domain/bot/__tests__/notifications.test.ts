@@ -101,3 +101,39 @@ describe("la destination dans la notification vendeuse", () => {
     expect(c).not.toContain("📍");
   });
 });
+
+/**
+ * La notification dit CE QUI SUIT — banc du 11/08/2026.
+ *
+ * Le reproche : « une fois la commande passee, le flow est mort cote vendeur ».
+ * Les fonctions existaient — l'app fait avancer les etapes, le fil accepte
+ * « livree CT-… » — mais RIEN n'y menait. Une notification qui annonce sans
+ * dire la suite laisse la vendeuse devant un fait, pas devant un geste.
+ */
+describe("la nouvelle commande dit ce qui suit", () => {
+  const base = {
+    reference: "CT-471811",
+    lignes: [{ nom: "Robe wax", quantite: 1 }],
+    totalXaf: 15000,
+    duAvantXaf: 0,
+    telephoneLivraison: "697 53 05 12",
+    destination: "Douala, Bonanjo, Immeuble bleu",
+  };
+
+  it("rappelle le mot-cle de remise, avec la REFERENCE deja ecrite", () => {
+    /* « livree CT-… » a taper de tete est une friction ; ecrit, c'est un
+       copier-coller. */
+    const m = corpsNouvelleCommande({ ...base, lienEspace: null });
+    expect(m).toContain("livrée CT-471811");
+  });
+
+  it("donne le lien des etapes intermediaires quand l'espace existe", () => {
+    const m = corpsNouvelleCommande({ ...base, lienEspace: "https://app.example/commandes" });
+    expect(m).toContain("https://app.example/commandes");
+  });
+
+  it("sans espace configure, la ligne disparait — jamais de lien mort", () => {
+    const m = corpsNouvelleCommande({ ...base, lienEspace: null });
+    expect(m).not.toContain("http");
+  });
+});

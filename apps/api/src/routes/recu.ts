@@ -320,7 +320,18 @@ export function suiviRoutes(deps: RecuDeps) {
       }),
       actions: {
         contresigner: commande.proofState === "prouve",
-        contester: commande.proofState !== "conteste",
+        /**
+         * **On ne propose pas de contester un paiement qui n'existe pas.**
+         *
+         * Sur `attendu`, personne n'a rien verse ni rien declare : le bouton
+         * n'a aucun objet, et il a coute une commande au banc du 11/08/2026
+         * — appuye trente secondes apres la creation, il l'a laissee en
+         * litige, sans avis ni contre-signature possibles, sans retour.
+         *
+         * Le domaine refuse desormais aussi (`contestation_sans_paiement`) :
+         * cacher un bouton ne suffit pas quand la route reste ouverte.
+         */
+        contester: commande.proofState !== "conteste" && commande.proofState !== "attendu",
       },
     });
   });
@@ -449,6 +460,21 @@ export function suiviRoutes(deps: RecuDeps) {
    * le publier, et il suffirait alors de lire un tableau de bord pour valider le
    * paiement d'autrui. On trace l'identifiant de commande, qui n'autorise rien.
    */
+  /**
+   * Ce qu'on dit a l'acheteuse quand la machine refuse. Un message par raison :
+   * « impossible » sans motif est la reponse qui fait renoncer.
+   */
+  const MESSAGE_REFUS: Record<string, string> = {
+    contestation_sans_paiement:
+      "Aucun paiement n'a encore ete enregistre sur cette commande — il n'y a donc rien a contester. Si vous voulez annuler, ecrivez-le a la vendeuse : c'est elle qui peut le faire.",
+    contresignature_sans_preuve:
+      "Le paiement n'est pas encore prouve : la vendeuse doit d'abord coller le SMS de son operateur. Vous serez prevenue ici des que c'est fait.",
+    recul_ignore: "C'est deja fait — rien de plus n'est necessaire.",
+    litige_ouvert:
+      "Cette commande est en litige : elle n'avance plus sans intervention humaine. Ecrivez a la vendeuse.",
+    transition_interdite: "Ce geste n'est pas possible sur cette commande.",
+  };
+
   async function transition(c: Context, evenement: EvenementPreuve) {
     return avecSpan(
       evenement.type === "contresignature" ? PARCOURS.contresignature : PARCOURS.etapeAvancee,
@@ -504,7 +530,13 @@ export function suiviRoutes(deps: RecuDeps) {
     if (!resultat.ok) {
       poser(span, { "catalog.commande.transition_refusee": resultat.raison });
       poserIssue(span, "refus_transition");
-      return c.json({ refuse: resultat.raison, etat: resultat.etat }, 409);
+      /* Un refus se DIT en francais simple : « 409 » n'apprend rien a une
+         acheteuse, et le silence sur ce qui vient d'echouer est ce qui fait
+         croire que le produit est casse. */
+      return c.json(
+        { refuse: resultat.raison, etat: resultat.etat, message: MESSAGE_REFUS[resultat.raison] },
+        409,
+      );
     }
     poser(span, { "catalog.commande.etat_preuve": resultat.etat });
     mesurerEtatPreuve(resultat.etat);

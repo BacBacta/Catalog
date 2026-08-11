@@ -90,6 +90,8 @@ export type RefusTransition =
   | "sms_refuse"
   /** Contresignature demandee sans preuve prealable. */
   | "contresignature_sans_preuve"
+  /** Contestation demandee alors qu'aucun paiement n'a ete attribue. */
+  | "contestation_sans_paiement"
   /** Identifiant d'operateur absent : on ne marque jamais prouve sans lui. */
   | "identifiant_operateur_absent";
 
@@ -196,6 +198,24 @@ export function appliquerEvenement(
    */
   if (evenement.type === "contestation") {
     if (etat === "conteste") return refus("recul_ignore");
+    /**
+     * **On ne conteste pas un paiement qui n'existe pas.**
+     *
+     * Contester veut dire « ce paiement n'est pas de moi ». Sur `attendu`,
+     * personne n'a rien verse ni rien declare : il n'y a aucun paiement a
+     * desavouer, et l'acheteuse qui appuie veut dire tout autre chose — se
+     * raviser, annuler, comprendre. Le produit lui faisait signer un LITIGE :
+     * plus de contre-signature, plus d'avis, recu refuse, aucun retour.
+     *
+     * Mesure du banc, 11/08/2026 : commande creee a 10:08:17, contestee a
+     * 10:08:47. Trente secondes.
+     *
+     * Des qu'un versement est ATTRIBUE — declare non trace, prouve,
+     * contresigne — le desaveu retrouve son objet, et la regle du controle 7
+     * ne bouge pas : la preuve la plus forte reste contestable, sinon une
+     * collusion a deux voix serait definitive.
+     */
+    if (etat === "attendu") return refus("contestation_sans_paiement");
     return avance();
   }
 
