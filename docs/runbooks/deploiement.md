@@ -345,11 +345,20 @@ cd apps/seller/dist && npx vercel deploy --yes --prod
 Trois différences avec la boutique, toutes trois voulues :
 
 1. **Son `vercel.json` est un fichier SOURCE, versionné** :
-   `apps/seller/public/vercel.json`, que Vite copie tel quel dans `dist/` à
-   chaque build. L'inverse de la boutique, et pour la raison inverse : rien
-   dans son contenu ne dépend du build — pas d'empreintes de scripts en ligne
-   (le HTML construit n'en contient aucun), pas d'origine d'API injectée par
-   l'environnement.
+   `apps/seller/vercel.json`. L'inverse de la boutique, et pour la raison
+   inverse : rien dans son contenu ne dépend du build — pas d'empreintes de
+   scripts en ligne (le HTML construit n'en contient aucun), pas d'origine
+   d'API injectée par l'environnement.
+
+   > **Il arrive à DEUX endroits, et il le faut** — corrigé le 11/08/2026,
+   > voir l'ADR 0067. Il a longtemps vécu dans `apps/seller/public/`, d'où Vite
+   > le recopiait dans `dist/`. Correct pour la commande ci-dessus, **invisible**
+   > pour une construction déclenchée depuis git : celle-là lit la configuration
+   > à la racine de `apps/seller`, pas dans la sortie. Le jour où le projet
+   > Vercel a été relié au dépôt, l'app s'est déployée sans son renvoi `/api/*`,
+   > sans repli SPA et sans en-têtes — **sans aucune erreur de construction**.
+   > Le fichier vit maintenant à la racine de l'app, et `vite.config.ts` le
+   > recopie dans `dist/`. `src/__tests__/vercel-json.test.ts` tient les deux.
 
 2. **La réécriture `/api/*` vers l'API Fly est le « serveur de tête » annoncé
    par `apps/seller/vite.config.ts`.** Le cookie de session posé par Better
