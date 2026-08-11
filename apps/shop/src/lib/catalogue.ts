@@ -131,16 +131,17 @@ export function imagePublique(
  * Le suffixe garantit l'unicite sans exiger une colonne de plus — deux articles
  * peuvent legitimement s'appeler « pagne wax ».
  */
-export function slugArticle(nom: string, id: string): string {
-  const base = nom
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return `${base || "article"}-${id.slice(-6)}`;
-}
+/**
+ * Le slug d'article vit dans `@catalog/contracts/slug` — **une seule
+ * ecriture** (ADR 0073). Le bot en a besoin pour ses liens marques, et les
+ * deux paquets ne peuvent pas s'importer l'un l'autre : la regle est donc
+ * remontee dans le seul endroit que les deux ont deja le droit de lire.
+ *
+ * Reexporte ici pour que les appelants existants ne changent pas.
+ */
+import { slugArticle } from "@catalog/contracts/slug";
+
+export { slugArticle };
 
 /** Variantes : une forme inattendue est ignoree, jamais devinee. */
 export function variantes(valeur: unknown): string[] {

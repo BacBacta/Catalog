@@ -14,6 +14,7 @@ const CARTE_CIBLE_OCTETS = 300_000;
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
+import { slugArticle } from "@catalog/contracts/slug";
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
 import { rendreCarte } from "./adapters/carte-vitrine.ts";
@@ -46,6 +47,7 @@ import {
   reagirVendeuse,
   type StatutDerniereCommande,
 } from "./domain/bot/conversation.ts";
+import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import {
@@ -74,6 +76,7 @@ import {
   corpsLivraisonRefusee,
   corpsNouvelleCommande,
 } from "./domain/bot/notifications.ts";
+import { consigneDuPack, packStatut } from "./domain/bot/pack-statut.ts";
 import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
@@ -591,6 +594,15 @@ async function filInscription(
       if (nb === 1) {
         messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
       }
+      /**
+       * Le pack statut part a CHAQUE publication — ADR 0061, rang 3a.
+       *
+       * La carte-vitrine, elle, ne part qu'au premier article : elle dit « la
+       * boutique existe », une fois. Le pack dit « poste CELUI-CI aujourd'hui »,
+       * et c'est vrai a chaque fois. Sur la premiere publication les deux
+       * partent, et c'est voulu : ils ne disent pas la meme chose.
+       */
+      messages.push(...(await packStatutArticle(deps, sellerId, article).catch(() => [])));
     }
     etatSuivant = ETAT_INITIAL;
   }
@@ -842,7 +854,13 @@ async function creerArticleDepuisFil(
   deps: BotDeps,
   sellerId: string,
   demande: { nom: string; prixXaf: number; mediaId?: string },
-): Promise<{ nom: string; prixXaf: number; avecPhoto: boolean } | null> {
+): Promise<{
+  id: string;
+  nom: string;
+  prixXaf: number;
+  avecPhoto: boolean;
+  imageKey: string | null;
+} | null> {
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
 
   let image: {
@@ -895,11 +913,21 @@ async function creerArticleDepuisFil(
             }
           : {}),
       },
-      select: { name: true, priceXaf: true },
+      select: { id: true, name: true, priceXaf: true },
     })
     .catch(() => null);
 
-  return cree ? { nom: cree.name, prixXaf: cree.priceXaf, avecPhoto: image !== null } : null;
+  return cree
+    ? {
+        id: cree.id,
+        nom: cree.name,
+        prixXaf: cree.priceXaf,
+        avecPhoto: image !== null,
+        /* La cle sert au pack statut (rang 3a) : la photo se recompose sur la
+           carte, elle ne se re-telecharge pas depuis WhatsApp. */
+        imageKey: image?.cle ?? null,
+      }
+    : null;
 }
 
 /* ────────────────────────── fil acheteuse ───────────────────────────────── */
@@ -1164,6 +1192,72 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
  * Rend le message a envoyer, ou une explication : sans article la carte n'a
  * rien a montrer, sans numero Catalog elle porterait un lien faux.
  */
+/**
+ * Le PACK STATUT d'un article — ADR 0061, rang 3a.
+ *
+ * Deux messages, et leur separation compte : l'IMAGE porte une consigne qui
+ * reste entre nous, la LEGENDE part telle quelle chez les clientes. Les
+ * melanger ferait poster a la vendeuse une phrase qui lui etait destinee.
+ *
+ * Le mot-cle du lien porte le canal `statut` : chaque commande nee d'un Statut
+ * se compte comme telle (rang 0). Sans lui, la vendeuse ne saurait jamais
+ * lequel de ses gestes rapporte.
+ *
+ * Ne leve jamais : la publication de l'article est faite, le pack est un plus
+ * — meme lecon que la reconstruction de boutique (ADR 0065).
+ */
+async function packStatutArticle(
+  deps: BotDeps,
+  sellerId: string,
+  article: { id: string; nom: string; prixXaf: number; imageKey: string | null },
+): Promise<MessageSortant[]> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { businessName: true, slug: true, city: true, phone: true },
+  });
+  const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
+  if (!seller || !chiffres || !deps.storage) return [];
+  const a = (seller.phone ?? "").replace(/^\+/, "");
+  if (!a) return [];
+
+  const pack = packStatut({
+    nomBoutique: seller.businessName,
+    slug: seller.slug,
+    article: {
+      nom: article.nom,
+      prixXaf: article.prixXaf,
+      slugArticle: slugArticle(article.nom, article.id),
+    },
+    lien: lienBot(deps, texteEntreeBoutique({ slug: seller.slug, canal: "statut" })),
+  });
+
+  const photo = article.imageKey
+    ? await deps.storage
+        .lire(`${article.imageKey}.jpg`)
+        .then((o) => (o ? { octets: o } : null))
+        .catch(() => null)
+    : null;
+
+  const carte = await carteEnMessage(
+    deps,
+    {
+      nomBoutique: seller.businessName,
+      ville: seller.city,
+      lien: lienBot(deps, pack.motCle),
+      lienAffiche: `wa.me/${chiffres}`,
+      motCle: pack.motCle,
+      /* UN seul article : le gabarit lui donne toute la place (ADR 0037). */
+      articles: [{ nom: article.nom, prixXaf: article.prixXaf, avecPhoto: photo !== null }],
+    },
+    [photo],
+    a,
+    consigneDuPack(),
+  );
+  /* La legende arrive SEULE, dans son propre message : c'est ce qui la rend
+     transferable d'un appui long, sans rien a effacer. */
+  return [...carte, texte(a, pack.legende)];
+}
+
 async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSortant[]> {
   const vers = (phone: string) => phone.replace(/^\+/, "");
   const seller = await deps.prisma.seller.findUnique({
@@ -1216,8 +1310,9 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
 
   const rep = reputation(seller.reviews.map((r) => ({ note: r.rating, verifie: r.verified })));
   const motCle = `boutique ${seller.slug}`;
-  const png = await rendreCarte({
-    donnees: {
+  return carteEnMessage(
+    deps,
+    {
       nomBoutique: seller.businessName,
       ville: seller.city,
       lien: lienBot(deps, motCle),
@@ -1232,7 +1327,28 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
       })),
     },
     photos,
-  });
+    a,
+    `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
+  );
+}
+
+/**
+ * Rend une carte, l'encode, la range et la renvoie en message image.
+ *
+ * Extrait de `carteVitrine` au rang 3a : le pack statut (ADR 0061) rend la
+ * MEME carte avec d'autres donnees et une autre legende. Deux copies de ce
+ * pipeline auraient derive — et l'une des deux aurait fini par perdre le
+ * calibrage de l'ADR 0059, qui est precisement ce qu'on n'a pas le droit
+ * d'oublier ici.
+ */
+async function carteEnMessage(
+  deps: BotDeps,
+  donnees: Parameters<typeof rendreCarte>[0]["donnees"],
+  photos: ReadonlyArray<{ octets: Uint8Array } | null>,
+  a: string,
+  legende: string,
+): Promise<MessageSortant[]> {
+  const png = await rendreCarte({ donnees, photos });
 
   /**
    * Le meme pipeline que les photos, mais PAS le meme calibrage — ADR 0059.
@@ -1266,13 +1382,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
   const url = await urlJpegVerifiee(deps, base);
   if (!url) return [texte(a, "La carte n'a pas pu être publiée. Réessayez dans un instant.")];
 
-  return [
-    imageMessage(
-      a,
-      url,
-      `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
-    ),
-  ];
+  return [imageMessage(a, url, legende)];
 }
 
 /**

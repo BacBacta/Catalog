@@ -10,6 +10,7 @@
     "./money": "./src/money.ts",
     "./phone": "./src/phone.ts",
     "./recu": "./src/recu.ts",
+    "./slug": "./src/slug.ts",
     "./stats": "./src/stats.ts",
     "./ussd": "./src/ussd.ts",
     "./villes": "./src/villes.ts",
