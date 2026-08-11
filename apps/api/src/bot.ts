@@ -18,6 +18,7 @@ import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
 import { rendreCarte } from "./adapters/carte-vitrine.ts";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
+import type { DeclencheurReconstruction } from "./adapters/reconstruction-boutique.ts";
 import { emailTechnique } from "./auth.ts";
 import { livrerNotificationsEnAttente, notifier, notifierLivree } from "./bot-notifications.ts";
 import { aiguiller } from "./domain/bot/aiguillage.ts";
@@ -67,6 +68,7 @@ import {
 } from "./domain/bot/notifications.ts";
 import { type Langue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
+import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
 import {
   avancerEtape,
   type CommandePourCycle,
@@ -147,6 +149,12 @@ export interface BotDeps {
   fluxLivraisonId?: string;
   /** Le Flow d'AVIS — meme regime : absent, le fil est celui d'avant. */
   fluxAvisId?: string;
+  /**
+   * Le declencheur de reconstruction de la boutique publique — ADR 0065.
+   * ABSENT par defaut : sans lui, aucun deploiement n'est demande et aucun
+   * delai n'est annonce. Le silence est alors la seule reponse honnete.
+   */
+  reconstruction?: DeclencheurReconstruction | null;
   maintenant?: () => Date;
   aleatoire?: (n: number) => Uint8Array;
 }
@@ -436,6 +444,10 @@ async function filInscription(
     } else {
       messages.push(texte(entree.de, cree.message));
     }
+    /* Une boutique neuve n'a AUCUNE page : l'accueil de la boutique publique
+       la liste, et la sienne n'existe pas encore. Le regroupement absorbera
+       la publication d'article qui suit dans la foulee. */
+    await deps.reconstruction?.demander("boutique_creee");
   }
 
   if (reaction.effet?.type === "creer_article" && sellerId) {
@@ -450,9 +462,24 @@ async function filInscription(
           select: { congesDepuis: true },
         })
       )?.congesDepuis != null;
+    /**
+     * La page WEB se reconstruit — ADR 0065.
+     *
+     * L'article entre en base tout de suite ; la boutique publique, elle, lit
+     * un instantane pris a la CONSTRUCTION. Sans ce declenchement, une
+     * boutique nee dans le fil restait en 404 — mesure du 11/08/2026.
+     *
+     * Le delai n'est annonce que si la demande est REELLEMENT partie : sans
+     * crochet configure, ou si le regroupement l'absorbe, la page n'arrivera
+     * pas dans le delai qu'on annoncerait. Le silence est alors honnete.
+     */
+    const pageWebDansMinutes =
+      article && (await deps.reconstruction?.demander("article_publie"))
+        ? ATTENTE_ANNONCEE_MIN
+        : null;
     messages.push(
       article
-        ? messageArticlePublie(entree.de, article, enConges)
+        ? messageArticlePublie(entree.de, article, enConges, pageWebDansMinutes)
         : texte(
             entree.de,
             "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",

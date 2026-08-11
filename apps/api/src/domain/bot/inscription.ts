@@ -324,6 +324,18 @@ export function messageArticlePublie(
   vers: string,
   a: { nom: string; prixXaf: number; avecPhoto: boolean },
   enConges = false,
+  /**
+   * Minutes avant que la PAGE WEB de la boutique porte cet article — ADR 0065.
+   *
+   * `null` quand aucune reconstruction n'a ete demandee, et c'est alors le
+   * SILENCE qui est honnete : sans crochet configure, la page n'arrivera pas
+   * d'elle-meme, et annoncer un delai serait une promesse qu'on ne tient pas.
+   *
+   * Le mot « en ligne » etait vrai pour le catalogue du fil et FAUX pour le
+   * web : mesure du 11/08/2026, `chez-bea-test` repondait 404 pendant que le
+   * bot annoncait la mise en ligne. C'est le web que la vendeuse va montrer.
+   */
+  pageWebDansMinutes: number | null = null,
 ): MessageSortant {
   const photo = a.avecPhoto ? "" : "\nSans photo pour l'instant — envoyez-la quand vous voulez.";
   /**
@@ -337,11 +349,19 @@ export function messageArticlePublie(
   const conges = enConges
     ? "\n\n🌴 Rappel : votre boutique est en congés — elle ne prend aucune commande. Écrivez « je reprends » quand vous êtes prête."
     : "";
-  return boutons(vers, `✅ *${a.nom}* — ${formatXaf(a.prixXaf)} est en ligne.${photo}${conges}`, [
-    ...(enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
-    { id: "article", titre: "Autre article" },
-    { id: "ma_boutique", titre: "Ma boutique" },
-  ]);
+  const pageWeb =
+    pageWebDansMinutes === null
+      ? ""
+      : `\nVotre page web se met à jour — elle portera cet article d'ici ${pageWebDansMinutes} minutes.`;
+  return boutons(
+    vers,
+    `✅ *${a.nom}* — ${formatXaf(a.prixXaf)} est dans votre catalogue.${photo}${pageWeb}${conges}`,
+    [
+      ...(enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
+      { id: "article", titre: "Autre article" },
+      { id: "ma_boutique", titre: "Ma boutique" },
+    ],
+  );
 }
 
 /**

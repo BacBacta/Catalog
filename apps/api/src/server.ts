@@ -3,6 +3,7 @@ import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
 import { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
+import { declencheurDepuisEnv } from "./adapters/reconstruction-boutique.ts";
 import { resolveChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { ConsoleSmsSender } from "./adapters/sms-console.ts";
 import { MemoryStorage, resolveStorage } from "./adapters/storage-s3.ts";
@@ -136,10 +137,16 @@ const bot =
         ...(process.env.WABOT_FLUX_AVIS_ID?.trim()
           ? { fluxAvisId: process.env.WABOT_FLUX_AVIS_ID.trim() }
           : {}),
+        /* La reconstruction de la boutique publique — ADR 0065. `null` sans
+           SHOP_REBUILD_HOOK_URL, et le fil n'annonce alors aucun delai. */
+        reconstruction: declencheurDepuisEnv(),
       }
     : null;
 
-app.route("/api/articles", productRoutes({ prisma, session, storage }));
+app.route(
+  "/api/articles",
+  productRoutes({ prisma, session, storage, reconstruction: declencheurDepuisEnv() }),
+);
 // Les statistiques : sous session, et filtrees par la vendeuse de la session.
 // Aucun identifiant de boutique ne circule dans l'URL — ce serait un numero a
 // essayer, et les chiffres d'une vendeuse ne regardent qu'elle.

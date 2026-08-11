@@ -440,3 +440,36 @@ describe("les mots communs marchent aussi dans l'inscription", () => {
     expect(r.effet).toBeUndefined();
   });
 });
+
+/**
+ * « En ligne » ne doit pas mentir sur la PAGE WEB — ADR 0065.
+ *
+ * L'article entre en base tout de suite ; la boutique publique, elle, lit un
+ * instantane pris a la construction. Mesure du 11/08/2026 : `chez-bea-test`
+ * repondait 404 alors que le bot avait dit « en ligne ». Le mot etait vrai
+ * pour le catalogue du fil, faux pour le web — et c'est le web que la
+ * vendeuse va montrer.
+ */
+describe("l'article publie dit quand la page web arrive", () => {
+  const article = { nom: "Robe wax", prixXaf: 15000, avecPhoto: true };
+  const corps = (m: unknown) =>
+    (m as { interactive?: { body?: { text?: string } } }).interactive?.body?.text ?? "";
+
+  it("annonce l'attente quand une reconstruction vient d'etre demandee", () => {
+    const m = messageArticlePublie(VERS, article, false, 15);
+    expect(corps(m)).toMatch(/15 minutes/);
+  });
+
+  it("SANS reconstruction, aucune promesse n'est faite", () => {
+    /* Sans crochet configure, la page n'arrivera pas d'elle-meme : annoncer un
+       delai serait une promesse qu'on ne tient pas. */
+    const m = messageArticlePublie(VERS, article, false, null);
+    expect(corps(m)).not.toMatch(/minute/);
+  });
+
+  it("le rappel de conges survit a l'ajout", () => {
+    const m = messageArticlePublie(VERS, article, true, 15);
+    expect(corps(m)).toContain("congés");
+    expect(corps(m)).toMatch(/15 minutes/);
+  });
+});
