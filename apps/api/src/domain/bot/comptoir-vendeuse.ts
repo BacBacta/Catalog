@@ -237,12 +237,22 @@ export interface FaitsATransferer {
 }
 
 export function messageATransferer(f: FaitsATransferer): string {
-  return [
+  const entete = [
     `🧾 *${f.boutique}* — commande *${f.reference}*`,
     `${f.article} — 1 × ${formatXaf(f.prixXaf)}`,
     `*Total : ${formatXaf(f.prixXaf)}*`,
     `Code de vérification : *${f.codeVerification}*`,
     "",
+  ];
+  /* Sans reversement pose, rien n'est du AVANT la remise : exiger un
+     prepaiement enverrait la cliente payer vers nulle part — la meme regle que
+     le comptoir acheteuse (`sans_prepaiement`). Le message le dit au lieu
+     d'afficher « a payer maintenant : 0 F ». */
+  if (f.aPayerXaf <= 0) {
+    return [...entete, `Le montant, ${formatXaf(f.prixXaf)}, se règle à la remise.`].join("\n");
+  }
+  return [
+    ...entete,
     `💳 *À payer maintenant : ${formatXaf(f.aPayerXaf)}*`,
     `${f.operateurNom ?? "Mobile Money"} : ${f.numeroReversement}`,
     ...(f.codeEntree
@@ -251,4 +261,88 @@ export function messageATransferer(f: FaitsATransferer): string {
     ...(f.resteXaf > 0 ? [`Le reste, ${formatXaf(f.resteXaf)}, se règle à la remise.`] : []),
     "Votre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici, jamais à personne.",
   ].join("\n");
+}
+
+/** Relit un etat comptoir persiste. Tout ce qui ne se relit pas vaut `null`. */
+export function normaliserEtatComptoir(brut: unknown): EtatComptoir | null {
+  const e = brut as Record<string, unknown> | null;
+  if (!e || typeof e !== "object") return null;
+  const texteNonVide = (v: unknown): v is string => typeof v === "string" && v.length > 0;
+  const prixValide = (v: unknown): v is number =>
+    typeof v === "number" && Number.isInteger(v) && v > 0;
+  switch (e.pas) {
+    case "article":
+      return { pas: "article" };
+    case "prix":
+      return texteNonVide(e.article) ? { pas: "prix", article: e.article } : null;
+    case "cliente":
+      return texteNonVide(e.article) && prixValide(e.prixXaf)
+        ? { pas: "cliente", article: e.article, prixXaf: e.prixXaf }
+        : null;
+    case "remise":
+      return texteNonVide(e.article) && prixValide(e.prixXaf) && texteNonVide(e.cliente)
+        ? { pas: "remise", article: e.article, prixXaf: e.prixXaf, cliente: e.cliente }
+        : null;
+    case "recap":
+      return texteNonVide(e.article) &&
+        prixValide(e.prixXaf) &&
+        texteNonVide(e.cliente) &&
+        texteNonVide(e.remise)
+        ? {
+            pas: "recap",
+            article: e.article,
+            prixXaf: e.prixXaf,
+            cliente: e.cliente,
+            remise: e.remise,
+          }
+        : null;
+    default:
+      return null;
+  }
+}
+
+/* ── Les phrases du comptoir — le fil vendeuse est en francais (ADR 0033) ── */
+
+/** La question du pas courant. L'appelant l'enveloppe en message sortant. */
+export function questionComptoir(etat: EtatComptoir): string {
+  switch (etat.pas) {
+    case "article":
+      return "*Qu'avez-vous vendu ?*\nExemple : Robe wax grande taille";
+    case "prix":
+      return `*${etat.article}* — au prix convenu avec votre cliente, en francs ?\nExemple : 12500`;
+    case "cliente":
+      return "*Le numéro WhatsApp de votre cliente ?*\nExemple : 677 00 11 22";
+    case "remise":
+      return "*Où se fait la remise ?* Le lieu convenu, en quelques mots.\nExemple : Carrefour Warda, devant la pharmacie";
+    case "recap":
+      return recapComptoir(etat);
+  }
+}
+
+/** Le recapitulatif : tout relire AVANT de creer, la lecon de l'ADR 0032. */
+export function recapComptoir(etat: Extract<EtatComptoir, { pas: "recap" }>): string {
+  return [
+    "🧾 *Récapitulatif de la vente*",
+    `${etat.article} — ${formatXaf(etat.prixXaf)}`,
+    `Cliente : ${etat.cliente}`,
+    `Remise : ${etat.remise}`,
+    "",
+    "Je crée la commande et je vous rends le message de paiement à lui transférer.",
+  ].join("\n");
+}
+
+/** Le refus, dit en phrase — jamais un code. */
+export function phraseRefusComptoir(motif: MotifRefus): string {
+  switch (motif) {
+    case "article_vide":
+      return "Je n'ai pas saisi l'article. En quelques mots — exemple : Robe wax grande taille.";
+    case "prix_illisible":
+      return "Je n'ai pas lu de prix. En francs, en chiffres — exemple : 12500.";
+    case "prix_negatif":
+      return "Un prix ne peut pas être négatif. En francs, en chiffres — exemple : 12500.";
+    case "numero_illisible":
+      return "Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22.";
+    case "remise_trop_courte":
+      return "Il me faut un lieu que votre cliente reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie.";
+  }
 }

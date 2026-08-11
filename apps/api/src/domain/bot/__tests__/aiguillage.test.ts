@@ -151,3 +151,48 @@ describe("une forme non lue suit les regles existantes", () => {
     expect(aiguiller(vocal, base)).toBe("acheteuse");
   });
 });
+
+describe("le comptoir vendeuse — rang 1, ADR 0061", () => {
+  it("« vendu » d'une vendeuse installee part a sa machine", () => {
+    for (const mot of ["vendu", "j'ai vendu", "Vente"]) {
+      expect(
+        aiguiller(
+          { genre: "texte", texte: mot },
+          { estVendeuse: true, etatVendeuseEnCours: false, smsReconnu: false, achatEnCours: false },
+        ),
+        mot,
+      ).toBe("inscription");
+    }
+  });
+
+  it("« vendu » d'une NON-vendeuse ne cree rien : le fil acheteuse sait proposer d'ouvrir une boutique", () => {
+    expect(
+      aiguiller(
+        { genre: "texte", texte: "vendu" },
+        { estVendeuse: false, etatVendeuseEnCours: false, smsReconnu: false, achatEnCours: false },
+      ),
+    ).toBe("acheteuse");
+  });
+
+  it("un comptoir EN COURS n'est pas detourne par un achat en cours", () => {
+    /* La regle 1 : un etat vendeuse en cours prime. Une vendeuse qui achete
+       chez une consoeur ET declare une vente reste dans sa declaration. */
+    expect(
+      aiguiller(
+        { genre: "texte", texte: "12 500" },
+        { estVendeuse: true, etatVendeuseEnCours: true, smsReconnu: false, achatEnCours: true },
+      ),
+    ).toBe("inscription");
+  });
+
+  it("un SMS d'operateur colle en plein comptoir TRAVERSE — regle 0", () => {
+    /* L'autre moitie du test de la machine : le SMS ne devient jamais un prix,
+       parce qu'il n'atteint jamais la machine. */
+    expect(
+      aiguiller(
+        { genre: "texte", texte: "Vous avez recu 12500 FCFA..." },
+        { estVendeuse: true, etatVendeuseEnCours: true, smsReconnu: true, achatEnCours: false },
+      ),
+    ).toBe("vendeuse");
+  });
+});

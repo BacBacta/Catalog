@@ -1,3 +1,4 @@
+import { demandeComptoir } from "./comptoir-vendeuse.ts";
 import { demandeRemise, extraireSlugBoutique } from "./conversation.ts";
 import {
   demandeAjoutArticle,
@@ -98,6 +99,9 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
       return entree.id === "article" ? "inscription" : "vendeuse";
     }
     if (entree.genre === "texte" && demandeAjoutArticle(t)) return "inscription";
+    /* « vendu » : le comptoir (rang 1, ADR 0061). Il vit dans la machine
+       vendeuse, donc au fil inscription — comme « ajouter ». */
+    if (entree.genre === "texte" && demandeComptoir(t)) return "inscription";
     if (entree.genre === "texte" && demandeEspaceVendeuse(t)) return "vendeuse";
     /* « solde » et « ma carte » sont du meme regime que « ma boutique » :
        aucun n'est une reponse plausible dans un tunnel d'achat, et les

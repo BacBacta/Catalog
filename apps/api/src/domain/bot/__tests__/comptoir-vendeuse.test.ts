@@ -6,6 +6,12 @@ import {
   type EtatComptoir,
   messageATransferer,
 } from "../comptoir-vendeuse.ts";
+import {
+  type EtatVendeuse,
+  etatVendeuseApresInactivite,
+  normaliserEtatVendeuse,
+  reagirInscription,
+} from "../inscription.ts";
 
 /**
  * Le comptoir vendeuse — rang 1 de l'ADR 0061.
@@ -229,5 +235,102 @@ describe("le message que la vendeuse TRANSFERE a sa cliente", () => {
     expect(m).toMatch(/6\D?250/);
     const solde = messageATransferer({ ...faits, aPayerXaf: 12500, resteXaf: 0 });
     expect(solde).not.toMatch(/reste/i);
+  });
+});
+
+describe("le comptoir dans la machine vendeuse — une seule persistance", () => {
+  /* Le comptoir n'est PAS une seconde machine avec sa propre table et sa
+     propre horloge : c'est un ETAT de la machine vendeuse. « Deux horloges
+     pour une seule notion d'abandon se contrediraient un jour » (ADR 0048) —
+     la regle vaut pour les persistances aussi. */
+  const VERS = "+237699000001";
+  const auPrix: EtatVendeuse = {
+    nom: "comptoir",
+    comptoir: { pas: "prix", article: "Robe wax" },
+  };
+
+  it("un etat comptoir persiste se relit, un difforme vaut null", () => {
+    expect(normaliserEtatVendeuse(JSON.parse(JSON.stringify(auPrix)))).toEqual(auPrix);
+    expect(normaliserEtatVendeuse({ nom: "comptoir", comptoir: { pas: "n'importe" } })).toBeNull();
+    expect(normaliserEtatVendeuse({ nom: "comptoir" })).toBeNull();
+  });
+
+  it("la machine vendeuse fait avancer le comptoir, pas d'ajout d'article", () => {
+    const r = reagirInscription(auPrix, { genre: "texte", texte: "12 500" }, VERS);
+    expect(r.etat).toMatchObject({ nom: "comptoir", comptoir: { pas: "cliente" } });
+    expect(r.effet).toBeUndefined();
+  });
+
+  it("« confirmer » au recapitulatif produit l'effet creer_vente, et ferme", () => {
+    const recap: EtatVendeuse = {
+      nom: "comptoir",
+      comptoir: {
+        pas: "recap",
+        article: "Robe wax",
+        prixXaf: 12500,
+        cliente: "+237677001122",
+        remise: "Carrefour Warda",
+      },
+    };
+    const r = reagirInscription(recap, { genre: "bouton", id: "confirmer" }, VERS);
+    expect(r.effet).toEqual({
+      type: "creer_vente",
+      vente: {
+        article: "Robe wax",
+        prixXaf: 12500,
+        cliente: "+237677001122",
+        pointRemise: "Carrefour Warda",
+      },
+    });
+    expect(r.etat).toBeNull();
+  });
+
+  it("un SMS d'operateur colle en plein comptoir N'EST PAS un prix — ADR 0052", () => {
+    /* Le garde existant refuse un texte sans chiffres ; un SMS MTN est PLEIN de
+       chiffres, et « lirePrix colle tous les chiffres du message ». C'est
+       l'aiguillage (regle 0) qui le detourne AVANT la machine — ce test fixe la
+       frontiere cote machine : elle n'a pas a le reconnaitre, on ne doit
+       simplement jamais le lui donner. Le test d'aiguillage tient l'autre
+       moitie. */
+    const sms = "Vous avez recu 12500 FCFA de 677001122. ID: 17600446889.";
+    const r = reagirInscription(auPrix, { genre: "texte", texte: sms }, VERS);
+    /* Si on le lui donne quand meme, le pire serait un article a 1 250 067 F :
+       le plafond de lirePrix l'attrape, mais on verifie surtout qu'AUCUNE vente
+       ne se cree d'un SMS. */
+    expect(r.effet).toBeUndefined();
+  });
+
+  it("« annuler » sort du comptoir sans rien creer, comme partout", () => {
+    const r = reagirInscription(auPrix, { genre: "texte", texte: "annuler" }, VERS);
+    expect(r.etat).toBeNull();
+    expect(r.effet).toBeUndefined();
+  });
+
+  it("le comptoir perime comme le reste — meme horloge", () => {
+    expect(etatVendeuseApresInactivite(auPrix, 1000)).toEqual(auPrix);
+    expect(etatVendeuseApresInactivite(auPrix, 48 * 3600_000)).toBeNull();
+  });
+});
+
+describe("le message a transferer, SANS reversement pose", () => {
+  it("ne reclame rien d'avance, et ne montre jamais « 0 F a payer »", () => {
+    /* Meme regle que le comptoir acheteuse : sans numero de reversement,
+       exiger un prepaiement enverrait la cliente payer vers nulle part. */
+    const m = messageATransferer({
+      boutique: "Chez Maman Jeanne",
+      article: "Robe wax",
+      prixXaf: 12500,
+      reference: "CT-481902",
+      codeVerification: "ACDE-4679",
+      aPayerXaf: 0,
+      resteXaf: 12500,
+      numeroReversement: "",
+      operateurNom: null,
+      codeEntree: null,
+    });
+    expect(m).toContain("CT-481902");
+    expect(m).toMatch(/se règle à la remise/);
+    expect(m).not.toMatch(/payer maintenant/i);
+    expect(m).not.toMatch(/:\s*$/m);
   });
 });
