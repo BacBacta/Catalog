@@ -156,9 +156,35 @@ Et deux variables, pas des secrets — ce sont des URL publiques :
 |---|---|
 | `API_BASE_URL` | `connect-src` de la CSP, et la vérification post-déploiement de l'API. **Le workflow refuse de construire si elle est vide** : sans elle la boutique se déploie au vert sans jamais pouvoir joindre l'API |
 | `SHOP_BASE_URL` | vérifier après coup que Vercel sert bien `vercel.json`. Facultative : absente, le pas se saute en le disant |
+| `BOT_WHATSAPP` | le numéro du bot dans la fiche produit (ADR 0066). **Elle se pose ICI, pas chez Vercel** : la boutique est construite dans ce workflow, Vercel ne reçoit que `dist/`. Facultative : absente, la fiche produit reprend le chemin d'avant |
 
-Les deux se posent **par environnement** GitHub, comme `VERCEL_PROJECT_ID` :
+Toutes se posent **par environnement** GitHub, comme `VERCEL_PROJECT_ID` :
 c'est ce qui fait que préproduction et production ne se marchent pas dessus.
+
+### La reconstruction automatique de la boutique — ADR 0068
+
+Quand une boutique naît dans le fil WhatsApp ou qu'un article est publié, l'API
+émet un `repository_dispatch` de type `reconstruction-boutique`. Le workflow
+ci-dessus l'écoute : `cible` vaut alors `boutique`, le job `api` ne part pas, et
+la porte de vérification est franchie comme pour un déploiement manuel — un
+dispatch déploie `main` sans qu'un humain ait regardé.
+
+Deux secrets à poser **sur l'API**, côté Fly :
+
+| Secret Fly | Valeur |
+|---|---|
+| `SHOP_REBUILD_GITHUB_REPO` | `BacBacta/Catalog` — pas un secret, mais il vit avec l'autre |
+| `SHOP_REBUILD_GITHUB_TOKEN` | jeton GitHub, portée `contents: write` sur ce dépôt |
+| `SHOP_REBUILD_ENVIRONNEMENT` | `preproduction` ou `production`. Absente : préproduction |
+
+> **`SHOP_REBUILD_HOOK_URL` est à retirer.** C'était le transport d'origine, et
+> il ne peut pas atteindre la boutique : son projet Vercel n'est relié à aucun
+> dépôt, et un crochet de déploiement suppose un projet relié. S'il pointe le
+> crochet d'un AUTRE projet, il répond 200 — et le bot annonce à la vendeuse une
+> mise à jour qui n'arrivera jamais. Voir l'ADR 0068.
+
+> **Rien de tout ceci n'agit avant la fusion** : GitHub ne lit les fichiers de
+> workflow que sur la branche par défaut.
 
 ---
 
