@@ -1,0 +1,88 @@
+name: Maintenance
+
+# ── Manuel, et uniquement manuel ───────────────────────────────────────────
+#
+# Rien ici ne part sur un evenement. Ces operations touchent la base de
+# preproduction ; elles se declenchent parce que quelqu'un l'a decide, jamais
+# parce qu'une branche a bouge.
+#
+# ── Pourquoi ce workflow existe — ADR 0071 ────────────────────────────────
+#
+# Depuis l'ADR 0070, `DATABASE_URL` ne vit plus qu'a UN endroit : les secrets
+# de l'application Fly. C'est un progres, et il a un corollaire : plus personne
+# ne peut regarder ni corriger la base depuis un poste. La seule facon d'agir
+# est de le faire DEPUIS la machine, ou le secret est chez lui — et le seul
+# canal qui y mene sans distribuer de nouveau secret est celui-ci, avec le
+# `FLY_API_TOKEN` que le deploiement utilise deja.
+#
+# La contrepartie est bonne : chaque intervention laisse une execution datee,
+# nominative et relisible, au lieu d'un terminal dont il ne reste rien.
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Ce qu'on fait"
+        type: choice
+        options: [inventaire, remise-a-zero]
+        default: inventaire
+      confirmation:
+        description: "Pour « remise-a-zero » UNIQUEMENT : taper REMISE-A-ZERO-PREPRODUCTION"
+        type: string
+        default: ""
+
+concurrency:
+  group: maintenance-preproduction
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    environment: preproduction
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # ── Lecture seule : rien n'est ecrit, rien n'est confirme ───────────
+      - name: Inventaire
+        if: inputs.operation == 'inventaire'
+        run: flyctl ssh console --app catalog-api-preprod -C "node /app/packages/db/scripts/inventaire.mjs"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── La phrase se tape, elle ne se coche pas ─────────────────────────
+      #
+      # Un menu deroulant a deux entrees se choisit de travers ; une phrase de
+      # vingt-six caracteres ne s'ecrit pas par accident. C'est le meme verrou
+      # que le script porte lui-meme, et il est ici EN PLUS, pas a la place :
+      # celui du script protege aussi les invocations qui ne passent pas par ce
+      # workflow.
+      - name: La confirmation est exacte
+        if: inputs.operation == 'remise-a-zero'
+        run: |
+          test "${{ inputs.confirmation }}" = "REMISE-A-ZERO-PREPRODUCTION" || {
+            echo "Confirmation absente ou inexacte : rien n'a ete touche."
+            echo "Taper exactement REMISE-A-ZERO-PREPRODUCTION dans le champ prevu."
+            exit 1
+          }
+
+      - name: Remise a zero de la preproduction
+        if: inputs.operation == 'remise-a-zero'
+        run: |
+          flyctl ssh console --app catalog-api-preprod \
+            -C "sh -c 'CONFIRMATION=REMISE-A-ZERO-PREPRODUCTION sh /app/packages/db/scripts/remise-a-zero.sh'"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── La boutique publiee est PERIMEE des cet instant ─────────────────
+      #
+      # Elle est statique : ses pages continuent d'etre servies par le CDN avec
+      # les boutiques d'avant. Le dire ici evite de le decouvrir en constatant
+      # qu'une page effacee repond encore.
+      - name: Et maintenant
+        if: inputs.operation == 'remise-a-zero'
+        run: |
+          echo "La base est neuve. La boutique publiee, elle, sert encore l'ancien"
+          echo "instantane — elle est statique, c'est normal."
+          echo
+          echo "Lancer « Deploiement » avec cible=boutique pour la reconstruire."
