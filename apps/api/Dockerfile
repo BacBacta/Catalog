@@ -48,8 +48,19 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 # Un avertissement au deploiement est deja une mauvaise nouvelle ; ici il
 # annonce un moteur qui « may not work as expected » devant une base de
 # paiements. On installe la bibliotheque plutot que d'esperer.
+# `fonts-dejavu-core` (~1,5 Mo) sert la carte-vitrine — ADR 0037. `node:24-slim`
+# n'embarque AUCUNE police : sans elle, sharp rend le SVG de la carte avec des
+# textes VIDES, en production seulement et sans erreur. DejaVu couvre le latin
+# et les accents francais, ce dont « Chez Bea » et « Marche central » ont besoin.
+#
+# `fontconfig` vient avec, et pas par confort : sans son fichier de
+# configuration, la resolution des polices emet « Cannot load default config
+# file » et retombe sur un chemin de secours. Mesure dans le conteneur : ca
+# marche, mais dependre d'un repli non documente est ce qui casse six mois plus
+# tard, sur une image de base mise a jour.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends \
+     openssl ca-certificates fonts-dejavu-core fontconfig \
   && rm -rf /var/lib/apt/lists/*
 
 # `packageManager` de package.json est la source de verite de la version de

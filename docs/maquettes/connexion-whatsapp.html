@@ -312,6 +312,9 @@
     }
   }
 
+  /* Exposee sur `window` : elle est appelee par un `onclick=` en ligne, que
+     l'analyseur ne relie pas a la fonction — il la croyait morte. */
+  window.envoyerWa = envoyerWa;
   function envoyerWa() {
     document.getElementById("bulle").hidden = false;
     document.getElementById("brouillon").textContent = "Message";

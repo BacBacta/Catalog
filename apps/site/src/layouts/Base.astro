@@ -1,0 +1,108 @@
+---
+import { EDITEUR } from "@catalog/contracts/editeur";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  /** Chemin de la page, pour l'URL canonique et l'etat de navigation. */
+  chemin: string;
+}
+const { title, description, chemin } = Astro.props;
+const canonique = new URL(chemin, EDITEUR.site).href;
+
+/**
+ * La coquille du site de la SOCIETE — ADR 0043, revisee par l'ADR 0044.
+ *
+ * Le site presente Horizon Services, et rien d'autre. Les produits qu'elle
+ * edite ont leurs propres domaines : les faire entrer ici transformerait une
+ * page de societe en plaquette commerciale, et brouillerait ce qu'un
+ * verificateur vient chercher — l'entreprise, pas son catalogue d'offres.
+ *
+ * **Aucune police telechargee, aucun JavaScript, aucun traceur.** La CSP
+ * l'interdit materiellement (`default-src 'none'`) : la page qui affirme
+ * qu'on ne collecte rien ne peut pas charger un mouchard. Les transitions de
+ * page et les revelations au defilement sont du CSS — voir `global.css`.
+ *
+ * ── Ce que le pied ne porte plus, et pourquoi ─────────────────────────────
+ *
+ * Le numero d'immatriculation et le nom du directeur de la publication en ont
+ * ete retires sur demande du porteur du produit (ADR 0044). Deux raisons le
+ * rendent defendable : le numero a ete lu sur un champ MANUSCRIT du registre
+ * et n'est pas confirme — publier un numero faux est pire que n'en publier
+ * aucun —, et le nom du gerant est une donnee personnelle sur un site qui
+ * promet de n'en collecter que le minimum. La denomination, la forme, le
+ * capital et le siege restent : ce sont eux qui identifient la maison.
+ */
+const NAV = [
+  { href: "/", texte: "Société" },
+  { href: "/contact", texte: "Contact" },
+] as const;
+---
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonique} />
+    {/* Le monogramme de l'onglet — ADR 0045. Le SVG est la source ; l'ICO
+        existe parce que les navigateurs le demandent a la racine SANS balise,
+        et l'icone Apple parce que l'ecran d'accueil iOS ignore le SVG. */}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta property="og:site_name" content={EDITEUR.nom} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonique} />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta name="theme-color" content="#0e7a5f" />
+  </head>
+  <body>
+    <header class="entete">
+      <div class="enveloppe flex flex-wrap items-center justify-between gap-x-8 gap-y-2 py-4">
+        <a href="/" class="marque">
+          {EDITEUR.nom}<span class="point">.</span>
+        </a>
+        <nav aria-label="Principale" class="flex flex-wrap items-center gap-x-7 gap-y-1">
+          {
+            NAV.map((l) => (
+              <a
+                href={l.href}
+                class="lien-nav"
+                aria-current={chemin === l.href ? "page" : undefined}
+              >
+                {l.texte}
+              </a>
+            ))
+          }
+        </nav>
+      </div>
+    </header>
+
+    <slot />
+
+    <footer class="pied">
+      <div class="enveloppe flex flex-col gap-8">
+        <div class="flex flex-wrap items-end justify-between gap-x-10 gap-y-6">
+          <p class="m-0 max-w-md">
+            {EDITEUR.forme} au capital de {EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA<br />
+            {EDITEUR.siege}
+          </p>
+          <nav aria-label="Pied de page" class="flex flex-wrap gap-x-6 gap-y-2">
+            <a href="/contact">Contact</a>
+            <a href="/confidentialite">Confidentialité</a>
+            <a href={`mailto:${EDITEUR.contact}`}>{EDITEUR.contact}</a>
+          </nav>
+        </div>
+
+        <p class="m-0">© 2019–2026 {EDITEUR.societe}</p>
+      </div>
+
+      <p class="pied__marque" aria-hidden="true">{EDITEUR.nom}</p>
+    </footer>
+  </body>
+</html>

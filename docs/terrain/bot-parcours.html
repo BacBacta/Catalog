@@ -1,0 +1,1416 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le bot Catalog — maquette cliquable</title>
+</head>
+<body>
+
+<style>
+  /* ───────────────────────────── jetons ─────────────────────────────────
+     Palette héritée de packages/ui/src/tokens.css : la marque de Catalog est
+     #0e7a5f, et les neutres tirent vers le vert plutôt que vers le gris pur.
+     Le téléphone garde SES couleurs — celles de WhatsApp — parce que c'est un
+     objet, pas une carte de la page.                                        */
+  :root {
+    --ground: #eff3f1;
+    --surface: #ffffff;
+    --encre: #101c18;
+    --encre-2: #4f605a;
+    --muted: #6d7b76;
+    --filet: #dde5e1;
+    --filet-fin: #e7edea;
+    --marque: #0e7a5f;
+    --marque-doux: #e3f1ec;
+
+    /* le fil WhatsApp */
+    --fil-fond: #e5ddd5;
+    --fil-entrant: #ffffff;
+    --fil-sortant: #d9fdd3;
+    --fil-encre: #111b21;
+    --fil-encre-2: #667781;
+    --fil-barre: #f0f2f5;
+    --fil-ombre: rgba(11, 20, 26, 0.13);
+
+    --serif: ui-serif, "New York", Georgia, Cambria, "Times New Roman", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --t-titre: clamp(1.9rem, 1.2rem + 2.6vw, 3.1rem);
+    --r: 14px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0b100e;
+      --surface: #141b18;
+      --encre: #f2f6f4;
+      --encre-2: #a9b8b2;
+      --muted: #8b9a94;
+      --filet: #26302c;
+      --filet-fin: #1c2421;
+      --marque: #17a37f;
+      --marque-doux: #10241f;
+
+      --fil-fond: #0b141a;
+      --fil-entrant: #202c33;
+      --fil-sortant: #005c4b;
+      --fil-encre: #e9edef;
+      --fil-encre-2: #8696a0;
+      --fil-barre: #202c33;
+      --fil-ombre: rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0b100e;
+    --surface: #141b18;
+    --encre: #f2f6f4;
+    --encre-2: #a9b8b2;
+    --muted: #8b9a94;
+    --filet: #26302c;
+    --filet-fin: #1c2421;
+    --marque: #17a37f;
+    --marque-doux: #10241f;
+
+    --fil-fond: #0b141a;
+    --fil-entrant: #202c33;
+    --fil-sortant: #005c4b;
+    --fil-encre: #e9edef;
+    --fil-encre-2: #8696a0;
+    --fil-barre: #202c33;
+    --fil-ombre: rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--encre);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .enveloppe {
+    width: 100%;
+    max-width: 1240px;
+    margin-inline: auto;
+    padding-inline: clamp(1rem, 0.5rem + 2.4vw, 2.5rem);
+  }
+
+  /* ───────────────────────────── en-tête ──────────────────────────────── */
+
+  header {
+    padding-block: clamp(2.5rem, 1.5rem + 4vw, 4.5rem) 1.5rem;
+  }
+  .jalon {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0 0 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--encre-2);
+  }
+  .jalon::before {
+    content: "";
+    width: 2rem;
+    height: 1px;
+    background: var(--marque);
+    flex: none;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: var(--t-titre);
+    line-height: 1.03;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+    margin: 0 0 1rem;
+    max-width: 18ch;
+    text-wrap: balance;
+  }
+  h1 em {
+    font-style: italic;
+    font-weight: 500;
+    color: var(--marque);
+  }
+  .chapeau {
+    margin: 0;
+    max-width: 62ch;
+    font-size: 1.0625rem;
+    color: var(--encre-2);
+    text-wrap: pretty;
+  }
+  .chapeau code {
+    font-family: var(--mono);
+    font-size: 0.9em;
+    color: var(--encre);
+  }
+
+  /* ─────────────────────────── les parcours ───────────────────────────── */
+
+  .onglets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 2rem;
+    border-bottom: 1px solid var(--filet);
+    padding-bottom: 0;
+  }
+  .onglet {
+    appearance: none;
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    padding: 0.7rem 0.9rem;
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--encre-2);
+    cursor: pointer;
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+  }
+  .onglet .num {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+  .onglet:hover { color: var(--encre); }
+  .onglet[aria-selected="true"] {
+    color: var(--encre);
+    border-bottom-color: var(--marque);
+    font-weight: 600;
+  }
+  .onglet[aria-selected="true"] .num { color: var(--marque); }
+
+  /* ──────────────────────────── l'établi ──────────────────────────────── */
+
+  .etabli {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding-block: 2rem 4rem;
+    align-items: start;
+  }
+  @media (min-width: 62rem) {
+    .etabli {
+      grid-template-columns: 384px minmax(0, 1fr);
+      gap: 2.75rem;
+    }
+    .colonne-tel { position: sticky; top: 1.5rem; }
+  }
+
+  /* ─────────────────────────── le téléphone ───────────────────────────── */
+
+  .tel {
+    background: var(--fil-fond);
+    border: 1px solid var(--filet);
+    border-radius: 22px;
+    overflow: hidden;
+    box-shadow: 0 1px 2px var(--fil-ombre), 0 18px 40px -20px var(--fil-ombre);
+    display: flex;
+    flex-direction: column;
+    height: min(74svh, 680px);
+    min-height: 460px;
+  }
+  .tel__barre {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.7rem 0.9rem;
+    background: var(--fil-barre);
+    border-bottom: 1px solid var(--fil-ombre);
+    flex: none;
+  }
+  .pastille {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    background: var(--marque);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 1rem;
+    flex: none;
+  }
+  .tel__nom {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--fil-encre);
+    line-height: 1.25;
+  }
+  .tel__sous {
+    font-size: 0.72rem;
+    color: var(--fil-encre-2);
+    font-family: var(--mono);
+  }
+
+  .fil {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.9rem 0.7rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fil { scroll-behavior: auto; }
+  }
+
+  .bulle {
+    max-width: 86%;
+    padding: 0.45rem 0.6rem 0.3rem;
+    border-radius: 8px;
+    font-size: 0.855rem;
+    line-height: 1.42;
+    color: var(--fil-encre);
+    box-shadow: 0 1px 0.5px var(--fil-ombre);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .bulle strong { font-weight: 600; }
+  .bulle a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+  .bulle--bot { background: var(--fil-entrant); align-self: flex-start; border-top-left-radius: 2px; }
+  .bulle--moi { background: var(--fil-sortant); align-self: flex-end; border-top-right-radius: 2px; }
+  .heure {
+    display: block;
+    text-align: right;
+    font-size: 0.63rem;
+    color: var(--fil-encre-2);
+    margin-top: 0.15rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .bulle--moi .heure::after { content: " ✓✓"; color: #53bdeb; }
+
+  /* la photo envoyée, dessinée — aucune ressource externe */
+  .photo {
+    width: 168px;
+    height: 116px;
+    border-radius: 6px;
+    margin-bottom: 0.3rem;
+    background:
+      radial-gradient(circle at 30% 32%, rgba(255,255,255,0.5), transparent 42%),
+      repeating-linear-gradient(38deg, #b8442f 0 14px, #e0913a 14px 26px, #17605a 26px 40px);
+  }
+
+  /* le message « citation » du bot (ADR 0035) */
+  .citation {
+    border-left: 3px solid var(--marque);
+    background: rgba(0, 0, 0, 0.045);
+    border-radius: 4px;
+    padding: 0.3rem 0.5rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.78rem;
+    color: var(--fil-encre-2);
+  }
+  :root[data-theme="dark"] .citation,
+  :root:not([data-theme="light"]) .citation { background: rgba(255, 255, 255, 0.06); }
+
+  /* les boutons de réponse WhatsApp */
+  .actions {
+    align-self: flex-start;
+    max-width: 86%;
+    width: 240px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-bottom: 0.35rem;
+  }
+  .action {
+    appearance: none;
+    border: 0;
+    background: var(--fil-entrant);
+    color: #00a5f4;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 500;
+    padding: 0.55rem 0.5rem;
+    cursor: pointer;
+    text-align: center;
+    box-shadow: 0 1px 0.5px var(--fil-ombre);
+  }
+  .action:first-child { border-radius: 8px 8px 2px 2px; }
+  .action:last-child { border-radius: 2px 2px 8px 8px; }
+  .action:only-child { border-radius: 8px; }
+  .action:hover { filter: brightness(0.97); }
+  .action:disabled { color: var(--fil-encre-2); cursor: default; }
+  .action .fl { opacity: 0.55; margin-right: 0.3rem; }
+  /* Le bouton que la maquette suit se distingue de ceux qui existent dans le
+     code mais mènent ailleurs — sans les cacher : ils font partie de l'écran. */
+  .action--principale { font-weight: 600; }
+  .action--hors { color: var(--fil-encre-2); }
+
+  /* Le séparateur de temps de WhatsApp : ces messages arrivent plus tard, et
+     le dire évite de laisser croire à un enchaînement immédiat. */
+  .sep {
+    align-self: center;
+    background: var(--fil-entrant);
+    color: var(--fil-encre-2);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    margin-block: 0.5rem;
+    box-shadow: 0 1px 0.5px var(--fil-ombre);
+  }
+
+  .indice {
+    margin: 0.7rem 0 0;
+    font-size: 0.8rem;
+    color: var(--muted);
+    min-height: 2.4em;
+    max-width: 40ch;
+  }
+  .indice b { color: var(--encre-2); font-weight: 600; }
+
+  /* la liste WhatsApp (message « liste ») */
+  .liste { align-self: flex-start; max-width: 86%; width: 250px; }
+  .liste__tete {
+    background: var(--fil-entrant);
+    border-radius: 8px 8px 0 0;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.855rem;
+    color: var(--fil-encre);
+    box-shadow: 0 1px 0.5px var(--fil-ombre);
+  }
+  .liste__ligne {
+    appearance: none;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.6rem;
+    width: 100%;
+    border: 0;
+    border-top: 1px solid var(--fil-ombre);
+    background: var(--fil-entrant);
+    font: inherit;
+    font-size: 0.8rem;
+    color: var(--fil-encre);
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+    box-shadow: 0 1px 0.5px var(--fil-ombre);
+  }
+  .liste__ligne:last-child { border-radius: 0 0 8px 8px; }
+  .liste__ligne:hover { filter: brightness(0.97); }
+  .liste__ligne b { font-weight: 500; }
+  .liste__ligne span { color: var(--fil-encre-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* la barre de saisie */
+  .tel__pied {
+    flex: none;
+    padding: 0.6rem 0.7rem;
+    background: var(--fil-barre);
+    border-top: 1px solid var(--fil-ombre);
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .saisie {
+    flex: 1;
+    background: var(--fil-entrant);
+    color: var(--fil-encre-2);
+    border-radius: 999px;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.8rem;
+    min-height: 2.1rem;
+    display: flex;
+    align-items: center;
+  }
+  .envoyer {
+    appearance: none;
+    border: 0;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 999px;
+    background: var(--marque);
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.9rem;
+    display: grid;
+    place-items: center;
+  }
+  .envoyer:disabled { opacity: 0.4; cursor: default; }
+
+  /* ─────────────────────────── la colonne trace ───────────────────────── */
+
+  .entete-col {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  .entete-col h2 {
+    font-family: var(--serif);
+    font-size: 1.3rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .rejouer {
+    appearance: none;
+    background: none;
+    border: 1px solid var(--filet);
+    border-radius: 999px;
+    padding: 0.35rem 0.85rem;
+    font: inherit;
+    font-size: 0.78rem;
+    color: var(--encre-2);
+    cursor: pointer;
+  }
+  .rejouer:hover { border-color: var(--marque); color: var(--encre); }
+
+  .intro-parcours {
+    margin: 0 0 1.5rem;
+    color: var(--encre-2);
+    max-width: 60ch;
+    font-size: 0.94rem;
+  }
+
+  .trace { display: flex; flex-direction: column; gap: 0; margin: 0; padding: 0; list-style: none; }
+  .pas {
+    display: grid;
+    grid-template-columns: 2.3rem minmax(0, 1fr);
+    gap: 0 0.9rem;
+    padding-block: 0.9rem;
+    border-top: 1px solid var(--filet-fin);
+  }
+  .pas:first-child { border-top: 1px solid var(--filet); }
+  .pas__num {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    padding-top: 0.15rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .pas__quoi {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0 0 0.2rem;
+  }
+  .pas__note {
+    margin: 0.3rem 0 0;
+    font-size: 0.85rem;
+    color: var(--encre-2);
+    max-width: 58ch;
+    text-wrap: pretty;
+  }
+  .pas__etat {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.735rem;
+    background: var(--marque-doux);
+    color: var(--marque);
+    border-radius: 5px;
+    padding: 0.12rem 0.4rem;
+    overflow-wrap: anywhere;
+  }
+  .pas__src {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.35rem;
+    display: block;
+  }
+  .vide {
+    color: var(--muted);
+    font-size: 0.9rem;
+    border-top: 1px solid var(--filet);
+    padding-top: 1rem;
+    margin: 0;
+  }
+
+  /* ───────────────────── l'aiguillage, en bas de page ─────────────────── */
+
+  .socle {
+    border-top: 1px solid var(--filet);
+    padding-block: clamp(2.5rem, 1.5rem + 4vw, 4.5rem);
+  }
+  .socle h2 {
+    font-family: var(--serif);
+    font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.1rem);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0 0 0.7rem;
+  }
+  .socle > .enveloppe > p {
+    margin: 0 0 2rem;
+    max-width: 62ch;
+    color: var(--encre-2);
+  }
+  .regles { display: grid; grid-template-columns: 1fr; gap: 0; margin: 0; padding: 0; list-style: none; }
+  .regle {
+    display: grid;
+    grid-template-columns: 2.3rem minmax(0, 1fr);
+    gap: 0 0.9rem;
+    padding-block: 1.1rem;
+    border-top: 1px solid var(--filet-fin);
+  }
+  .regle:first-child { border-top: 1px solid var(--filet); }
+  .regle:last-child { border-bottom: 1px solid var(--filet); }
+  .regle__num { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em; color: var(--muted); padding-top: 0.2rem; }
+  .regle__t { font-weight: 600; margin: 0 0 0.25rem; font-size: 0.95rem; }
+  .regle__t .fil-nom {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    color: var(--marque);
+    background: var(--marque-doux);
+    padding: 0.1rem 0.38rem;
+    border-radius: 5px;
+    margin-left: 0.45rem;
+    white-space: nowrap;
+  }
+  .regle p { margin: 0; font-size: 0.88rem; color: var(--encre-2); max-width: 66ch; text-wrap: pretty; }
+
+  .avert {
+    margin-top: 2.5rem;
+    border-left: 3px solid var(--marque);
+    padding: 0.1rem 0 0.1rem 1.1rem;
+    max-width: 66ch;
+  }
+  .avert p { margin: 0.5rem 0; font-size: 0.9rem; color: var(--encre-2); }
+  .avert strong { color: var(--encre); }
+
+  footer {
+    border-top: 1px solid var(--filet);
+    padding-block: 2rem 3rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  footer code { font-family: var(--mono); }
+
+  :where(a, button):focus-visible {
+    outline: 2px solid var(--marque);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .bulle, .actions, .liste { animation: monte 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+    @keyframes monte { from { transform: translateY(6px); } to { transform: none; } }
+  }
+</style>
+
+<header>
+  <div class="enveloppe">
+    <p class="jalon">Catalog · lecture du code, 5 août 2026</p>
+    <h1>Le bot, tel qu'il <em>répond vraiment</em>.</h1>
+    <p class="chapeau">
+      Chaque message ci-dessous est copié des sources — <code>domain/bot/textes.ts</code> pour les
+      mots, <code>conversation.ts</code> et <code>inscription.ts</code> pour l'enchaînement. Cliquez
+      les boutons du téléphone : à droite, l'état de la machine avance en même temps que la
+      conversation.
+    </p>
+
+    <div class="onglets" role="tablist" aria-label="Parcours"></div>
+  </div>
+</header>
+
+<main class="enveloppe etabli">
+  <div class="colonne-tel">
+    <div class="tel">
+      <div class="tel__barre">
+        <div class="pastille" aria-hidden="true">C</div>
+        <div>
+          <div class="tel__nom">Catalog</div>
+          <div class="tel__sous" id="tel-sous">+237 6 •• •• •• ••</div>
+        </div>
+      </div>
+      <div class="fil" id="fil" role="log" aria-live="polite" aria-label="Conversation"></div>
+      <div class="tel__pied">
+        <div class="saisie" id="saisie">Message</div>
+        <button class="envoyer" id="envoyer" type="button" aria-label="Envoyer">➤</button>
+      </div>
+    </div>
+    <p class="indice" id="indice" aria-live="polite"></p>
+  </div>
+
+  <div>
+    <div class="entete-col">
+      <h2 id="titre-parcours">Sous le capot</h2>
+      <button class="rejouer" id="rejouer" type="button">↺ Rejouer</button>
+    </div>
+    <p class="intro-parcours" id="intro-parcours"></p>
+    <ol class="trace" id="trace"></ol>
+    <p class="vide" id="vide">Le premier geste est en bas du téléphone. Chaque étape s'inscrira ici.</p>
+  </div>
+</main>
+
+<section class="socle">
+  <div class="enveloppe">
+    <h2>Ce qui décide du fil : le geste, pas l'identité</h2>
+    <p>
+      Un même numéro peut être vendeuse et acheteuse — les vendeuses s'achètent entre elles, le
+      demi-gros est la norme. <code>aiguiller()</code> tranche à chaque message, et l'ordre des
+      règles est le contrat.
+    </p>
+    <ol class="regles" id="regles"></ol>
+
+    <div class="avert">
+      <p><strong>Trois choses que la maquette ne montre pas, et c'est voulu.</strong></p>
+      <p>
+        <strong>Le numéro de reversement ne se pose jamais dans le fil.</strong> Il a son propre
+        code de vérification : c'est le champ qu'un attaquant chercherait à détourner. Une boutique
+        née ici vend sans prépaiement jusqu'à ce que sa vendeuse le pose dans son espace.
+      </p>
+      <p>
+        <strong>Le code secret Mobile Money n'existe nulle part.</strong> Aucun écran ne le demande,
+        aucun champ ne pourrait le recevoir. Il se tape sur l'écran de l'opérateur, point.
+      </p>
+      <p>
+        <strong>Le stock ne se décompte pas tout seul</strong>, et les textes ne promettent donc
+        pas de rareté : « Plus que 2 disponibles » côté bot, « La vendeuse en annonce 2 » côté
+        boutique. La vendeuse vend aussi hors de tout ce que Catalog voit.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="enveloppe">
+    Sources lues : <code>apps/api/src/domain/bot/{conversation,inscription,aiguillage,textes}.ts</code>
+    et <code>apps/api/src/bot.ts</code>. Montants en entiers XAF, acompte au plancher
+    (<code>splitDeposit</code>). SMS d'exemple repris de
+    <code>docs/formats-sms-operateurs.md</code>.
+  </div>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const LIEN = "https://boutique.catalog.cm/chez-maman-jeanne";
+  const SUIVI = "https://boutique.catalog.cm/suivi/9f3a…";
+  const ESPACE = "https://app.catalog.cm";
+
+  /* Chaque pas : ce que le fil montre, et ce que la machine fait.
+     `de` : "moi" | "bot" | "photo-moi"
+     `etat` : la valeur réelle de EtatConv / EtatVendeuse après ce pas.       */
+  const PARCOURS = [
+    {
+      id: "achat",
+      onglet: "Acheter",
+      titre: "Le parcours d'achat",
+      intro:
+        "Une acheteuse ouvre le lien reçu en Statut WhatsApp. Sept états séparent le lien du reçu vérifiable — et chacun sait revenir en arrière sans rien perdre.",
+      sous: "acheteuse · +237 6 90 11 22 33",
+      pas: [
+        {
+          de: "moi", texte: LIEN,
+          quoi: "Le lien de boutique ouvre le fil",
+          etat: '{ nom: "catalogue", slug: "chez-maman-jeanne", page: 0 }',
+          src: "aiguillage.ts · règle 4 → fil acheteuse",
+          note: "Le lien prime sur le statut de vendeuse : c'est le geste qui décide, pas l'identité.",
+        },
+        {
+          de: "bot",
+          texte:
+            "*Chez Maman Jeanne* — Douala\n★ 4,8 · 12 ventes prouvées (avis vérifiés)\nCommandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.",
+          actions: [
+            { l: "Voir les articles", suite: true },
+            { l: "Voir en photos" },
+            { l: "Parler à la vendeuse" },
+          ],
+          quoi: "Accueil : réputation, promesse, trois portes",
+          etat: '{ nom: "catalogue", slug: "chez-maman-jeanne", page: 0 }',
+          src: "conversation.ts · accueilBoutique()",
+          note: "Trois boutons au plus — la limite de l'API. La réputation ne s'affiche que s'il existe au moins une vente prouvée : un compteur à zéro ne rassure personne.",
+        },
+        {
+          de: "bot",
+          liste: {
+            titre: "*Chez Maman Jeanne* — 4 articles",
+            bouton: "Voir les articles",
+            lignes: [
+              { nom: "Robe wax grande taille", prix: "15 000 FCFA", suite: true },
+              { nom: "Sac raphia tressé", prix: "8 500 FCFA" },
+              { nom: "Sandales cuir", prix: "12 000 FCFA" },
+              { nom: "Foulard bogolan", prix: "4 000 FCFA" },
+            ],
+          },
+          quoi: "Le catalogue, en message « liste »",
+          etat: '{ nom: "catalogue", slug: "chez-maman-jeanne", page: 0 }',
+          src: "conversation.ts · pageCatalogue()",
+          note: "Paginé : « Voir la suite » garde la page courante, pour qu'un retour ne renvoie pas de la page 3 à la page 0.",
+        },
+        {
+          de: "bot", photo: true,
+          texte:
+            "*Robe wax grande taille*\n15 000 FCFA\nPlus que 2 disponibles\n\nCoupe ample, tissu wax véritable, doublure coton.",
+          actions: [{ l: "Commander", suite: true }, { l: "Retour au catalogue" }],
+          quoi: "La fiche article, photo d'abord",
+          etat: '{ nom: "catalogue", slug: "chez-maman-jeanne", page: 0 }',
+          src: "conversation.ts · ficheArticle()",
+          note: "« Plus que 2 disponibles » n'apparaît qu'au-dessous de 3. Au-delà, la mention est neutre : le stock n'est pas décompté automatiquement, on ne fabrique pas d'urgence.",
+        },
+        {
+          de: "bot",
+          texte: "Combien de « Robe wax grande taille » voulez-vous ? (2 en stock)",
+          actions: [{ l: "1", suite: true }, { l: "2" }, { l: "Un autre nombre" }],
+          quoi: "La quantité",
+          etat: '{ nom: "quantite", slug, articleId: "…000000", panier: [] }',
+          src: "conversation.ts · état « quantite »",
+          note: "Un nombre trop grand ne bloque pas : « La vendeuse en annonce 2. Écrivez un nombre jusqu'à 2. »",
+        },
+        {
+          de: "bot",
+          texte:
+            "✅ Ajouté : Robe wax grande taille × 1.\n\n🧺 *Votre panier*\nRobe wax grande taille × 1 : 15 000 FCFA\n*Total : 15 000 FCFA* (hors livraison)\n\nEt ensuite ?",
+          actions: [
+            { l: "Passer commande", suite: true },
+            { l: "Autre article" },
+            { l: "Annuler" },
+          ],
+          quoi: "Le panier se voit, lignes comprises",
+          etat: '{ nom: "ajout", slug, panier: [{ articleId, quantite: 1 }] }',
+          src: "conversation.ts · état « ajout » · textes.ts · panierCorps()",
+          note: "Les lignes, pas seulement le total. Sans elles, la première fois qu'une acheteuse voit ce qu'elle a mis dedans serait le récapitulatif — trop tard pour corriger sereinement.",
+        },
+        {
+          de: "bot",
+          texte: "Comment recevoir votre commande (15 000 FCFA) ?",
+          actions: [{ l: "Livraison", suite: true }, { l: "Point de retrait" }],
+          quoi: "Le mode de remise",
+          etat: '{ nom: "mode", slug, panier }',
+          src: "conversation.ts · état « mode »",
+          note: "Le point de retrait est un mode de plein droit, pas un cas dégradé : il n'existe pas d'adresse postale au Cameroun.",
+        },
+        {
+          de: "bot",
+          texte:
+            "Votre quartier, un repère, puis le numéro à appeler — en un seul message.\nExemple : Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33",
+          quoi: "La livraison se dicte, elle ne se remplit pas",
+          etat: '{ nom: "details", slug, panier, mode: "livraison" }',
+          src: "conversation.ts · état « details »",
+          note: "Aucun champ « adresse » n'existe dans le modèle. La livraison est { mode, ville, quartier, repère, téléphone } — le repère et le téléphone sont obligatoires.",
+        },
+        {
+          de: "moi",
+          texte: "Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33",
+          suite: true,
+          quoi: "Un message libre, analysé",
+          etat: '{ nom: "recap", …, livraison: { quartier, landmark, phone } }',
+          src: "conversation.ts · analyse des détails",
+          note: "S'il manque le numéro, le bot ne rejette pas : « Il me manque le numéro à appeler, à la fin du message. » Chaque manque a sa phrase.",
+        },
+        {
+          de: "bot",
+          texte:
+            "*Récapitulatif — Chez Maman Jeanne*\nRobe wax grande taille × 1 : 15 000 FCFA l'unité\nTotal : *15 000 FCFA*\nAcompte pour confirmer : *7 500 FCFA*\nLivraison : Bonapriso, en face de la pharmacie du Rond-Point\nNuméro à appeler : 690 11 22 33\n(hors livraison — le prix de la course se convient avec la vendeuse)",
+          actions: [
+            { l: "Confirmer", suite: true },
+            { l: "Corriger" },
+            { l: "Annuler" },
+          ],
+          quoi: "Le récapitulatif, avant tout engagement",
+          etat: '{ nom: "recap", slug, panier, mode, livraison }',
+          src: "conversation.ts · état « recap »",
+          note: "L'acompte est le plancher de la moitié : 7 500 sur 15 000, et le solde emporte le franc perdu à l'arrondi. La course de livraison est annoncée ici — pas découverte à la remise.",
+        },
+        {
+          de: "bot",
+          texte:
+            "*Commande CT-7K2M — Chez Maman Jeanne*\nCode de vérification : ACDE-4679",
+          quoi: "La commande existe — référence et code",
+          etat: '{ nom: "accueil" } · commande écrite en base',
+          src: "bot.ts · effet « creer_commande »",
+          note: "Deux clés, deux pouvoirs : le code de vérification identifie et devient public dès qu'un reçu est montré ; le jeton de suivi, lui, autorise la contre-signature et n'est jamais réaffiché.",
+        },
+        {
+          de: "bot",
+          texte:
+            "💳 *À payer maintenant : 7 500 FCFA*\nMTN Mobile Money : 6 90 11 22 33\nComposez *126#, puis suivez le menu de transfert d'argent.\nVotre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.\nEn un tap, le clavier pré-rempli : https://boutique.catalog.cm/payer?c=…\nDès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici.",
+          suite: true,
+          quoi: "Le bloc paiement, autosuffisant en texte brut",
+          etat: "— (message poussé, l'état ne bouge pas)",
+          src: "textes.ts · blocPaiement() · domain/ramp/config.ts",
+          note: "Tout est lisible sans ouvrir un lien : certains forfaits font échouer les liens externes. Le code d'entrée vient de la configuration — jamais d'une constante écrite dans le code, les opérateurs les changent.",
+        },
+        {
+          de: "bot",
+          separateur: "quelques minutes plus tard",
+          texte:
+            "✅ *Votre paiement sur CT-7K2M est prouvé* — le reçu vérifiable est émis.\nReste à payer à la remise : 7 500 FCFA.\nVotre lien de suivi est dans le message de confirmation, plus haut dans ce fil.",
+          actions: [{ l: "Je confirme ✓", suite: true }, { l: "Ce n'est pas moi" }],
+          quoi: "La vendeuse a collé son SMS — l'acheteuse est prévenue",
+          etat: "— (notification, hors machine)",
+          src: "bot.ts · notification en fenêtre ouverte",
+          note: "Aucun jeton n'est re-projeté dans ce message. « Ce n'est pas moi » demande une confirmation avant de geler la commande : un appui malheureux ne doit pas bloquer une vente.",
+        },
+        {
+          de: "bot",
+          texte:
+            "🖋️ *Merci — votre confirmation est enregistrée.*\nCT-7K2M porte désormais deux voix : celle de la vendeuse et la vôtre. C'est la preuve la plus solide que Catalog sache produire.",
+          suite: true,
+          quoi: "La contre-signature — le septième contrôle",
+          etat: "— (écrit dans le journal de la preuve)",
+          src: "bot.ts · contre-signature (jeton acheteuse)",
+          note: "Six contrôles regardent le SMS ; le septième demande à l'acheteuse. C'est ce qui casse la collusion à une seule voix.",
+        },
+        {
+          de: "bot",
+          separateur: "le lendemain",
+          texte:
+            "📦 *CT-7K2M est marquée livrée* par Chez Maman Jeanne.\nUn mot sur la boutique ?",
+          actions: [{ l: "Noter la boutique", suite: true }],
+          quoi: "La livraison ouvre l'avis",
+          etat: "— (notification)",
+          src: "conversation.ts · après-achat",
+          note: "L'avis ne s'ouvre qu'après la livraison, marquée par la vendeuse. Avant, la réponse est : « L'avis s'ouvre une fois la commande livrée. »",
+        },
+        {
+          de: "bot",
+          liste: {
+            titre: "Comment s'est passée votre commande chez *Chez Maman Jeanne* ?\nVotre avis aide les prochaines acheteuses.",
+            bouton: "Noter la boutique",
+            lignes: [
+              { nom: "⭐⭐⭐⭐⭐", prix: "", suite: true },
+              { nom: "⭐⭐⭐⭐", prix: "" },
+              { nom: "⭐⭐⭐", prix: "" },
+              { nom: "⭐⭐", prix: "" },
+              { nom: "⭐", prix: "" },
+            ],
+          },
+          quoi: "La note, en une liste",
+          etat: "— (avis en cours)",
+          src: "textes.ts · avisInvitation() · avisLigne()",
+          note: "La note d'abord, le mot ensuite : une note se donne d'un tap, un commentaire demande de la place.",
+        },
+        {
+          de: "bot",
+          texte:
+            "Merci ! Votre avis est en ligne, marqué *achat vérifié* — parce que votre paiement a laissé une trace.\n\nUn mot à ajouter ? Écrivez-le maintenant.",
+          actions: [{ l: "Sans commentaire", suite: true }],
+          quoi: "« Achat vérifié » se mérite",
+          etat: '{ nom: "avis_mot" }',
+          src: "conversation.ts · état « avis_mot »",
+          note: "Sans preuve de paiement enregistrée, l'avis est publié quand même — mais sans le label, et la phrase le dit. C'est la différence entre un avis et une réputation opposable.",
+        },
+        {
+          de: "bot",
+          texte: "C'est ajouté. Merci d'avoir pris le temps.",
+          quoi: "Retour au repos",
+          etat: '{ nom: "accueil" }',
+          src: "conversation.ts · ETAT_INITIAL",
+          note: "L'état de conversation s'efface tout seul après 24 h sans échange. Aucun SMS d'opérateur n'y est jamais conservé.",
+        },
+      ],
+    },
+
+    {
+      id: "inscription",
+      onglet: "Ouvrir une boutique",
+      titre: "L'inscription, dans le fil",
+      intro:
+        "Deux minutes, sans quitter WhatsApp. Le message entrant atteste déjà le numéro — Meta nous donne le wa_id, personne ne peut l'usurper. Demander en plus un code SMS n'apprendrait rien.",
+      sous: "prospect · +237 6 77 00 00 01",
+      pas: [
+        {
+          de: "moi", texte: "vendre", suite: true,
+          quoi: "Un mot suffit",
+          etat: '{ nom: "inscription_nom" }',
+          src: "aiguillage.ts · règle 2 → fil inscription",
+          note: "« vendre avec chez-maman-jeanne » porte en plus le parrainage. C'est le seul porteur de l'attribution — un parrain ne se devine jamais autrement.",
+        },
+        {
+          de: "bot",
+          texte:
+            "Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même.\n\n*Comment s'appelle votre boutique ?*\nExemple : Chez Amina",
+          quoi: "Le nom de la boutique",
+          etat: '{ nom: "inscription_nom" }',
+          src: "inscription.ts · PREMIERE_QUESTION",
+          note: "Le fil vendeuse est en français seul, comme toute l'app vendeuse. Une inscription bilingue déboucherait sur une application qui ne l'est pas.",
+        },
+        { de: "moi", texte: "Chez Maman Jeanne", suite: true, quoi: "", etat: "", src: "" },
+        {
+          de: "bot",
+          texte: "Dites-moi la ville où vous vendez.\nExemple : Douala",
+          quoi: "La ville",
+          etat: '{ nom: "inscription_ville", nomBoutique: "Chez Maman Jeanne" }',
+          src: "inscription.ts · état « inscription_ville »",
+          note: "Ville et quartier suffisent. Le point de retrait se précisera commande par commande, avec l'acheteuse.",
+        },
+        { de: "moi", texte: "Douala", suite: true, quoi: "", etat: "", src: "" },
+        {
+          de: "bot",
+          texte:
+            "✅ *Chez Maman Jeanne* est ouverte.\n\nVoici votre lien de boutique — partagez-le, mettez-le en statut WhatsApp :\n" +
+            LIEN +
+            "\n\nVos clientes commandent ici, et vous recevez un reçu vérifiable à chaque paiement prouvé.",
+          quoi: "La boutique existe",
+          etat: "effet « creer_boutique » exécuté · état → null",
+          src: "inscription.ts · messageBoutiqueCreee()",
+          note: "La machine est pure : elle rend un effet, le service l'exécute. Elle ne touche ni la base ni le réseau — c'est ce qui la rend testable sans rien monter.",
+        },
+        {
+          de: "bot",
+          texte:
+            "Pour être payée d'avance, ajoutez votre numéro Mobile Money dans votre espace vendeuse — il demande sa propre vérification, c'est le numéro qui reçoit votre argent.\nVotre espace vendeuse : " +
+            ESPACE +
+            "\n\nVotre lien de parrainage, si une consœur veut ouvrir la sienne :\nhttps://wa.me/…?text=vendre%20avec%20chez-maman-jeanne",
+          suite: true,
+          quoi: "La frontière que le fil ne franchit pas",
+          etat: "—",
+          src: "inscription.ts · en-tête du module",
+          note: "Le numéro de reversement ne se pose JAMAIS ici. C'est le champ qu'un attaquant chercherait à détourner : il exige son propre code de vérification, dans l'espace vendeuse. En attendant, la boutique vend sans prépaiement.",
+        },
+        {
+          de: "bot",
+          texte: "Ajoutons votre premier article ?",
+          actions: [{ l: "Premier article", suite: true }, { l: "Plus tard" }],
+          quoi: "L'enchaînement, sans rien à taper",
+          etat: "—",
+          src: "inscription.ts · messageBoutiqueCreee()",
+          note: "Une boutique vide ne sert à rien, et le moment où elle vient de s'ouvrir est le seul où la vendeuse est disponible.",
+        },
+        {
+          de: "bot",
+          texte: "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards",
+          quoi: "Le chemin question par question",
+          etat: '{ nom: "article_nom" }',
+          src: "inscription.ts · état « article_nom »",
+          note: "Ce chemin reste disponible à vie — « ajouter » le rouvre n'importe quand, pas seulement à l'inscription.",
+        },
+        { de: "moi", texte: "Robe wax grande taille", suite: true, quoi: "", etat: "", src: "" },
+        {
+          de: "bot",
+          texte: "*Robe wax grande taille* — son prix, en francs ?\nExemple : 15000",
+          quoi: "Le prix, en entier",
+          etat: '{ nom: "article_prix", nomArticle: "Robe wax grande taille" }',
+          src: "inscription.ts · état « article_prix »",
+          note: "Le franc CFA n'a pas de sous-unité : tous les montants sont des entiers. Une virgule mal comprise donnerait un prix faux, jamais un centime.",
+        },
+        { de: "moi", texte: "15000", suite: true, quoi: "", etat: "", src: "" },
+        {
+          de: "bot",
+          texte:
+            "Robe wax grande taille — 15 000 FCFA.\n\n*Envoyez maintenant la photo de l'article.* Prenez-la ici, elle sera allégée automatiquement.",
+          actions: [{ l: "Sans photo", suite: true }],
+          quoi: "La photo",
+          etat: '{ nom: "article_photo", nomArticle, prixXaf: 15000 }',
+          src: "inscription.ts · état « article_photo »",
+          note: "Ré-encodée à qualité dégressive jusqu'à tenir sous 100 Ko. C'est une règle de compilation, pas une valeur de qualité choisie au doigt mouillé.",
+        },
+        {
+          de: "bot",
+          texte:
+            "✅ *Robe wax grande taille* — 15 000 FCFA est en ligne.\nSans photo pour l'instant — envoyez-la quand vous voulez.",
+          actions: [{ l: "Autre article", suite: true }, { l: "Ma boutique" }],
+          quoi: "Publié",
+          etat: "effet « creer_article » exécuté · état → null",
+          src: "inscription.ts · messageArticlePublie()",
+          note: "L'absence de photo est dite, pas cachée — et elle se rattrape sans repasser par tout le chemin.",
+        },
+        {
+          de: "moi", photo: true, texte: "Sac raphia 8500", suite: true,
+          quoi: "Le vrai geste du terrain : une photo légendée",
+          etat: '{ nom: "article_confirme", nomArticle: "Sac raphia", prixXaf: 8500 }',
+          src: "aiguillage.ts · règle 3 (image d'une vendeuse) → inscription",
+          note: "Une photo envoyée par une vendeuse au repos EST un article qui arrive. C'est le geste le plus naturel du canal — celui qu'elle fait déjà tous les jours dans ses conversations.",
+        },
+        {
+          de: "bot",
+          citation: "📷 Sac raphia 8500",
+          texte: "J'ai lu : *Sac raphia* — *8 500 FCFA*. C'est bon ?",
+          actions: [{ l: "Publier ✓", suite: true }, { l: "Corriger" }],
+          quoi: "On confirme l'extrait, on ne devine pas",
+          etat: '{ nom: "article_confirme", … }',
+          src: "inscription.ts · messageConfirmationLegende()",
+          note: "Rien ne se publie sans l'appui. Une légende mal lue publierait un prix faux en silence — et un prix faux dans une vitrine partagée en Statut se rattrape mal.",
+        },
+        {
+          de: "bot",
+          texte: "✅ *Sac raphia* — 8 500 FCFA est en ligne.",
+          actions: [{ l: "Autre article" }, { l: "Ma boutique" }],
+          quoi: "Deux articles, zéro formulaire",
+          etat: "état → null (au repos)",
+          src: "inscription.ts",
+          note: "Aucun navigateur n'a été ouvert. C'est tout l'enjeu : la vendeuse n'a jamais quitté l'application où elle passe déjà ses journées.",
+        },
+      ],
+    },
+
+    {
+      id: "vendeuse",
+      onglet: "Encaisser & prouver",
+      titre: "Le fil vendeuse, au quotidien",
+      intro:
+        "Le cœur du produit tient ici : le SMS de l'opérateur, collé par la vendeuse, devient un reçu opposable. C'est le seul message qui fait autorité — c'est elle qui a l'argent.",
+      sous: "vendeuse · +237 6 77 00 00 01",
+      pas: [
+        {
+          de: "moi", texte: "ma boutique", suite: true,
+          quoi: "Le mot-clé de la vendeuse installée",
+          etat: "fil vendeuse",
+          src: "aiguillage.ts · règle 3 → fil vendeuse",
+          note: "Une vendeuse au repos retrouve son fil par défaut. Mais si elle ouvre le lien d'une consœur, elle part au fil acheteuse : le geste prime sur l'identité.",
+        },
+        {
+          de: "bot",
+          texte:
+            "*Chez Maman Jeanne*\n2 articles en ligne\nÀ encaisser : *7 500 FCFA* sur 1 commande\n\nVotre lien de boutique — partagez-le, mettez-le en Statut :\n" +
+            LIEN +
+            "\nVos chiffres et votre reversement : " +
+            ESPACE +
+            "\n\nUn paiement reçu ? Collez ici le SMS de votre opérateur — il devient le reçu. Une commande remise ? Écrivez « livrée CT-… ».\nVous partez ? Écrivez « congés » : votre boutique reste en ligne, sans prendre de commande.",
+          actions: [
+            { l: "Ajouter un article" },
+            { l: "Ma carte à partager" },
+            { l: "Mes soldes", suite: true },
+          ],
+          quoi: "« Ma boutique » n'est pas un cul-de-sac",
+          etat: '{ nom: "accueil" } · fil vendeuse',
+          src: "conversation.ts · menu vendeuse",
+          note: "Chaque geste possible est ANNONCÉ en toutes lettres. Un mot-clé que personne ne connaît n'existe pas.",
+        },
+        {
+          de: "bot",
+          texte: "Soldes à encaisser : *7 500 FCFA* sur 1 commande.\nCT-7K2M : 7 500 FCFA",
+          suite: true,
+          quoi: "Les soldes, sans ouvrir l'app",
+          etat: '{ nom: "accueil" }',
+          src: "conversation.ts · « solde »",
+          note: "Cinq commandes au plus dans le fil. Au-delà, c'est l'espace vendeuse qui sait montrer une liste.",
+        },
+        {
+          de: "moi",
+          separateur: "plus tard dans la journée",
+          texte:
+            "Vous avez recu 7500 XAF de MARIE NGONO (237690112233 ) sur votre compte Mobile Money 2026-08-05 14:22:07. Message de l'expediteur:. Votre nouveau solde est de 29398 FCFA. Frais: 0 XAF. Transaction ID: 17600000002",
+          suite: true,
+          quoi: "Le SMS collé — le cœur du produit",
+          etat: "SMS reconnu → fil vendeuse",
+          src: "domain/proof/ · sept contrôles",
+          note: "Le collage n'est pas un pis-aller, c'est le seul chemin ouvert : la lecture automatique des SMS est fermée par la politique Play, et aucun opérateur camerounais n'offre de vérification de transaction par un tiers.",
+        },
+        {
+          de: "bot",
+          texte:
+            "✅ Paiement prouvé — les contrôles passent. CT-7K2M est à jour, le reçu est émis.",
+          suite: true,
+          quoi: "Sept contrôles, un verdict en une phrase",
+          etat: '{ nom: "accueil" }',
+          src: "conversation.ts · messageVerdict()",
+          note: "Format reconnu · montant conforme · contrepartie · horodatage cohérent · identifiant unique SUR TOUT LE RÉSEAU · identifiant auto-cohérent (Orange) · contre-signature. L'unicité est une contrainte de base de données, pas un « si ».",
+        },
+        {
+          de: "moi", texte: "congés", suite: true,
+          quoi: "Fermer aux nouvelles commandes, sans rien fermer d'autre",
+          etat: "effet « basculer_conges »",
+          src: "aiguillage.ts · règle 3 — AVANT la règle 4",
+          note: "Ce geste passe avant l'achat, et ce n'est pas un détail : une vendeuse qui teste sa propre boutique a un achat en cours, et son « congés » partirait au fil acheteuse où il ne veut rien dire.",
+        },
+        {
+          de: "bot",
+          texte:
+            "🌴 *Chez Maman Jeanne* est en congés.\nVotre boutique reste en ligne et partageable. Les commandes en cours vont jusqu'au bout — seules les nouvelles sont refusées.\nPrête à reprendre ? Écrivez « je reprends ».",
+          actions: [{ l: "Je reprends", suite: true }, { l: "Ajouter un article" }],
+          quoi: "Le mode congés",
+          etat: "Seller.congesDepuis renseigné",
+          src: "routes/seller.ts · basculerConges()",
+          note: "Aucune date de retour n'est demandée nulle part — pour la même raison que le stock ne se décompte pas : une date dépassée en silence serait un mensonge de plus. Le verrou qui compte est dans le service, à la création de commande ; la boutique publique ne fait qu'afficher.",
+        },
+        {
+          de: "bot",
+          texte:
+            "☀️ C'est reparti — votre boutique accepte de nouveau les commandes. Bon retour !",
+          quoi: "La reprise",
+          etat: "Seller.congesDepuis remis à null",
+          src: "routes/seller.ts",
+          note: "Idempotent des deux côtés : rouvrir une boutique déjà ouverte ne fait rien et ne journalise rien de faux.",
+        },
+      ],
+    },
+  ];
+
+  const REGLES = [
+    {
+      t: "Une inscription commencée se termine",
+      fil: "inscription",
+      p: "Rien ne la détourne — sinon un nom de boutique qui ressemble à un lien renverrait la personne au catalogue au milieu de son inscription.",
+    },
+    {
+      t: "« Vendre » ouvre une boutique",
+      fil: "inscription",
+      p: "Le geste d'une prospect, tapé ou pris au bouton que le fil acheteuse propose. Une vendeuse déjà installée qui l'écrit n'en ouvre pas une seconde : un numéro, une boutique.",
+    },
+    {
+      t: "Les gestes d'une vendeuse installée",
+      fil: "vendeuse",
+      p: "« ma boutique », « ajouter », une photo, un SMS d'opérateur reconnu, « congés ». Une photo envoyée par une vendeuse au repos est un article qui arrive.",
+    },
+    {
+      t: "L'achat",
+      fil: "acheteuse",
+      p: "Le lien d'une boutique prime sur le statut de vendeuse. Les vendeuses s'achètent entre elles — le demi-gros est la norme sur ce marché, et l'ancien aiguillage par identité le rendait impossible.",
+    },
+    {
+      t: "Le défaut",
+      fil: "selon qui",
+      p: "Une vendeuse au repos retrouve son fil ; toute autre personne va au fil acheteuse, qui sait proposer d'ouvrir une boutique.",
+    },
+  ];
+
+  /* ─────────────────────────── rendu ──────────────────────────────────── */
+
+  const $fil = document.getElementById("fil");
+  const $trace = document.getElementById("trace");
+  const $vide = document.getElementById("vide");
+  const $titre = document.getElementById("titre-parcours");
+  const $intro = document.getElementById("intro-parcours");
+  const $sous = document.getElementById("tel-sous");
+  const $saisie = document.getElementById("saisie");
+  const $envoyer = document.getElementById("envoyer");
+  const $onglets = document.querySelector(".onglets");
+
+  let parcours = PARCOURS[0];
+  let curseur = 0;
+
+  const echapper = (s) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  /* Le gras de WhatsApp (*mot*) et les liens, rendus après échappement. */
+  function riche(s) {
+    return echapper(s)
+      .replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>")
+      .replace(/(https?:\/\/[^\s]+)/g, '<a href="#" onclick="return false">$1</a>');
+  }
+
+  const HEURES = ["14:18", "14:18", "14:19", "14:19", "14:20", "14:20", "14:21", "14:21", "14:22", "14:22", "14:23", "14:23", "14:24", "14:31", "14:32", "16:04", "16:04", "16:05", "16:05"];
+  const heure = (i) => HEURES[i % HEURES.length];
+
+  function bulle(pas, i) {
+    const el = document.createElement("div");
+    el.className = "bulle " + (pas.de === "moi" ? "bulle--moi" : "bulle--bot");
+    let html = "";
+    if (pas.citation) html += '<div class="citation">' + echapper(pas.citation) + "</div>";
+    if (pas.photo) html += '<div class="photo" role="img" aria-label="Photo de l\'article"></div>';
+    if (pas.texte) html += riche(pas.texte);
+    html += '<span class="heure">' + heure(i) + "</span>";
+    el.innerHTML = html;
+    return el;
+  }
+
+  function actions(pas) {
+    const box = document.createElement("div");
+    box.className = "actions";
+    pas.actions.forEach((a) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "action " + (a.suite === true ? "action--principale" : "action--hors");
+      b.innerHTML = '<span class="fl" aria-hidden="true">↩</span>' + echapper(a.l);
+      if (a.suite === true) {
+        b.addEventListener("click", () => repondre(a.l));
+      } else {
+        /* Ce chemin EXISTE dans le code — la maquette ne le déroule pas. Le
+           bouton reste affiché : le cacher donnerait un écran plus simple que
+           celui qu'une acheteuse verra vraiment. */
+        b.title = "Ce chemin existe dans le code ; la maquette suit le parcours principal.";
+        b.addEventListener("click", () => {
+          indice(
+            "<b>« " + echapper(a.l) + " »</b> existe bien dans le code — la maquette déroule le parcours principal. Prenez le bouton en gras pour continuer.",
+          );
+        });
+      }
+      box.appendChild(b);
+    });
+    return box;
+  }
+
+  let minuteurIndice = null;
+  function indice(html) {
+    const el = document.getElementById("indice");
+    el.innerHTML = html;
+    if (minuteurIndice) clearTimeout(minuteurIndice);
+    minuteurIndice = setTimeout(() => { el.innerHTML = ""; }, 6000);
+  }
+
+  function liste(pas) {
+    const box = document.createElement("div");
+    box.className = "liste";
+    const tete = document.createElement("div");
+    tete.className = "liste__tete";
+    tete.innerHTML = riche(pas.liste.titre);
+    box.appendChild(tete);
+    pas.liste.lignes.forEach((l) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "liste__ligne";
+      b.innerHTML = "<b>" + echapper(l.nom) + "</b>" + (l.prix ? "<span>" + echapper(l.prix) + "</span>" : "");
+      if (l.suite === true) {
+        b.addEventListener("click", () => repondre(l.nom));
+      } else {
+        b.title = "Ce chemin existe dans le code ; la maquette suit le parcours principal.";
+        b.addEventListener("click", () => {
+          indice(
+            "<b>« " + echapper(l.nom) + " »</b> existe bien dans le code — la maquette déroule le parcours principal.",
+          );
+        });
+      }
+      box.appendChild(b);
+    });
+    return box;
+  }
+
+  /* Une réponse de l'utilisatrice : sa bulle, puis la suite du script. */
+  function repondre(label) {
+    document.querySelectorAll(".actions button, .liste__ligne").forEach((b) => {
+      b.disabled = true;
+      b.style.cursor = "default";
+    });
+    const el = document.createElement("div");
+    el.className = "bulle bulle--moi";
+    el.innerHTML = riche(label) + '<span class="heure">' + heure(curseur) + "</span>";
+    $fil.appendChild(el);
+    defiler();
+    setTimeout(avancer, 260);
+  }
+
+  function tracer(pas, n) {
+    if (!pas.quoi) return;
+    const li = document.createElement("li");
+    li.className = "pas";
+    li.innerHTML =
+      '<div class="pas__num">' + String(n).padStart(2, "0") + "</div>" +
+      "<div><p class=\"pas__quoi\">" + echapper(pas.quoi) + "</p>" +
+      (pas.etat && pas.etat !== "—" ? '<span class="pas__etat">' + echapper(pas.etat) + "</span>" : "") +
+      (pas.note ? '<p class="pas__note">' + echapper(pas.note) + "</p>" : "") +
+      (pas.src ? '<span class="pas__src">' + echapper(pas.src) + "</span>" : "") +
+      "</div>";
+    $trace.appendChild(li);
+    $vide.hidden = true;
+  }
+
+  function defiler() {
+    $fil.scrollTop = $fil.scrollHeight;
+  }
+
+  let nTrace = 0;
+
+  function avancer() {
+    if (curseur >= parcours.pas.length) {
+      majSaisie();
+      return;
+    }
+    const pas = parcours.pas[curseur];
+
+    if (pas.separateur) {
+      const s = document.createElement("div");
+      s.className = "sep";
+      s.textContent = pas.separateur;
+      $fil.appendChild(s);
+    }
+    $fil.appendChild(bulle(pas, curseur));
+    if (pas.actions) $fil.appendChild(actions(pas));
+    if (pas.liste) $fil.appendChild(liste(pas));
+
+    if (pas.quoi) tracer(pas, ++nTrace);
+    defiler();
+    curseur++;
+    majSaisie();
+
+    /**
+     * Le bot enchaîne tout seul tant qu'il n'attend rien.
+     *
+     * La règle porte sur le pas QU'ON VIENT DE RENDRE : s'il n'a ni boutons ni
+     * liste, personne ne peut cliquer, donc le fil doit continuer. Sans elle,
+     * deux messages du bot qui se suivent bloquaient la maquette — défaut
+     * constaté au premier test.
+     */
+    const attendUnGeste = !!(pas.actions || pas.liste);
+    const suivant = parcours.pas[curseur];
+    if (!attendUnGeste && suivant && suivant.de === "bot") {
+      setTimeout(avancer, pas.separateur || suivant.separateur ? 520 : 340);
+    }
+  }
+
+  function majSaisie() {
+    const pas = parcours.pas[curseur];
+    if (!pas) {
+      $saisie.textContent = "Parcours terminé — ↺ Rejouer pour recommencer";
+      $envoyer.disabled = true;
+      return;
+    }
+    if (pas.de === "moi") {
+      const t = pas.photo ? "📷 " + pas.texte : pas.texte;
+      $saisie.textContent = t.length > 54 ? t.slice(0, 54) + "…" : t;
+      $envoyer.disabled = false;
+    } else {
+      $saisie.textContent = "Le bot répond…";
+      $envoyer.disabled = true;
+    }
+  }
+
+  function charger(p) {
+    parcours = p;
+    curseur = 0;
+    nTrace = 0;
+    $fil.innerHTML = "";
+    $trace.innerHTML = "";
+    $vide.hidden = false;
+    $titre.textContent = p.titre;
+    $intro.textContent = p.intro;
+    $sous.textContent = p.sous;
+    document.getElementById("indice").innerHTML = "";
+    majSaisie();
+    /* Le premier geste se joue TOUT SEUL, et l'enchaînement s'arrête au
+       premier bouton. Un téléphone vide à l'ouverture n'apprend rien : la
+       maquette doit montrer une conversation, pas un écran à amorcer. */
+    if (p.pas.length) avancer();
+  }
+
+  $envoyer.addEventListener("click", () => {
+    const pas = parcours.pas[curseur];
+    if (!pas || pas.de !== "moi") return;
+    avancer();
+    const suivant = parcours.pas[curseur];
+    if (suivant && suivant.de === "bot") setTimeout(avancer, 280);
+  });
+
+  document.getElementById("rejouer").addEventListener("click", () => charger(parcours));
+
+  PARCOURS.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "onglet";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(i === 0));
+    b.innerHTML = '<span class="num">' + String(i + 1).padStart(2, "0") + "</span>" + echapper(p.onglet);
+    b.addEventListener("click", () => {
+      $onglets.querySelectorAll(".onglet").forEach((o) => o.setAttribute("aria-selected", "false"));
+      b.setAttribute("aria-selected", "true");
+      charger(p);
+    });
+    $onglets.appendChild(b);
+  });
+
+  const $regles = document.getElementById("regles");
+  REGLES.forEach((r, i) => {
+    const li = document.createElement("li");
+    li.className = "regle";
+    li.innerHTML =
+      '<div class="regle__num">' + String(i + 1).padStart(2, "0") + "</div>" +
+      '<div><p class="regle__t">' + echapper(r.t) +
+      '<span class="fil-nom">' + echapper(r.fil) + "</span></p>" +
+      "<p>" + echapper(r.p) + "</p></div>";
+    $regles.appendChild(li);
+  });
+
+  charger(PARCOURS[0]);
+})();
+</script>
+
+</body>
+</html>

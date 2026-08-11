@@ -10,6 +10,7 @@ import { OrangeSmsSender } from "./adapters/sms-orange.ts";
 import { PendingSmsProvider, resolveSmsSender } from "./adapters/sms-provider.ts";
 import { WhatsAppSender } from "./adapters/sms-whatsapp.ts";
 import { connexionWhatsApp } from "./auth-connexion-whatsapp.ts";
+import { envoyerCodeBanc, numeroDuBanc } from "./banc-essai.ts";
 import type { SmsSender } from "./domain/sms-sender.ts";
 import { texteSms } from "./domain/sms-sender.ts";
 
@@ -203,11 +204,28 @@ export function createAuth(deps: AuthDeps): InstanceAuth {
          * foi — on ne reecrit pas la regle de format ici, elle vit dans
          * `packages/contracts`.
          */
-        phoneNumberValidator: (phone) => normalizePhone(phone) !== null,
+        /* Les numeros du banc d'essai (ADR 0058) passent aussi — liste
+           NOMMEE dans l'environnement, vide par defaut : sans elle, la regle
+           +237 est exactement celle d'avant. */
+        phoneNumberValidator: (phone) =>
+          normalizePhone(phone) !== null || numeroDuBanc(phone) !== null,
 
         async sendOTP({ phoneNumber: to, code }) {
-          const n = normalizePhone(to);
+          const banc = numeroDuBanc(to);
+          const n = normalizePhone(to) ?? banc;
           if (!n) throw new Error("numero non camerounais");
+
+          /* Un numero du banc ne peut pas recevoir le canal normal — en
+             preprod l'OTP part en SMS par Orange Cameroun, qui ne livre pas
+             hors du pays. Son code part par le WhatsApp du bot, en texte
+             libre : le banc converse deja avec lui. Memes garde-fous de
+             debit que le canal normal. */
+          if (banc) {
+            await deps.avantEnvoi?.({ phone: n });
+            await envoyerCodeBanc(n, texteSms("otp_connexion", code));
+            await deps.onOtpEnvoye?.({ phone: n, kind: "otp_connexion" });
+            return;
+          }
 
           // La limitation de debit est consultee ICI, avant l'envoi : un SMS
           // envoye puis compte serait deja paye.

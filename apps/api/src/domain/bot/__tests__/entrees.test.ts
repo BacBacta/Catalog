@@ -52,16 +52,40 @@ describe("lireEntreesBot", () => {
     expect(e).toEqual([{ de: "237690112233", genre: "liste", id: "art:art-2" }]);
   });
 
-  it("ignore sans lever ce qu'il ne connait pas — images, stickers, accuses", () => {
+  it("lit une photo par son identifiant de media, legende comprise", () => {
     const e = lireEntreesBot(
       enveloppe([
-        { from: "2376", type: "image", image: { id: "m1" } },
-        { from: "2376", type: "sticker" },
-        { pas: "un message" },
-        null,
+        { from: "237690112233", type: "image", image: { id: "m1", caption: "Pagne wax" } },
+        { from: "237690112233", type: "image", image: { id: "m2" } },
       ]),
     );
+    expect(e).toEqual([
+      { de: "237690112233", genre: "image", mediaId: "m1", legende: "Pagne wax" },
+      { de: "237690112233", genre: "image", mediaId: "m2" },
+    ]);
+  });
+
+  it("un message sans expediteur reste ignore — il n'y a personne a qui repondre", () => {
+    const e = lireEntreesBot(enveloppe([{ pas: "un message" }, null, { type: "text" }]));
     expect(e).toEqual([]);
+  });
+
+  it("ce qu'il ne sait pas TRAITER, il le NOMME desormais — ADR 0049", () => {
+    /* Avant le 07/08/2026, ces formes rendaient une liste vide : le bot ne
+       repondait rien, et un silence sur WhatsApp veut dire panne. Elles
+       produisent maintenant une entree `autre`, que chaque fil sait traiter.
+       Une image dont l'identifiant manque suit le meme chemin : la personne a
+       envoye une photo, elle merite mieux que rien. */
+    const e = lireEntreesBot(
+      enveloppe([
+        { from: "2376", type: "image", image: {} },
+        { from: "2376", type: "sticker" },
+      ]),
+    );
+    expect(e).toEqual([
+      { de: "2376", genre: "autre", forme: "inconnue" },
+      { de: "2376", genre: "autre", forme: "sticker" },
+    ]);
   });
 
   it("lit la forme PLATE v1 du sandbox 360dialog — messages a la racine", () => {
@@ -76,5 +100,32 @@ describe("lireEntreesBot", () => {
     for (const corps of [null, {}, { entry: "x" }, { entry: [{}] }, 42]) {
       expect(lireEntreesBot(corps)).toEqual([]);
     }
+  });
+});
+
+describe("le wamid entrant (ADR 0035)", () => {
+  it("est capture sur toutes les formes — et son absence ne casse rien", () => {
+    const [avecId] = lireEntreesBot({
+      messages: [{ from: "237", id: "wamid.abc", type: "text", text: { body: "menu" } }],
+    });
+    expect(avecId).toMatchObject({ genre: "texte", messageId: "wamid.abc" });
+
+    const [sansId] = lireEntreesBot({
+      messages: [{ from: "237", type: "text", text: { body: "menu" } }],
+    });
+    expect(sansId).toMatchObject({ genre: "texte" });
+    expect((sansId as { messageId?: string }).messageId).toBeUndefined();
+
+    const [imageAvec] = lireEntreesBot({
+      messages: [
+        { from: "237", id: "wamid.img", type: "image", image: { id: "m1", caption: "Pagne 5000" } },
+      ],
+    });
+    expect(imageAvec).toMatchObject({
+      genre: "image",
+      mediaId: "m1",
+      legende: "Pagne 5000",
+      messageId: "wamid.img",
+    });
   });
 });

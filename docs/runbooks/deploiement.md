@@ -156,9 +156,35 @@ Et deux variables, pas des secrets — ce sont des URL publiques :
 |---|---|
 | `API_BASE_URL` | `connect-src` de la CSP, et la vérification post-déploiement de l'API. **Le workflow refuse de construire si elle est vide** : sans elle la boutique se déploie au vert sans jamais pouvoir joindre l'API |
 | `SHOP_BASE_URL` | vérifier après coup que Vercel sert bien `vercel.json`. Facultative : absente, le pas se saute en le disant |
+| `BOT_WHATSAPP` | le numéro du bot dans la fiche produit (ADR 0066). **Elle se pose ICI, pas chez Vercel** : la boutique est construite dans ce workflow, Vercel ne reçoit que `dist/`. Facultative : absente, la fiche produit reprend le chemin d'avant |
 
-Les deux se posent **par environnement** GitHub, comme `VERCEL_PROJECT_ID` :
+Toutes se posent **par environnement** GitHub, comme `VERCEL_PROJECT_ID` :
 c'est ce qui fait que préproduction et production ne se marchent pas dessus.
+
+### La reconstruction automatique de la boutique — ADR 0068
+
+Quand une boutique naît dans le fil WhatsApp ou qu'un article est publié, l'API
+émet un `repository_dispatch` de type `reconstruction-boutique`. Le workflow
+ci-dessus l'écoute : `cible` vaut alors `boutique`, le job `api` ne part pas, et
+la porte de vérification est franchie comme pour un déploiement manuel — un
+dispatch déploie `main` sans qu'un humain ait regardé.
+
+Deux secrets à poser **sur l'API**, côté Fly :
+
+| Secret Fly | Valeur |
+|---|---|
+| `SHOP_REBUILD_GITHUB_REPO` | `BacBacta/Catalog` — pas un secret, mais il vit avec l'autre |
+| `SHOP_REBUILD_GITHUB_TOKEN` | jeton GitHub, portée `contents: write` sur ce dépôt |
+| `SHOP_REBUILD_ENVIRONNEMENT` | `preproduction` ou `production`. Absente : préproduction |
+
+> **`SHOP_REBUILD_HOOK_URL` est à retirer.** C'était le transport d'origine, et
+> il ne peut pas atteindre la boutique : son projet Vercel n'est relié à aucun
+> dépôt, et un crochet de déploiement suppose un projet relié. S'il pointe le
+> crochet d'un AUTRE projet, il répond 200 — et le bot annonce à la vendeuse une
+> mise à jour qui n'arrivera jamais. Voir l'ADR 0068.
+
+> **Rien de tout ceci n'agit avant la fusion** : GitHub ne lit les fichiers de
+> workflow que sur la branche par défaut.
 
 ---
 
@@ -345,11 +371,20 @@ cd apps/seller/dist && npx vercel deploy --yes --prod
 Trois différences avec la boutique, toutes trois voulues :
 
 1. **Son `vercel.json` est un fichier SOURCE, versionné** :
-   `apps/seller/public/vercel.json`, que Vite copie tel quel dans `dist/` à
-   chaque build. L'inverse de la boutique, et pour la raison inverse : rien
-   dans son contenu ne dépend du build — pas d'empreintes de scripts en ligne
-   (le HTML construit n'en contient aucun), pas d'origine d'API injectée par
-   l'environnement.
+   `apps/seller/vercel.json`. L'inverse de la boutique, et pour la raison
+   inverse : rien dans son contenu ne dépend du build — pas d'empreintes de
+   scripts en ligne (le HTML construit n'en contient aucun), pas d'origine
+   d'API injectée par l'environnement.
+
+   > **Il arrive à DEUX endroits, et il le faut** — corrigé le 11/08/2026,
+   > voir l'ADR 0067. Il a longtemps vécu dans `apps/seller/public/`, d'où Vite
+   > le recopiait dans `dist/`. Correct pour la commande ci-dessus, **invisible**
+   > pour une construction déclenchée depuis git : celle-là lit la configuration
+   > à la racine de `apps/seller`, pas dans la sortie. Le jour où le projet
+   > Vercel a été relié au dépôt, l'app s'est déployée sans son renvoi `/api/*`,
+   > sans repli SPA et sans en-têtes — **sans aucune erreur de construction**.
+   > Le fichier vit maintenant à la racine de l'app, et `vite.config.ts` le
+   > recopie dans `dist/`. `src/__tests__/vercel-json.test.ts` tient les deux.
 
 2. **La réécriture `/api/*` vers l'API Fly est le « serveur de tête » annoncé
    par `apps/seller/vite.config.ts`.** Le cookie de session posé par Better
@@ -417,6 +452,33 @@ Deux défauts, tous deux constatés, tous deux silencieux :
    `PUBLIC_API_BASE`, et les empreintes dépendent du HTML produit, donc de
    l'instantané du catalogue que la CI regénère depuis une base semée. Cette
    garde ne pouvait pas passer, et ne passait pas.
+
+### ⚠️ Ce qui ferait disparaître ces en-têtes du jour au lendemain
+
+**Connecter l'un de ces deux projets à Git.** Le mécanisme entier ci-dessus
+repose sur `cd dist && vercel deploy` : c'est ce `cd` qui fait de `dist/` la
+racine lue par Vercel, et donc de `dist/vercel.json` sa configuration.
+
+Un projet relié à GitHub ne passe plus par là. Il construit depuis le dépôt et
+lit `vercel.json` **à son `Root Directory`** — où il n'y a rien. En-têtes et
+réécritures disparaissent, **sans une erreur, sans un avertissement**, et le
+site continue de s'afficher parfaitement.
+
+Ce n'est pas une hypothèse : c'est arrivé au site de la société le 05/08/2026.
+Il a servi plusieurs heures sans une seule ligne de CSP pendant que son ADR
+affirmait le contraire. Voir l'ADR 0045.
+
+Si un jour l'un de ces projets doit passer par Git, la contrepartie est de
+régler son `Root Directory` sur le paquet (`apps/shop`, `apps/seller`) et d'y
+placer le `vercel.json` — puis de **vérifier la réponse**, pas le fichier :
+
+```bash
+curl -sSI https://<url>/ | grep -i "content-security\|x-frame\|referrer"
+```
+
+Contrôle passé le 05/08/2026 sur les deux projets : les cinq en-têtes sortent,
+`/v/ACDE-4679` et `/suivi/<jeton>` rendent 200, et la reprise SPA de l'app
+vendeuse fonctionne. Rien à corriger — mais rien qui tienne tout seul.
 
 C'est donc un **artefact de construction**, comme `_headers` : produit dans
 `dist/`, non versionné, regénéré à chaque build avec les valeurs de

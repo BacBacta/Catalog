@@ -97,8 +97,16 @@ export function operateurDuNumero(e164: string): "mtn" | "orange" | null {
 export function appliquerChangementReversement(
   etat: SellerPayoutState,
   demande: PayoutChangeRequest,
+  /**
+   * La regle de forme des numeros, INJECTEE comme le temps l'est deja : le
+   * defaut est la regle du produit (+237, `packages/contracts`), et aucun
+   * appelant de production ne passe autre chose. Le banc d'essai (ADR 0058)
+   * passe une regle elargie a ses numeros nommes — la decision, elle, ne
+   * change pas d'une ligne : verification du MEME numero, fenetre, journal.
+   */
+  normaliser: (brut: string) => string | null = normalizePhone,
 ): ResultatChangement {
-  const normalise = normalizePhone(demande.nouveauNumero);
+  const normalise = normaliser(demande.nouveauNumero);
 
   const refus = (raison: RefusChangement): ResultatChangement => ({
     ok: false,
@@ -125,7 +133,7 @@ export function appliquerChangementReversement(
 
   // La verification doit porter sur le NOUVEAU numero. Sans ce controle, il
   // suffirait de faire verifier un numero qu'on possede pour en pousser un autre.
-  if (normalizePhone(v.numero) !== normalise) return refus("verification_dun_autre_numero");
+  if (normaliser(v.numero) !== normalise) return refus("verification_dun_autre_numero");
 
   if (demande.now.getTime() - v.verifieA.getTime() > FENETRE_VERIFICATION_MS) {
     return refus("verification_perimee");

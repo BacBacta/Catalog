@@ -55,6 +55,19 @@ const lieu = [boutique.quartier, boutique.ville].filter(Boolean).join(", ");
           </p>
         ) : null
       }
+      {
+        /* Mode congés — ADR 0039. Annoncé en haut, pas au moment de commander :
+           on ne laisse pas choisir un article pour refuser ensuite. */
+        boutique.enConges ? (
+          <p
+            role="status"
+            class="rounded-field border border-warn/40 bg-warn-soft px-3 py-2 text-body text-warn"
+          >
+            🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Le catalogue reste
+            consultable, et vous pouvez lui écrire.
+          </p>
+        ) : null
+      }
     </header>
 
     {

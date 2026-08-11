@@ -22,7 +22,13 @@
  */
 export function normalizePhone(input: string): string | null {
   const digits = input.replace(/[^\d+]/g, "").replace(/^\+/, "");
-  const national = digits.startsWith("237") ? digits.slice(3) : digits;
+  /* `00237…` est la forme composee depuis un fixe, et elle circule : la
+     reconnaitre ici evite qu'elle soit refusee ici et acceptee ailleurs
+     (le bot la tolerait deja de son cote — ADR 0055). */
+  const sansPrefixeInternational = digits.startsWith("00") ? digits.slice(2) : digits;
+  const national = sansPrefixeInternational.startsWith("237")
+    ? sansPrefixeInternational.slice(3)
+    : sansPrefixeInternational;
   if (!/^[62]\d{8}$/.test(national)) return null;
   return `+237${national}`;
 }
@@ -43,5 +49,11 @@ export function formatPhone(input: string): string {
   const n = normalizePhone(input);
   if (!n) return input;
   const national = n.slice(-9);
-  return `${national.slice(0, 1)} ${national.slice(1, 3)} ${national.slice(3, 5)} ${national.slice(5, 7)} ${national.slice(7, 9)}`;
+  /* `690 11 22 33` — ADR 0051. Les TROIS premiers chiffres identifient
+     l'operateur (69x Orange, 67x/68x MTN, 62x Nexttel), et l'operateur decide
+     de tout ici : le code USSD, les frais hors reseau, quel SMS fera preuve.
+     Les grouper garde cette information lisible ; `6 90` la coupait en deux.
+     C'est aussi la forme des douze exemples des copies, et la seule que la
+     saisie acceptait avant ce lot. */
+  return `${national.slice(0, 3)} ${national.slice(3, 5)} ${national.slice(5, 7)} ${national.slice(7, 9)}`;
 }

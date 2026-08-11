@@ -42,6 +42,11 @@ const ctx = (surcharge: Partial<ContexteAcheteuse> = {}): ContexteAcheteuse => (
 });
 const corpsTexte = (m: unknown) => (m as MessageTexte).text.body;
 const corpsBoutons = (m: unknown) => (m as MessageBoutons).interactive.body.text;
+/* La quantite est passee du bouton a la LISTE (ADR 0053) : meme corps, autre
+   action. */
+const corpsListe = (m: unknown) => (m as MessageListe).interactive.body.text;
+const lignesListe = (m: unknown) =>
+  (m as MessageListe).interactive.action.sections.flatMap((sec) => sec.rows.map((r) => r.id));
 const idsBoutons = (m: unknown) =>
   (m as MessageBoutons).interactive.action.buttons.map((b) => b.reply.id);
 
@@ -141,7 +146,9 @@ describe("fil acheteuse — du lien a la commande", () => {
       ctx({ boutique: b }),
     );
     const corps = corpsBoutons(r.messages[0]);
-    expect(corps).toContain("Plus que 2 en stock !");
+    /* Factuel, sans rareté fabriquée : le nombre ne se décompte pas tout seul
+       (ADR 0038). */
+    expect(corps).toContain("Plus que 2 disponibles");
     expect(corps).toContain("Tressé main");
   });
 
@@ -193,7 +200,27 @@ describe("le panier — plusieurs articles, une seule commande", () => {
     const corps = corpsBoutons(r.messages[0]);
     expect(corps).toContain("Ajouté : Pagne wax 6 yards × 2");
     expect(corps).toContain(formatXaf(30000));
-    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "annuler"]);
+    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "vendeuse"]);
+  });
+
+  it("l'ajout MONTRE les lignes, pas seulement le total", () => {
+    const r = reagirAcheteuse(
+      {
+        nom: "quantite",
+        slug: "chez-amina",
+        articleId: "a2",
+        panier: [{ articleId: "a1", quantite: 2 }],
+      },
+      { genre: "bouton", id: "qte:1" },
+      ctx(),
+    );
+    const corps = corpsBoutons(r.messages[0]);
+    /* L'accuse de reception de ce qui vient d'entrer… */
+    expect(corps).toContain("Ajouté : Sac en raphia × 1");
+    /* …et le panier ENTIER, l'article precedent compris. */
+    expect(corps).toContain("Pagne wax 6 yards × 2");
+    expect(corps).toContain("Sac en raphia × 1");
+    expect(corps).toContain(formatXaf(38000));
   });
 
   it("« Autre article » ramene au catalogue SANS perdre le panier", () => {
@@ -279,7 +306,7 @@ describe("le panier — plusieurs articles, une seule commande", () => {
     expect(corps).toContain(formatXaf(38000));
     expect(corps).toContain(formatXaf(19000)); // acompte 50 %
     expect(corps).toContain("Bonapriso, en face de la pharmacie du Rond-Point");
-    expect(corps).toContain("6 90 11 22 33");
+    expect(corps).toContain("690 11 22 33");
     expect(corps).toContain("Rien n'est encore commandé");
   });
 
@@ -301,10 +328,13 @@ describe("le panier — plusieurs articles, une seule commande", () => {
     expect(r.messages).toEqual([]); // la confirmation part apres la creation
   });
 
-  it("« Corriger » revient a l'etape panier sans rien perdre", () => {
+  it("« Corriger » rouvre la SAISIE de livraison, pas l'etape panier — ADR 0053", () => {
+    /* Avant l'ADR 0053, corriger un chiffre de la ligne de livraison
+       renvoyait a l'etape panier : il fallait re-traverser mode, ville ET
+       details. On rouvre desormais la saisie, la ou l'erreur a ete faite. */
     const r = reagirAcheteuse(RECAP, { genre: "bouton", id: "corriger" }, ctx());
-    expect(r.etat).toEqual({
-      nom: "ajout",
+    expect(r.etat).toMatchObject({
+      nom: "details",
       slug: "chez-amina",
       panier: [{ articleId: "a1", quantite: 2 }],
     });
@@ -319,16 +349,20 @@ describe("le stock suivi borne la quantite", () => {
       { genre: "bouton", id: "cmd:a2" },
       ctx(),
     );
-    expect(corpsBoutons(r.messages[0])).toContain("(2 en stock)");
-    // stock 2 : les boutons 1 et 2, et Annuler a la place d'« autre nombre ».
-    expect(idsBoutons(r.messages[0])).toEqual(["qte:1", "qte:2", "annuler"]);
+    /* La quantite est une LISTE depuis l'ADR 0053 : le stock la borne, et
+       « un autre nombre » disparait quand il n'y a rien au-dela. La derniere
+       ligne est une sortie — jamais un cul-de-sac. */
+    expect(corpsListe(r.messages[0])).toContain("(2 en stock)");
+    expect(lignesListe(r.messages[0])).toEqual(["qte:1", "qte:2", "vendeuse"]);
   });
 
   it("une quantite au-dela du stock recoit le maximum, l'etat ne bouge pas", () => {
     const etat: EtatConv = { nom: "quantite", slug: "chez-amina", articleId: "a2", panier: [] };
     const r = reagirAcheteuse(etat, { genre: "texte", texte: "5" }, ctx());
     expect(r.etat).toEqual(etat);
-    expect(corpsTexte(r.messages[0])).toContain("que 2");
+    /* Le plafond est ATTRIBUE a la vendeuse : c'est sa declaration, pas un
+       inventaire que Catalog decompte (ADR 0038). */
+    expect(corpsTexte(r.messages[0])).toContain("La vendeuse en annonce 2");
   });
 
   it("le panier compte dans la borne : 2 en stock, 2 au panier, plus rien a commander", () => {
@@ -366,10 +400,17 @@ describe("aucun etat n'est un piege — mots-cles globaux", () => {
     expect(r.etat).toEqual({ nom: "catalogue", slug: "chez-amina", page: 0 });
   });
 
-  it("« menu » tape en plein recap revient a l'accueil sans rien creer", () => {
+  it("« menu » tape en plein recap revient a l'accueil sans rien creer — et GARDE le panier", () => {
+    /* ADR 0035 (T7) : seul « annuler » vide le panier, et il le dit. « menu »
+       est une navigation, pas un abandon. */
     const r = reagirAcheteuse(RECAP, { genre: "texte", texte: "menu" }, ctx());
     expect(r.effet).toBeUndefined();
-    expect(r.etat).toEqual({ nom: "catalogue", slug: "chez-amina", page: 0 });
+    expect(r.etat).toEqual({
+      nom: "catalogue",
+      slug: "chez-amina",
+      page: 0,
+      panier: [{ articleId: "a1", quantite: 2 }],
+    });
   });
 
   it("« aide » repond les gestes disponibles sans perdre l'etat", () => {
@@ -381,6 +422,193 @@ describe("aucun etat n'est un piege — mots-cles globaux", () => {
     const r = reagirAcheteuse(etat, { genre: "texte", texte: "aide" }, ctx());
     expect(r.etat).toEqual(etat);
     expect(corpsTexte(r.messages[0])).toMatch(/annuler/);
+    /* Le quatrieme mot est ANNONCE : un geste que personne ne connait
+       n'existe pas (tranche P1d). */
+    expect(corpsTexte(r.messages[0])).toMatch(/panier/);
+  });
+
+  it("« panier » ramene au panier depuis N'IMPORTE quel etat, lignes comprises", () => {
+    /* En plein flux de livraison — l'endroit ou l'on doute de ce qu'on a
+       choisi, et ou il fallait jusqu'ici aller jusqu'au recapitulatif. */
+    const r = reagirAcheteuse(
+      {
+        nom: "details",
+        slug: "chez-amina",
+        panier: [
+          { articleId: "a1", quantite: 2 },
+          { articleId: "a2", quantite: 1 },
+        ],
+        mode: "livraison",
+      },
+      { genre: "texte", texte: "Panier" },
+      ctx(),
+    );
+    expect(r.etat).toEqual({
+      nom: "ajout",
+      slug: "chez-amina",
+      panier: [
+        { articleId: "a1", quantite: 2 },
+        { articleId: "a2", quantite: 1 },
+      ],
+    });
+    const corps = corpsBoutons(r.messages[0]);
+    expect(corps).toContain("Pagne wax 6 yards × 2");
+    expect(corps).toContain("Sac en raphia × 1");
+    expect(corps).toContain(formatXaf(38000));
+    /* Pas d'accuse de reception : rien n'a ete ajoute. */
+    expect(corps).not.toContain("Ajouté");
+    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "vendeuse"]);
+  });
+
+  it("« panier » vide le DIT, et ne fabrique pas un etat de commande", () => {
+    const etat: EtatConv = { nom: "catalogue", slug: "chez-amina", page: 0 };
+    const r = reagirAcheteuse(etat, { genre: "texte", texte: "mon panier" }, ctx());
+    expect(r.etat).toEqual(etat);
+    expect(corpsTexte(r.messages[0])).toMatch(/vide/);
+  });
+
+  it("le panier a une ligne EN TETE du catalogue, et un bouton sur la fiche", () => {
+    const panier = [{ articleId: "a1", quantite: 2 }];
+    const liste = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier },
+      { genre: "bouton", id: "catalogue" },
+      ctx(),
+    );
+    const lignes = (liste.messages[0] as MessageListe).interactive.action.sections[0]?.rows;
+    expect(lignes?.[0]).toMatchObject({ id: "panier", description: formatXaf(30000) });
+
+    const fiche = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0, panier },
+      { genre: "liste", id: "art:a2" },
+      ctx(),
+    );
+    expect(idsBoutons(fiche.messages.at(-1))).toEqual(["cmd:a2", "cat:0", "panier"]);
+
+    /* Panier vide : ni ligne ni bouton — un raccourci vers rien est du bruit. */
+    const nu = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a2" },
+      ctx(),
+    );
+    expect(idsBoutons(nu.messages.at(-1))).toEqual(["cmd:a2", "cat:0"]);
+  });
+});
+
+describe("le mode congés — la boutique reste une vitrine (ADR 0039)", () => {
+  const FERMEE: BoutiqueBot = { ...BOUTIQUE, enConges: true };
+  const ctxF = (s: Partial<ContexteAcheteuse> = {}): ContexteAcheteuse => ({
+    vers: VERS,
+    boutique: FERMEE,
+    ...s,
+  });
+
+  it("le dit A L'ACCUEIL, avant qu'on ait choisi quoi que ce soit", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "Voir la boutique chez-amina" },
+      ctxF(),
+    );
+    const corps = corpsBoutons(r.messages[0]);
+    expect(corps).toMatch(/nouvelle commande/);
+    /* La vitrine reste entière : catalogue, photos, vendeuse. */
+    expect(idsBoutons(r.messages[0])).toContain("catalogue");
+    expect(idsBoutons(r.messages[0])).toContain("vendeuse");
+  });
+
+  it("la fiche n'offre PAS « Commander » — elle offre la vendeuse", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a1" },
+      ctxF(),
+    );
+    const ids = idsBoutons(r.messages.at(-1));
+    expect(ids).not.toContain("cmd:a1");
+    expect(ids).toEqual(["vendeuse", "cat:0"]);
+  });
+
+  it("refuse les TROIS gestes qui mènent à une commande, sans rien créer", () => {
+    /* Un fil ouvert avant le départ porte encore ses anciens boutons, et
+       WhatsApp laisse les appuyer. « confirmer » est le dernier verrou. */
+    for (const id of ["cmd:a1", "commander", "confirmer"]) {
+      const r = reagirAcheteuse(RECAP, { genre: "bouton", id }, ctxF());
+      expect(r.effet, id).toBeUndefined();
+      expect(corpsBoutons(r.messages[0]), id).toMatch(/nouvelle commande/);
+      /* L'état ne bouge pas : le panier survit, la commande n'existe pas. */
+      expect(r.etat, id).toEqual(RECAP);
+    }
+  });
+
+  it("laisse tout le reste marcher — catalogue, panier, suivi", () => {
+    const catalogue = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "catalogue" },
+      ctxF(),
+    );
+    expect(
+      (catalogue.messages[0] as MessageListe).interactive.action.sections[0]?.rows.length,
+    ).toBe(2);
+
+    const panier = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 2 }] },
+      { genre: "texte", texte: "panier" },
+      ctxF(),
+    );
+    expect(corpsBoutons(panier.messages[0])).toContain("Pagne wax 6 yards × 2");
+  });
+
+  it("ouverte, rien ne change : « Commander » est là et la commande passe", () => {
+    const fiche = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a1" },
+      ctx(),
+    );
+    expect(idsBoutons(fiche.messages.at(-1))).toContain("cmd:a1");
+
+    const creation = reagirAcheteuse(RECAP, { genre: "bouton", id: "confirmer" }, ctx());
+    expect(creation.effet?.type).toBe("creer_commande");
+  });
+});
+
+describe("le fil vendeuse en congés (ADR 0039)", () => {
+  const vendeuse = (enConges: boolean, entree: Parameters<typeof reagirVendeuse>[0]) =>
+    reagirVendeuse(entree, VERS, {
+      smsReconnu: false,
+      commandesOuvertes: [{ id: "o1", reference: "CT-104312", resteXaf: 7500 }],
+      soldesXaf: 7500,
+      boutique: {
+        nom: "Chez Amina",
+        nbArticles: 3,
+        lienBoutique: "https://wa.me/237600000000?text=boutique%20chez-amina",
+        lienEspace: "https://app.test",
+        ...(enConges ? { enConges: true } : {}),
+      },
+    });
+
+  it("« congés » ferme, « je reprends » rouvre — deux gestes symétriques", () => {
+    expect(vendeuse(false, { genre: "texte", texte: "Congés" }).effet).toEqual({
+      type: "basculer_conges",
+      fermer: true,
+    });
+    expect(vendeuse(true, { genre: "bouton", id: "rouvrir" }).effet).toEqual({
+      type: "basculer_conges",
+      fermer: false,
+    });
+    expect(vendeuse(true, { genre: "texte", texte: "je reprends" }).effet).toEqual({
+      type: "basculer_conges",
+      fermer: false,
+    });
+  });
+
+  it("le menu dit l'état, et propose le geste inverse", () => {
+    const ouverte = vendeuse(false, { genre: "texte", texte: "ma boutique" });
+    expect(corpsBoutons(ouverte.messages[0])).toMatch(/Écrivez « congés »/);
+    expect(idsBoutons(ouverte.messages[0])).not.toContain("rouvrir");
+
+    const fermee = vendeuse(true, { genre: "texte", texte: "ma boutique" });
+    expect(corpsBoutons(fermee.messages[0])).toMatch(/En congés/);
+    /* Trois boutons au maximum : la carte à partager cède la place. */
+    const ids = idsBoutons(fermee.messages[0]);
+    expect(ids).toEqual(["rouvrir", "article", "solde"]);
   });
 });
 
@@ -493,6 +721,9 @@ describe("« ou est ma commande ? »", () => {
 
 describe("normaliserEtat — les etats persistes de toutes generations", () => {
   it("relit un etat du sprint A (articleId/quantite) comme un panier d'une ligne", () => {
+    /* Depuis l'ADR 0050, un `details` de livraison SANS ville retourne
+       demander la ville : elle etait injectee depuis la boutique, et on ne
+       la devine plus. Le panier est intact — rien n'est perdu. */
     expect(
       normaliserEtat({
         nom: "details",
@@ -502,10 +733,43 @@ describe("normaliserEtat — les etats persistes de toutes generations", () => {
         mode: "livraison",
       }),
     ).toEqual({
+      nom: "ville",
+      slug: "chez-amina",
+      panier: [{ articleId: "a1", quantite: 2 }],
+    });
+  });
+
+  it("un `details` de RETRAIT se relit tel quel — le retrait n'a pas de ville", () => {
+    expect(
+      normaliserEtat({
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a1", quantite: 2 }],
+        mode: "retrait",
+      }),
+    ).toEqual({
       nom: "details",
       slug: "chez-amina",
       panier: [{ articleId: "a1", quantite: 2 }],
+      mode: "retrait",
+    });
+  });
+
+  it("un `details` de livraison AVEC ville se relit tel quel", () => {
+    expect(
+      normaliserEtat({
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a1", quantite: 1 }],
+        mode: "livraison",
+        ville: "Bafoussam",
+      }),
+    ).toEqual({
+      nom: "details",
+      slug: "chez-amina",
+      panier: [{ articleId: "a1", quantite: 1 }],
       mode: "livraison",
+      ville: "Bafoussam",
     });
   });
 
@@ -690,5 +954,412 @@ describe("confirmation et verdict", () => {
     expect(
       corpsTexte(messageVerdict(VERS, { verdict: "accepte_sous_reserve", reference: null })),
     ).toMatch(/réserve/);
+  });
+});
+
+/**
+ * ADR 0035 — le P0 de la cible premium : rafale d'images, fiche image
+ * d'abord, panier qui survit a la navigation, bloc paiement dans le fil,
+ * « livree » au mot-cle.
+ */
+describe("ADR 0035 — la cible premium, fenetre libre", () => {
+  const AVEC_PHOTOS: BoutiqueBot = {
+    ...BOUTIQUE,
+    aDesPhotos: true,
+    articles: [
+      {
+        id: "a1",
+        nom: "Pagne wax 6 yards",
+        prixXaf: 15000,
+        stock: null,
+        imageUrl: "https://o/p.jpg",
+      },
+      { id: "a2", nom: "Sac en raphia", prixXaf: 8000, stock: 2, imageUrl: "https://o/s.jpg" },
+      { id: "a3", nom: "Huile de coco", prixXaf: 3500, stock: null },
+    ],
+  };
+
+  it("l'accueil offre « Voir en photos » quand la boutique a des photos — jamais sinon", () => {
+    const avec = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "boutique chez-amina" },
+      ctx({ boutique: AVEC_PHOTOS }),
+    );
+    expect(idsBoutons(avec.messages[0])).toEqual(["catalogue", "photos", "vendeuse"]);
+
+    const sans = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "boutique chez-amina" },
+      ctx(),
+    );
+    expect(idsBoutons(sans.messages[0])).toEqual(["catalogue", "vendeuse"]);
+  });
+
+  it("la rafale envoie chaque article illustre en photo legendee, puis la liste", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "photos" },
+      ctx({ boutique: AVEC_PHOTOS }),
+    );
+    const images = r.messages.filter((m) => (m as { type?: string }).type === "image");
+    expect(images).toHaveLength(2);
+    const premiere = images[0] as { image: { link: string; caption?: string } };
+    expect(premiere.image.link).toBe("https://o/p.jpg");
+    expect(premiere.image.caption).toBe(`Pagne wax 6 yards — ${formatXaf(15000)}`);
+    /* La liste reprend la main derriere la rafale — jamais de cul-de-sac. */
+    expect((r.messages.at(-1) as { type?: string }).type).toBe("interactive");
+  });
+
+  it("sans aucune photo enrichie, la rafale le dit au lieu de se taire", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "photos" },
+      ctx(),
+    );
+    expect(corpsTexte(r.messages[0])).toMatch(/photo/i);
+  });
+
+  it("la fiche part image d'abord : la photo pleine largeur, puis les boutons", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "liste", id: "art:a2" },
+      ctx({ boutique: AVEC_PHOTOS }),
+    );
+    expect(r.messages).toHaveLength(2);
+    expect((r.messages[0] as { type?: string }).type).toBe("image");
+    expect(idsBoutons(r.messages[1])).toEqual(["cmd:a2", "cat:0"]);
+  });
+
+  it("changer de boutique laisse le panier — et le DIT", () => {
+    const autre: BoutiqueBot = { ...BOUTIQUE, slug: "chez-bea", nom: "Chez Bea" };
+    const r = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 1 }] },
+      { genre: "texte", texte: "boutique chez-bea" },
+      ctx({ boutique: autre }),
+    );
+    expect(corpsTexte(r.messages[0])).toMatch(/panier/);
+    expect(r.etat).toEqual({ nom: "catalogue", slug: "chez-bea", page: 0 });
+  });
+
+  it("revenir a la MEME boutique par son lien garde le panier, sans avertissement", () => {
+    const r = reagirAcheteuse(
+      { nom: "ajout", slug: "chez-amina", panier: [{ articleId: "a1", quantite: 1 }] },
+      { genre: "texte", texte: "boutique chez-amina" },
+      ctx(),
+    );
+    expect(r.etat).toEqual({
+      nom: "catalogue",
+      slug: "chez-amina",
+      page: 0,
+      panier: [{ articleId: "a1", quantite: 1 }],
+    });
+  });
+
+  it("le recap en mode livraison dit « hors livraison » ; le retrait, non", () => {
+    const livraison = reagirAcheteuse(
+      {
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a2", quantite: 1 }],
+        mode: "livraison",
+      },
+      { genre: "texte", texte: "Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33" },
+      ctx(),
+    );
+    expect(corpsBoutons(livraison.messages[0])).toMatch(/hors livraison/);
+
+    const retrait = reagirAcheteuse(
+      {
+        nom: "details",
+        slug: "chez-amina",
+        panier: [{ articleId: "a2", quantite: 1 }],
+        mode: "retrait",
+      },
+      { genre: "texte", texte: "Marche central, entree B, 690 11 22 33" },
+      ctx(),
+    );
+    expect(corpsBoutons(retrait.messages[0])).not.toMatch(/hors livraison/);
+  });
+
+  it("la confirmation porte le bloc paiement en texte brut — code venu de la CONFIGURATION", () => {
+    const messages = confirmationCommande(VERS, {
+      reference: "CT-1050",
+      codeVerification: "ACDE-4679",
+      boutique: "Chez Amina",
+      lignes: [{ nom: "Sac en raphia", quantite: 2, prixUnitaireXaf: 8000 }],
+      totalXaf: 16000,
+      duAvantXaf: 8000,
+      livraison: LIVRAISON,
+      lienSuivi: "https://exemple.test/suivi?j=abc",
+      paiement: {
+        montantXaf: 8000,
+        numeroAffiche: "6 56 74 62 15",
+        operateurNom: "Orange Money",
+        codeEntree: "#150*50#",
+        lienPayer: "https://exemple.test/payer?numero=%2B237656746215&montant=8000",
+      },
+      waVendeuse: "https://wa.me/237677123456",
+    });
+    expect(messages).toHaveLength(4);
+    const bloc = corpsTexte(messages[1]);
+    expect(bloc).toContain(formatXaf(8000));
+    expect(bloc).toContain("6 56 74 62 15");
+    expect(bloc).toContain("Orange Money");
+    expect(bloc).toContain("#150*50#");
+    expect(bloc).toMatch(/code secret/i);
+    expect(bloc).toContain("/payer?");
+    /* Le lien de suivi redevient ce qu'il est : le suivi et le recu. */
+    expect(corpsTexte(messages[2])).toContain("suivi?j=abc");
+    expect(corpsTexte(messages[3])).toContain("https://wa.me/237677123456");
+  });
+
+  it("sans reversement, pas de bloc paiement — la copie historique reprend", () => {
+    const messages = confirmationCommande(VERS, {
+      reference: "CT-1051",
+      codeVerification: "ACDE-4679",
+      boutique: "Chez Bea",
+      lignes: [{ nom: "Pagne", quantite: 1, prixUnitaireXaf: 15000 }],
+      totalXaf: 15000,
+      duAvantXaf: 0,
+      livraison: LIVRAISON,
+      lienSuivi: "https://exemple.test/suivi?j=abc",
+      paiement: null,
+      waVendeuse: null,
+    });
+    expect(messages).toHaveLength(2);
+    expect(corpsTexte(messages[1])).toMatch(/réception/);
+  });
+
+  it("« livrée CT-522801 » sort l'effet marquer_livree — accents et prefixe tolerants", () => {
+    const contexte = { smsReconnu: false, commandesOuvertes: [], soldesXaf: 0 };
+    const complet = reagirVendeuse({ genre: "texte", texte: "Livrée CT-522801" }, VERS, contexte);
+    expect(complet.effet).toEqual({ type: "marquer_livree", reference: "CT-522801" });
+
+    const nu = reagirVendeuse({ genre: "texte", texte: "livree 522801" }, VERS, contexte);
+    expect(nu.effet).toEqual({ type: "marquer_livree", reference: "CT-522801" });
+
+    const pasUneRef = reagirVendeuse({ genre: "texte", texte: "livree bientot" }, VERS, contexte);
+    expect(pasUneRef.effet).toBeUndefined();
+  });
+});
+
+describe("le fil vendeuse premium (ADR 0035)", () => {
+  const CONTEXTE_NU = { smsReconnu: false, commandesOuvertes: [], soldesXaf: 0 };
+  const MA_BOUTIQUE = {
+    nom: "Chez Bea",
+    nbArticles: 2,
+    lienBoutique: "https://wa.me/237600?text=boutique%20chez-bea",
+    lienEspace: "https://app.exemple.test",
+  };
+
+  it("le SMS reconnu recoit son accuse ✅ pose sur le message meme", () => {
+    const r = reagirVendeuse(
+      { genre: "texte", texte: "Vous avez recu 8000 XAF …", messageId: "wamid.sms" },
+      VERS,
+      { ...CONTEXTE_NU, smsReconnu: true },
+    );
+    expect(r.effet?.type).toBe("verifier_sms");
+    const accuse = r.messages[0] as { type?: string; reaction?: { emoji: string } };
+    expect(accuse.type).toBe("reaction");
+    expect(accuse.reaction?.emoji).toBe("✅");
+  });
+
+  it("« ma boutique » est un menu : etat, liens, et les deux gestes qui comptent", () => {
+    const r = reagirVendeuse({ genre: "texte", texte: "bonjour" }, VERS, {
+      ...CONTEXTE_NU,
+      soldesXaf: 8000,
+      commandesOuvertes: [{ id: "o1", reference: "CT-100001", resteXaf: 8000 }],
+      boutique: MA_BOUTIQUE,
+    });
+    const menu = corpsBoutons(r.messages[0]);
+    expect(menu).toContain("Chez Bea");
+    expect(menu).toContain("2 articles en ligne");
+    expect(menu).toContain(formatXaf(8000));
+    expect(menu).toContain("boutique%20chez-bea");
+    expect(menu).toContain("https://app.exemple.test");
+    /* La carte n'est proposee qu'avec au moins un article a montrer (ADR 0037). */
+    expect(idsBoutons(r.messages[0])).toEqual(["article", "carte", "solde"]);
+
+    const vide = reagirVendeuse({ genre: "texte", texte: "bonjour" }, VERS, {
+      ...CONTEXTE_NU,
+      boutique: { ...MA_BOUTIQUE, nbArticles: 0 },
+    });
+    expect(idsBoutons(vide.messages[0])).toEqual(["article", "solde"]);
+  });
+
+  it("« ma carte » demande la carte-vitrine, au mot comme au bouton (ADR 0037)", () => {
+    for (const entree of [
+      { genre: "texte" as const, texte: "ma carte" },
+      { genre: "bouton" as const, id: "carte" },
+    ]) {
+      const r = reagirVendeuse(entree, VERS, { ...CONTEXTE_NU, boutique: MA_BOUTIQUE });
+      expect(r.effet).toEqual({ type: "envoyer_carte" });
+      /* La machine ne dessine pas : elle demande, le service fabrique. */
+      expect(r.messages).toEqual([]);
+    }
+  });
+
+  it("le bouton « Mes soldes » repond comme le mot « solde »", () => {
+    const r = reagirVendeuse({ genre: "bouton", id: "solde" }, VERS, {
+      ...CONTEXTE_NU,
+      soldesXaf: 8000,
+      commandesOuvertes: [{ id: "o1", reference: "CT-100001", resteXaf: 8000 }],
+      boutique: MA_BOUTIQUE,
+    });
+    expect(corpsTexte(r.messages[0])).toContain("CT-100001");
+  });
+
+  it("sans boutique chargee, la copie de repli reste — jamais de silence", () => {
+    const r = reagirVendeuse({ genre: "texte", texte: "bonjour" }, VERS, CONTEXTE_NU);
+    expect(corpsTexte(r.messages[0])).toMatch(/SMS de votre opérateur/);
+  });
+});
+
+/**
+ * ADR 0036 — l'identité du fil : contre-signer et noter sans quitter WhatsApp.
+ * L'autorisation vient de `derniereCommande`, jamais d'une référence tapée, et
+ * la machine ne redit AUCUNE règle métier : elle propose ce que le service a
+ * calculé avec les machines du lot 7 et du lot 12.
+ */
+describe("l'après-achat dans le fil (ADR 0036)", () => {
+  const COMMANDE = {
+    reference: "CT-522801",
+    boutique: "Chez Amina",
+    libelle: "Payée, en préparation.",
+    resteXaf: 8000,
+    contresignable: true,
+    avisPossible: false,
+    avisVerifie: false,
+    avisDejaDepose: false,
+  };
+  const avecCommande = (surcharge: Partial<typeof COMMANDE> = {}) =>
+    ctx({ derniereCommande: { ...COMMANDE, ...surcharge } });
+
+  it("« Je confirme » contre-signe la commande du fil, et le dit", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contresigner" },
+      avecCommande(),
+    );
+    expect(r.effet).toEqual({ type: "contresigner" });
+    expect(corpsTexte(r.messages[0])).toContain("CT-522801");
+    expect(corpsTexte(r.messages[0])).toMatch(/deux voix/);
+  });
+
+  it("le mot « confirmer » fait la même chose que le bouton", () => {
+    const r = reagirAcheteuse(ETAT_INITIAL, { genre: "texte", texte: "Confirmer" }, avecCommande());
+    expect(r.effet).toEqual({ type: "contresigner" });
+  });
+
+  it("sans preuve préalable, la contre-signature n'a pas d'objet — et rien ne bouge", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contresigner" },
+      avecCommande({ contresignable: false }),
+    );
+    expect(r.effet).toBeUndefined();
+    expect(corpsTexte(r.messages[0])).toMatch(/plus d'objet/);
+  });
+
+  it("SANS commande dans le fil, aucun geste n'est autorisé — on le dit", () => {
+    for (const id of ["contresigner", "contester", "avis", "note:5"]) {
+      const r = reagirAcheteuse(ETAT_INITIAL, { genre: "bouton", id }, ctx());
+      expect(r.effet, id).toBeUndefined();
+      expect(corpsTexte(r.messages[0]), id).toMatch(/Aucune commande/);
+    }
+  });
+
+  it("la contestation se CONFIRME avant de geler quoi que ce soit", () => {
+    const demande = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contester" },
+      avecCommande(),
+    );
+    expect(demande.effet).toBeUndefined();
+    expect(corpsBoutons(demande.messages[0])).toMatch(/gèle la commande/);
+    expect(idsBoutons(demande.messages[0])).toEqual(["contester:oui", "menu"]);
+
+    const confirme = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contester:oui" },
+      avecCommande(),
+    );
+    expect(confirme.effet).toEqual({ type: "contester" });
+  });
+
+  it("l'avis n'ouvre qu'après livraison, et une seule fois", () => {
+    const avant = reagirAcheteuse(ETAT_INITIAL, { genre: "bouton", id: "avis" }, avecCommande());
+    expect(avant.effet).toBeUndefined();
+    expect(corpsTexte(avant.messages[0])).toMatch(/livrée/);
+
+    const deja = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "avis" },
+      avecCommande({ avisPossible: true, avisDejaDepose: true }),
+    );
+    expect(deja.effet).toBeUndefined();
+    expect(corpsTexte(deja.messages[0])).toMatch(/déjà donné/);
+  });
+
+  it("« Donner mon avis » propose les cinq notes, la plus haute d'abord", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "avis" },
+      avecCommande({ avisPossible: true }),
+    );
+    const m = r.messages[0] as MessageListe;
+    const lignes = m.interactive.action.sections[0]?.rows ?? [];
+    expect(lignes.map((l) => l.id)).toEqual(["note:5", "note:4", "note:3", "note:2", "note:1"]);
+    expect(lignes[0]?.title).toBe("⭐⭐⭐⭐⭐");
+  });
+
+  it("la note s'enregistre TOUT DE SUITE, le mot vient ensuite", () => {
+    const note = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "liste", id: "note:5" },
+      avecCommande({ avisPossible: true, avisVerifie: true }),
+    );
+    expect(note.effet).toEqual({ type: "deposer_avis", note: 5 });
+    expect(note.etat).toEqual({ nom: "avis_mot" });
+    expect(corpsBoutons(note.messages[0])).toMatch(/achat vérifié/);
+
+    const mot = reagirAcheteuse(
+      { nom: "avis_mot" },
+      { genre: "texte", texte: "Le sac est magnifique" },
+      avecCommande({ avisPossible: true }),
+    );
+    expect(mot.effet).toEqual({ type: "completer_avis", texte: "Le sac est magnifique" });
+    expect(mot.etat).toEqual(ETAT_INITIAL);
+  });
+
+  it("un paiement sans preuve donne un avis publié mais NON vérifié — et le dit", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "liste", id: "note:4" },
+      avecCommande({ avisPossible: true, avisVerifie: false }),
+    );
+    expect(corpsBoutons(r.messages[0])).toMatch(/pas marqué/);
+  });
+
+  it("« Sans commentaire » clôt sans effet, et l'attente périme sans rien perdre", () => {
+    const sans = reagirAcheteuse(
+      { nom: "avis_mot" },
+      { genre: "bouton", id: "avis:sans_mot" },
+      avecCommande({ avisPossible: true }),
+    );
+    expect(sans.effet).toBeUndefined();
+    expect(sans.etat).toEqual(ETAT_INITIAL);
+    /* La note est deja en base : l'expiration ne perd que le mot. */
+    expect(etatApresInactivite({ nom: "avis_mot" }, INACTIVITE_MAX_MS)).toEqual(ETAT_INITIAL);
+    expect(normaliserEtat({ nom: "avis_mot" })).toEqual({ nom: "avis_mot" });
+  });
+
+  it("une note hors échelle est refusée, jamais ramenée au bord", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "liste", id: "note:9" },
+      avecCommande({ avisPossible: true }),
+    );
+    expect(r.effet).toBeUndefined();
   });
 });

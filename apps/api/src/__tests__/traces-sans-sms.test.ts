@@ -252,7 +252,13 @@ describe("le filet de redaction couvre les chemins involontaires", () => {
 /* ═════════════ la vraie route, avec de vrais SMS ═════════════ */
 
 let prisma: PrismaClient;
-const RUN = Date.now() % 90000;
+/* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
+   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   fichiers demarres a quelques millisecondes d'ecart visaient le meme
+   identifiant, et Vitest les lance en parallele contre UNE base. Le
+   defaut a fait echouer deux verifications le 11/08/2026, dont un test
+   de fuite — le genre de faux rouge qui masque un vrai. */
+const RUN = 831 * 1000 + (Date.now() % 1000);
 let compteur = 0;
 
 function codeUnique(): string {

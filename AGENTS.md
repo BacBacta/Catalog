@@ -259,6 +259,9 @@ docs/formats-sms-operateurs.md   la vérité terrain — SMS réels et motifs va
 docs/terrain/                    instruments de test de terrain
   rampe-paiement.html            page autonome pour tester les codes USSD sur
                                  un vrai téléphone à Douala
+  bot-parcours.html              maquette cliquable des trois parcours du bot,
+                                 messages copiés des sources — à rejouer quand
+                                 une copie change, pour voir ce qu'elle donne
 ```
 
 **Règle de dépendance** : `domain` ne dépend de rien. `routes` et `jobs`

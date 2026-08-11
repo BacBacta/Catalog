@@ -44,6 +44,9 @@ const ctx = (s: Partial<ContexteAcheteuse> = {}): ContexteAcheteuse => ({
   ...s,
 });
 const corpsTexte = (m: unknown) => (m as MessageTexte).text.body;
+/* Depuis l'ADR 0053, une aide du tunnel porte ses sorties : elle est
+   interactive, plus un texte nu. */
+const corpsBoutons = (m: unknown) => (m as MessageBoutons).interactive.body.text;
 const idsBoutons = (m: unknown) =>
   (m as MessageBoutons).interactive.action.buttons.map((b) => b.reply.id);
 
@@ -53,6 +56,7 @@ describe("textes — les trois catalogues produisent, en entier", () => {
       const produits: string[] = [
         t.boutiqueIntrouvable,
         t.aideAcheteuse,
+        t.btnVendre,
         t.aideGestes,
         t.annule,
         t.langueChangee,
@@ -78,8 +82,10 @@ describe("textes — les trois catalogues produisent, en entier", () => {
         t.quantiteIncomprise,
         t.quantiteTropHaute(2),
         t.plusDeStock("Pagne"),
-        t.ajout("Pagne", 2, 30000),
-        t.panierCorps(30000),
+        t.ajout("Pagne", 2),
+        t.panierCorps(["Pagne × 2 : 15 000 F l'unité"], 30000),
+        t.panierVide,
+        t.btnMonPanier,
         t.btnPasserCommande,
         t.btnAutreArticle,
         t.btnAnnuler,
@@ -97,9 +103,9 @@ describe("textes — les trois catalogues produisent, en entier", () => {
         t.ligneArticle("Pagne", 2, 15000),
         t.ligneTotal(30000),
         t.ligneAcompte(15000),
-        t.ligneLivraison("Bonapriso", "en face de la pharmacie"),
+        t.ligneLivraison("Bafoussam", "Bonapriso", "en face de la pharmacie"),
         t.ligneRetrait("Marché central"),
-        t.ligneTelephone("6 90 11 22 33"),
+        t.ligneTelephone("690 11 22 33"),
         t.recapRien,
         t.btnConfirmer,
         t.btnCorriger,
@@ -118,6 +124,50 @@ describe("textes — les trois catalogues produisent, en entier", () => {
         t.faqPhoto,
         t.faqVariante,
         t.relanceAcompte("CT-104312", 7500),
+        t.btnVoirPhotos,
+        t.rafaleAucunePhoto,
+        t.panierAbandonneAilleurs,
+        t.ligneHorsLivraison,
+        t.apresConfirmation("Chez Amina", "https://wa.me/237677123456"),
+        t.suiteSuivi("https://x.test/s"),
+        t.blocPaiement({
+          montantXaf: 8000,
+          numeroAffiche: "6 56 74 62 15",
+          operateurNom: "Orange Money",
+          codeEntree: "#150*50#",
+          lienPayer: "https://x.test/payer",
+        }),
+        t.blocPaiement({
+          montantXaf: 8000,
+          numeroAffiche: "6 56 74 62 15",
+          operateurNom: null,
+          codeEntree: null,
+          lienPayer: null,
+        }),
+        t.notifPaiementProuve("CT-104312", 7500),
+        t.notifPaiementProuve("CT-104312", 0),
+        t.notifLivree("CT-104312", "Chez Amina"),
+        t.btnContresigner,
+        t.btnPasMoi,
+        t.btnDonnerAvis,
+        t.contresigneMerci("CT-104312"),
+        t.contresigneImpossible,
+        t.contesterConfirmation("CT-104312"),
+        t.btnContesterOui,
+        t.contesteEnregistre("CT-104312"),
+        t.avisInvitation("Chez Amina"),
+        t.btnNoter,
+        t.avisLigne(5),
+        t.avisLigne(1),
+        t.avisNoteEnregistree(true),
+        t.avisNoteEnregistree(false),
+        t.btnSansMot,
+        t.avisMotMerci,
+        t.avisImpossible,
+        t.avisDejaDepose,
+        t.apresAchatSansCommande,
+        t.boutiqueFermeeAccueil,
+        t.boutiqueFermee("Chez Amina"),
       ];
       for (const p of produits) {
         expect(p, langue).toBeTypeOf("string");
@@ -230,6 +280,16 @@ describe("les chemins defensifs de la machine", () => {
     expect(r.etat).toMatchObject({ nom: "catalogue", page: 0 });
   });
 
+  it("l'aide sans boutique OFFRE d'ouvrir une boutique — jamais un cul-de-sac", () => {
+    // ADR 0034 : c'est ici que l'entonnoir vendeuse fuyait.
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "bonjour" },
+      ctx({ boutique: null }),
+    );
+    expect(idsBoutons(r.messages[0])).toEqual(["vendre"]);
+  });
+
   it("changer de langue sans boutique en contexte marche aussi", () => {
     const r = reagirAcheteuse(
       ETAT_INITIAL,
@@ -266,7 +326,7 @@ describe("les chemins defensifs de la machine", () => {
     expect(corpsTexte(r.messages[0])).toContain("plus d'exemplaire");
   });
 
-  it("l'etape ajout re-propose ses trois sorties sur un texte quelconque", () => {
+  it("l'etape ajout re-propose ses trois sorties, dont la vendeuse — ADR 0053", () => {
     const etat: EtatConv = {
       nom: "ajout",
       slug: "chez-amina",
@@ -274,7 +334,11 @@ describe("les chemins defensifs de la machine", () => {
     };
     const r = reagirAcheteuse(etat, { genre: "texte", texte: "hmm" }, ctx());
     expect(r.etat).toEqual(etat);
-    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "annuler"]);
+    /* La troisieme sortie est « Parler a la vendeuse » quand la boutique est
+       joignable : AGENTS.md §1 veut que les deux continuent de se parler, et
+       l'invariant etait suspendu pendant tout le tunnel. Sans numero, c'est
+       « Annuler » — jamais rien. */
+    expect(idsBoutons(r.messages[0])).toEqual(["commander", "catalogue", "vendeuse"]);
   });
 
   it("le mode tape en anglais est compris ; l'incomprehensible re-propose les boutons", () => {
@@ -284,7 +348,7 @@ describe("les chemins defensifs de la machine", () => {
       panier: [{ articleId: "a1", quantite: 1 }],
     };
     const en = reagirAcheteuse(etat, { genre: "texte", texte: "delivery" }, ctx({ langue: "en" }));
-    expect(en.etat).toMatchObject({ nom: "details", mode: "livraison" });
+    expect(en.etat).toMatchObject({ nom: "ville" });
     const pickup = reagirAcheteuse(etat, { genre: "texte", texte: "pickup" }, ctx());
     expect(pickup.etat).toMatchObject({ nom: "details", mode: "retrait" });
     const rate = reagirAcheteuse(etat, { genre: "bouton", id: "id:inconnu" }, ctx());
@@ -305,7 +369,10 @@ describe("les chemins defensifs de la machine", () => {
       { genre: "texte", texte: "x, 690112233" },
       ctx({ langue: "en" }),
     );
-    expect(corpsTexte(en.messages[0])).toContain("meet");
+    /* L'aide de `details` porte desormais ses SORTIES (ADR 0053) : c'est un
+       message a boutons, plus un texte nu. Le contenu, lui, ne change pas. */
+    expect(corpsBoutons(en.messages[0])).toContain("meet");
+    expect(idsBoutons(en.messages[0])).toContain("vendeuse");
   });
 
   it("l'aide de details en anglais pour la livraison sans repere", () => {
