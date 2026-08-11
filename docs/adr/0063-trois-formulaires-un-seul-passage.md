@@ -167,3 +167,21 @@ proposée.
 L'écho du `flow_token` reste non vérifié : la branche `ville` lit la réponse
 sans regarder le jeton, elle aurait donc marché dans les deux cas. Le jeton ne
 devient critique qu'au premier usage du formulaire d'avis.
+
+### Un défaut du script, trouvé en s'en servant
+
+La première révision de `catalog_livraison` a révélé que le script commettait
+**exactement l'erreur qu'il était censé empêcher**.
+
+Il ne publiait que si le Flow n'était pas déjà `PUBLISHED`. Or téléverser une
+définition sur un Flow publié ne la met **pas** en ligne : elle devient un
+brouillon. Une révision passait donc en silence — Meta continuait de servir
+l'ancienne définition, pendant que le message « déjà publié — la nouvelle
+définition remplace l'ancienne » affirmait le contraire.
+
+Le script publie désormais **toujours** après un téléversement. Un refus de
+republication sans changement est bénin : il se dit, il n'arrête pas le lot.
+
+Vérifié après correction, en lisant la définition que Meta **sert** :
+`statut : PUBLISHED`, champs `ville, quartier, repere, telephone, position`,
+case `OptIn` **présente**.

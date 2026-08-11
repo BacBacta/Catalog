@@ -202,12 +202,25 @@ if (mode === "--voir") {
       console.log("    definition televersee");
 
       /* La publication : sans elle, le Flow s'ENVOIE sans erreur et ne
-         s'ouvre jamais. C'est l'oubli le plus couteux du parcours. */
-      if (existant?.status !== "PUBLISHED") {
+         s'ouvre jamais. C'est l'oubli le plus couteux du parcours — et ce
+         script l'a commis lui-meme le 11/08/2026.
+    
+         Le defaut : il ne publiait QUE si le Flow n'etait pas deja PUBLISHED.
+         Or televerser une definition sur un Flow publie ne la met PAS en
+         ligne — elle devient un brouillon. Une revision passait donc en
+         silence : Meta continuait de servir l'ancienne, et le message
+         « deja publie » affirmait le contraire.
+    
+         On publie donc TOUJOURS apres un televersement. Republier sans
+         changement peut etre refuse par Meta ; ce refus-la est benin et se
+         dit, il n'arrete pas le lot. */
+      try {
         await appel(`/${id}/publish`, { method: "POST" });
         console.log("    publie");
-      } else {
-        console.log("    deja publie — la nouvelle definition remplace l'ancienne");
+      } catch (e) {
+        console.log(
+          `    publication non necessaire ou refusee : ${e instanceof Error ? e.message : e}`,
+        );
       }
       poses.push([f.variable, id]);
     } catch (e) {
