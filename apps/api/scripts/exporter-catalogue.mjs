@@ -20,12 +20,23 @@
  * d'URL, URL d'images, moyenne des avis — vit dans `apps/shop/src/lib`, ou elle
  * est testable sans base.
  *
+ * ── Ce script DEMANDE une base ; ce n'est plus le seul chemin ──────────────
+ *
+ * Depuis l'ADR 0070, l'API sert le meme instantane sur `GET /api/instantane`,
+ * et c'est ce chemin-la qu'emprunte le deploiement — pour que `DATABASE_URL`
+ * n'ait pas a etre deposee chez GitHub. Voir `recuperer-catalogue.mjs`.
+ *
+ * Ce script reste le chemin de la CHAINE DE VERIFICATION et du developpement,
+ * ou la base est locale et jetable. Le choix des champs, lui, est commun aux
+ * deux : il vit dans `src/adapters/instantane-catalogue.ts`.
+ *
  * Usage : node apps/api/scripts/exporter-catalogue.mjs [chemin de sortie]
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { createPrismaClient } from "@catalog/db";
+import { construireInstantane } from "../src/adapters/instantane-catalogue.ts";
 
 const SORTIE = resolve(process.argv[2] ?? "apps/shop/src/data/catalogue.json");
 
@@ -42,68 +53,7 @@ if (!url) {
 const prisma = createPrismaClient(url);
 
 try {
-  const vendeuses = await prisma.seller.findMany({
-    where: { status: "active" },
-    orderBy: { createdAt: "asc" },
-    select: {
-      slug: true,
-      businessName: true,
-      city: true,
-      quartier: true,
-      pickupPoint: true,
-      phone: true,
-      payoutPhoneVerifiedAt: true,
-      congesDepuis: true,
-      products: {
-        where: { archivedAt: null },
-        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-        select: {
-          id: true,
-          name: true,
-          priceXaf: true,
-          stock: true,
-          variants: true,
-          imageKey: true,
-          imageWidth: true,
-          imageHeight: true,
-        },
-      },
-      // Seuls les avis VERIFIES comptent : une note batie sur des avis non
-      // verifies serait exactement la reputation achetable que le produit refuse.
-      reviews: { where: { verified: true }, select: { rating: true } },
-    },
-  });
-
-  const instantane = {
-    version: 1,
-    boutiques: vendeuses.map((v) => ({
-      slug: v.slug,
-      nom: v.businessName,
-      ville: v.city,
-      quartier: v.quartier,
-      pointDeRetrait: v.pickupPoint,
-      // Le numero de CONNEXION, pas celui de reversement : c'est celui sur lequel
-      // la vendeuse discute, et le reversement ne se publie jamais.
-      whatsapp: v.phone,
-      reversementVerifie: v.payoutPhoneVerifiedAt !== null,
-      // Mode conges — ADR 0039. La boutique reste PUBLIEE : ses pages, ses
-      // photos et ses avis continuent d'exister, seule la commande se tait.
-      // Une boutique retiree de l'instantane perdrait son referencement et le
-      // lien deja partage en Statut renverrait sur une page absente.
-      enConges: v.congesDepuis !== null,
-      notes: v.reviews.map((r) => r.rating),
-      articles: v.products.map((p) => ({
-        id: p.id,
-        nom: p.name,
-        prixXaf: p.priceXaf,
-        stock: p.stock,
-        variantes: Array.isArray(p.variants) ? p.variants : [],
-        imageCle: p.imageKey,
-        imageLargeur: p.imageWidth,
-        imageHauteur: p.imageHeight,
-      })),
-    })),
-  };
+  const instantane = await construireInstantane(prisma);
 
   mkdirSync(dirname(SORTIE), { recursive: true });
   writeFileSync(SORTIE, `${JSON.stringify(instantane, null, 2)}\n`, "utf8");
