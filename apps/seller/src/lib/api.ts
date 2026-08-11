@@ -96,7 +96,21 @@ export async function appeler<T = unknown>(
  */
 export function messageDErreur(r: ReponseApi<unknown>, repli: string): string {
   if (r.message) return r.message;
-  if (r.statut === 401) return repli;
+  /**
+   * **Un 401 se dit pour ce qu'il est.**
+   *
+   * Il rendait le repli de l'appelant — donc « L'article n'a pas pu etre
+   * cree. » sous un formulaire correctement rempli. Banc du 11/08/2026 : la
+   * vendeuse a cherche le defaut dans son article, puis a renvoye QUATRE
+   * codes de connexion. Les trois sessions creees en base disent que la
+   * connexion marchait ; c'est le message qui mentait.
+   *
+   * Nommer la session coute une ligne et evite une demi-heure a chercher au
+   * mauvais endroit.
+   */
+  if (r.statut === 401) {
+    return "Votre session a expire. Reconnectez-vous, puis reessayez — rien n'est perdu.";
+  }
   if (r.statut === 429) return "Trop de tentatives. Attendez un moment avant de reessayer.";
   if (r.statut >= 500) return "Le service ne repond pas. Reessayez dans un instant.";
   return repli;
