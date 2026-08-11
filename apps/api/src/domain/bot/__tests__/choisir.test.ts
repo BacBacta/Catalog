@@ -20,11 +20,6 @@ import {
  */
 
 const VERS = "237690112233";
-const corps = (m: unknown): string =>
-  (m as MessageTexte).text?.body ??
-  (m as MessageBoutons).interactive?.body?.text ??
-  (m as MessageListe).interactive?.body?.text ??
-  "";
 /** Tous les identifiants CHOISISSABLES d'un message, quelle que soit sa forme. */
 const choix = (m: unknown): string[] => {
   const a = (m as MessageListe | MessageBoutons).interactive?.action as

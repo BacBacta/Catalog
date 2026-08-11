@@ -2,6 +2,7 @@ import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
+import { lireEntreeBoutique } from "./entree-boutique.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import {
   genreDuJeton,
@@ -560,6 +561,36 @@ export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAch
     }
     const panier = panierDe(etat);
     const memeBoutique = "slug" in etat && etat.slug === boutique.slug;
+
+    /**
+     * **Arrivee par une FICHE PRODUIT** — ADR 0066, rang 0 de l'ADR 0061.
+     *
+     * Le lien de la boutique web porte l'article que l'acheteuse regardait.
+     * Sans ce branchement, elle atterrissait sur le catalogue entier et devait
+     * retrouver a la main l'article qu'elle venait de choisir — une fuite de
+     * confort qu'il aurait ete absurde de creer en fermant une fuite de
+     * commandes.
+     *
+     * Le suffixe doit designer UN article, exactement. Zero ou plusieurs :
+     * on retombe sur l'accueil. On n'ouvre jamais « un » article au hasard
+     * parce que le lien etait abime — elle verrait un prix qui n'est pas celui
+     * qu'elle a vu.
+     */
+    const lu = lireEntreeBoutique(entree.texte);
+    if (lu?.articleSuffixe && !memeBoutique) {
+      const trouves = boutique.articles.filter((a) => a.id.endsWith(lu.articleSuffixe as string));
+      const seul = trouves.length === 1 ? trouves[0] : null;
+      if (seul) {
+        const fiche = ficheArticle(vers, boutique, seul.id, 0, [], t);
+        return panier.length > 0
+          ? {
+              etat: fiche.etat,
+              messages: [texte(vers, t.panierAbandonneAilleurs), ...fiche.messages],
+            }
+          : fiche;
+      }
+    }
+
     const accueil = accueilBoutique(vers, boutique, t, memeBoutique ? panier : []);
     if (!memeBoutique && panier.length > 0) {
       return {

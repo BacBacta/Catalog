@@ -9,6 +9,7 @@ import {
   type BoutiquePublique,
   chargerBoutiques,
 } from "../../lib/catalogue.ts";
+import { botDisponible, lienCommanderAuBot } from "../../lib/entree-bot.ts";
 
 /**
  * La fiche article.
@@ -40,6 +41,20 @@ const { boutique, article } = Astro.props;
 /* En congés, le seul lien utile est la conversation nue — pas un message de
    commande pré-rempli pour une commande qui ne sera pas prise (ADR 0039). */
 const lienVendeuse = `https://wa.me/${boutique.whatsapp.replace(/\D/g, "")}`;
+/**
+ * DEUX boutons, et c'est le rang 0 de l'ADR 0061.
+ *
+ * « Commander » depose dans le fil du BOT, sur cette boutique et cet article :
+ * la commande nait dans le moteur, avec sa rampe, sa preuve et son recu.
+ * « Parler a la vendeuse » garde le lien humain — l'invariant produit.
+ *
+ * Sans `PUBLIC_BOT_WHATSAPP`, la page reste EXACTEMENT celle d'avant : un
+ * bouton vers `wa.me/` sans numero ouvrirait WhatsApp sur rien.
+ */
+const versLeBot = botDisponible();
+const lienBot = versLeBot
+  ? lienCommanderAuBot(boutique.whatsapp, boutique.slug, article.slug)
+  : null;
 ---
 <Base
   title={`${article.nom} — ${boutique.nom}`}
@@ -84,6 +99,25 @@ const lienVendeuse = `https://wa.me/${boutique.whatsapp.replace(/\D/g, "")}`;
               Écrire à la vendeuse
             </a>
           </div>
+        ) : versLeBot && lienBot ? (
+          <div class="flex flex-col gap-3">
+            <a
+              href={lienBot}
+              rel="noopener"
+              data-testid="commander"
+              class="inline-flex min-h-[var(--size-touch)] items-center justify-center rounded-field bg-brand-500 px-5 py-3 text-body font-semibold text-on-brand"
+            >
+              Commander sur WhatsApp
+            </a>
+            <a
+              href={lienVendeuse}
+              rel="noopener"
+              data-testid="ecrire-vendeuse"
+              class="inline-flex min-h-[var(--size-touch)] items-center justify-center rounded-field border border-control-line bg-surface px-5 py-3 text-body font-semibold text-ink"
+            >
+              Parler à la vendeuse
+            </a>
+          </div>
         ) : (
           <Commander
             client:visible
@@ -105,8 +139,9 @@ const lienVendeuse = `https://wa.me/${boutique.whatsapp.replace(/\D/g, "")}`;
         {[boutique.quartier, boutique.ville].filter(Boolean).join(", ")}
       </p>
       <p class="text-caption text-muted">
-        Le message WhatsApp est déjà rempli : article, quantité, prix unitaire,
-        total et nom de la boutique. Vous pouvez le relire avant de l'envoyer.
+        {versLeBot
+          ? "« Commander » ouvre WhatsApp sur cet article : vous choisissez la quantité, la livraison, et vous recevez un reçu vérifiable. « Parler à la vendeuse » va directement à elle."
+          : "Le message WhatsApp est déjà rempli : article, quantité, prix unitaire, total et nom de la boutique. Vous pouvez le relire avant de l'envoyer."}
       </p>
     </section>
   </main>

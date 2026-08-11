@@ -11,7 +11,7 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "lint": "biome check .",
+    "lint": "biome check . --max-diagnostics=400",
     "format": "biome check --write .",
     "db:generate": "pnpm --filter @catalog/db generate",
     "db:validate": "pnpm --filter @catalog/db validate",
