@@ -20,7 +20,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.10",
     "vitest": "4.1.10",
-    "@types/node": "26.1.2",
+    "@types/node": "26.2.0",
     "typescript": "6.0.3"
   }
 }
