@@ -28,7 +28,7 @@
     "db:restauration": "pnpm --filter @catalog/db restauration"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.6",
+    "@biomejs/biome": "2.5.7",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }
