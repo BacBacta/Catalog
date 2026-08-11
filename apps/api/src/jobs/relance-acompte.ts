@@ -10,7 +10,7 @@ import {
   RELANCE_APRES_S,
   RELANCE_REVERSEMENT_APRES_S,
 } from "../domain/bot/relance.ts";
-import { type Langue, TEXTES } from "../domain/bot/textes.ts";
+import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
 
 /**
  * La relance d'acompte, portee par pg-boss — ADR 0033.
@@ -136,7 +136,9 @@ export async function executerRelanceAcompte(
   );
   if (!decision.relancer) return;
 
-  const t = TEXTES[charge.langue] ?? TEXTES.fr;
+  /* La charge d'un job a pu etre ecrite par une generation precedente, ou dans
+     une langue qui n'est plus servie : elle se normalise comme la colonne. */
+  const t = TEXTES[normaliserLangue(charge.langue)];
   /**
    * Par la PORTE — ADR 0060. `notifier` decide de la fenetre, tente le
    * gabarit approuve hors fenetre, et met en attente dans tous les cas
@@ -151,7 +153,12 @@ export async function executerRelanceAcompte(
     {
       sujet: "acompte_attendu",
       parametres: [commande.ref, formatXaf(decision.acompteXaf)],
-      langue: charge.langue === "en" ? "en" : "fr",
+      /* Le GABARIT n'existe qu'en francais et en anglais (ADR 0054) : le
+         pidgin retombe sur le francais, comme il retombe partout ou une
+         traduction n'a pas ete relue (ADR 0034). Le texte riche, lui, part
+         bien dans la langue du fil — c'est la fenetre fermee qui contraint,
+         pas nous. */
+      langue: normaliserLangue(charge.langue) === "en" ? "en" : "fr",
     },
   );
 }

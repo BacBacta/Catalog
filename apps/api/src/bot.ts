@@ -66,7 +66,7 @@ import {
   corpsLivraisonRefusee,
   corpsNouvelleCommande,
 } from "./domain/bot/notifications.ts";
-import { type Langue, TEXTES } from "./domain/bot/textes.ts";
+import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
 import {
@@ -814,7 +814,7 @@ async function creerArticleDepuisFil(
 async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
   const enregistrement = await deps.prisma.botConversation.findUnique({ where: { phone } });
-  const langue: Langue = enregistrement?.langue === "en" ? "en" : "fr";
+  const langue: Langue = normaliserLangue(enregistrement?.langue);
   const t = TEXTES[langue];
 
   /* L'etat se RELIT (toutes generations confondues), puis perime : un flux

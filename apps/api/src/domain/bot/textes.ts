@@ -2,20 +2,53 @@ import { formatXaf } from "@catalog/contracts/money";
 import type { FormeNonLue } from "./entrees.ts";
 
 /**
- * Les textes du fil ACHETEUSE, par langue — ADR 0033.
+ * Les textes du fil ACHETEUSE, par langue — ADR 0033, revise par l'ADR 0034.
  *
- * AGENTS.md demande les variantes anglais et pidgin « dès la conception » pour
- * les messages sortants. Ici : le francais et l'anglais sont COMPLETS — le
- * typage garantit la parite, une cle manquante ne compile pas. Le pidgin est
- * REPORTE, et c'est un signalement (§7.7), pas un oubli : l'ecrire sans
- * relecture par un locuteur reviendrait a inventer une langue plausible.
- * L'ajouter sera un membre d'union et un objet de plus, rien d'autre.
+ * AGENTS.md demande les variantes anglais et pidgin « des la conception » pour
+ * les messages sortants. Le francais et l'anglais sont COMPLETS et SERVIS. Le
+ * pidgin est ECRIT et NON SERVI — c'est l'objet de l'ADR 0034, et la nuance
+ * est toute la decision : un brouillon existe, il ne sort pas.
  *
- * Le fil VENDEUSE reste en francais pour l'instant : l'app vendeuse entiere
- * est en francais, une langue seule ne changerait rien a son experience.
+ * Le typage garantit la parite des cles pour les TROIS langues : `Record<Langue,
+ * TextesAcheteuse>` refuse de compiler s'il en manque une. La parite du contenu
+ * — une fonction qui rendrait une chaine vide — est verifiee par execution dans
+ * `couverture.test.ts`.
+ *
+ * Le fil VENDEUSE reste en francais : l'app vendeuse entiere l'est.
  */
 
-export type Langue = "fr" | "en";
+/**
+ * `wes` est le code ISO 639-3 du **pidgin camerounais** (Kamtok). Ce n'est pas
+ * `pcm`, qui designe le pidgin nigerian : les deux se comprennent mais ne
+ * s'ecrivent pas pareil, et prendre l'un pour l'autre serait deja une erreur de
+ * langue.
+ */
+export type Langue = "fr" | "en" | "wes";
+
+/**
+ * **Le pidgin a-t-il ete relu par une locutrice ?**
+ *
+ * `false`, et c'est la seule valeur honnete aujourd'hui. Le catalogue `wes`
+ * ci-dessous est un BROUILLON ecrit sans relecture — exactement ce que le §7.7
+ * d'AGENTS.md interdit de promouvoir en silence. Il est donc ecrit, type, teste,
+ * et **injoignable** : `langueDemandee` reconnait le mot « pidgin » mais ne rend
+ * pas la langue, et `normaliserLangue` ramene au francais une conversation qui
+ * aurait ete persistee en `wes`.
+ *
+ * Pourquoi l'ecrire quand meme ? Parce qu'une relecture a besoin d'un texte a
+ * relire. « Reporte » laissait la page blanche ; celle-ci se corrige.
+ *
+ * **Passer ce drapeau a `true` est une decision, pas un reglage.** Elle demande
+ * qu'une locutrice ait relu le catalogue `wes` en entier. Deux tests tiennent la
+ * bascule : l'un verifie que rien n'est servi tant qu'il est `false`, l'autre que
+ * l'aide en francais et en anglais annonce le pidgin des qu'il est `true` — on
+ * ne peut donc pas ouvrir la langue sans la proposer, ni la proposer sans
+ * l'ouvrir.
+ */
+export const PIDGIN_RELU = false;
+
+/** Les langues qu'une acheteuse peut effectivement obtenir. */
+export const LANGUES_SERVIES: readonly Langue[] = PIDGIN_RELU ? ["fr", "en", "wes"] : ["fr", "en"];
 
 export interface TextesAcheteuse {
   boutiqueIntrouvable: string;
@@ -588,16 +621,180 @@ const en: TextesAcheteuse = {
     `🌴 *${nom}* is not taking new orders right now. Nothing was ordered. Write to the seller: only she knows when she is back.`,
 };
 
-export const TEXTES: Record<Langue, TextesAcheteuse> = { fr, en };
+/**
+ * Le pidgin camerounais \u2014 **BROUILLON, non relu, non servi**.
+ *
+ * Il n'est joignable par personne tant que `PIDGIN_RELU` vaut `false`. Ce qui
+ * suit est donc a relire, pas a croire : l'orthographe du Kamtok n'est pas
+ * normalisee, et plusieurs choix ci-dessous sont des paris.
+ *
+ * Trois points a soumettre en priorite a la relecture :
+ *
+ * 1. **les libelles de boutons**, plafonnes a vingt caracteres par WhatsApp \u2014
+ *    c'est la contrainte qui a le plus tordu les formulations ;
+ * 2. **\u00ab how much \u00bb**, qui dit le PRIX et non la quantite. La question de
+ *    quantite l'evite expres, au prix d'une tournure peut-etre lourde ;
+ * 3. **les emprunts francais** \u2014 `kwata`, `farmasi`, `nomba` \u2014 plausibles a
+ *    Douala, a confirmer.
+ *
+ * `langueChangee` porte l'avertissement de relecture : si quelqu'un ouvre la
+ * langue avant qu'elle soit relue, l'acheteuse le lit des le premier message
+ * (\u00a77.7 \u2014 \u00ab dans le code ET dans l'interface \u00bb).
+ */
+const wes: TextesAcheteuse = {
+  /**
+   * **Ce qui n'a pas ete relu retombe sur le FRANCAIS** — ADR 0034, AGENTS.md
+   * §7.7.
+   *
+   * Le pidgin a ete ecrit pour les messages du parcours d'achat. Les lots qui
+   * ont suivi en ont ajoute une quarantaine d'autres — position, formulaires,
+   * conges, apres-achat — et personne ne les a relus. Les inventer ici serait
+   * exactement ce que l'ADR interdit : promouvoir en silence une traduction
+   * fabriquee par la machine.
+   *
+   * Le repli est donc du francais lisible, pas du pidgin approximatif. Quand
+   * une locutrice relira les clefs manquantes, elles se posent ici et le repli
+   * recule d'autant — sans qu'aucun autre code ne change.
+   */
+  ...fr,
+  boutiqueIntrouvable: "A no fit find dis shop. Check di link weh dem send you.",
+  aideAcheteuse:
+    "Na me be di Catalog katalog. Open some shop yi link, or write \u00ab boutique \u00bb plus yi short name (example: boutique chez-amina).",
+  aideGestes:
+    "Tri wod di work everywhere: \u00ab menu \u00bb (shop home), \u00ab annuler \u00bb (komot for di order weh you start), \u00ab suivi \u00bb (yua las order). If you wan tok wit person, di button \u00ab Tok wit di seller \u00bb dey for home. Write \u00ab fran\u00e7ais \u00bb or \u00ab english \u00bb for change langwej.",
+  annule: "A don cancel-am \u2014 yua basket empty, you no order anytin.",
+  langueChangee:
+    "Wi go continue for Pidgin. Take notice: dis Pidgin never pass for correction by person weh yi sabi-am fine, so some wod fit no correct. Write \u00ab fran\u00e7ais \u00bb or \u00ab english \u00bb anytime.",
 
-/** Un changement de langue demande par l'acheteuse, en toutes lettres. */
+  accueilReputation: (note, nb) =>
+    `\u2605 ${note != null ? `${note} \u00b7 ` : ""}${nb} sell weh dem don prove (review weh dem check)`,
+  accueilPitch:
+    "Order for hia \u2014 any pay weh dem prove di give resit weh you fit check. Di seller go ansa you for yi WhatsApp.",
+  btnVoirArticles: "Si di ting dem",
+  btnParlerVendeuse: "Tok wit di seller",
+  parlerVendeuse: (nom, lien) => `For tok wit ${nom} direct, write yi for WhatsApp:\n${lien}`,
+
+  catalogueVide: "Dis shop never put any ting for online.",
+  btnAccueil: "Home",
+  listeTitre: (nom, nb) => `*${nom}* \u2014 ${nb} ting${nb > 1 ? " dem" : ""}`,
+  voirLaSuite: "Si di oda dem",
+
+  stockRestant: (n) => (n <= 3 ? `Na only ${n} remain!` : `${n} dey for stock`),
+  btnCommander: "Order-am",
+  btnRetourCatalogue: "Go back for lis",
+
+  questionQuantite: (nom, stock) =>
+    `You wan how many \u00ab ${nom} \u00bb?${stock != null ? ` (${stock} dey)` : ""}`,
+  btnAutreNombre: "Oda nomba",
+  quantiteAutre: "Write di nomba weh you wan, for figure (example: 3).",
+  quantiteIncomprise:
+    "A no understand di nomba. Write-am for figure (example: 3) \u2014 or write \u00ab annuler \u00bb for stop.",
+  quantiteTropHaute: (max) => `Na only ${max} remain. Write nomba weh i no pass ${max}.`,
+  plusDeStock: (nom) =>
+    `\u00ab ${nom} \u00bb no get oda one again pass weh dey already for yua basket.`,
+
+  ajout: (nom, q) => `\u2705 A don add: ${nom} \u00d7 ${q}.`,
+  panierCorps: (lignes, total) =>
+    [
+      `\ud83e\uddfa *Yua basket*`,
+      ...lignes,
+      `*Total: ${formatXaf(total)}* (delivery no dey inside)`,
+      "",
+      "Na weti nex?",
+    ].join("\n"),
+  btnPasserCommande: "Finish di order",
+  btnAutreArticle: "Add oda ting",
+  btnAnnuler: "Cancel",
+
+  questionMode: (total) => `How you wan take receive yua order (${formatXaf(total)})?`,
+  btnLivraison: "Dem bring-am",
+  btnRetrait: "A go come take-am",
+  modeParBoutons: "Choose wit di button dem for down.",
+  questionDetailsLivraison:
+    "Yua kwata, some place weh people sabi, den di nomba for call \u2014 for one message only.\nExample: Bonapriso, for front of di Rond-Point farmasi, 690 11 22 33",
+  questionDetailsRetrait:
+    "Na for weti place wi go meet, an na which nomba wi go call?\nExample: March\u00e9 central, entrance B, 690 11 22 33",
+  detailsParTexte: "Write-am for one message, like for di example.",
+  aideSansTelephone:
+    "Di nomba for call di miss for di end of di message. Example: Bonapriso, for front of di farmasi, 690 11 22 33",
+  aideSansLieu:
+    "Tell me weh place wi go meet (example: March\u00e9 central, entrance B), den di nomba.",
+  aideSansRepere:
+    "A need di kwata, DEN some place weh people sabi afta comma. Example: Bonapriso, for front of di Rond-Point farmasi, 690 11 22 33",
+
+  recapTitre: (nom) => `*Wetin you order \u2014 ${nom}*`,
+  ligneArticle: (nom, q, pu) => `${nom} \u00d7 ${q} : ${formatXaf(pu)} for one`,
+  ligneTotal: (total) => `Total: *${formatXaf(total)}*`,
+  ligneAcompte: (acompte) => `Moni for confam am: *${formatXaf(acompte)}*`,
+  ligneLivraison: (quartier, landmark) => `Dem go bring-am: ${quartier}, ${landmark}`,
+  ligneRetrait: (pickupPoint) => `You go come take-am: ${pickupPoint}`,
+  ligneTelephone: (tel) => `Nomba for call: ${tel}`,
+  recapRien: "Notin never order yet. Check-am, den confam.",
+  btnConfirmer: "Confam",
+  btnCorriger: "Correct-am",
+  recapParBoutons: "Use di button dem: confam, correct-am, or cancel.",
+
+  confirmationTitre: (ref, nom) => `*Order ${ref} \u2014 ${nom}*`,
+  ligneCode: (code) => `Code for check: ${code}`,
+  suiteAcompte: (lien) =>
+    `For pay di moni weh go confam di order, open: ${lien}\nAfta you pay, yua resit weh you fit check go dey for di same place.\nYua secret code na for yua operator yi screen ONLY you go type-am \u2014 never for hia.`,
+  suiteSansAcompte: (lien) =>
+    `Notin for pay before \u2014 you go pay wen dem bring-am.\nFollow yua order for hia: ${lien}`,
+  commandeRatee: "Dis order no fit enter. Start again for di lis \u2014 notin loss.",
+  stockInsuffisant: (nom) =>
+    `Di stock for \u00ab ${nom} \u00bb don change an i no reach again. Start again for di lis \u2014 notin order.`,
+
+  statutAucune: "No order dey for dis nomba. Open some shop yi link for order.",
+  statutResteAPayer: (reste) => `Weti remain for pay: ${formatXaf(reste)}`,
+  statutRegle: "Everytin don pay finish.",
+  statutOuEstLeLien: "Yua link for follow di order dey for di confam message, for up for dis tok.",
+
+  faqPrix: "Di price dem dey for di lis an for each ting \u2014 open \u00ab Si di ting dem \u00bb.",
+  faqPhoto:
+    "Each ting di show yi foto wen di seller don put one \u2014 open \u00ab Si di ting dem \u00bb.",
+  faqVariante:
+    "Size, colour an model, na wit di seller you go arrange-am direct \u2014 \u00ab Tok wit di seller \u00bb.",
+
+  relanceAcompte: (ref, acompte) =>
+    `Yua order ${ref} di wait yi *${formatXaf(acompte)}* moni for confam. Di link for pay dey for yua confam message, just for up. If di moni no come, di order go die by yisef.`,
+};
+
+export const TEXTES: Record<Langue, TextesAcheteuse> = { fr, en, wes };
+
+/**
+ * Un changement de langue demande par l'acheteuse, en toutes lettres.
+ *
+ * **Le pidgin est reconnu mais n'est pas rendu** tant qu'il n'est pas relu : on
+ * sait ce que l'acheteuse a demande, on ne lui sert pas un brouillon. Elle reste
+ * dans sa langue courante plutot que de recevoir un refus qu'elle n'a pas
+ * demande \u2014 le bot ne sait pas dire \u00ab non \u00bb a une langue, et lui apprendre
+ * co\u00fbterait un message de plus dans trois catalogues.
+ */
 export function langueDemandee(texteBrut: string): Langue | null {
   const net = texteBrut
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  if (net === "english" || net === "anglais") return "en";
-  if (net === "francais" || net === "french") return "fr";
+  if (net === "english" || net === "anglais") return servie("en");
+  if (net === "francais" || net === "french") return servie("fr");
+  if (net === "pidgin" || net === "kamtok" || net === "pidgin english") return servie("wes");
   return null;
+}
+
+/**
+ * Ce que vaut une langue lue AILLEURS que dans le typage \u2014 la colonne
+ * `bot_conversation.langue`, la charge utile d'un job pg-boss.
+ *
+ * Deux dangers, un seul garde : une valeur inconnue (colonne libre, generation
+ * anterieure), et une valeur connue mais NON SERVIE. Le second est le vrai :
+ * une conversation persistee en `wes` pendant que le drapeau etait a `true`
+ * continuerait a recevoir du pidgin apres qu'on l'a referme.
+ */
+export function normaliserLangue(valeur: unknown): Langue {
+  return LANGUES_SERVIES.find((l) => l === valeur) ?? "fr";
+}
+
+function servie(langue: Langue): Langue | null {
+  return LANGUES_SERVIES.includes(langue) ? langue : null;
 }
