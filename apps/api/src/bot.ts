@@ -24,6 +24,12 @@ import { livrerNotificationsEnAttente, notifier, notifierLivree } from "./bot-no
 import { aiguiller } from "./domain/bot/aiguillage.ts";
 import { ARTICLES_MAX, CARTE_HAUTEUR } from "./domain/bot/carte-vitrine.ts";
 import {
+  COMPTOIR_DEPART,
+  demandeComptoir,
+  messageATransferer,
+  type VenteDeclaree,
+} from "./domain/bot/comptoir-vendeuse.ts";
+import {
   type ArticleBot,
   type BoutiqueBot,
   confirmationCommande,
@@ -49,6 +55,7 @@ import {
   messageBoutiqueCreee,
   normaliserEtatVendeuse,
   PREMIERE_QUESTION,
+  questionDeLEtat,
   rappelConges,
   reagirInscription,
 } from "./domain/bot/inscription.ts";
@@ -389,6 +396,13 @@ async function filInscription(
   let etat: EtatVendeuse;
   if (etatCourant) {
     etat = etatCourant;
+  } else if (sellerId && entree.genre === "texte" && demandeComptoir(entree.texte)) {
+    /* Le comptoir vendeuse — rang 1, ADR 0061. « Vendu » ouvre la declaration
+       d'une vente negociee ; quatre questions, puis le moteur. */
+    etat = { nom: "comptoir", comptoir: COMPTOIR_DEPART };
+    await poserEtat(deps, phone, etat);
+    await deps.envoyeur.envoyer(questionDeLEtat(etat, entree.de));
+    return;
   } else if (sellerId) {
     etat = { nom: "article_nom" };
   } else {
@@ -448,6 +462,10 @@ async function filInscription(
        la liste, et la sienne n'existe pas encore. Le regroupement absorbera
        la publication d'article qui suit dans la foulee. */
     await deps.reconstruction?.demander("boutique_creee");
+  }
+
+  if (reaction.effet?.type === "creer_vente" && sellerId) {
+    messages.push(...(await creerVenteAuComptoir(deps, sellerId, entree.de, reaction.effet.vente)));
   }
 
   if (reaction.effet?.type === "creer_article" && sellerId) {
@@ -898,7 +916,17 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
       );
       etat = { nom: "catalogue", slug: boutique.slug, page: 0 };
     } else {
-      const commande = await creerCommande(deps, boutique, resolution.articles, livraison.data);
+      const commande = await creerCommande(
+        deps,
+        boutique,
+        resolution.articles.map((a) => ({
+          productId: a.article.id,
+          name: a.article.nom,
+          unitPriceXaf: a.article.prixXaf,
+          quantity: a.quantite,
+        })),
+        livraison.data,
+      );
       commandeCreeeId = commande.id;
       /**
        * Le bloc paiement DANS le fil (ADR 0035) : le numero de reversement de
@@ -1477,8 +1505,14 @@ async function statutDerniereCommande(
 async function creerCommande(
   deps: BotDeps,
   boutique: BoutiqueBot,
-  articles: Array<{ article: ArticleBot; quantite: number }>,
+  items: OrderItem[],
   livraison: unknown,
+  /* Qui a fait naitre la commande, et par quelle porte. Les DEUX comptoirs de
+     l'ADR 0061 passent ici — c'est ce qui fait qu'il n'y a qu'UN moteur. */
+  origine: { actor: "acheteuse" | "vendeuse"; canal: string } = {
+    actor: "acheteuse",
+    canal: "bot_whatsapp",
+  },
 ): Promise<{
   id: string;
   ref: string;
@@ -1490,12 +1524,6 @@ async function creerCommande(
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
   const maintenant = deps.maintenant?.() ?? new Date();
 
-  const items: OrderItem[] = articles.map((a) => ({
-    productId: a.article.id,
-    name: a.article.nom,
-    unitPriceXaf: a.article.prixXaf,
-    quantity: a.quantite,
-  }));
   const totalXaf = itemsTotalXaf(items);
   /* Acompte seulement si la rampe existe : sans reversement pose, exiger un
      prepaiement enverrait l'acheteuse payer vers nulle part. */
@@ -1541,8 +1569,8 @@ async function creerCommande(
             orderId: commande.id,
             sellerId: boutique.id,
             kind: "commande_creee",
-            payload: { canal: "bot_whatsapp" },
-            actor: "acheteuse",
+            payload: { canal: origine.canal },
+            actor: origine.actor,
           },
         });
         return commande;
@@ -1561,6 +1589,91 @@ async function creerCommande(
     }
   }
   throw new Error("creation de commande : collisions de reference repetees");
+}
+
+/**
+ * La vente declaree au comptoir vendeuse — rang 1, ADR 0069.
+ *
+ * Elle passe par `creerCommande`, l'UNIQUE fonction ou une commande nait :
+ * c'est ce qui fait qu'il n'y a qu'un moteur (ADR 0061), et que le plan de
+ * paiement, la reference, le code et le jeton sont EXACTEMENT ceux du comptoir
+ * acheteuse.
+ *
+ * Le mode conges NE bloque PAS ce comptoir : il ferme la boutique aux
+ * commandes que des ACHETEUSES initient (ADR 0039). Ici c'est la vendeuse
+ * elle-meme qui declare une vente qu'elle vient de conclure — la refuser
+ * pousserait la vente hors du moteur, la fuite exacte que ce rang ferme. Un
+ * rappel part quand la boutique est fermee, comme apres la carte (ADR 0057).
+ */
+async function creerVenteAuComptoir(
+  deps: BotDeps,
+  sellerId: string,
+  vers: string,
+  vente: VenteDeclaree,
+): Promise<MessageSortant[]> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { slug: true, congesDepuis: true },
+  });
+  const charge = seller ? await chargerBoutique(deps, seller.slug) : null;
+  if (!charge) {
+    return [
+      texte(vers, "La vente n'a pas pu être enregistrée. Réécrivez « vendu » — rien n'est perdu."),
+    ];
+  }
+
+  /* La MEME porte de validation que le comptoir acheteuse : le point de remise
+     et le numero repassent par le schema, pas seulement par la machine. */
+  const livraison = deliverySchema.safeParse({
+    mode: "retrait",
+    pickupPoint: vente.pointRemise,
+    phone: vente.cliente,
+  });
+  if (!livraison.success) {
+    return [
+      texte(vers, "La vente n'a pas pu être enregistrée. Réécrivez « vendu » — rien n'est perdu."),
+    ];
+  }
+
+  const commande = await creerCommande(
+    deps,
+    charge.boutique,
+    /* PAS de productId : l'article est en texte libre, au prix CONVENU — c'est
+       toute la raison d'etre de ce comptoir. Le contrat l'admet (ADR 0069). */
+    [{ name: vente.article, unitPriceXaf: vente.prixXaf, quantity: 1 }],
+    livraison.data,
+    { actor: "vendeuse", canal: "comptoir_vendeuse" },
+  );
+
+  const operateur =
+    charge.reversement?.operateur && deps.rampe
+      ? (deps.rampe.operateurs.find((o) => o.id === charge.reversement?.operateur) ?? null)
+      : null;
+  const aTransferer = messageATransferer({
+    boutique: charge.boutique.nom,
+    article: vente.article,
+    prixXaf: vente.prixXaf,
+    reference: commande.ref,
+    codeVerification: commande.verificationCode,
+    aPayerXaf: commande.duAvantXaf,
+    resteXaf: commande.totalXaf - commande.duAvantXaf,
+    numeroReversement: charge.reversement ? formatPhone(charge.reversement.numero) : "",
+    operateurNom: operateur?.nom ?? null,
+    codeEntree: operateur?.codeEntree.modele ?? null,
+  });
+
+  const messages: MessageSortant[] = [
+    texte(
+      vers,
+      `✅ *${commande.ref} est créée.* Transférez le message suivant à votre cliente — il porte tout ce qu'il lui faut pour payer.\nDès qu'elle a payé, collez ici le SMS de votre opérateur : il devient son reçu vérifiable.`,
+    ),
+    /* Le message a transferer part SEUL : c'est lui qu'elle fait suivre, sans
+       avoir a decouper le notre. Il ne porte NI jeton NI lien de suivi — il
+       passe par ses mains, et le controle n° 7 en depend (ADR 0069). */
+    texte(vers, aTransferer),
+  ];
+  if (seller?.congesDepuis) messages.push(rappelConges(vers));
+  return messages;
 }
 
 /* ────────────────────────── fil vendeuse ────────────────────────────────── */

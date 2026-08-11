@@ -78,7 +78,14 @@ export const verificationCodeSchema = z
  * vendeuse qui change son prix reecrit l'historique de ses ventes.
  */
 export const orderItemSchema = z.object({
-  productId: z.string().min(1),
+  /**
+   * Optionnel depuis le rang 1 (ADR 0069) : une vente NEGOCIEE au comptoir
+   * vendeuse porte un article en texte libre, qui n'existe pas toujours au
+   * catalogue. Les deux consommateurs — l'attribution d'un avis a un produit —
+   * le lisaient deja defensivement. Un item du comptoir ACHETEUSE, lui, porte
+   * toujours le sien.
+   */
+  productId: z.string().min(1).optional(),
   name: z.string().min(1),
   unitPriceXaf: z.number().int().nonnegative(),
   quantity: z.number().int().positive(),

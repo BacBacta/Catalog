@@ -192,7 +192,22 @@ jobs:
       # autre executeur : rien ne se transmet d'un job a l'autre. Sans cette
       # ligne, `pnpm shop:snapshot` meurt sur un module absent, au tout premier
       # deploiement, avant d'avoir rien construit.
+      # ── `DATABASE_URL` ICI AUSSI, et ce n'est pas une precaution ────────
+      #
+      # Prisma 7 sort l'URL du schema : elle vit dans `prisma.config.ts`, lu
+      # par `env("DATABASE_URL")` — et ce fichier est charge AVANT toute
+      # commande, `generate` comprise. Or `generate` ne se connecte a rien : il
+      # lit un schema et ecrit un client. Il echoue quand meme, sur
+      # `PrismaConfigEnvError: Cannot resolve environment variable`.
+      #
+      # Le job `porte` ne le voyait pas : il a une base de service et
+      # `DATABASE_URL` au niveau du JOB. Ici la variable n'etait donnee qu'au
+      # pas de l'instantane, si bien que ce job n'a JAMAIS pu aboutir — les
+      # deux seules tentatives, le 07/08 et le 11/08, sont mortes sur cette
+      # ligne, avant meme de construire.
       - run: pnpm db:generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       # ── Sans instantane, AUCUNE page de boutique n'est construite ───────
       #
       # C'est volontaire (lot 6) : la boutique ne parle pas a la base, elle lit
