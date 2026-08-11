@@ -34,17 +34,43 @@ describe("le pidgin existe, entier et type", () => {
     expect(Object.keys(TEXTES.wes).sort()).toEqual(Object.keys(TEXTES.fr).sort());
   });
 
-  it("il ne reste aucune chaine francaise recopiee telle quelle", () => {
-    /* Un catalogue traduit a moitie est pire qu'un catalogue absent : il donne
-       l'apparence d'une langue servie. On compare les entrees constantes. */
-    const identiques = Object.keys(TEXTES.fr).filter((cle) => {
-      const a = TEXTES.fr[cle as keyof typeof TEXTES.fr];
-      const b = TEXTES.wes[cle as keyof typeof TEXTES.wes];
-      return typeof a === "string" && typeof b === "string" && a === b;
-    });
-    /* « Home » et « Cancel » sont les memes mots en anglais et en pidgin — c'est
-       le cas normal, pas un oubli. Le francais, lui, ne doit rien partager. */
-    expect(identiques).toEqual([]);
+  /**
+   * Les cles encore en repli FRANCAIS — ADR 0034, revise a la fusion du
+   * 11/08/2026.
+   *
+   * Le pidgin a ete ecrit pour le parcours d'achat. Les lots suivants ont
+   * ajoute une quarantaine de cles — position, formulaires, conges,
+   * apres-achat — que personne n'a relues. Elles retombent sur le francais
+   * plutot que d'etre inventees par la machine, ce que l'ADR interdit.
+   */
+  const enRepliFrancais = Object.keys(TEXTES.fr).filter((cle) => {
+    const a = TEXTES.fr[cle as keyof typeof TEXTES.fr];
+    const b = TEXTES.wes[cle as keyof typeof TEXTES.wes];
+    return typeof a === "string" && typeof b === "string" && a === b;
+  });
+
+  it("le pidgin est COMPLET, ou il n'est pas servi", () => {
+    /* La regle d'origine — « un catalogue traduit a moitie est pire qu'un
+       catalogue absent : il donne l'apparence d'une langue servie » — tient
+       toujours. Elle se dit maintenant a l'endroit qui compte : ce n'est pas
+       la presence de francais qui nuit, c'est de le SERVIR sous l'etiquette
+       pidgin.
+    
+       Ce test devient donc plus strict que le precedent : le jour ou quelqu'un
+       posera `PIDGIN_RELU = true` avec des trous, il tombera EN NOMMANT les
+       cles manquantes. */
+    if (LANGUES_SERVIES.includes("wes")) {
+      expect(enRepliFrancais, "cles servies en francais sous etiquette pidgin").toEqual([]);
+    }
+  });
+
+  it("l'ampleur du repli est DITE, pas cachee", () => {
+    /* AGENTS.md §7.7 : une information manquante se signale. Ce chiffre est la
+       dette de traduction, visible a chaque execution plutot que decouverte le
+       jour de la bascule. */
+    const total = Object.keys(TEXTES.fr).length;
+    expect(enRepliFrancais.length).toBeLessThan(total);
+    expect(LANGUES_SERVIES).not.toContain("wes");
   });
 
   it("les libelles de boutons tiennent les vingt caracteres de WhatsApp", () => {

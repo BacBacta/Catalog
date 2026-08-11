@@ -58,9 +58,28 @@ model Seller {
   /// possede la sienne et qu'on ne la lui prend pas.
   userId String? @unique @map("user_id")
 
+  /// La vendeuse qui a parraine celle-ci — ADR 0034. Attribution SEULE :
+  /// aucune recompense n'est calculee ici, et il n'y en a pas ailleurs. Le
+  /// jour ou le porteur du produit en decidera une, elle s'appuiera sur ce
+  /// champ ; l'inventer maintenant serait deviner un modele economique.
+  /// Sans cle etrangere reflexive obligatoire : une marraine peut disparaitre.
+  parrainId String? @map("parrain_id")
+
+  /// Canal d'ouverture de la boutique. « bot » = nee dans le fil WhatsApp
+  /// (ADR 0034), « web » = espace vendeuse. Sert a mesurer l'entonnoir
+  /// d'acquisition, jamais a autoriser quoi que ce soit.
+  canalOuverture String @default("web") @map("canal_ouverture")
+
   status             SellerStatus       @default(active)
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   createdAt          DateTime           @default(now()) @map("created_at")
+
+  /// Mode conges — ADR 0039. Non nul = la boutique n'accepte plus de NOUVELLE
+  /// commande. Elle reste en ligne, ses commandes en cours continuent leur
+  /// course : paiement, preuve, remise, avis. C'est pour cela que ce n'est PAS
+  /// `status`, dont la valeur `closed` ferme le compte et retire la boutique de
+  /// l'instantane public.
+  congesDepuis DateTime? @map("conges_depuis")
 
   user        AuthUser?          @relation(fields: [userId], references: [id])
   products    Product[]
@@ -371,6 +390,11 @@ model Review {
   id        String   @id @default(uuid(7))
   orderId   String   @unique @map("order_id")
   sellerId  String   @map("seller_id")
+  /// L'article note (ADR 0035, expand) : pose quand la commande ne porte
+  /// qu'un seul article — l'ecrasante majorite. Nul sur un panier mixte : on
+  /// n'attribue pas un avis global a un article au hasard. Sans cle etrangere,
+  /// comme `derniereCommandeId` : un article retire ne doit pas retenir l'avis.
+  productId String?  @map("product_id")
   rating    Int
   body      String?
   /// « achat verifie » : vrai uniquement si la preuve est `prouve` ou
@@ -383,6 +407,7 @@ model Review {
   seller Seller @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId, verified])
+  @@index([productId])
   @@map("review")
 }
 
@@ -596,5 +621,55 @@ model BotConversation {
   derniereCommandeId String? @map("derniere_commande_id")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@index([derniereCommandeId])
   @@map("bot_conversation")
+}
+
+/// Une notification qui attend sa fenetre de service (ADR 0035). AJOUT SEUL :
+/// la remise se DATE, elle n'efface rien. Le corps est le texte exact a
+/// envoyer — deja redige, sans SMS colle ni jeton (les deux interdits de
+/// l'etat de conversation valent ici aussi).
+/// Les messages entrants DEJA traites — ADR 0040.
+///
+/// WhatsApp et ses relais garantissent la livraison AU MOINS une fois : un
+/// message dont l'accuse n'est pas revenu assez vite est relivre, indefiniment,
+/// a intervalle croissant. Sans cette table, chaque relivraison rejouait le
+/// message dans la machine de conversation — un « Bonjour » vieux d'une minute
+/// devenait le NOM d'une boutique, un « Douala » devenait le nom d'un article.
+/// Constate en bac a sable le 05/08/2026.
+///
+/// La cle est le `wamid`, l'identifiant que WhatsApp donne au message : il est
+/// unique de bout en bout, et c'est le seul point fixe d'une relivraison.
+model BotMessageVu {
+  /// Le `wamid` du message entrant.
+  id String @id
+
+  /// Quand le traitement a ete RECLAME. Pose avant tout travail : c'est ce qui
+  /// fait qu'une relivraison arrivee pendant le traitement du premier ne double
+  /// pas le travail.
+  reclameLe DateTime @default(now()) @map("reclame_le")
+
+  /// Quand il s'est ACHEVE. Nul = en cours, ou mort en chemin. La distinction
+  /// n'est pas cosmetique : une reclamation restee inachevee au-dela d'un delai
+  /// se laisse rejouer, sinon un processus tue emporterait le message avec lui.
+  termineLe DateTime? @map("termine_le")
+
+  @@index([reclameLe])
+  @@map("bot_message_vu")
+}
+
+model BotNotification {
+  id      String    @id @default(uuid(7))
+  phone   String
+  corps   String
+  /// Les boutons a poser sur la notification (ADR 0036) : `[{id,titre}]`.
+  /// Une notification mise en attente doit porter ses boutons jusqu'a sa
+  /// remise — sans eux, la contre-signature disparaitrait pour toutes les
+  /// acheteuses dont la fenetre etait fermee.
+  boutons Json?
+  creeLe  DateTime  @default(now()) @map("cree_le")
+  remisLe DateTime? @map("remis_le")
+
+  @@index([phone, remisLe])
+  @@map("bot_notification")
 }

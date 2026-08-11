@@ -1,0 +1,64 @@
+{
+  "version": "7.0",
+  "screens": [
+    {
+      "id": "BOUTIQUE",
+      "title": "Votre boutique",
+      "terminal": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Deux réponses et votre boutique existe."
+          },
+          {
+            "type": "Form",
+            "name": "formulaire",
+            "children": [
+              {
+                "type": "TextInput",
+                "name": "boutique",
+                "label": "Nom de votre boutique",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Exemple : Chez Amina"
+              },
+              {
+                "type": "TextInput",
+                "name": "ville",
+                "label": "Ville où vous vendez",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Exemple : Douala"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "langue",
+                "label": "Langue de vos clientes",
+                "required": true,
+                "data-source": [
+                  { "id": "fr", "title": "Français" },
+                  { "id": "en", "title": "English" }
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Ouvrir ma boutique",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "boutique": "${form.boutique}",
+                    "ville": "${form.ville}",
+                    "langue": "${form.langue}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

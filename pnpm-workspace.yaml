@@ -78,6 +78,40 @@ overrides:
   # de l'app vendeuse avec `vite-plugin-pwa` (qui atteint `brace-expansion` par
   # workbox), et `pnpm shop:lighthouse` complet — quinze passages, toutes les
   # assertions vertes.
-  brace-expansion: ^5.0.8
+  # Plancher releve le 11/08/2026 : un nouvel avis (contournement de la
+  # mitigation de CVE-2026-14257) porte le correctif a 5.0.9. Meme paquet, meme
+  # raison qu'au-dessus, et toujours de l'outillage de construction — donc hors
+  # de ce que `--prod` garde. Le plancher se releve quand meme : une resolution
+  # posee pour tenir un audit vide ne vaut que si on l'entretient. Montee de
+  # correctif dans le meme majeur, verifiee par le build de l'app vendeuse (qui
+  # l'atteint par workbox) et non par un nouveau passage Lighthouse — celui-ci
+  # gardait le franchissement d'un MAJEUR, pas un correctif.
+  brace-expansion: ^5.0.9
   tmp: ^0.2.6
   uuid: ^11.1.1
+
+  # ── Trois avis ELEVES parus depuis le 02/08/2026 ─────────────────────────
+  #
+  # Ils ne viennent PAS de cette branche : `pnpm audit --prod` echoue de la
+  # meme facon sur `main` (verifie sur un clone propre de 0da8eee, 3 eleves,
+  # 3 moyens, 1 faible). La derniere CI verte de `main` date du 02/08 ; les
+  # trois avis ont ete publies depuis. Un depot dont la chaine de verification
+  # rougit au rythme des publications d'avis n'a pas de defaut de code, il a
+  # une dette d'entretien — c'est celle-ci.
+  #
+  # Les trois sont TRANSITIFS, en une seule version dans l'arbre, et corriges
+  # a l'interieur du meme majeur. Aucune frontiere de version majeure n'est
+  # traversee ici, contrairement aux trois resolutions du dessus : le risque
+  # est d'un autre ordre, et la verification aussi (chaine complete rejouee,
+  # budgets compris).
+  #
+  #   fast-uri  3.1.4 → 3.1.5   confusion d'hote par antislash, via ajv, que
+  #                             `@prisma/dev` traine derriere `prisma`
+  #   js-yaml   4.3.0 → 4.3.1   consommation quadratique sur `!!omap`
+  #                             (CVE-2026-59870), via Astro
+  #   nanoid    3.3.16 → 3.3.17 boucle infinie a taille zero, via postcss,
+  #                             que vite tire — postcss demande `^3.3.11`,
+  #                             la borne haute reste dans le majeur 3
+  fast-uri: ^3.1.5
+  js-yaml: ^4.3.1
+  nanoid: ^3.3.17

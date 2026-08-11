@@ -128,6 +128,14 @@ describe("versBoutiquePublique", () => {
     expect(versBoutiquePublique({ ...BRUTE, reversementVerifie: false }).verifiee).toBe(false);
   });
 
+  it("le mode conges se lit, et son absence vaut « ouverte »", () => {
+    /* ADR 0039. Un instantane publie AVANT la colonne n'a pas le champ : il
+       doit se lire « ouverte », jamais « fermee » — sinon une mise a jour de
+       code fermerait toutes les boutiques du pays. */
+    expect(b.enConges).toBe(false);
+    expect(versBoutiquePublique({ ...BRUTE, enConges: true }).enConges).toBe(true);
+  });
+
   it("un stock a zero devient null — ce n'est pas la meme chose", () => {
     // Beaucoup de vendeuses ne tiennent pas de stock : zero en base veut dire
     // « non suivi », et l'afficher comme rupture ferait perdre des ventes.

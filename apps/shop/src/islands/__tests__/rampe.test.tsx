@@ -185,7 +185,7 @@ describe("ecran d'attente", () => {
   });
 
   it("porte le numero et le montant en clair", () => {
-    expect(html).toContain("6 77 12 34 56");
+    expect(html).toContain("677 12 34 56");
     expect(html).toMatch(/7(\s|&#x202F;|&#8239;| )500/);
   });
 
@@ -193,7 +193,7 @@ describe("ecran d'attente", () => {
     expect(html).toContain('data-testid="prevenir-vendeuse"');
     const lien = /href="(https:\/\/wa\.me\/[^"]+)"/.exec(html)?.[1] ?? "";
     const texte = decodeURIComponent(lien.replace(/&amp;/g, "&").split("?text=")[1] ?? "");
-    expect(texte).toContain("6 77 12 34 56");
+    expect(texte).toContain("677 12 34 56");
     expect(texte).toContain("CT-1043");
   });
 

@@ -38,6 +38,13 @@ export interface ProductDeps {
   storage: ObjectStorage;
   maintenant?: () => Date;
   alea?: (n: number) => Uint8Array;
+  /**
+   * La reconstruction de la boutique publique — ADR 0065. ABSENTE par defaut :
+   * sans crochet, rien n'est demande. Un article cree depuis l'app doit
+   * peri mer la page web exactement comme un article cree depuis le fil,
+   * sinon la moitie des chemins laisse la boutique en retard.
+   */
+  reconstruction?: { demander(motif: "article_publie"): Promise<boolean> } | null;
 }
 
 const CHAMPS = {
@@ -141,6 +148,10 @@ export function productRoutes(deps: ProductDeps) {
       where: { id: productId, sellerId: ctx.sellerId },
       select: CHAMPS,
     });
+
+    /* La page web porte le catalogue : un article de plus la perime. Jamais
+       fatal — l'article est enregistre, la page suivra. */
+    await deps.reconstruction?.demander("article_publie").catch(() => false);
     if (!p) return { erreur: "article_introuvable", statut: 404 };
     return { sellerId: ctx.sellerId, produit: p };
   }

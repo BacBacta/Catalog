@@ -105,8 +105,12 @@ describe("les transitions permises", () => {
     expect(r.journal.par).toBe("acheteuse");
   });
 
-  it("TOUT etat → conteste", () => {
-    for (const etat of TOUS.filter((e) => e !== "conteste")) {
+  it("tout etat PORTANT UN PAIEMENT → conteste", () => {
+    /* `attendu` a quitte cette liste le 11/08/2026 : on ne conteste pas un
+       paiement qui n'existe pas, et le bouton a coute une commande au banc.
+       Voir `contestation-sans-paiement.test.ts` et l'ADR 0064. Le reste ne
+       bouge pas : des qu'un versement est attribue, il reste desavouable. */
+    for (const etat of TOUS.filter((e) => e !== "conteste" && e !== "attendu")) {
       const r = appliquerEvenement(etat, contestation, NOW);
       expect(r.ok, etat).toBe(true);
       expect(r.etat, etat).toBe("conteste");
@@ -306,7 +310,9 @@ describe("le tableau complet des transitions", () => {
     "attendu|sms_entrant": "prouve",
     "attendu|sms_sortant": "preuve_insuffisante",
     "attendu|contresignature": "contresignature_sans_preuve",
-    "attendu|contestation": "conteste",
+    /* On ne conteste pas un paiement qui n'existe pas — 11/08/2026, ADR 0064.
+       C'est la SEULE case du tableau qui a change depuis le lot 7. */
+    "attendu|contestation": "contestation_sans_paiement",
 
     "declare_non_trace|declaration_manuelle": "recul_ignore",
     "declare_non_trace|sms_entrant": "prouve",

@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
+import { resumerErreur } from "../bot.ts";
 import { lireMessagesEntrants, type MessageEntrant } from "../domain/connexion-whatsapp.ts";
 
 /**
@@ -76,12 +77,36 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
     const fournie = c.req.header("x-hub-signature-256");
     const attendue = `sha256=${createHmac("sha256", deps.appSecret).update(brut).digest("hex")}`;
     const parSignature = fournie != null && egalConstant(fournie, attendue);
-    /* L'en-tete ne remplace la signature que quand elle est ABSENTE : une
-       signature fausse reste une signature fausse. */
+    /**
+     * Les deux preuves sont ALTERNATIVES, et chacune suffit — ADR 0047.
+     *
+     * ── Ce que cette ligne disait avant, et pourquoi c'etait faux ──────────
+     *
+     * Elle exigeait `fournie == null` : l'en-tete ne valait que si AUCUNE
+     * signature n'accompagnait la livraison, au motif qu'« une signature
+     * fausse reste une signature fausse ».
+     *
+     * Cette exigence ne protegeait de RIEN. C'est l'appelant qui decide
+     * d'envoyer une signature ou pas : quelqu'un qui connait
+     * `WABOT_WEBHOOK_AUTH` et voudrait entrer omettrait simplement l'en-tete
+     * de signature. La condition n'ecartait donc aucun attaquant — elle
+     * n'ecartait que du trafic legitime.
+     *
+     * ── Et du trafic legitime, il y en a ───────────────────────────────────
+     *
+     * Le relais v2 de 360dialog REPERCUTE la signature de Meta, calculee avec
+     * le secret d'application de 360dialog — pas le notre, et nous ne
+     * l'aurons jamais. Constate le 07/08/2026 : `signature=true en-tete=true`
+     * en boucle, chaque message refuse alors que les deux cotes etaient bien
+     * configures. Le commentaire de `.env.example` affirmait l'inverse, et
+     * c'est cette affirmation qui etait fausse.
+     *
+     * Desormais : une signature valide prouve que Meta a envoye ; un en-tete
+     * partage valide prouve que le relais configure a envoye. L'une ou
+     * l'autre ouvre la porte, jamais rien d'autre.
+     */
     const parEnTete =
-      fournie == null &&
-      deps.authEnTete != null &&
-      egalConstant(c.req.header("authorization"), deps.authEnTete);
+      deps.authEnTete != null && egalConstant(c.req.header("authorization"), deps.authEnTete);
     if (!parSignature && !parEnTete) {
       /* Trace SANS CONTENU : uniquement la forme du refus. C'est ce qui permet
          de distinguer « le relais n'envoie rien » de « le relais envoie sans
@@ -106,12 +131,18 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
        * L'usage unique du code rend les relivraisons inoffensives de toute
        * facon — mieux vaut un defi perdu qu'une boucle de relivraison.
        */
-      await deps.surMessage(message).catch(() => {});
+      await deps.surMessage(message).catch((e: unknown) => {
+        console.warn(`bot : message entrant non traite (${resumerErreur(e)})`);
+      });
     }
 
     /* Le bot lit la livraison ENTIERE — reponses interactives comprises, que
        `lireMessagesEntrants` ne voit pas. Il saute lui-meme les defis. */
-    if (deps.surLivraison) await deps.surLivraison(corps).catch(() => {});
+    if (deps.surLivraison) {
+      await deps.surLivraison(corps).catch((e: unknown) => {
+        console.warn(`bot : livraison non traitee (${resumerErreur(e)})`);
+      });
+    }
 
     return c.json({ recu: true }, 200);
   });

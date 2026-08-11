@@ -1,0 +1,171 @@
+---
+import { EDITEUR } from "@catalog/contracts/editeur";
+import Base from "../layouts/Base.astro";
+
+/**
+ * La politique de confidentialite — ADR 0041.
+ *
+ * Elle existe d'abord parce qu'un produit qui fait transiter des numeros de
+ * telephone par WhatsApp en doit une a ses utilisatrices ; et parce que c'est
+ * la premiere page qu'un verificateur ouvre.
+ *
+ * **Chaque phrase decrit ce que le code fait REELLEMENT.** Les affirmations
+ * ci-dessous ont ete relues contre le schema (`payment_proof`, `order`,
+ * `seller`, `bot_conversation`) et contre AGENTS.md. Une politique qui promet
+ * plus que le code ne tient serait pire que pas de politique du tout : elle
+ * serait un engagement faux, verifiable par quiconque lit l'application.
+ *
+ * Elle vit sur le site de la SOCIETE et non sur la boutique — ADR 0042 : une
+ * seule version, celle que le verificateur ouvre, et rien a maintenir en
+ * double. La boutique publique y renvoie.
+ *
+ * Pas de JavaScript, comme tout le reste de ce site.
+ */
+---
+<Base
+  chemin="/confidentialite"
+  title={`Confidentialité — ${EDITEUR.nom}`}
+  description="Ce qu'Horizon Services collecte dans ses services, pourquoi, avec qui c'est partagé, combien de temps, et comment demander la suppression."
+>
+  <section class="porche porche--court">
+    <div class="enveloppe flex flex-col gap-7">
+      <p class="jalon">Données personnelles</p>
+      <h1 class="titre-geant">Confidentialité<span class="accent">.</span></h1>
+      <p class="chapeau">
+        Cette page dit ce que nous collectons dans nos services, pourquoi, avec qui c'est
+        partagé, et comment en demander la suppression. Elle décrit ce que nos logiciels font —
+        pas une intention.
+      </p>
+    </div>
+  </section>
+
+  {/* `prose` est un ENFANT de l'enveloppe, pas la meme boite : sur la meme
+      balise, sa largeur de 44rem l'emportait sur les 76rem de l'enveloppe et
+      la colonne se recentrait dans l'ecran — desalignee du titre et de
+      l'en-tete, qui eux restent au bord gauche. */}
+  <section class="enveloppe" style="padding-block: calc(var(--pas) * 0.55) var(--pas)">
+    <div class="prose">
+
+    <h2>Ce que nous ne collectons jamais</h2>
+    <ul>
+      <li>
+        <strong>Aucune donnée de carte bancaire.</strong> Elle ne
+        transite par aucun de nos serveurs.
+      </li>
+      <li>
+        <strong>Jamais votre code secret Mobile Money.</strong>
+        Il se saisit dans la session de votre opérateur. Nous ne le demandons
+        nulle part, et il n'existe aucun champ où il pourrait être écrit.
+      </li>
+      <li>
+        <strong>Aucune adresse postale.</strong> La livraison se
+        décrit par un quartier, un repère et un téléphone.
+      </li>
+    </ul>
+    <p>
+      <strong>Les fonds ne passent jamais par un compte à
+      nous.</strong> Ils vont du portefeuille de l'acheteuse à celui de la
+      vendeuse, directement. Nous ne détenons ni n'encaissons aucun paiement.
+    </p>
+
+    <h2>Si vous vendez</h2>
+    <ul>
+      <li>
+        <strong>Votre numéro de connexion</strong>, pour vous
+        reconnaître ; et <strong>votre numéro de reversement</strong>
+        s'il diffère — c'est celui sur lequel vos clientes vous paient. Il est
+        vérifié par un code envoyé sur ce numéro, et chaque modification est
+        journalisée.
+      </li>
+      <li>
+        <strong>Votre boutique</strong> : nom, ville, quartier
+        ou point de retrait, et vos articles — nom, prix, description,
+        quantité annoncée, photos.
+      </li>
+      <li>
+        <strong>Le SMS de votre opérateur</strong> que vous
+        collez pour prouver un paiement. Il est <strong>chiffré
+        au repos</strong>, parce qu'il contient le solde de votre compte. Nous en
+        extrayons l'opérateur, l'identifiant de transaction, le montant, la
+        contrepartie et la date — c'est ce qui rend le reçu vérifiable. Le texte
+        brut n'apparaît dans aucun journal technique.
+      </li>
+    </ul>
+
+    <h2>Si vous achetez</h2>
+    <ul>
+      <li>
+        <strong>Votre numéro WhatsApp</strong>, qui est la
+        conversation elle-même.
+      </li>
+      <li>
+        <strong>Votre commande</strong> : articles, quantités,
+        montants, et la livraison que vous avez dictée — mode, ville, quartier,
+        repère, téléphone.
+      </li>
+      <li>
+        <strong>Votre avis</strong>, si vous en laissez un, avec
+        sa note et son texte.
+      </li>
+      <li>
+        <strong>L'état de la conversation</strong> avec le bot :
+        ce que vous avez mis au panier, la langue choisie. Il s'efface tout seul
+        après 24 heures sans échange. Aucun SMS d'opérateur n'y est conservé.
+      </li>
+    </ul>
+
+    <h2>Ce qui est public</h2>
+    <p>
+      Une boutique est publiée par sa vendeuse : son nom, sa ville, ses articles
+      et leurs photos sont visibles de qui a le lien. Les avis vérifiés et la
+      note le sont aussi. <strong>Il n'existe pas d'annuaire</strong> :
+      chaque boutique se partage par un lien que la vendeuse envoie elle-même.
+    </p>
+    <p>
+      Un reçu montré par son code de vérification affiche la référence, le
+      montant et la boutique — c'est sa raison d'être. Le lien de suivi d'une
+      commande, lui, est un secret : il n'est jamais réaffiché ailleurs.
+    </p>
+
+    <h2>Avec qui c'est partagé</h2>
+    <ul>
+      <li>
+        <strong>WhatsApp (Meta)</strong> et notre fournisseur
+        d'accès à son API : c'est le canal par lequel les messages circulent.
+      </li>
+      <li>
+        <strong>Nos hébergeurs</strong>, qui stockent la base de
+        données et les photos d'articles, pour notre compte et sous contrat.
+      </li>
+    </ul>
+    <p>
+      <strong>Nous ne vendons aucune donnée, et nous n'en louons
+      aucune à des annonceurs.</strong> Il n'y a aucune publicité dans nos services.
+    </p>
+
+    <h2>Combien de temps</h2>
+    <p>
+      Les commandes et les preuves de paiement sont conservées tant que la
+      boutique existe : un reçu doit rester vérifiable longtemps après la vente,
+      c'est ce qui en fait une preuve. L'état des conversations s'efface après
+      24 heures d'inactivité. Les identifiants techniques des messages reçus sont
+      purgés au bout de trois jours.
+    </p>
+
+    <h2>Vos droits</h2>
+    <p>
+      Vous pouvez demander à voir, corriger ou supprimer vos données en écrivant
+      à <a href={`mailto:${EDITEUR.contact}`}>{EDITEUR.contact}</a>.
+      Une vendeuse peut fermer sa boutique à tout moment ; nous détachons alors
+      son compte, et ses données de vente sont supprimées sur demande — à
+      l'exception de ce qu'une preuve de paiement déjà émise doit conserver pour
+      rester opposable à l'acheteuse qui la détient.
+    </p>
+
+      <p class="text-caption text-muted">
+        Cette page décrit le fonctionnement du service au 5 août 2026. Toute
+        évolution qui changerait ce qui est collecté sera publiée ici.
+      </p>
+    </div>
+  </section>
+</Base>

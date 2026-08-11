@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { Hono } from "hono";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   appliquerMessageEntrant,
   consulterSuivi,
@@ -156,11 +156,23 @@ describe("le cycle de vie d'un defi", () => {
 const SECRET = "secret-webhook-32-caracteres-abcd";
 const APP_SECRET = "secret-application-meta";
 
-function application(surMessage: (m: { de: string; texte: string }) => Promise<void>) {
+const AUTH_RELAIS = "verrou-partage-du-relais-360dialog";
+
+function application(
+  surMessage: (m: { de: string; texte: string }) => Promise<void>,
+  /* Pose `WABOT_WEBHOOK_AUTH`. Absent, seule la signature Meta ouvre — c'est
+     la configuration d'un WABA en propre. */
+  authEnTete?: string,
+) {
   const app = new Hono();
   app.route(
     "/api/whatsapp",
-    whatsappEntrantRoutes({ secret: SECRET, appSecret: APP_SECRET, surMessage }),
+    whatsappEntrantRoutes({
+      secret: SECRET,
+      appSecret: APP_SECRET,
+      surMessage,
+      ...(authEnTete ? { authEnTete } : {}),
+    }),
   );
   return app;
 }
@@ -225,6 +237,61 @@ describe("la route webhook", () => {
     expect(appele).toBe(false);
   });
 
+  /* ─────────── les deux preuves sont ALTERNATIVES — ADR 0047 ─────────── */
+
+  it("l'en-tete partage ouvre MEME quand une signature etrangere accompagne la livraison", async () => {
+    /**
+     * Le cas reel du 07/08/2026, et la raison de l'ADR 0047. Le relais v2 de
+     * 360dialog REPERCUTE la signature de Meta, calculee avec le secret
+     * d'application de 360dialog — que nous n'aurons jamais. L'ancienne regle
+     * (« l'en-tete ne vaut que si la signature est absente ») refusait donc
+     * chaque message, alors que les deux cotes etaient bien configures.
+     */
+    const recus: Array<{ de: string; texte: string }> = [];
+    const corps = livraison("Connexion Catalog : 7F3K-2M.");
+    const etrangere = `sha256=${createHmac("sha256", "le-secret-de-360dialog").update(corps).digest("hex")}`;
+    const r = await poster(
+      application(async (m) => {
+        recus.push(m);
+      }, AUTH_RELAIS),
+      corps,
+      { "x-hub-signature-256": etrangere, authorization: AUTH_RELAIS },
+    );
+    expect(r.status).toBe(200);
+    expect(recus).toHaveLength(1);
+  });
+
+  it("une signature etrangere SANS en-tete valide reste un refus", async () => {
+    /* Retirer la condition n'ouvre pas la porte : c'est bien l'en-tete qui
+       prouve, et lui seul remplace la signature. */
+    let appele = false;
+    const corps = livraison("7F3K-2M");
+    const etrangere = `sha256=${createHmac("sha256", "le-secret-de-360dialog").update(corps).digest("hex")}`;
+    const r = await poster(
+      application(async () => {
+        appele = true;
+      }, AUTH_RELAIS),
+      corps,
+      { "x-hub-signature-256": etrangere, authorization: "pas-le-bon-verrou" },
+    );
+    expect(r.status).toBe(401);
+    expect(appele).toBe(false);
+  });
+
+  it("la signature Meta ouvre toujours, en-tete configure ou non", async () => {
+    /* L'autre chemin ne regresse pas : un WABA en propre, sans relais, tient
+       sur la seule signature. */
+    const corps = livraison("Connexion Catalog : 7F3K-2M.");
+    for (const auth of [undefined, AUTH_RELAIS]) {
+      const r = await poster(
+        application(async () => {}, auth),
+        corps,
+        { "x-hub-signature-256": signature(corps) },
+      );
+      expect(r.status).toBe(200);
+    }
+  });
+
   it("404 sur un mauvais secret d'URL, sans rien traiter", async () => {
     const app = application(async () => {
       throw new Error("ne doit pas etre appele");
@@ -243,6 +310,42 @@ describe("la route webhook", () => {
       { "x-hub-signature-256": signature(corps) },
     );
     expect(r.status).toBe(200);
+  });
+
+  it("un echec de traitement se JOURNALISE — nos messages traversent, le reste ne livre que son nom", async () => {
+    /* La panne muette du 07/08/2026 : (#131037) avalait tout envoi sans une
+       ligne. Nos propres erreurs (« envoi bot… ») sont sans contenu et
+       traversent ; une erreur etrangere peut porter un numero ou du SQL —
+       seul son NOM sort. */
+    const avertissements: string[] = [];
+    const espion = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      avertissements.push(args.map(String).join(" "));
+    });
+    try {
+      const corps = livraison("7F3K-2M");
+      await poster(
+        application(async () => {
+          throw new Error("envoi bot refuse : HTTP 400, code Meta 131037");
+        }),
+        corps,
+        { "x-hub-signature-256": signature(corps) },
+      );
+      class PannePrivee extends Error {
+        override name = "PannePrivee";
+      }
+      await poster(
+        application(async () => {
+          throw new PannePrivee("SELECT * FROM seller WHERE phone = '+237...'");
+        }),
+        corps,
+        { "x-hub-signature-256": signature(corps) },
+      );
+    } finally {
+      espion.mockRestore();
+    }
+    expect(avertissements.some((l) => l.includes("code Meta 131037"))).toBe(true);
+    expect(avertissements.some((l) => l.includes("PannePrivee"))).toBe(true);
+    expect(avertissements.every((l) => !l.includes("SELECT"))).toBe(true);
   });
 
   it("la poignee de main Meta rend le defi, avec le bon jeton seulement", async () => {

@@ -81,7 +81,7 @@ lot 14 (observabilité, canari de formats, runbooks, sauvegardes). Puis, hors
 séquence `PROMPTS.md` : durcissement et mise en production (ADR 0024),
 canaux du code de connexion et passerelle MboaSMS (0025–0027), architecture
 d'authentification cible et cérémonie Google (0028–0029), refonte UI vendeuse
-(0030), et le bot WhatsApp (0031 à 0033).
+(0030), et le bot WhatsApp (0031 à 0039).
 
 ### Le bot WhatsApp — trois points ouverts, et ils le restent
 
@@ -114,6 +114,25 @@ d'`AGENTS.md` interdit :
 Deux reports mineurs de la même famille : le retrait d'une ligne du panier
 (« annuler » vide tout, « corriger » revient au panier) et la description sur
 la boutique publique attendent un besoin constaté.
+
+Le **mode congés** (ADR 0039) ferme une boutique aux NOUVELLES commandes sans
+rien fermer d'autre : les commandes en cours vont jusqu'au bout, la boutique
+reste publiée et partageable, la vendeuse reste joignable. Deux choses à savoir
+avant d'y toucher : **le verrou qui compte est dans le service, à la création** —
+la machine et la boutique publique ne font qu'afficher, et l'instantané statique
+est périmé par construction ; et **aucune date de retour n'est demandée nulle
+part**, pour la même raison que le stock ne se décompte pas.
+
+Un quatrième point rejoint la liste avec l'**ADR 0038** : le stock est
+désormais saisissable par la vendeuse, mais **il ne se décompte pas tout
+seul**, et c'est décidé, pas oublié. Le transformer en inventaire réservé
+suppose d'arbitrer ce que devient une commande créée non payée, expirée,
+annulée ou contestée — et de reconnaître que la vendeuse vend aussi hors de
+tout ce que Catalog voit. Un compteur qui ne décompte que la moitié des ventes
+serait plus faux que le nombre qu'elle tient elle-même. En attendant, les
+textes ne promettent pas de rareté : « Plus que 2 disponibles » côté bot,
+« La vendeuse en annonce 2 » côté boutique, et l'app vendeuse dit en toutes
+lettres que le nombre se corrige à la main.
 
 Quatre choses à savoir du lot 14, toutes dans l'ADR 0023 :
 

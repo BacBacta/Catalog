@@ -1,0 +1,73 @@
+{
+  "version": "7.0",
+  "screens": [
+    {
+      "id": "LIVRAISON",
+      "title": "Où livrer ?",
+      "terminal": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "formulaire",
+            "children": [
+              {
+                "type": "TextInput",
+                "name": "ville",
+                "label": "Ville",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Là où vous voulez être livrée."
+              },
+              {
+                "type": "TextInput",
+                "name": "quartier",
+                "label": "Quartier",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Exemple : Bonapriso"
+              },
+              {
+                "type": "TextInput",
+                "name": "repere",
+                "label": "Un repère",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "« en face de… », « à côté de… ». C’est ce qui remplace l’adresse."
+              },
+              {
+                "type": "TextInput",
+                "name": "telephone",
+                "label": "Numéro à appeler",
+                "required": true,
+                "input-type": "phone",
+                "helper-text": "Exemple : 690 11 22 33"
+              },
+              {
+                "type": "OptIn",
+                "name": "position",
+                "label": "Envoyer aussi ma position exacte (facultatif)"
+              },
+              {
+                "type": "Footer",
+                "label": "Valider",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "ville": "${form.ville}",
+                    "quartier": "${form.quartier}",
+                    "repere": "${form.repere}",
+                    "telephone": "${form.telephone}",
+                    "position": "${form.position}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

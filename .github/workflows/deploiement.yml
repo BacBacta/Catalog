@@ -12,6 +12,28 @@ name: Déploiement
 # — sans la rendre automatique.
 
 on:
+  # ── Le seul declenchement AUTOMATIQUE, et il ne concerne que la boutique ──
+  #
+  # L'API l'emet quand une boutique nait dans le fil WhatsApp ou qu'un article
+  # est publie (ADR 0065). Il refait l'instantane du catalogue depuis la base et
+  # redeploie la boutique — c'est tout ce qu'il fait : `cible` vaut `boutique`
+  # par defaut sur cet evenement, donc le job `api` ne part pas.
+  #
+  # Pourquoi PAS un crochet de deploiement Vercel, qui aurait evite ce detour :
+  # mesure du 11/08/2026, le projet Vercel de la boutique n'est relie a aucun
+  # depot, et un crochet suppose un projet relie. Voir l'ADR 0068 — il explique
+  # aussi pourquoi le relier serait pire que ce detour.
+  #
+  # **La porte reste franchie.** Un dispatch deploie `main` a l'instant ou il
+  # arrive, sans qu'un humain ait regarde : c'est exactement le cas pour lequel
+  # la chaine de verification existe. On ne la saute pas parce que le
+  # declencheur est une machine.
+  #
+  # GitHub ne lit ce fichier que sur la branche par defaut : le dispatch ne
+  # fonctionne donc qu'une fois fusionne.
+  repository_dispatch:
+    types: [reconstruction-boutique]
+
   workflow_dispatch:
     inputs:
       cible:
@@ -28,7 +50,10 @@ on:
 concurrency:
   # Jamais deux deploiements du meme environnement a la fois : le second
   # rattraperait le `release_command` du premier au milieu d'une migration.
-  group: deploiement-${{ inputs.environnement }}
+  # `inputs` est vide sur `repository_dispatch` : sans repli, le groupe
+  # deviendrait « deploiement- » et un dispatch pourrait tourner en meme temps
+  # qu'un deploiement manuel du meme environnement.
+  group: deploiement-${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
   cancel-in-progress: false
 
 env:
@@ -90,9 +115,12 @@ jobs:
 
   api:
     needs: porte
-    if: inputs.cible == 'api' || inputs.cible == 'les-deux'
+    # PAS de `${{ }}` ici : `if` est deja un contexte d'expression. Enveloppe,
+    # la condition deviendrait une CHAINE non vide — donc toujours vraie, et le
+    # job partirait a chaque dispatch.
+    if: (inputs.cible || 'boutique') == 'api' || (inputs.cible || 'boutique') == 'les-deux'
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environnement }}
+    environment: ${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
     steps:
       - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@master
@@ -114,7 +142,7 @@ jobs:
       # qu'aucune configuration de production n'existe, on refuse le choix ici
       # plutot que de l'honorer de travers.
       - name: La cible de production n'existe pas encore
-        if: inputs.environnement == 'production'
+        if: (inputs.environnement || github.event.client_payload.environnement || 'preproduction') == 'production'
         run: |
           echo "Aucune configuration Fly de production dans ce depot."
           echo "Le seul fly.toml decrit la preproduction (catalog-api-preprod)."
@@ -145,9 +173,9 @@ jobs:
 
   boutique:
     needs: porte
-    if: inputs.cible == 'boutique' || inputs.cible == 'les-deux'
+    if: (inputs.cible || 'boutique') == 'boutique' || (inputs.cible || 'boutique') == 'les-deux'
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environnement }}
+    environment: ${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -188,7 +216,7 @@ jobs:
       - name: L'origine de l'API est renseignee
         run: |
           test -n "${{ vars.API_BASE_URL }}" || {
-            echo "La variable API_BASE_URL est vide pour l'environnement '${{ inputs.environnement }}'."
+            echo "La variable API_BASE_URL est vide pour l'environnement '${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}'."
             echo "Elle entre dans connect-src : sans elle la boutique se construit"
             echo "et se deploie sans jamais pouvoir joindre l'API."
             exit 1
@@ -200,6 +228,19 @@ jobs:
           # `connect-src` de la politique de securite : fausse, les ilots du
           # recu, du suivi et de la rampe sont bloques par le navigateur.
           PUBLIC_API_BASE: ${{ vars.API_BASE_URL }}
+          # ── Le numero du bot, et il se pose ICI — pas chez Vercel ──────────
+          #
+          # La boutique est CONSTRUITE dans ce job ; Vercel ne recoit que
+          # `dist/`. Une variable posee dans le tableau de bord Vercel n'entre
+          # donc dans aucun build, et la fiche produit garderait l'ancien
+          # bouton — celui qui menait au numero personnel de la vendeuse, hors
+          # du moteur (ADR 0066).
+          #
+          # Absente, la fiche produit reprend exactement le chemin d'avant : le
+          # comptoir est dormant par defaut, comme tout le reste (AGENTS.md §5).
+          # Elle n'est donc PAS gardee comme `API_BASE_URL` — son absence est un
+          # etat legitime, pas un oubli.
+          PUBLIC_BOT_WHATSAPP: ${{ vars.BOT_WHATSAPP }}
       - name: Budget de poids
         run: pnpm --filter @catalog/shop size
       # ── `--prebuilt` est un DRAPEAU, pas une option a valeur ──────────────
@@ -217,7 +258,7 @@ jobs:
       # rien change de ce que voit un testeur.
       #
       # `VERCEL_PROJECT_ID` est un secret porte par l'ENVIRONNEMENT GitHub
-      # (`environment: ${{ inputs.environnement }}`) : chaque environnement
+      # (`environment:` ci-dessus) : chaque environnement
       # designe donc son propre projet Vercel, et « production de ce projet-la »
       # est exactement ce qu'on veut dans les deux cas.
       - name: vercel deploy

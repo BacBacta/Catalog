@@ -203,7 +203,7 @@ describe("bloc de paiement", () => {
     // Espace tous les deux chiffres : un numero de neuf chiffres colles se
     // recopie mal sur un clavier de telephone, et un chiffre faux envoie
     // l'argent chez quelqu'un d'autre.
-    expect(texte).toContain("Numero : 6 77 12 34 56");
+    expect(texte).toContain("Numero : 677 12 34 56");
     expect(texte).toContain(`Montant : ${f("4 500 FCFA")}`);
   });
 
@@ -223,7 +223,7 @@ describe("bloc de paiement", () => {
 
   it("survit a l'encodage du lien", () => {
     const texte = texteDuLien(lienCommande("677123456", commande));
-    expect(texte).toContain("Numero : 6 77 12 34 56");
+    expect(texte).toContain("Numero : 677 12 34 56");
   });
 
   it("ne porte NULLE PART de quoi saisir un code secret", () => {

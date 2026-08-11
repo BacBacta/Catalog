@@ -211,6 +211,12 @@ function Liste() {
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className="truncate text-body">{a.name}</CardTitle>
                     {a.archive ? <Badge tone="neutral">Archive</Badge> : null}
+                    {/* Le plafond que le bot fait respecter, la ou la vendeuse
+                        le voit sans ouvrir l'article (ADR 0038). Zero = non
+                        suivi : pas de badge, rien a dire. */}
+                    {a.stock > 0 ? (
+                      <Badge tone={a.stock <= 3 ? "warn" : "neutral"}>{a.stock} en stock</Badge>
+                    ) : null}
                   </div>
                   <p className="text-title font-bold text-ink [font-variant-numeric:tabular-nums]">
                     {formatXaf(a.priceXaf)}
