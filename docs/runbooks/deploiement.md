@@ -310,6 +310,55 @@ information différente d'un silence, et c'est pour cela que la page existe.
 
 ### La boutique
 
+#### Déployer la boutique à la main, avec le CLI Vercel
+
+C'est la voie de secours quand `secrets.VERCEL_TOKEN` manque, et c'est celle qui
+a servi le 11/08/2026. Elle suppose un poste où `vercel login` a déjà été fait —
+le CLI porte alors sa propre autorisation, il n'y a **aucun jeton à manipuler**.
+
+```bash
+# 1. L'instantané. Il vient de l'API, pas de la base (ADR 0070).
+#    Hors intégration continue, aucun jeton d'identité GitHub n'est disponible :
+#    on ne peut donc PAS appeler /api/instantane depuis un poste. Le seul cas où
+#    l'on s'en passe honnêtement est une base VIDE, constatée par
+#    « Maintenance → inventaire » — et alors, et alors seulement :
+echo '{"version":1,"boutiques":[]}' > apps/shop/src/data/catalogue.json
+
+# 2. Construire et mesurer.
+PUBLIC_API_BASE=https://catalog-api-preprod.fly.dev pnpm --filter @catalog/shop build
+pnpm --filter @catalog/shop size
+
+# 3. Lier le répertoire DÉPLOYÉ au bon projet, puis déployer depuis lui.
+cd apps/shop/dist
+vercel link --yes --project catalog-boutique-preprod --scope bactas-projects
+rm -f .env.local                     # `link` le crée ; il n'a rien à faire ici
+vercel deploy --prod --yes --scope bactas-projects
+```
+
+> **`vercel link` AVANT `vercel deploy`, et le lien se pose dans `dist/`.**
+> Un `vercel deploy apps/shop/dist` sans lien préalable écrit
+> `.vercel/project.json` **dans `dist/`** et crée un projet nommé d'après le
+> répertoire — `dist`. Le déploiement suivant part dans ce projet parasite
+> pendant que le vrai continue de servir l'ancienne version, **au vert**.
+> Constaté : deux projets créés, dont un nommé `dist`.
+
+> **`--prod` même en préproduction.** Sans lui, Vercel crée une
+> *prévisualisation* : une URL jetable, et l'adresse réelle ne bouge pas.
+
+Vérifier que c'est bien parti en production, plutôt que de le supposer :
+
+```bash
+vercel ls catalog-boutique-preprod --scope bactas-projects   # colonne Environment
+curl -sSI https://catalog-boutique-preprod.vercel.app/ | grep -i referrer-policy
+```
+
+L'absence de `Referrer-Policy: no-referrer` signifie que `vercel.json` n'a pas
+été lu — donc que la racine déployée n'est pas `dist/` (ADR 0067). Le jeton de
+suivi voyagerait alors dans l'URL.
+
+#### Le projet Vercel
+
+
 Le projet Vercel se crée avec **aucune commande de construction** : le workflow
 construit, Vercel ne fait que servir. Faire construire Vercel demanderait de lui
 donner `DATABASE_URL` pour l'instantané, ce qui n'a aucune raison d'être.
