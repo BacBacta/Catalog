@@ -1,3 +1,4 @@
+import { formatXaf } from "@catalog/contracts/money";
 import { normalizePhone } from "@catalog/contracts/phone";
 import { lirePrix } from "./inscription.ts";
 
@@ -196,4 +197,58 @@ export function avancerComptoir(
       return { type: "recap", etat, ouvert: true };
     }
   }
+}
+
+/**
+ * Ce que la vendeuse TRANSFERE a sa cliente, une fois la commande creee.
+ *
+ * ── Le jeton n'y est pas, et c'est la regle qui compte ────────────────────
+ *
+ * Ce message passe par les mains de la VENDEUSE. Le jeton acheteuse
+ * (`buyerToken`, ADR 0021) autorise la contre-signature ; le lui remettre
+ * reviendrait a la laisser se contre-signer elle-meme, et le controle n° 7 —
+ * celui qui attrape « la collusion a une seule voix » — s'annulerait tout seul.
+ *
+ * Y figurent donc la reference et le code de verification, qui IDENTIFIENT sans
+ * rien autoriser. Le lien de suivi arrive a l'acheteuse dans SON fil, le jour ou
+ * elle ecrit au bot — et c'est ce qui donne au quatrieme fait du comptoir, le
+ * numero de la cliente, sa raison d'etre.
+ *
+ * ── Autosuffisant en texte brut ───────────────────────────────────────────
+ *
+ * « Jamais un parcours qui exige un lien externe » (ADR 0061) : le forfait
+ * « WhatsApp seul » est la norme. Prive de tout lien, ce message doit encore
+ * permettre de payer — d'ou le montant, le numero et le code d'entree en clair.
+ */
+export interface FaitsATransferer {
+  boutique: string;
+  article: string;
+  prixXaf: number;
+  reference: string;
+  codeVerification: string;
+  /** Ce qui est du MAINTENANT — l'acompte, ou le total. */
+  aPayerXaf: number;
+  /** Ce qui restera a la remise. Zero : la ligne ne s'ecrit pas. */
+  resteXaf: number;
+  numeroReversement: string;
+  operateurNom: string | null;
+  /** Venu de la CONFIGURATION, jamais d'une constante (AGENTS.md §2). */
+  codeEntree: string | null;
+}
+
+export function messageATransferer(f: FaitsATransferer): string {
+  return [
+    `🧾 *${f.boutique}* — commande *${f.reference}*`,
+    `${f.article} — 1 × ${formatXaf(f.prixXaf)}`,
+    `*Total : ${formatXaf(f.prixXaf)}*`,
+    `Code de vérification : *${f.codeVerification}*`,
+    "",
+    `💳 *À payer maintenant : ${formatXaf(f.aPayerXaf)}*`,
+    `${f.operateurNom ?? "Mobile Money"} : ${f.numeroReversement}`,
+    ...(f.codeEntree
+      ? [`Composez ${f.codeEntree}, puis suivez le menu de transfert d'argent.`]
+      : []),
+    ...(f.resteXaf > 0 ? [`Le reste, ${formatXaf(f.resteXaf)}, se règle à la remise.`] : []),
+    "Votre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici, jamais à personne.",
+  ].join("\n");
 }

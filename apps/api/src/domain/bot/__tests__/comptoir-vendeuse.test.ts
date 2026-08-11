@@ -4,6 +4,7 @@ import {
   COMPTOIR_DEPART,
   demandeComptoir,
   type EtatComptoir,
+  messageATransferer,
 } from "../comptoir-vendeuse.ts";
 
 /**
@@ -163,5 +164,70 @@ describe("ce que le comptoir ne fait PAS", () => {
     const r = repondre({ pas: "prix", article: "Robe wax" }, "vendu");
     expect(r.type).toBe("refus");
     expect(r.etat.pas).toBe("prix");
+  });
+});
+
+describe("le message que la vendeuse TRANSFERE a sa cliente", () => {
+  const faits = {
+    boutique: "Chez Maman Jeanne",
+    article: "Robe wax grande taille",
+    prixXaf: 12500,
+    reference: "CT-481902",
+    codeVerification: "ACDE-4679",
+    aPayerXaf: 6250,
+    resteXaf: 6250,
+    numeroReversement: "+237677001188",
+    operateurNom: "MTN MoMo",
+    codeEntree: "*126#",
+  };
+
+  it("porte les cinq informations canoniques, plus la reference et le code", () => {
+    /* AGENTS.md §2 : « article, quantite, prix unitaire, total, nom de la
+       boutique — et, des qu'une commande existe, reference et code de
+       verification ». Elle en existe une : les sept sont dus. */
+    const m = messageATransferer(faits);
+    expect(m).toContain("Robe wax grande taille");
+    expect(m).toContain("Chez Maman Jeanne");
+    expect(m).toContain("CT-481902");
+    expect(m).toContain("ACDE-4679");
+    expect(m).toMatch(/12\D?500/);
+  });
+
+  it("est autosuffisant en TEXTE BRUT : aucun lien n'en porte le sens", () => {
+    /* « Jamais un parcours qui exige un lien externe » (ADR 0061). Le forfait
+       « WhatsApp seul » est la norme : privee de tout lien, l'acheteuse doit
+       pouvoir payer. */
+    const sansLiens = messageATransferer(faits).replace(/https?:\/\/\S+/g, "");
+    expect(sansLiens).toContain("CT-481902");
+    expect(sansLiens).toMatch(/6\D?250/);
+    expect(sansLiens).toContain("+237677001188");
+    expect(sansLiens).toContain("*126#");
+  });
+
+  it("ne porte JAMAIS le jeton de suivi — le contrôle n° 7 en depend", () => {
+    /* Le defaut que ce test existe pour empecher : ce message passe par les
+       mains de la VENDEUSE. Le jeton autorise la contre-signature de
+       l'acheteuse ; le lui donner reviendrait a laisser la vendeuse se
+       contre-signer elle-meme, et le controle n° 7 — celui qui attrape « la
+       collusion a une seule voix » — s'annulerait tout seul.
+       Le lien de suivi arrive a l'acheteuse dans SON fil, jamais ici. */
+    const m = messageATransferer({ ...faits, jetonInterdit: "JETON-SECRET-42" } as never);
+    expect(m).not.toContain("JETON-SECRET-42");
+    expect(m).not.toMatch(/\/suivi\//);
+  });
+
+  it("ne demande jamais le code secret, et le dit", () => {
+    /* Le code secret se tape dans la session de l'operateur. Le message le
+       RAPPELLE : c'est la ou une arnaque au faux support se glisserait. */
+    const m = messageATransferer(faits);
+    expect(m).toMatch(/code secret/i);
+    expect(m).toMatch(/jamais/i);
+  });
+
+  it("dit ce qui reste du, sans le confondre avec ce qui est du maintenant", () => {
+    const m = messageATransferer(faits);
+    expect(m).toMatch(/6\D?250/);
+    const solde = messageATransferer({ ...faits, aPayerXaf: 12500, resteXaf: 0 });
+    expect(solde).not.toMatch(/reste/i);
   });
 });
