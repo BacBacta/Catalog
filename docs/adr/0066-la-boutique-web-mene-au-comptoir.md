@@ -118,3 +118,53 @@ suppose de décider où il se range — sur la conversation, ou sur la commande
   l'acheteuse voit.
 - La fiche produit a deux boutons là où elle en avait un.
 - `PUBLIC_BOT_WHATSAPP` à poser sur la construction de la boutique.
+
+---
+
+## Addendum du 11/08/2026 — le garde de la boutique ne gardait qu'une branche
+
+`sortie-construite.test.ts` porte, depuis le lot 6, la promesse la plus concrète
+du produit côté web : **si le JavaScript n'arrive jamais, l'acheteuse peut quand
+même agir.** Il vérifiait qu'une page d'article émet un lien `wa.me` complet
+dans le HTML.
+
+Cet ADR a fait passer `[produit].astro` de une à **trois** branches — congés
+(0039), comptoir (celui-ci), îlot rendu côté serveur — et le test n'en
+connaissait qu'une. Il passait donc pour de mauvaises raisons :
+
+- `PUBLIC_BOT_WHATSAPP` n'est posée nulle part dans la CI, donc la branche du
+  comptoir **n'a jamais été construite** ;
+- les données semées ne contiennent aucune boutique fermée, donc la branche
+  congés non plus.
+
+Le jour où la variable est posée en production — ce que cet ADR demande —, le
+garde aurait cessé de garder ce qu'il décrit, **sans jamais rougir**. C'est le
+même faux vert que le lint tronqué plus haut, à trois heures d'intervalle.
+
+Ce qui a changé :
+
+- le test suit les trois branches et exige de chacune ce qu'elle promet :
+  le texte canonique pour l'îlot, la **phrase d'entrée avec son article** pour
+  le comptoir, et pour une boutique fermée, aucun bouton de commande **mais**
+  le lien vers la vendeuse — « la vendeuse reste joignable » (0039) est la
+  moitié de cet ADR qu'un test doit tenir ;
+- la répartition entre les trois est comptée et affirmée, pour qu'une branche
+  jamais exercée se voie ;
+- vérifié dans les deux sens : construction **avec** `PUBLIC_BOT_WHATSAPP`
+  (la branche comptoir sort bien `boutique <slug> web <slug-article>`), puis
+  altération délibérée du lien émis — le garde rougit.
+
+L'identifiant `data-testid="commander"` **ne distingue pas** les branches :
+l'îlot porte le même. Le discriminant est la présence du second lien, celui de
+la vendeuse, que seule la page Astro émet.
+
+## Addendum du 11/08/2026 — trois avis élevés, et la CI qui rougit pour eux
+
+Le pas `Audit des dependances de production` a échoué sur cette branche, et
+**échoue à l'identique sur `main`** (vérifié sur un clone propre de `0da8eee` :
+3 élevés, 3 moyens, 1 faible). La dernière CI verte de `main` date du 02/08 ;
+les trois avis — `fast-uri`, `js-yaml`, `nanoid` — ont été publiés depuis. Ils
+sont transitifs, en une seule version dans l'arbre, et corrigés à l'intérieur du
+même majeur. Les résolutions sont posées dans `pnpm-workspace.yaml`, à côté de
+celles du lot 15 et pour la raison qu'elles énoncent : un audit ne vaut que
+s'il est vide. Le plancher de `brace-expansion` est relevé au passage.
