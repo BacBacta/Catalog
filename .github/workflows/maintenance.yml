@@ -43,6 +43,31 @@ jobs:
       - uses: actions/checkout@v5
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
+      # ── Les scripts viennent de l'IMAGE, pas de ce checkout ─────────────
+      #
+      # `flyctl ssh console` execute le code de l'image DEPLOYEE. Le checkout
+      # ci-dessus ne sert qu'au contexte du workflow : un script fraichement
+      # fusionne dans `main` n'existe pas dans la machine tant que l'API n'a
+      # pas ete redeployee.
+      #
+      # Constate le 11/08/2026, premiere execution de ce workflow :
+      # « Cannot find module /app/packages/db/scripts/inventaire.mjs ». Le
+      # message ne dit pas que l'image est en retard — il se lit comme un
+      # chemin faux. On refuse donc de partir, en le disant.
+      - name: L'image deployee connait ces scripts
+        run: |
+          set -euo pipefail
+          if ! flyctl ssh console --app catalog-api-preprod \
+                 -C "test -f /app/packages/db/scripts/inventaire.mjs"; then
+            echo "L'API deployee ne contient pas les scripts de maintenance."
+            echo
+            echo "Ils vivent dans l'IMAGE, pas dans ce checkout : lancer d'abord"
+            echo "« Deploiement » avec cible=api pour embarquer le commit courant."
+            exit 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
       # ── Lecture seule : rien n'est ecrit, rien n'est confirme ───────────
       - name: Inventaire
         if: inputs.operation == 'inventaire'
