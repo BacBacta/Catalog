@@ -29,6 +29,7 @@ import {
   messageATransferer,
   type VenteDeclaree,
 } from "./domain/bot/comptoir-vendeuse.ts";
+import { confianceAuPaiement, type VerdictConfiance } from "./domain/bot/confiance.ts";
 import {
   type ArticleBot,
   type BoutiqueBot,
@@ -88,6 +89,7 @@ import { appliquerEvenement, type EvenementPreuve } from "./domain/proof/machine
 import { analyserSms } from "./domain/proof/motifs.ts";
 import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
 import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
+import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeRelance } from "./jobs/relance-acompte.ts";
@@ -306,6 +308,69 @@ function cleConversation(waId: string): string | null {
  * proposer d'ouvrir sa boutique au lieu d'etre renvoyee a un lien qu'elle
  * n'a pas.
  */
+/**
+ * Le STOP qui gele le reversement — ADR 0061, rang 2b.
+ *
+ * Rend `true` quand le message a ete TRAITE ici : l'appelant s'arrete alors,
+ * et le message ne traverse ni l'aiguillage ni la machine d'achat.
+ *
+ * ── Pourquoi passer par le journal d'audit plutot qu'une table ─────────
+ *
+ * L'alerte y est deja consignee (`reversement_alerte`), en ajout seul, avec le
+ * numero destinataire. C'est exactement l'index dont le STOP a besoin, et le
+ * signal de securite reste dans le registre indelebile plutot que dans une
+ * table qu'on pourrait vider.
+ */
+async function filStopReversement(
+  deps: BotDeps,
+  phone: string,
+  entree: EntreeBot,
+): Promise<boolean> {
+  if (entree.genre !== "texte") return false;
+  const maintenant = deps.maintenant?.() ?? new Date();
+
+  const alerte = await deps.prisma.sellerAuditEvent.findFirst({
+    where: { kind: "reversement_alerte", payload: { path: ["vers"], equals: phone } },
+    orderBy: { at: "desc" },
+    select: { sellerId: true, at: true },
+  });
+
+  const decision = decisionGel({
+    texte: entree.texte,
+    alerteEnvoyeeA: alerte?.at ?? null,
+    maintenant,
+  });
+  if (!decision.geler || !alerte) return false;
+
+  const effet = effetDuGel(maintenant);
+  await deps.prisma.$transaction(async (tx) => {
+    await tx.seller.update({ where: { id: alerte.sellerId }, data: effet });
+    await tx.sellerAuditEvent.create({
+      data: {
+        sellerId: alerte.sellerId,
+        kind: "reversement_gele",
+        actor: "systeme",
+        payload: { surStopDe: phone },
+        at: maintenant,
+      },
+    });
+  });
+
+  /**
+   * L'accuse est bref et ne nomme rien. Celui qui lit peut etre la vendeuse
+   * — auquel cas il la rassure — ou quelqu'un d'autre, auquel cas il ne lui
+   * apprend ni quelle boutique, ni quel numero, ni quoi faire ensuite.
+   */
+  await deps.envoyeur.envoyer(
+    texte(
+      entree.de,
+      "C'est noté : les paiements à l'avance sont suspendus sur ce compte. " +
+        "Nous allons vous contacter.",
+    ),
+  );
+  return true;
+}
+
 async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   const phone = cleConversation(entree.de);
   if (!phone) return;
@@ -313,6 +378,16 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   /* Le message entrant vient d'OUVRIR la fenetre de service : les
      notifications en attente partent d'abord (ADR 0035), la reponse suit. */
   await livrerNotificationsEnAttente(deps, phone);
+
+  /**
+   * ── Le STOP passe AVANT l'aiguillage — ADR 0061, rang 2b ──────────────
+   *
+   * Il vient de l'ANCIEN numero de reversement, qui n'est presque jamais le
+   * numero de connexion de la vendeuse : l'aiguillage le prendrait pour une
+   * acheteuse et lui repondrait un catalogue. Le seul endroit ou ce message
+   * peut etre reconnu est ici, avant toute regle d'identite.
+   */
+  if (await filStopReversement(deps, phone, entree)) return;
 
   /**
    * La vendeuse se reconnait par `authUser.phoneNumber` OU par `seller.phone` :
@@ -949,6 +1024,9 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
                     charge.reversement.numero,
                   )}&montant=${commande.duAvantXaf}`
                 : null,
+              /* ADR 0061, rang 2a — la reputation au moment ou l'on paie. */
+              ...(charge ? { confiance: charge.confiance } : {}),
+              lienBoutique: deps.baseBoutique ? `${deps.baseBoutique}/${boutique.slug}` : null,
             }
           : null;
       const chiffresVendeuse = boutique.whatsappVendeuse?.replace(/\D/g, "") ?? "";
@@ -1337,6 +1415,13 @@ interface BoutiqueChargee {
   clesImage: Map<string, string>;
   /** Le reversement pour le bloc paiement (ADR 0035) — jamais montre ailleurs. */
   reversement: { numero: string; operateur: string | null } | null;
+  /**
+   * Ce que la boutique a DEJA prouve, pour le dire au moment du doute
+   * (ADR 0061, rang 2a). Compte a part de `reputation` : un paiement prouve
+   * n'est pas un avis, et c'est le premier des deux qui rassure devant un
+   * acompte.
+   */
+  confiance: VerdictConfiance;
 }
 
 async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueChargee | null> {
@@ -1360,6 +1445,17 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
   });
   if (!seller) return null;
   const rep = reputation(seller.reviews.map((a) => ({ note: a.rating, verifie: a.verified })));
+  /**
+   * ── Ce qui compte comme « prouve », et ce qui n'y entre pas ────────────
+   *
+   * Seuls `prouve` et `contresigne`. PAS `declare_non_trace` : le depot direct
+   * non trace fait avancer la commande mais ne prouve rien (AGENTS.md §2), et
+   * le compter ici transformerait un compteur de preuves en compteur de
+   * ventes — exactement le chiffre invérifiable que le produit refuse.
+   */
+  const paiementsProuves = await deps.prisma.order.count({
+    where: { sellerId: seller.id, proofState: { in: ["prouve", "contresigne"] } },
+  });
   const clesImage = new Map<string, string>();
   for (const p of seller.products) {
     if (p.imageKey) clesImage.set(p.id, p.imageKey);
@@ -1389,6 +1485,7 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
     reversement: seller.payoutPhone
       ? { numero: seller.payoutPhone, operateur: seller.payoutOperator ?? null }
       : null,
+    confiance: confianceAuPaiement({ paiementsProuves, avisVerifies: rep.nbVerifies }),
   };
 }
 

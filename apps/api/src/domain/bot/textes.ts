@@ -1,4 +1,5 @@
 import { formatXaf } from "@catalog/contracts/money";
+import type { VerdictConfiance } from "./confiance.ts";
 import type { FormeNonLue } from "./entrees.ts";
 
 /**
@@ -192,7 +193,21 @@ export interface TextesAcheteuse {
     operateurNom: string | null;
     codeEntree: string | null;
     lienPayer: string | null;
+    /**
+     * La confiance dite AU MOMENT DU DOUTE — ADR 0061, rang 2a. Absente, le
+     * bloc est exactement celui d'avant : le service qui ne la fournit pas ne
+     * casse rien.
+     */
+    confiance?: VerdictConfiance | null;
+    /** La page publique, ou l'acheteuse verifie elle-meme. */
+    lienBoutique?: string | null;
   }) => string;
+
+  /**
+   * La ligne de reputation servie avant de payer. Elle porte le NOMBRE, jamais
+   * un jugement : c'est a l'acheteuse d'en tirer sa conclusion.
+   */
+  ligneConfiance: (v: VerdictConfiance, lienBoutique: string | null) => string;
 
   /** Paiement prouve — la notification de l'acheteuse. Aucun jeton re-projete. */
   notifPaiementProuve: (reference: string, resteXaf: number) => string;
@@ -392,7 +407,25 @@ const fr: TextesAcheteuse = {
       "Votre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.",
       ...(b.lienPayer ? [`En un tap, le clavier pré-rempli : ${b.lienPayer}`] : []),
       "Dès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici.",
+      /* La confiance se dit ICI, en dernier : juste avant le geste (ADR 0061). */
+      ...(b.confiance ? ["", fr.ligneConfiance(b.confiance, b.lienBoutique ?? null)] : []),
     ].join("\n"),
+
+  /**
+   * « vérifiez vous-même » n'est pas une formule de politesse : le lien mène a
+   * la page publique, ou les avis verifies sont lisibles un par un. Le produit
+   * ne demande pas qu'on le croie, il donne de quoi controler.
+   */
+  ligneConfiance: (v, lien) =>
+    v.forme === "debutante"
+      ? "🆕 Cette boutique débute sur Catalog : aucun paiement n'y est encore prouvé."
+      : [
+          `🔒 Cette boutique a ${v.paiementsProuves} paiement${v.paiementsProuves > 1 ? "s" : ""} prouvé${v.paiementsProuves > 1 ? "s" : ""}`,
+          v.avisVerifies > 0
+            ? ` et ${v.avisVerifies} avis vérifié${v.avisVerifies > 1 ? "s" : ""}`
+            : "",
+          lien ? `. Vérifiez vous-même : ${lien}` : ".",
+        ].join(""),
 
   notifPaiementProuve: (ref, reste) =>
     [
@@ -578,7 +611,19 @@ const en: TextesAcheteuse = {
       "Your secret code is typed ONLY on your operator's screen — never here.",
       ...(b.lienPayer ? [`One tap, keypad pre-filled: ${b.lienPayer}`] : []),
       "As soon as the seller pastes her reception SMS, your verifiable receipt is issued — you will be notified here.",
+      ...(b.confiance ? ["", en.ligneConfiance(b.confiance, b.lienBoutique ?? null)] : []),
     ].join("\n"),
+
+  ligneConfiance: (v, lien) =>
+    v.forme === "debutante"
+      ? "🆕 This shop is new on Catalog: no payment proven yet."
+      : [
+          `🔒 This shop has ${v.paiementsProuves} proven payment${v.paiementsProuves > 1 ? "s" : ""}`,
+          v.avisVerifies > 0
+            ? ` and ${v.avisVerifies} verified review${v.avisVerifies > 1 ? "s" : ""}`
+            : "",
+          lien ? `. Check for yourself: ${lien}` : ".",
+        ].join(""),
 
   notifPaiementProuve: (ref, reste) =>
     [

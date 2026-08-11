@@ -47,7 +47,14 @@ export type RefusChangement =
   | "verification_dun_autre_numero"
   | "verification_perimee"
   | "numero_invalide"
-  | "numero_inchange";
+  | "numero_inchange"
+  /**
+   * **Le reversement est gele** — ADR 0061, rang 2b. L'ancien numero a repondu
+   * STOP a l'alerte de changement : un vol est signale. Aucun numero ne se
+   * pose tant qu'un humain n'a pas tranche, meme avec un OTP valide — l'OTP
+   * prouve qu'on tient une puce, pas qu'on est la proprietaire.
+   */
+  | "reversement_gele";
 
 /** Entree de journal, en ajout seul. Ne contient jamais de code. */
 export interface JournalReversement {

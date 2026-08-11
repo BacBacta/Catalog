@@ -81,6 +81,16 @@ model Seller {
   /// l'instantane public.
   congesDepuis DateTime? @map("conges_depuis")
 
+  /// **Le reversement est GELE** — ADR 0061, rang 2b. Pose quand l'ancien
+  /// numero repond STOP a l'alerte de changement : le telephone a
+  /// vraisemblablement ete vole. Le numero de reversement est efface et aucun
+  /// nouveau ne s'accepte tant qu'un humain n'a pas tranche.
+  ///
+  /// Ce gel **ne ferme pas la boutique** : les commandes en cours vont a leur
+  /// terme, la page reste en ligne, la vendeuse reste joignable. Il arrete
+  /// l'argent, il ne punit pas la victime.
+  reversementGeleDepuis DateTime? @map("reversement_gele_depuis")
+
   user        AuthUser?          @relation(fields: [userId], references: [id])
   products    Product[]
   orders      Order[]
