@@ -36,12 +36,12 @@ jobs:
     env:
       DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # PAS de `version:` ici. `pnpm/action-setup` REFUSE que la version soit
       # declaree a deux endroits, et `packageManager` de `package.json` en est
       # deja la source de verite — c'est aussi elle que `corepack` lit en local.
       # Poser les deux fait echouer l'action avant meme l'installation.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -165,12 +165,12 @@ jobs:
     env:
       DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # PAS de `version:` ici. `pnpm/action-setup` REFUSE que la version soit
       # declaree a deux endroits, et `packageManager` de `package.json` en est
       # deja la source de verite — c'est aussi elle que `corepack` lit en local.
       # Poser les deux fait echouer l'action avant meme l'installation.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}

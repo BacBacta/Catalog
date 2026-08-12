@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: preproduction
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: superfly/flyctl-actions/setup-flyctl@master
 
       # ── Les scripts viennent de l'IMAGE, pas de ce checkout ─────────────
