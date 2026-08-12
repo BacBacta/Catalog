@@ -24,8 +24,12 @@ on:
       operation:
         description: "Ce qu'on fait"
         type: choice
-        options: [inventaire, etat-flux, poser-flux-inscription, remise-a-zero]
+        options: [inventaire, etat-flux, poser-waba, poser-flux-inscription, remise-a-zero]
         default: inventaire
+      waba:
+        description: "Pour « poser-waba » UNIQUEMENT : l'identifiant du compte WhatsApp Business (chiffres)"
+        type: string
+        default: ""
       confirmation:
         description: "Pour « remise-a-zero » UNIQUEMENT : taper REMISE-A-ZERO-PREPRODUCTION"
         type: string
@@ -92,6 +96,41 @@ jobs:
         run: flyctl ssh console --app catalog-api-preprod -C "node /app/apps/api/scripts/flux.mjs --etat"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Poser l'identifiant du COMPTE WhatsApp Business ─────────────────
+      #
+      # Constate le 12/08/2026, premiere execution de « poser-flux-inscription »
+      # : l'application n'a jamais porte `WHATSAPP_WABA_ID` — les depots de
+      # Flows venaient toujours d'un poste, ou la variable vivait dans un `.env`
+      # local. `flux.mjs` sait la demander au jeton, mais le jeton ne la rend
+      # que s'il est restreint a un actif ; ce n'est pas le cas ici.
+      #
+      # L'identifiant n'est PAS un secret — c'est un numero de compte, visible
+      # dans la console Meta. Il est pose en secret Fly parce que c'est le seul
+      # endroit ou l'application lit sa configuration (ADR 0070).
+      #
+      # Il se saisit UNE fois. Ensuite, « poser-flux-inscription » se suffit.
+      - name: Poser l'identifiant du compte WhatsApp Business
+        if: inputs.operation == 'poser-waba'
+        run: |
+          set -euo pipefail
+          # La valeur passe par l'environnement, jamais par une interpolation
+          # dans le corps du script : une saisie libre ne devient pas du shell.
+          waba=$(printf '%s' "$WABA_SAISI" | tr -d '[:space:]')
+          case "$waba" in
+            "" | *[!0-9]*)
+              echo "L'identifiant du compte WhatsApp Business est une suite de chiffres."
+              echo ""
+              echo "Il se lit dans la console Meta : WhatsApp > Configuration de l'API,"
+              echo "champ « Identifiant du compte WhatsApp Business »."
+              exit 1
+              ;;
+          esac
+          echo "Pose : WHATSAPP_WABA_ID=$waba"
+          flyctl secrets set "WHATSAPP_WABA_ID=$waba" --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          WABA_SAISI: ${{ inputs.waba }}
 
       # ── Poser l'identifiant du formulaire d'inscription — tache #60 ─────
       #

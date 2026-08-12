@@ -124,17 +124,57 @@ async function exigerConfiguration() {
    * deposer un Flow sur le mauvais WABA serait pire qu'echouer.
    */
   const reponse = await appel(`/debug_token?input_token=${encodeURIComponent(JETON)}`);
-  const portees = reponse?.data?.granular_scopes ?? [];
+  const jeton = reponse?.data ?? {};
+  const portees = jeton.granular_scopes ?? [];
+  /* Les DEUX portees WhatsApp ciblent des WABA. Ne regarder que la premiere
+     laissait echouer un jeton parfaitement utilisable dont seule la seconde
+     porte la restriction d'actif. L'union ne relache rien : la regle « un seul
+     compte, sinon on s'arrete » vaut toujours apres. */
   const cibles = new Set(
     portees
-      .filter((p) => p?.scope === "whatsapp_business_management")
+      .filter(
+        (p) =>
+          p?.scope === "whatsapp_business_management" || p?.scope === "whatsapp_business_messaging",
+      )
       .flatMap((p) => p?.target_ids ?? []),
   );
   if (cibles.size !== 1) {
     console.error(
-      `WHATSAPP_WABA_ID est absente, et le jeton designe ${cibles.size} compte(s) — ` +
-        "il en faut exactement un pour continuer sans risque de se tromper de WABA.\n" +
-        "Poser WHATSAPP_WABA_ID explicitement (fly secrets set WHATSAPP_WABA_ID=...).",
+      cibles.size === 0
+        ? "WHATSAPP_WABA_ID est absente, et le jeton ne designe AUCUN compte WhatsApp Business."
+        : `WHATSAPP_WABA_ID est absente, et le jeton en designe ${cibles.size} — ` +
+            "il en faut exactement un pour continuer sans risque de se tromper de WABA.",
+    );
+    /**
+     * ── Ce que le jeton dit de lui-meme ─────────────────────────────────
+     *
+     * Constate le 12/08/2026 : « 0 compte(s) » ne dit pas LEQUEL des trois
+     * cas on tient — jeton d'une autre application, portee WhatsApp jamais
+     * accordee, ou portee accordee sans restriction d'actif (auquel cas Meta
+     * ne rend aucun `target_ids`, et c'est normal). Les trois se corrigent
+     * ailleurs. Une execution doit suffire a savoir lequel.
+     *
+     * Rien ici n'est un secret : le jeton n'est jamais reaffiche.
+     */
+    console.error("\nCe que le jeton dit de lui-meme :");
+    console.error(`  valide       ${jeton.is_valid === true ? "oui" : "non"}`);
+    console.error(`  type         ${jeton.type ?? "inconnu"}`);
+    console.error(`  application  ${jeton.app_id ?? "inconnue"}`);
+    console.error(`  portees      ${(jeton.scopes ?? []).join(", ") || "aucune"}`);
+    if (portees.length === 0) {
+      console.error("  actifs       aucune portee n'est restreinte a un actif");
+    } else {
+      for (const p of portees) {
+        console.error(
+          `  actifs       ${p?.scope} → ${(p?.target_ids ?? []).join(", ") || "aucun"}`,
+        );
+      }
+    }
+    console.error(
+      "\nRemede : poser l'identifiant explicitement. Il se lit dans la console Meta,\n" +
+        "WhatsApp > Configuration de l'API, champ « Identifiant du compte WhatsApp Business ».\n" +
+        "  fly secrets set WHATSAPP_WABA_ID=<chiffres> --app catalog-api-preprod\n" +
+        "Sans acces au poste : « Maintenance → poser-waba » le fait depuis l'integration continue.",
     );
     process.exit(1);
   }
