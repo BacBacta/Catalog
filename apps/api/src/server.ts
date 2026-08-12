@@ -16,7 +16,7 @@ import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
 import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
 import { traiterLivraisonBot } from "./bot.ts";
-import { notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
+import { notifierConteste, notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
@@ -229,7 +229,21 @@ app.route("/api/rampe", rampeRoutes(rampe));
 // Le recu et le suivi : publics, sans session. C'est une ACHETEUSE qui les lit,
 // et c'est le principe meme du recu — n'importe qui doit pouvoir controler.
 app.route("/api/recu", recuRoutes({ prisma, rampe, session }));
-app.route("/api/suivi", suiviRoutes({ prisma, rampe }));
+app.route(
+  "/api/suivi",
+  suiviRoutes({
+    prisma,
+    rampe,
+    /* Contestation depuis le lien de suivi → la vendeuse l'apprend dans son
+       fil, comme pour celle qui vient du bouton du bot. */
+    ...(bot
+      ? {
+          apresContestation: (orderId: string) =>
+            notifierConteste({ prisma, envoyeur: bot.envoyeur }, orderId),
+        }
+      : {}),
+  }),
+);
 
 /**
  * La page de statut publique. Elle passe l'interrupteur en toutes positions —
