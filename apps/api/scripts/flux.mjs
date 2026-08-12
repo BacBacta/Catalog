@@ -25,7 +25,7 @@
 import { readFileSync } from "node:fs";
 
 const JETON = process.env.WABOT_API_KEY?.trim();
-const WABA = process.env.WHATSAPP_WABA_ID?.trim();
+let WABA = process.env.WHATSAPP_WABA_ID?.trim();
 const BASE = (process.env.WABOT_GRAPH_URL ?? "https://graph.facebook.com/v26.0").replace(/\/$/, "");
 const mode = process.argv[2] ?? "--voir";
 
@@ -100,14 +100,46 @@ async function appel(chemin, options = {}) {
   return corps;
 }
 
-function exigerConfiguration() {
-  if (!JETON || !WABA) {
+async function exigerConfiguration() {
+  if (!JETON) {
     console.error(
-      "Variables absentes : WABOT_API_KEY et WHATSAPP_WABA_ID sont exigees.\n" +
+      "Variable absente : WABOT_API_KEY est exigee.\n" +
         "Voir .env.example, section « bot WhatsApp ».",
     );
     process.exit(1);
   }
+  if (WABA) return;
+
+  /**
+   * ── `WHATSAPP_WABA_ID` absente : on la DEMANDE au jeton ─────────────────
+   *
+   * Constate le 12/08/2026, premiere execution DANS la machine Fly : les
+   * depots de Flows avaient toujours ete faits depuis un poste, et personne
+   * n'avait jamais pose le WABA sur l'application. Or le jeton SAIT a quel
+   * compte il est rattache — `debug_token` rend les `target_ids` de ses
+   * portees. Un identifiant que l'environnement connait deja par son jeton
+   * n'a pas a etre recopie a la main.
+   *
+   * On ne devine RIEN : plusieurs comptes, ou aucun, c'est un arret franc —
+   * deposer un Flow sur le mauvais WABA serait pire qu'echouer.
+   */
+  const reponse = await appel(`/debug_token?input_token=${encodeURIComponent(JETON)}`);
+  const portees = reponse?.data?.granular_scopes ?? [];
+  const cibles = new Set(
+    portees
+      .filter((p) => p?.scope === "whatsapp_business_management")
+      .flatMap((p) => p?.target_ids ?? []),
+  );
+  if (cibles.size !== 1) {
+    console.error(
+      `WHATSAPP_WABA_ID est absente, et le jeton designe ${cibles.size} compte(s) — ` +
+        "il en faut exactement un pour continuer sans risque de se tromper de WABA.\n" +
+        "Poser WHATSAPP_WABA_ID explicitement (fly secrets set WHATSAPP_WABA_ID=...).",
+    );
+    process.exit(1);
+  }
+  WABA = [...cibles][0];
+  console.log(`WABA resolu depuis le jeton : ${WABA}`);
 }
 
 if (mode === "--voir") {
@@ -131,7 +163,7 @@ if (mode === "--voir") {
   }
   console.log("Pour deposer : node apps/api/scripts/flux.mjs --deposer\n");
 } else if (mode === "--etat") {
-  exigerConfiguration();
+  await exigerConfiguration();
   const liste = await appel(`/${WABA}/flows`);
   const parNom = new Map((liste.data ?? []).map((f) => [f.name, f]));
   console.log("");
@@ -145,7 +177,7 @@ if (mode === "--voir") {
   }
   console.log("");
 } else if (mode === "--deposer") {
-  exigerConfiguration();
+  await exigerConfiguration();
 
   /* Le contrat d'abord : rien ne part si un champ relu par le domaine manque
      de la definition. */
