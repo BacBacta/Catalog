@@ -67,6 +67,7 @@ export const BLOCS = {
   "recu-route": 12,
   "bot-comptoir": 13,
   "gabarits-jamais-appeles": 14,
+  "bot-flux-article": 15,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

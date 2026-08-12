@@ -150,6 +150,9 @@ const bot =
         ...(process.env.WABOT_FLUX_INSCRIPTION_ID?.trim()
           ? { fluxInscriptionId: process.env.WABOT_FLUX_INSCRIPTION_ID.trim() }
           : {}),
+        ...(process.env.WABOT_FLUX_ARTICLE_ID?.trim()
+          ? { fluxArticleId: process.env.WABOT_FLUX_ARTICLE_ID.trim() }
+          : {}),
         /* La reconstruction de la boutique publique — ADR 0065. `null` sans
            SHOP_REBUILD_HOOK_URL, et le fil n'annonce alors aucun delai. */
         reconstruction: declencheurDepuisEnv(),
