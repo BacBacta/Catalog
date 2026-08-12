@@ -61,12 +61,12 @@ const FLUX = [
     fichier: "docs/flux-article.json",
     variable: "WABOT_FLUX_ARTICLE_ID",
     categories: ["OTHER"],
-    /** PAS de photo dans le formulaire — et c'est un POINT OUVERT, pas un
-        choix definitif. `PhotoPicker` n'a jamais ete mesure sur notre WABA
-        (meme methode que la localisation : formulaire jetable, on lit ce que
-        Meta refuse — addendum de l'ADR 0063). Tant que ce n'est pas fait, la
-        photo reste un envoi separe, et le formulaire porte le reste. */
-    champs: ["nom", "prix", "stock"],
+    /** La photo est MESUREE (12/08/2026, mode --mesurer-photopicker de ce
+        script : brouillon jetable 1713578936575692, aucune validation_error,
+        supprime) : `PhotoPicker` est accepte sans point de terminaison.
+        Facultative — la photo legendee dans le fil reste le geste le plus
+        rapide, le formulaire ne l'exige pas. */
+    champs: ["nom", "prix", "stock", "photo"],
   },
   {
     cle: "avis",

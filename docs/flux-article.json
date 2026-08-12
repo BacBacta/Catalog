@@ -42,6 +42,15 @@
                 "helper-text": "Il ne se décompte pas tout seul — vous le corrigez à la main."
               },
               {
+                "type": "PhotoPicker",
+                "name": "photo",
+                "label": "Photo de l'article (facultatif)",
+                "description": "Appareil photo ou galerie — une seule suffit.",
+                "photo-source": "camera_gallery",
+                "min-uploaded-photos": 0,
+                "max-uploaded-photos": 1
+              },
+              {
                 "type": "Footer",
                 "label": "Publier l'article",
                 "on-click-action": {
@@ -49,7 +58,8 @@
                   "payload": {
                     "nom": "${form.nom}",
                     "prix": "${form.prix}",
-                    "stock": "${form.stock}"
+                    "stock": "${form.stock}",
+                    "photo": "${form.photo}"
                   }
                 }
               }

@@ -180,6 +180,11 @@ export interface ArticleLu {
   /** Absent quand la vendeuse n'a rien mis : le stock est un champ de confort
       (ADR 0038), jamais une condition de publication. */
   stock?: number;
+  /** L'identifiant WhatsApp de la photo du formulaire — le MEME identifiant
+      que celui d'une photo envoyee dans le fil : il rejoint le pipeline image
+      par le chemin deja en place (`creerArticleDepuisFil`). Absent quand la
+      vendeuse n'a rien joint, ou que la forme recue n'est pas celle attendue. */
+  mediaId?: string;
 }
 
 /** La borne du contrat produit (`productSchema.stock`) — pas une invention locale. */
@@ -198,14 +203,32 @@ const STOCK_MAX = 1_000_000;
  * echouer l'article entier pour lui serait la meme faute que faire echouer
  * une inscription pour la langue.
  *
- * ── PAS de photo ici, et c'est un point OUVERT ────────────────────────────
+ * ── La photo est MESUREE, facultative, et TOLERANTE ───────────────────────
  *
- * `PhotoPicker` n'a jamais ete mesure sur notre WABA (meme methode que la
- * localisation : formulaire jetable, on lit ce que Meta refuse). Tant que la
- * mesure n'est pas faite, on ne suppose rien (AGENTS.md §7.7) : le formulaire
- * porte nom + prix + stock, la photo reste un envoi separe — et le chemin
- * photo legendee (« nom prix ») reste le geste le plus rapide du canal.
+ * `PhotoPicker` a ete mesure sur notre WABA le 12/08/2026 — meme methode que
+ * la localisation : formulaire jetable (brouillon 1713578936575692), verdict
+ * lu dans `validation_errors`, brouillon supprime. ACCEPTE sans point de
+ * terminaison, dans une action `complete`, en Flow JSON 7.0.
+ *
+ * La valeur recue est un TABLEAU d'objets media ; la doc Meta y annonce
+ * l'identifiant (`id`), le nom de fichier et l'empreinte. Seul l'identifiant
+ * nous sert : c'est le meme genre d'identifiant qu'une photo du fil, et il
+ * emprunte le meme pipeline. La lecture est TOLERANTE comme le stock : une
+ * forme inattendue rend une photo ABSENTE, jamais un echec — l'article se
+ * publie sans photo et la vendeuse peut l'envoyer dans le fil, c'est-a-dire
+ * exactement le comportement d'avant ce champ. Aucune regression possible.
  */
+const MEDIA_ID_FORME = /^[\w.-]{1,128}$/;
+
+function mediaIdDe(valeur: unknown): string | undefined {
+  if (!Array.isArray(valeur) || valeur.length === 0) return undefined;
+  const premier = valeur[0];
+  if (!premier || typeof premier !== "object" || Array.isArray(premier)) return undefined;
+  const brut = premier as Record<string, unknown>;
+  const id = brut.id ?? brut.media_id;
+  return typeof id === "string" && MEDIA_ID_FORME.test(id) ? id : undefined;
+}
+
 export function lireArticleFlux(brut: string): ArticleLu | null {
   const d = objetDe(brut);
   if (!d) return null;
@@ -216,9 +239,10 @@ export function lireArticleFlux(brut: string): ArticleLu | null {
   const brutStock = champ(d, "stock");
   const stock =
     /^\d+$/.test(brutStock) && Number(brutStock) <= STOCK_MAX ? Number(brutStock) : undefined;
+  const mediaId = mediaIdDe(d.photo);
   /* 0 vaut ABSENT : c'est deja la convention de la base (`stock Int @default(0)`
      = « non annonce »), et « il en annonce zero » ne veut rien dire. */
-  return { nom, prixXaf, ...(stock ? { stock } : {}) };
+  return { nom, prixXaf, ...(stock ? { stock } : {}), ...(mediaId ? { mediaId } : {}) };
 }
 
 /** Ce que le formulaire d'avis rend. Le mot est facultatif — il l'est partout. */
