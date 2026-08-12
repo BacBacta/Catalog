@@ -1,0 +1,60 @@
+name: Operations preproduction
+
+# Les operations d'entretien de la preproduction, executees la ou vivent les
+# secrets — la machine Fly ou l'API Fly — avec le FLY_API_TOKEN que la CI
+# detient deja pour deployer. Meme logique que depots-meta.yml : rien ne
+# transite par un poste ou une conversation, tout est manuel et audite.
+
+on:
+  workflow_dispatch:
+    inputs:
+      quoi:
+        description: "Quelle operation"
+        required: true
+        type: choice
+        options: [reinitialiser-boutiques-bot, poser-flux-ids]
+      mode:
+        description: "Reinitialisation seulement : --voir (lecture seule) ou --vraiment"
+        required: true
+        type: choice
+        options: ["--voir", "--vraiment"]
+        default: "--voir"
+
+concurrency:
+  group: operations-preprod
+  cancel-in-progress: false
+
+jobs:
+  operation:
+    runs-on: ubuntu-latest
+    # FLY_API_TOKEN vit dans l'environnement GitHub `preproduction`, pas au
+    # niveau du depot — meme lecon que depots-meta.yml (run 31640602429).
+    environment: preproduction
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Le script vit dans l'IMAGE : il supprime les vendeuses
+      # `canal_ouverture = 'bot'` et tout ce qui s'y rattache, leve les
+      # verrous d'ajout seul DANS sa transaction, et demande la
+      # reconstruction de la boutique publique. `--voir` liste sans toucher ;
+      # `--vraiment` ne part que choisi a la main ici.
+      - name: Reinitialiser les boutiques nees du bot
+        if: inputs.quoi == 'reinitialiser-boutiques-bot'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/reinitialiser-boutiques-bot.mjs ${{ inputs.mode }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Les identifiants des quatre Flows publies (depots du 12/08). Ce ne
+      # sont pas des secrets — des identifiants de configuration, deja
+      # imprimes par flux.mjs — mais ils vivent dans l'environnement de la
+      # machine, et `secrets set` redemarre les machines avec la nouvelle
+      # valeur. Relancer cette operation est idempotent.
+      - name: Poser les identifiants de Flows
+        if: inputs.quoi == 'poser-flux-ids'
+        run: >-
+          flyctl secrets set
+          WABOT_FLUX_LIVRAISON_ID=4521530501458065
+          WABOT_FLUX_INSCRIPTION_ID=2262764424546659
+          WABOT_FLUX_ARTICLE_ID=27695141573488361
+          WABOT_FLUX_AVIS_ID=1377188850409808
+          --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
