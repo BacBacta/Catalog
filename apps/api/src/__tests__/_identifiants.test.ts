@@ -253,6 +253,30 @@ describe("le sel d'une execution se POSE — la propriete du 12/08", () => {
     }
   });
 
+  it("AUCUN fichier de test ne HACHE son code de verification", () => {
+    /* La lecon de l'ADR 0078, generalisee (tache #68). Neuf fichiers se
+       recopiaient un generateur qui HACHAIT sa graine (`n * 31 + 17` modulo
+       1000003) : le bloc separe les NOMBRES, il ne separe pas ce qu'un
+       hachage en fait — vu en CI le 12/08 sur `RYEC-6XVX`. Les codes viennent
+       desormais de `codeVerification()`, dont l'encodage est INJECTIF et
+       demontre plus haut.
+
+       Le garde vise les deux traces du defaut : le nom des generateurs
+       recopies, et le module du hachage — l'un des deux survit a toute
+       reecriture partielle. */
+    const coupables = readdirSync(ICI)
+      .filter((f) => f.endsWith(".ts") && f !== "_identifiants.ts")
+      .filter((f) => {
+        const source = readFileSync(join(ICI, f), "utf8");
+        /* L'aiguille du module se CONSTRUIT au lieu de s'ecrire : ecrite en
+           clair, ce fichier se denoncait lui-meme — la meme mesaventure que le
+           garde du sel, resolue de la meme facon. */
+        const module = ["1", "000", "003"].join("_");
+        return /function code(?:DeTest|Unique)\b/.test(source) || source.includes(module);
+      });
+    expect(coupables).toEqual([]);
+  });
+
   it("AUCUN fichier de test ne tire son propre sel de l'horloge", () => {
     /* LE test de ce lot. Le bloc separe les FICHIERS ; il ne separe pas les
        EXECUTIONS. Un fichier qui refabrique son sel a partir de l'horloge,

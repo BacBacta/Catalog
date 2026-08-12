@@ -68,6 +68,16 @@ export const BLOCS = {
   "bot-comptoir": 13,
   "gabarits-jamais-appeles": 14,
   "bot-flux-article": 15,
+  /* Les sept ci-dessous n'utilisent le schema QUE pour `codeVerification()`
+     (tache #68) : leurs telephones et adresses restent sur l'ancien sel — les
+     deux familles sont disjointes par construction, voir l'en-tete. */
+  "bot-apres-achat": 16,
+  "bot-conges": 17,
+  "commandes-route": 18,
+  "preuve-route": 19,
+  "relances-par-la-porte": 20,
+  "stats-route": 21,
+  "traces-sans-sms": 22,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

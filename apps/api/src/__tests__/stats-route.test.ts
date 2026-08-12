@@ -1,8 +1,8 @@
-import { CODE_ALPHABET, statsVendeuseSchema } from "@catalog/contracts";
+import { statsVendeuseSchema } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fenetreDemandee, statsRoutes } from "../routes/stats.ts";
-import { selExecution } from "./_identifiants.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
  * L'ecran statistiques, contre une VRAIE base.
@@ -32,6 +32,10 @@ let prisma: PrismaClient;
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
 const RUN = 803 * 1000 + selExecution();
+/* Le schema recent ne sert ICI qu'aux codes de verification (tache #68) :
+   l'ancien generateur hachait sa graine, et le bloc ne separe pas ce qu'un
+   hachage fait des nombres — vu en CI le 12/08 (ADR 0078). */
+const ids = identifiants("stats-route");
 
 /** Midi a Douala, le 30 juillet 2026. La fenetre de 30 jours part du 1er. */
 const MAINTENANT = new Date("2026-07-30T11:00:00Z");
@@ -74,23 +78,6 @@ async function creerVendeuse(suffixe: number): Promise<Vendeuse> {
 }
 
 let code = 0;
-/**
- * Le code de verification suit un ALPHABET non ambigu, garanti par une
- * contrainte SQL. Un code fabrique avec des chiffres est refuse par la base —
- * ce qui est le comportement voulu, et la raison pour laquelle ce test le
- * fabrique correctement plutot que de desactiver la contrainte.
- */
-function codeUnique(): string {
-  code += 1;
-  let n = RUN * 7919 + code * 104729;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
-
 async function creerCommande(
   sellerId: string,
   opts: {
@@ -120,7 +107,7 @@ async function creerCommande(
         landmark: "Face pharmacie",
         phone: "+237690000001",
       },
-      verificationCode: codeUnique(),
+      verificationCode: ids.codeVerification(),
       createdAt: creeA,
       expiresAt: new Date(creeA.getTime() + 48 * 3_600_000),
     },

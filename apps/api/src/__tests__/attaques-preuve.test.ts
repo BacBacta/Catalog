@@ -1,4 +1,4 @@
-import { type CheckResult, CODE_ALPHABET, type Verdict } from "@catalog/contracts";
+import type { CheckResult, Verdict } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ChiffreurInerte } from "../adapters/sms-chiffre.ts";
@@ -71,17 +71,8 @@ const chiffreur = new ChiffreurInerte({ NODE_ENV: "test" });
    executions se recouvraient des que l'ecart de leurs sels etait un multiple de
    7. Mesure : ~7 %, et la CI enchaine `test` puis `test:coverage` sur la MEME
    base. Le compteur a maintenant ses propres chiffres — voir `_identifiants.ts`. */
-const { txMtn, txOrange } = identifiants("attaques-preuve");
-
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
+const ids = identifiants("attaques-preuve");
+const { txMtn, txOrange } = ids;
 
 /**
  * Un jeton de test, unique par graine et bien forme.
@@ -130,7 +121,7 @@ async function scene(
       payoutPhoneVerifiedAt: CREEE,
     },
   });
-  const code = codeDeTest(suffixe);
+  const code = ids.codeVerification();
   const jeton = jetonDeTest(suffixe);
   const ref = `CT-${(800000 + suffixe) % 99999999}`;
   const o = await prisma.order.create({
