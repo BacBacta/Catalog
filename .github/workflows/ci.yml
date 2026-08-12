@@ -42,7 +42,7 @@ jobs:
       # deja la source de verite — c'est aussi elle que `corepack` lit en local.
       # Poser les deux fait echouer l'action avant meme l'installation.
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -171,7 +171,7 @@ jobs:
       # deja la source de verite — c'est aussi elle que `corepack` lit en local.
       # Poser les deux fait echouer l'action avant meme l'installation.
       - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
