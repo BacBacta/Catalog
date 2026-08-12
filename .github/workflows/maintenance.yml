@@ -24,7 +24,7 @@ on:
       operation:
         description: "Ce qu'on fait"
         type: choice
-        options: [inventaire, remise-a-zero]
+        options: [inventaire, etat-flux, remise-a-zero]
         default: inventaire
       confirmation:
         description: "Pour « remise-a-zero » UNIQUEMENT : taper REMISE-A-ZERO-PREPRODUCTION"
@@ -72,6 +72,24 @@ jobs:
       - name: Inventaire
         if: inputs.operation == 'inventaire'
         run: flyctl ssh console --app catalog-api-preprod -C "node /app/packages/db/scripts/inventaire.mjs"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Les identifiants des formulaires, demandes a Meta ──────────────
+      #
+      # `flux.mjs --etat` liste les Flows du compte et affiche, pour chacun,
+      # son statut et la ligne `WABOT_FLUX_..._ID=<id>` prete a coller. Il
+      # tourne DANS la machine, seule a detenir `WABOT_API_KEY`.
+      #
+      # Ce qui sort n'est PAS un secret : des identifiants de formulaire et
+      # des statuts. La cle, elle, ne quitte pas la machine.
+      #
+      # Un Flow en BROUILLON s'envoie sans erreur et ne s'ouvre jamais — c'est
+      # l'oubli le plus couteux du dispositif, et c'est pour cela que le statut
+      # est affiche a cote de l'identifiant.
+      - name: Etat des formulaires
+        if: inputs.operation == 'etat-flux'
+        run: flyctl ssh console --app catalog-api-preprod -C "node /app/apps/api/scripts/flux.mjs --etat"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
