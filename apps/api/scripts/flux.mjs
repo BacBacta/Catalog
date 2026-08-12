@@ -319,7 +319,114 @@ if (mode === "--voir") {
       `  fly secrets set ${poses.map(([v, id]) => `${v}=${id}`).join(" ")} --app catalog-api-preprod\n`,
     );
   }
+} else if (mode === "--mesurer-photopicker") {
+  await exigerConfiguration();
+
+  /* La mesure du 11/08 (localisation), REJOUEE pour la photo : un formulaire
+     JETABLE, jamais publie, dont on lit ce que Meta accepte ou refuse — puis
+     le brouillon est supprime. Deux composants dans le meme ecran :
+     `PhotoPicker` (la question) et un `TextInput` temoin — si le temoin est
+     refuse aussi, c'est la definition qui est cassee, pas le composant.
+
+     L'action est `complete` SANS point de terminaison : c'est exactement la
+     forme du formulaire d'article, et c'est LA question posee. La doc Meta
+     n'interdit PhotoPicker que dans `navigate` ; ce que ce script mesure,
+     c'est ce que NOTRE WABA en dit vraiment (AGENTS.md §7.7 : on ne promeut
+     rien sans mesure). */
+  const NOM_ESSAI = "catalog_essai_photopicker";
+  const essai = {
+    version: "7.0",
+    screens: [
+      {
+        id: "ESSAI",
+        title: "Essai photo",
+        terminal: true,
+        data: {},
+        layout: {
+          type: "SingleColumnLayout",
+          children: [
+            {
+              type: "Form",
+              name: "formulaire",
+              children: [
+                {
+                  type: "TextInput",
+                  name: "temoin",
+                  label: "Temoin",
+                  required: false,
+                  "input-type": "text",
+                },
+                {
+                  type: "PhotoPicker",
+                  name: "photo",
+                  label: "Photo de l'article",
+                  description: "Appareil photo ou galerie",
+                  "photo-source": "camera_gallery",
+                  "min-uploaded-photos": 0,
+                  "max-uploaded-photos": 1,
+                },
+                {
+                  type: "Footer",
+                  label: "Envoyer",
+                  "on-click-action": {
+                    name: "complete",
+                    payload: { temoin: "${form.temoin}", photo: "${form.photo}" },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  };
+
+  const cree = await appel(`/${WABA}/flows`, {
+    method: "POST",
+    body: JSON.stringify({ name: NOM_ESSAI, categories: ["OTHER"] }),
+  });
+  console.log(`brouillon cree : ${cree.id}`);
+
+  const formulaire = new FormData();
+  formulaire.set("name", "flow.json");
+  formulaire.set("asset_type", "FLOW_JSON");
+  formulaire.set(
+    "file",
+    new Blob([JSON.stringify(essai)], { type: "application/json" }),
+    "flow.json",
+  );
+  const envoi = await fetch(`${BASE}/${cree.id}/assets`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${JETON}` },
+    body: formulaire,
+  });
+  const reponse = await envoi.json().catch(() => null);
+
+  console.log("\n── VERDICT DE LA MESURE ──");
+  if (!envoi.ok) {
+    console.log(
+      `televersement refuse en bloc : HTTP ${envoi.status} ` +
+        `${JSON.stringify(reponse?.error ?? reponse).slice(0, 300)}`,
+    );
+  } else if (reponse?.validation_errors?.length) {
+    console.log("erreurs de validation (les lire UNE PAR UNE — le temoin distingue) :");
+    for (const e of reponse.validation_errors) console.log(`  ${JSON.stringify(e)}`);
+  } else {
+    console.log(
+      "AUCUNE erreur de validation : PhotoPicker est ACCEPTE dans un formulaire\n" +
+        "`complete` sans point de terminaison, sur ce WABA, en Flow JSON 7.0.",
+    );
+  }
+
+  /* Le brouillon ne survit pas a la mesure — comme le 11/08. */
+  const suppression = await appel(`/${cree.id}`, { method: "DELETE" }).catch((e) => {
+    console.log(`⚠ brouillon NON supprime (${e instanceof Error ? e.message : e}) — id ${cree.id}`);
+    return null;
+  });
+  if (suppression) console.log(`brouillon supprime : ${cree.id}`);
 } else {
-  console.error(`mode inconnu : ${mode}. Utilisez --voir, --etat ou --deposer.`);
+  console.error(
+    `mode inconnu : ${mode}. Utilisez --voir, --etat, --deposer ou --mesurer-photopicker.`,
+  );
   process.exit(1);
 }

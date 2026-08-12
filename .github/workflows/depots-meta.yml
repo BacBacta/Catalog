@@ -18,7 +18,7 @@ on:
         description: "Quel script executer"
         required: true
         type: choice
-        options: [flux, gabarits, les-deux]
+        options: [flux, gabarits, les-deux, mesurer-photopicker]
       mode:
         description: "Mode (--etat est en lecture seule)"
         required: true
@@ -55,5 +55,13 @@ jobs:
       - name: Gabarits (gabarits.mjs)
         if: inputs.quoi == 'gabarits' || inputs.quoi == 'les-deux'
         run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/gabarits.mjs ${{ inputs.mode }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # La mesure du composant photo (methode du 11/08 : formulaire JETABLE,
+      # temoin, verdict lu dans validation_errors, brouillon supprime). Elle
+      # ignore `mode` : rien n'est publie, rien ne survit.
+      - name: Mesure PhotoPicker (formulaire jetable)
+        if: inputs.quoi == 'mesurer-photopicker'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/flux.mjs --mesurer-photopicker"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
