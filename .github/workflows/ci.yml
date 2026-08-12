@@ -209,7 +209,7 @@ jobs:
           LHCI_URLS: >-
             http://localhost/index.html,http://localhost/chez-maman-jeanne/index.html,http://localhost/chez-maman-jeanne/robe-wax-grande-taille-000000/index.html
         run: pnpm shop:lighthouse
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: rapports-lighthouse
@@ -225,7 +225,7 @@ jobs:
       # prouve que le COLLAGE fonctionne dans le champ OTP — critere WCAG 2.2
       # §3.3.8, invisible a tout autre niveau de test.
       - run: pnpm --filter @catalog/seller e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: captures-design-system
