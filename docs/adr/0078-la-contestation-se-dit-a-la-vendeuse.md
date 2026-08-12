@@ -89,6 +89,30 @@ Meta tolère les deux formes, donc rien n'était cassé. Mais un code qui n'obé
 qu'à moitié à sa propre règle est un code dont on ne sait plus laquelle des
 deux formes fait foi — et c'est ce qu'on découvre au mauvais moment. Corrigé.
 
+## Le code de vérification cesse d'être haché — trouvé par la CI
+
+Le premier passage de CI a échoué là où le local passait :
+`order_verification_code_key`, sur `RYEC-6XVX`.
+
+Les fichiers de tests se recopient un `codeDeTest(graine)` qui **hache** sa
+graine — `n * 31 + 17` modulo 1 000 003. Le bloc par fichier (ADR 0077)
+partitionne les **nombres** ; il ne partitionne pas ce qu'un hachage en fait.
+Pire : les nombres du schéma récent dépassent 1 000 003, donc ils **retombent
+dans la plage des autres fichiers**. Deux graines séparées par construction
+produisaient le même code, et `verification_code` est `UNIQUE` sur une base
+qu'on ne purge jamais.
+
+`identifiants()` rend désormais le code lui-même, par un **changement de base
+sur l'alphabet non ambigu** — pas par un hachage. L'encodage est injectif :
+deux appels ne peuvent pas rendre le même code, et quatre tests le démontrent
+au lieu de l'espérer (forme, injectivité, deux fichiers, deux exécutions).
+25^8 vaut 1,5 × 10^11 ; la place ne manque pas.
+
+**Les treize autres fichiers gardent leur `codeDeTest` local**, et le risque y
+subsiste — faible, mais réel et de la même famille. Les migrer est un lot à
+part : le faire ici aurait noyé deux correctifs de notification sous une
+réécriture de fixtures.
+
 ## Un test assoupli, parce qu'il disait plus que la règle
 
 `gabarits.test.ts` exigeait que **tout** nom finisse par `_v2`. Cette assertion

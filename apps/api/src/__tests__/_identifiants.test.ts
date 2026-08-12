@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CODE_ALPHABET } from "@catalog/contracts";
 import { describe, expect, it } from "vitest";
 import { BLOCS, type Fichier, identifiants, selExecution, VARIABLE_SEL } from "./_identifiants.ts";
 
@@ -75,6 +76,41 @@ describe("la forme des identifiants", () => {
 
   it("un identifiant MTN tient dans la forme de l'operateur", () => {
     expect(i.txMtn()).toMatch(/^176\d{8}$/);
+  });
+
+  it("un code de verification a la forme que la contrainte SQL exige", () => {
+    expect(i.codeVerification()).toMatch(
+      new RegExp(`^[${CODE_ALPHABET}]{4}-[${CODE_ALPHABET}]{4}$`),
+    );
+  });
+
+  it("le code de verification est INJECTIF — deux appels, deux codes", () => {
+    /* Ce qui manquait, et qui a fait rougir la CI le 12/08 sur `RYEC-6XVX`.
+       Les fichiers se recopiaient un `codeDeTest(graine)` qui HACHE
+       (`n * 31 + 17` modulo 1 000 003) : le bloc separe les nombres, il ne
+       separe pas ce qu'un hachage en fait — et les nombres d'ici depassent le
+       module, donc ils retombaient dans la plage des autres fichiers.
+
+       Ici c'est un changement de base, pas un hachage. La propriete se
+       demontre au lieu de s'esperer. */
+    const j = identifiants("bot-comptoir");
+    const vus = new Set<string>();
+    for (let n = 0; n < 99; n++) vus.add(j.codeVerification());
+    expect(vus.size).toBe(99);
+  });
+
+  it("deux FICHIERS ne peuvent pas produire le meme code", () => {
+    const a = identifiants("attaques-preuve", 500);
+    const b = identifiants("recu-route", 500);
+    const ceuxDeA = new Set(Array.from({ length: 99 }, () => a.codeVerification()));
+    for (let n = 0; n < 99; n++) expect(ceuxDeA.has(b.codeVerification())).toBe(false);
+  });
+
+  it("deux EXECUTIONS non plus", () => {
+    const a = identifiants("recu-route", 41);
+    const b = identifiants("recu-route", 42);
+    const ceuxDeA = new Set(Array.from({ length: 99 }, () => a.codeVerification()));
+    for (let n = 0; n < 99; n++) expect(ceuxDeA.has(b.codeVerification())).toBe(false);
   });
 });
 

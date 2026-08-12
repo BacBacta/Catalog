@@ -1,3 +1,5 @@
+import { CODE_ALPHABET } from "@catalog/contracts";
+
 /**
  * Les identifiants des tests qui touchent la base.
  *
@@ -78,6 +80,25 @@ export interface Identifiants {
   email(quoi: string): string;
   /** Identifiant MTN : `176` puis huit chiffres. */
   txMtn(): string;
+  /**
+   * Un code de verification `XXXX-XXXX`, sur l'alphabet non ambigu du lot 3.
+   *
+   * ── Pourquoi il vit ICI et pas dans chaque fichier ────────────────────────
+   *
+   * Les fichiers se recopiaient un `codeDeTest(graine)` qui HACHE sa graine
+   * (`n * 31 + 17` modulo 1 000 003). Le bloc partitionne les NOMBRES ; il ne
+   * partitionne pas ce qu'un hachage en fait. Pire, les nombres d'ici
+   * depassent le module, donc ils retombent dans la plage des autres fichiers :
+   * deux graines separees par construction produisaient le meme code.
+   *
+   * `verification_code` est UNIQUE et la base n'est jamais purgee. Mesure du
+   * 12/08 : vert en local, rouge en CI sur `RYEC-6XVX`.
+   *
+   * Ici l'encodage est INJECTIF — un changement de base, pas un hachage : deux
+   * appels differents ne peuvent pas rendre le meme code, et ca se demontre au
+   * lieu de s'esperer. 25^8 vaut 1,5 x 10^11, la place ne manque pas.
+   */
+  codeVerification(): string;
   /**
    * Identifiant Orange. Le gabarit `MP260623.1403.Cnnnnn` ne laisse que CINQ
    * chiffres : le bloc n'y tient pas. C'est acceptable parce qu'un seul fichier
@@ -188,6 +209,15 @@ export function identifiants(fichier: Fichier, selImpose?: number): Identifiants
     tel: (prefixe) => `+237${prefixe}${String(suivant()).padStart(7, "0")}`,
     email: (quoi) => `${quoi}-${suivant()}@telephone.catalog.invalid`,
     txMtn: () => `176${String(suivant()).padStart(8, "0")}`,
+    codeVerification: () => {
+      let n = suivant();
+      const car: string[] = [];
+      for (let i = 0; i < 8; i++) {
+        car.push(CODE_ALPHABET[n % CODE_ALPHABET.length] as string);
+        n = Math.floor(n / CODE_ALPHABET.length);
+      }
+      return `${car.slice(0, 4).join("")}-${car.slice(4).join("")}`;
+    },
     txOrange: () => {
       /* Passe par `suivant()` — donc par le garde des 99 — puis n'en garde que
          le sel et le compteur, les cinq chiffres que le gabarit autorise. */

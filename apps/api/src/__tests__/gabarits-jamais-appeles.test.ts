@@ -1,4 +1,3 @@
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -74,17 +73,6 @@ const premierGabarit = (e: EnvoyeurMemoire) =>
     | { to: string; template: { components: Array<{ parameters: Array<{ text: string }> }> } }
     | undefined;
 
-/** Un code de verification conforme a la contrainte SQL du lot 3. */
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
-
 /**
  * Une commande PROUVEE, sa vendeuse et son acheteuse, toutes deux hors
  * fenetre. `prouve` est necessaire : la machine refuse une contestation sans
@@ -135,7 +123,7 @@ async function commandeProuvee() {
         landmark: "en face du marché",
         phone: telAcheteuse,
       },
-      verificationCode: codeDeTest(n),
+      verificationCode: ids.codeVerification(),
       createdAt: new Date(NOW.getTime() - 2 * 3600_000),
       expiresAt: new Date(NOW.getTime() + 46 * 3600_000),
     },
