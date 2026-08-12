@@ -58,9 +58,48 @@ model Seller {
   /// possede la sienne et qu'on ne la lui prend pas.
   userId String? @unique @map("user_id")
 
+  /// La vendeuse qui a parraine celle-ci — ADR 0034. Attribution SEULE :
+  /// aucune recompense n'est calculee ici, et il n'y en a pas ailleurs. Le
+  /// jour ou le porteur du produit en decidera une, elle s'appuiera sur ce
+  /// champ ; l'inventer maintenant serait deviner un modele economique.
+  /// Sans cle etrangere reflexive obligatoire : une marraine peut disparaitre.
+  parrainId String? @map("parrain_id")
+
+  /// Canal d'ouverture de la boutique. « bot » = nee dans le fil WhatsApp
+  /// (ADR 0034), « web » = espace vendeuse. Sert a mesurer l'entonnoir
+  /// d'acquisition, jamais a autoriser quoi que ce soit.
+  canalOuverture String @default("web") @map("canal_ouverture")
+
   status             SellerStatus       @default(active)
   subscriptionStatus SubscriptionStatus @default(trial) @map("subscription_status")
   createdAt          DateTime           @default(now()) @map("created_at")
+
+  /// Mode conges — ADR 0039. Non nul = la boutique n'accepte plus de NOUVELLE
+  /// commande. Elle reste en ligne, ses commandes en cours continuent leur
+  /// course : paiement, preuve, remise, avis. C'est pour cela que ce n'est PAS
+  /// `status`, dont la valeur `closed` ferme le compte et retire la boutique de
+  /// l'instantane public.
+  congesDepuis DateTime? @map("conges_depuis")
+
+  /// **Le reversement est GELE** — ADR 0061, rang 2b. Pose quand l'ancien
+  /// numero repond STOP a l'alerte de changement : le telephone a
+  /// vraisemblablement ete vole. Le numero de reversement est efface et aucun
+  /// nouveau ne s'accepte tant qu'un humain n'a pas tranche.
+  ///
+  /// Ce gel **ne ferme pas la boutique** : les commandes en cours vont a leur
+  /// terme, la page reste en ligne, la vendeuse reste joignable. Il arrete
+  /// l'argent, il ne punit pas la victime.
+  reversementGeleDepuis DateTime? @map("reversement_gele_depuis")
+
+  /// La CHAINE WhatsApp de la vendeuse — ADR 0061, rang 3b.
+  ///
+  /// Un lien, sous forme canonique `https://whatsapp.com/channel/<id>`. Catalog
+  /// ne cree ni n'alimente aucune chaine : il range ce lien, le montre sur la
+  /// page publique, et fournit des munitions marquees `chaine`.
+  ///
+  /// On ne verifie NI que la chaine existe, NI qu'elle lui appartient — aucune
+  /// API ne le permet. Seule la forme du lien est validee, et c'est dit.
+  chaineUrl String? @map("chaine_url")
 
   user        AuthUser?          @relation(fields: [userId], references: [id])
   products    Product[]
@@ -103,6 +142,9 @@ model Product {
   priceXaf Int    @map("price_xaf")
   stock    Int    @default(0)
   variants Json?
+  /// Facultative, 300 caracteres au plus (ADR 0033). Elle vend sur la fiche
+  /// article du bot ; la boutique publique ne la montre pas encore.
+  description String?
 
   /// Cle de BASE de l'image, sans extension. Les deux declinaisons stockees en
   /// derivent : `<cle>.avif` et `<cle>.webp`. La cle est opaque — ni identifiant
@@ -368,6 +410,11 @@ model Review {
   id        String   @id @default(uuid(7))
   orderId   String   @unique @map("order_id")
   sellerId  String   @map("seller_id")
+  /// L'article note (ADR 0035, expand) : pose quand la commande ne porte
+  /// qu'un seul article — l'ecrasante majorite. Nul sur un panier mixte : on
+  /// n'attribue pas un avis global a un article au hasard. Sans cle etrangere,
+  /// comme `derniereCommandeId` : un article retire ne doit pas retenir l'avis.
+  productId String?  @map("product_id")
   rating    Int
   body      String?
   /// « achat verifie » : vrai uniquement si la preuve est `prouve` ou
@@ -380,6 +427,7 @@ model Review {
   seller Seller @relation(fields: [sellerId], references: [id])
 
   @@index([sellerId, verified])
+  @@index([productId])
   @@map("review")
 }
 
@@ -411,6 +459,7 @@ model AuthUser {
 
   sessions AuthSession[]
   accounts AuthAccount[]
+  passkeys AuthPasskey[]
   seller   Seller?
 
   @@map("user")
@@ -463,6 +512,33 @@ model AuthVerification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Cles WebAuthn (passkeys) — ADR 0028.
+///
+/// Une ligne par appareil enroye. `credentialID` identifie la cle aupres du
+/// navigateur ; `publicKey` verifie ses signatures ; `counter` detecte le
+/// clonage ; `backedUp` dit si la cle est synchronisee (compte Google) — c'est
+/// ce qui permet a l'ecran « Appareils » d'annoncer qu'un nouveau telephone la
+/// retrouvera. Les champs suivent le schema du plugin @better-auth/passkey.
+model AuthPasskey {
+  id           String    @id @default(uuid(7))
+  name         String?
+  publicKey    String    @map("public_key")
+  userId       String    @map("user_id")
+  credentialID String    @map("credential_id")
+  counter      Int
+  deviceType   String    @map("device_type")
+  backedUp     Boolean   @map("backed_up")
+  transports   String?
+  aaguid       String?
+  createdAt    DateTime? @default(now()) @map("created_at")
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkey")
 }
 
 /// Journal d'audit au niveau de la vendeuse, EN AJOUT SEUL.
@@ -545,4 +621,75 @@ model PayoutOtp {
   @@index([sellerId, createdAt])
   @@index([expiresAt])
   @@map("payout_otp")
+}
+
+/// L'etat de conversation du bot WhatsApp — ADR 0031. Une ligne par numero.
+/// Ne contient JAMAIS de texte libre : uniquement la position dans le menu et
+/// des identifiants (slug, article, quantite). Un SMS colle n'y entre pas —
+/// il part en verification et disparait (meme regle que les traces, ADR 0023).
+model BotConversation {
+  phone     String   @id
+  etat      Json
+  /// La langue du fil ACHETEUSE (ADR 0033) : « english » la change, « français »
+  /// la ramene. Le fil vendeuse reste en francais pour l'instant.
+  langue    String   @default("fr")
+  /// La derniere commande creee depuis ce fil — ce qui permet de repondre a
+  /// « ou est ma commande ? » sans reconcilier par numero de telephone (le
+  /// numero de livraison n'est pas forcement celui du fil : diaspora).
+  /// Volontairement SANS cle etrangere : une commande purgee ne doit pas
+  /// empecher la conversation d'exister, et inversement.
+  derniereCommandeId String? @map("derniere_commande_id")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([derniereCommandeId])
+  @@map("bot_conversation")
+}
+
+/// Une notification qui attend sa fenetre de service (ADR 0035). AJOUT SEUL :
+/// la remise se DATE, elle n'efface rien. Le corps est le texte exact a
+/// envoyer — deja redige, sans SMS colle ni jeton (les deux interdits de
+/// l'etat de conversation valent ici aussi).
+/// Les messages entrants DEJA traites — ADR 0040.
+///
+/// WhatsApp et ses relais garantissent la livraison AU MOINS une fois : un
+/// message dont l'accuse n'est pas revenu assez vite est relivre, indefiniment,
+/// a intervalle croissant. Sans cette table, chaque relivraison rejouait le
+/// message dans la machine de conversation — un « Bonjour » vieux d'une minute
+/// devenait le NOM d'une boutique, un « Douala » devenait le nom d'un article.
+/// Constate en bac a sable le 05/08/2026.
+///
+/// La cle est le `wamid`, l'identifiant que WhatsApp donne au message : il est
+/// unique de bout en bout, et c'est le seul point fixe d'une relivraison.
+model BotMessageVu {
+  /// Le `wamid` du message entrant.
+  id String @id
+
+  /// Quand le traitement a ete RECLAME. Pose avant tout travail : c'est ce qui
+  /// fait qu'une relivraison arrivee pendant le traitement du premier ne double
+  /// pas le travail.
+  reclameLe DateTime @default(now()) @map("reclame_le")
+
+  /// Quand il s'est ACHEVE. Nul = en cours, ou mort en chemin. La distinction
+  /// n'est pas cosmetique : une reclamation restee inachevee au-dela d'un delai
+  /// se laisse rejouer, sinon un processus tue emporterait le message avec lui.
+  termineLe DateTime? @map("termine_le")
+
+  @@index([reclameLe])
+  @@map("bot_message_vu")
+}
+
+model BotNotification {
+  id      String    @id @default(uuid(7))
+  phone   String
+  corps   String
+  /// Les boutons a poser sur la notification (ADR 0036) : `[{id,titre}]`.
+  /// Une notification mise en attente doit porter ses boutons jusqu'a sa
+  /// remise — sans eux, la contre-signature disparaitrait pour toutes les
+  /// acheteuses dont la fenetre etait fermee.
+  boutons Json?
+  creeLe  DateTime  @default(now()) @map("cree_le")
+  remisLe DateTime? @map("remis_le")
+
+  @@index([phone, remisLe])
+  @@map("bot_notification")
 }

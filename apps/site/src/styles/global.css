@@ -1,0 +1,709 @@
+@import "@catalog/ui/tokens.css";
+
+/**
+ * Le site de la societe — ADR 0042, revise par les ADR 0043 et 0044.
+ *
+ * ── Le parti pris : editorial, serif, presque vide ────────────────────────
+ *
+ * Une maison de services ne se presente pas comme une application. Le registre
+ * choisi est celui d'une page editoriale : un serif SYSTEME en tres grand
+ * corps (ui-serif / New York / Georgia — zero octet telecharge), des filets
+ * fins, des numeros en mono, beaucoup de blanc, et une seule couleur d'accent.
+ *
+ * ── Ce que l'ADR 0044 ajoute, et pourquoi c'est faisable SANS script ──────
+ *
+ * La CSP interdit tout script (`default-src 'none'`). Les trois gestes qui
+ * font aujourd'hui la difference entre une page correcte et une page tenue
+ * sont pourtant devenus du CSS pur :
+ *
+ * 1. `@view-transition` — la transition entre deux pages, en navigation
+ *    classique. Le mot-marque et la signature du pied PERSISTENT d'une page a
+ *    l'autre (`view-transition-name`) : c'est ce qui donne l'impression d'une
+ *    application alors que chaque page est un document statique.
+ * 2. `animation-timeline: view()` — les revelations au defilement, calculees
+ *    par le compositeur. Aucune bibliotheque, aucun observateur.
+ * 3. `text-box: trim-both` — le rognage du demi-interligne. Sur un titre de
+ *    9 rem, l'espace fantome au-dessus des capitales est ce qui distingue une
+ *    mise en page composee d'une mise en page posee.
+ *
+ * Les trois degradent en silence : un navigateur qui ne les connait pas rend
+ * la page fixe et correcte. Aucune n'est une dependance.
+ *
+ * ── Le mouvement ne touche JAMAIS l'opacite d'un texte ────────────────────
+ *
+ * Regle heritee du lot 2 (voir `tokens.css`) et tenue ici : un fondu rend le
+ * contraste dependant de l'instant ou on le mesure, et axe-core lit la page
+ * pendant l'animation. Les revelations sont donc des TRANSLATIONS, et les
+ * seules echelles animees portent sur des filets decoratifs.
+ */
+
+:root {
+  --serif: ui-serif, "New York", Georgia, Cambria, "Times New Roman", Times, serif;
+
+  /* Echelle editoriale fluide : la borne basse tient sur un telephone
+     d'entree de gamme, la haute sur un grand ecran. */
+  --t-mega: clamp(3rem, 1.1rem + 8.6vw, 8.25rem);
+  --t-grand: clamp(1.9rem, 1.2rem + 3vw, 3.25rem);
+  --t-titre: clamp(1.45rem, 1.15rem + 1.4vw, 2.15rem);
+  --t-lead: clamp(1.0625rem, 0.99rem + 0.42vw, 1.3125rem);
+  --t-micro: 0.72rem;
+
+  /* Le pas vertical entre deux sections, et la marge laterale — celle-ci est
+     une variable parce que les rangs de l'index doivent pouvoir la DEBORDER
+     pour que leur fond de survol aille jusqu'au filet. */
+  --pas: clamp(4.5rem, 2.5rem + 9vw, 8.5rem);
+  --marge: clamp(1.25rem, 0.75rem + 2.5vw, 3rem);
+  --mesure: 40rem;
+
+  /* Les filets. Ils derivent de l'encre plutot que d'un jeton fixe : le meme
+     rapport optique se conserve sur les deux surfaces, claire et sombre. */
+  --regle: color-mix(in srgb, var(--color-ink) 14%, transparent);
+  --regle-fine: color-mix(in srgb, var(--color-ink) 8%, transparent);
+
+  /**
+   * La bande de reperes est le seul bloc de couleur pleine du site, et son
+   * role est d'etre le CONTRAIRE de la page. Elle s'inverse donc avec le
+   * theme : sombre sur une page claire, claire sur une page sombre.
+   *
+   * La premiere version les figeait dans les deux themes — un `#0b1512` sur
+   * un fond `#0d0d0d` : la bande disparaissait purement et simplement en mode
+   * sombre, et avec elle la seule respiration de la page.
+   *
+   * Mesures, theme clair : 16,5:1 pour l'encre, 9,1:1 pour l'accent,
+   * 8,2:1 pour l'etiquette.
+   */
+  --bande-fond: #0b1512;
+  --bande-encre: #eef2f0;
+  --bande-accent: #7cc2b0;
+  --bande-muted: #9fb0aa;
+}
+
+/* Theme sombre : la bande passe en clair. Mesures : 13,7:1 pour l'encre,
+   7,1:1 pour l'accent, 6,5:1 pour l'etiquette. La preference explicite
+   l'emporte dans les deux sens — meme construction que `tokens.css`. */
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --bande-fond: #eef2f0;
+    --bande-encre: #0b1512;
+    --bande-accent: #0a5c48;
+    --bande-muted: #4a5a55;
+  }
+}
+:root[data-theme="dark"] {
+  --bande-fond: #eef2f0;
+  --bande-encre: #0b1512;
+  --bande-accent: #0a5c48;
+  --bande-muted: #4a5a55;
+}
+
+body {
+  margin: 0;
+  background: var(--color-plane);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Les guillemets et tirets d'ouverture debordent dans la marge au lieu de
+     creuser un trou dans le bord gauche. Safari seul le rend, les autres
+     l'ignorent — c'est un gain gratuit. */
+  hanging-punctuation: first last;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-brand-500) 25%, transparent);
+}
+
+.enveloppe {
+  width: 100%;
+  max-width: 76rem;
+  margin-inline: auto;
+  padding-inline: var(--marge);
+}
+
+/* ───────────────────────────── l'en-tete ──────────────────────────────── */
+
+.entete {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--regle-fine);
+  background: color-mix(in srgb, var(--color-plane) 82%, transparent);
+}
+@supports (backdrop-filter: blur(1px)) {
+  .entete {
+    backdrop-filter: blur(16px) saturate(170%);
+  }
+}
+
+/* Le mot-marque : petit, espace, en capitales — il ne crie pas, il signe.
+   Sa version GEANTE vit au pied de page.
+   `view-transition-name` le fait PERSISTER d'une page a l'autre : il ne
+   clignote pas au changement de document, il reste en place. */
+.marque {
+  font-size: var(--t-micro);
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  view-transition-name: marque;
+}
+.marque .point {
+  color: var(--color-brand-500);
+}
+
+/* Le soulignement du lien de navigation se TIRE depuis la gauche. Un
+   `border-bottom` qui s'allume d'un coup se lit comme un etat ; un filet qui
+   se tire se lit comme un geste. */
+.lien-nav {
+  position: relative;
+  font-size: var(--t-micro);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+  text-decoration: none;
+  padding-block: 0.4rem;
+}
+.lien-nav::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-brand-500);
+  scale: 0 1;
+  transform-origin: left;
+}
+.lien-nav:hover,
+.lien-nav:focus-visible,
+.lien-nav[aria-current="page"] {
+  color: var(--color-ink);
+}
+.lien-nav:hover::after,
+.lien-nav[aria-current="page"]::after {
+  scale: 1 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lien-nav::after {
+    transition: scale var(--duration-base) var(--ease-out);
+  }
+}
+
+/* ─────────────────────────── le petit jalon ───────────────────────────── */
+
+/* L'etiquette de section : un trait, puis du mono espace. C'est le seul
+   ornement recurrent du site. */
+.jalon {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.jalon::before {
+  content: "";
+  width: 2.25rem;
+  height: 1px;
+  background: var(--color-brand-500);
+  flex: none;
+}
+
+/* ───────────────────────────── le porche ──────────────────────────────── */
+
+/**
+ * Le titre est ancre EN BAS du porche, pas centre. C'est la disposition d'une
+ * une de magazine : l'etiquette en haut, le vide au milieu, le titre qui pose
+ * en bas. Le vide entre les deux fait tout le travail.
+ */
+.porche {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-content: space-between;
+  gap: clamp(2.5rem, 1rem + 7vw, 6rem);
+  min-block-size: min(84svh, 52rem);
+  padding-block: calc(var(--pas) * 0.6) calc(var(--pas) * 0.72);
+  border-bottom: 1px solid var(--regle-fine);
+}
+/* Le porche des pages secondaires respire moins : elles ont du texte a
+   donner, pas une entree a composer. */
+.porche--court {
+  min-block-size: 0;
+  gap: clamp(1.75rem, 1rem + 3vw, 3rem);
+  padding-block: calc(var(--pas) * 0.5) calc(var(--pas) * 0.6);
+}
+/* Un seul halo, a peine la : la retenue EST le decor. */
+.porche::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(
+      50rem 30rem at 92% -14%,
+      color-mix(in srgb, var(--color-brand-500) 9%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      38rem 26rem at -8% 108%,
+      color-mix(in srgb, var(--color-brand-500) 5%, transparent),
+      transparent 60%
+    );
+}
+
+.titre-geant {
+  font-family: var(--serif);
+  font-size: var(--t-mega);
+  line-height: 0.96;
+  letter-spacing: -0.028em;
+  font-weight: 600;
+  margin: 0;
+  max-width: 15ch;
+  text-wrap: balance;
+}
+.titre-geant .accent {
+  font-style: italic;
+  font-weight: 500;
+  /* brand-500, jamais brand-700 : ce dernier n'est PAS redefini en mode
+     sombre et tombait a 2,4:1 sur le fond noir. Mesure : 4,8:1 en clair,
+     6,0:1 en sombre. */
+  color: var(--color-brand-500);
+}
+
+.chapeau {
+  margin: 0;
+  font-size: var(--t-lead);
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  max-width: var(--mesure);
+  text-wrap: pretty;
+}
+
+/* Le lien d'appel : mono, souligne d'un seul trait de marque. Pas de bouton
+   rempli — une maison n'a rien a vendre en un clic. */
+.appel-ligne {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+  text-decoration: none;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--color-brand-500);
+}
+.appel-ligne .fleche {
+  color: var(--color-brand-500);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .appel-ligne {
+    transition: gap var(--duration-fast) var(--ease-out);
+  }
+  .appel-ligne:hover {
+    gap: 1.1rem;
+  }
+}
+
+/* ───────────────────── l'index — les lignes de metier ─────────────────── */
+
+/**
+ * Sur telephone : une seule colonne, tout empile. La version a deux colonnes
+ * renvoyait le texte sous le numero, dans une gouttiere de 5 rem — un mot par
+ * ligne. Les trois colonnes n'apparaissent qu'a partir de 48rem, ou elles ont
+ * la place d'exister.
+ */
+.rang {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+  padding-block: clamp(1.85rem, 1.2rem + 2.4vw, 3.15rem);
+  /* Le rang DEBORDE la marge de l'enveloppe pour que son fond de survol
+     touche le filet au lieu de flotter au milieu. */
+  padding-inline: clamp(0.6rem, 1.6vw, 1.25rem);
+  margin-inline: calc(-1 * clamp(0.6rem, 1.6vw, 1.25rem));
+  border-bottom: 1px solid var(--regle);
+}
+.index > .rang:first-child {
+  border-top: 1px solid var(--regle);
+}
+@media (min-width: 48rem) {
+  .rang {
+    grid-template-columns: 4.5rem minmax(0, 22rem) 1fr;
+    gap: 0.75rem 2.5rem;
+    align-items: baseline;
+  }
+}
+.rang__num {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+.rang__titre {
+  font-family: var(--serif);
+  font-size: var(--t-titre);
+  line-height: 1.12;
+  letter-spacing: -0.018em;
+  font-weight: 600;
+  margin: 0;
+}
+.rang__corps {
+  margin: 0;
+  color: var(--color-ink-2);
+  max-width: 34rem;
+  text-wrap: pretty;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rang,
+  .rang__titre,
+  .rang__num {
+    transition:
+      background-color var(--duration-base) var(--ease-out),
+      color var(--duration-base) var(--ease-out),
+      translate var(--duration-base) var(--ease-out);
+  }
+  .rang:hover .rang__titre {
+    translate: 0.4rem 0;
+  }
+}
+.rang:hover {
+  background: color-mix(in srgb, var(--color-brand-500) 5%, transparent);
+}
+.rang:hover .rang__num {
+  color: var(--color-brand-500);
+}
+
+/* ─────────────── la bande inversee — trois reperes, rien de plus ──────── */
+
+/**
+ * Le seul bloc de couleur pleine du site, et la seule respiration sombre.
+ * Il ne porte AUCUNE affirmation nouvelle : les trois valeurs sont deja dites
+ * ailleurs sur la page. Il leur donne du corps, il n'ajoute pas de promesse.
+ */
+.bande {
+  background: var(--bande-fond);
+  color: var(--bande-encre);
+  padding-block: clamp(3rem, 1.5rem + 6vw, 6rem);
+}
+.bande__grille {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.25rem;
+}
+@media (min-width: 44rem) {
+  .bande__grille {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+  }
+}
+.datum {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--bande-encre) 22%, transparent);
+}
+.datum__val {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: var(--t-grand);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--bande-accent);
+}
+.datum__cle {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bande-muted);
+}
+
+/* ───────────────────────────── le credo ───────────────────────────────── */
+
+.credo {
+  font-family: var(--serif);
+  font-size: var(--t-titre);
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.28;
+  letter-spacing: -0.012em;
+  max-width: 24ch;
+  margin: 0;
+  padding-top: 1.4rem;
+  border-top: 2px solid var(--color-brand-500);
+  text-wrap: balance;
+}
+
+/* ──────────────────────── le courriel en tres grand ───────────────────── */
+
+.courriel-geant {
+  font-family: var(--serif);
+  /* Bornee pour tenir sur UNE ligne : une adresse coupee en plein mot annule
+     tout l'effet. Les deux bornes sont reglees sur l'adresse la plus longue
+     que le site affiche — 29 signes —, pas choisies au hasard : a 390 px de
+     large elle occupe environ 245 px, a 1440 px environ 560 px. */
+  font-size: clamp(1.05rem, 0.4rem + 2.6vw, 2.4rem);
+  letter-spacing: -0.015em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-ink);
+  text-decoration: none;
+  border-bottom: 2px solid var(--color-brand-500);
+  padding-bottom: 0.35rem;
+  /* Si l'ecran est vraiment etroit, la cassure se fait a l'arobase. */
+  overflow-wrap: break-word;
+}
+.courriel-geant:hover,
+.courriel-geant:focus-visible {
+  color: var(--color-brand-500);
+}
+
+/* ─────────────────────── la fiche d'informations ──────────────────────── */
+
+/* Les mentions legales : des rangs a filets, mono a gauche, valeur a droite.
+   RIEN de plus que ce que les meilleures pratiques exigent. */
+.fiche {
+  border-top: 1px solid var(--regle);
+  margin: 0;
+}
+.fiche__rang {
+  display: grid;
+  grid-template-columns: minmax(8rem, 15rem) 1fr;
+  gap: 1rem 2rem;
+  padding-block: 1.25rem;
+  border-bottom: 1px solid var(--regle);
+}
+.fiche__rang dt {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  align-self: baseline;
+}
+.fiche__rang dd {
+  margin: 0;
+  color: var(--color-ink);
+  font-weight: 550;
+}
+
+/* ───────────────────────────── le pied ────────────────────────────────── */
+
+.pied {
+  border-top: 1px solid var(--regle);
+  padding-top: 3rem;
+  font-size: var(--text-caption);
+  color: var(--color-muted);
+  overflow: hidden;
+}
+.pied a {
+  color: var(--color-ink-2);
+  text-decoration: none;
+  border-bottom: 1px solid var(--regle);
+}
+.pied a:hover {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-brand-500);
+}
+/**
+ * Le mot-marque geant, en filigrane, TAILLE SUR LA LARGEUR DE L'ECRAN — il
+ * touche les deux bords et se laisse rogner par eux. `aria-hidden` : le nom
+ * lisible vit dans la ligne legale, pas ici.
+ * Il porte lui aussi un `view-transition-name` : d'une page a l'autre, la
+ * signature ne bouge pas.
+ */
+.pied__marque {
+  margin: 2.75rem 0 0;
+  font-family: var(--serif);
+  font-weight: 700;
+  /* Reglee pour que « HORIZON SERVICES » tienne ENTIER a toutes les largeurs.
+     Une signature rognee en plein mot se lit comme un defaut, pas comme un
+     parti pris — c'etait le cas a 11,2vw, ou le S final tombait dehors. */
+  font-size: clamp(1.9rem, 9.4vw, 11.5rem);
+  line-height: 0.82;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-align: center;
+  color: color-mix(in srgb, var(--color-ink) 9%, transparent);
+  user-select: none;
+  view-transition-name: signature;
+}
+
+/* ───────────────────────── les pages de texte ─────────────────────────── */
+
+.prose {
+  max-width: 44rem;
+  counter-reset: section;
+}
+/* Chaque titre porte son numero, en mono, dans la marge quand il y a la
+   place. C'est ce qui fait lire une politique de confidentialite comme un
+   document plutot que comme une page. */
+.prose h2 {
+  position: relative;
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+  margin: 2.6rem 0 0.7rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--regle);
+  counter-increment: section;
+}
+.prose h2::before {
+  content: counter(section, decimal-leading-zero);
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  color: var(--color-brand-500);
+  margin-bottom: 0.55rem;
+}
+/* Le numero passe dans la marge seulement quand la marge existe. En dessous
+   de 80rem l'enveloppe touche encore les bords de l'ecran, et un numero
+   deporte de 4rem sortirait de la page. */
+@media (min-width: 80rem) {
+  .prose h2::before {
+    position: absolute;
+    top: 1.8rem;
+    left: -4rem;
+    margin: 0;
+  }
+}
+.prose h2:first-of-type {
+  margin-top: 1.25rem;
+}
+.prose p,
+.prose ul {
+  color: var(--color-ink-2);
+  margin: 0 0 0.9rem;
+  text-wrap: pretty;
+}
+.prose ul {
+  padding-left: 1.15rem;
+}
+.prose li {
+  margin-bottom: 0.55rem;
+}
+.prose li::marker {
+  color: var(--color-brand-500);
+}
+.prose strong {
+  color: var(--color-ink);
+  font-weight: 600;
+}
+.prose a {
+  color: var(--color-brand-500);
+}
+
+/* ───────────────── le rognage du demi-interligne (2026) ───────────────── */
+
+/**
+ * Sur un titre de 8 rem, le navigateur reserve au-dessus des capitales un
+ * espace fantome de plusieurs dizaines de pixels. `text-box: trim-both` le
+ * retire et fait poser le titre sur sa vraie hauteur de capitale : c'est la
+ * difference entre une mise en page composee et une mise en page posee.
+ * Ignore par les navigateurs qui ne le connaissent pas.
+ */
+@supports (text-box: trim-both cap alphabetic) {
+  .titre-geant,
+  .datum__val,
+  .pied__marque {
+    text-box: trim-both cap alphabetic;
+  }
+}
+
+/* ──────────── la transition entre deux pages, sans une ligne de JS ────── */
+
+/**
+ * `navigation: auto` fait fondre le document sortant dans le document
+ * entrant sur une navigation classique. Les deux elements nommes plus haut
+ * — le mot-marque et la signature du pied — sont MORPHES au lieu d'etre
+ * refondus : ils restent en place d'une page a l'autre.
+ * Un navigateur qui ne connait pas la regle navigue normalement.
+ */
+@view-transition {
+  navigation: auto;
+}
+/* Biome 2.5 lit le nom d'un groupe de transition comme un selecteur de type
+   et ne le reconnait pas : c'est un faux positif sur `::view-transition-*`,
+   dont l'argument est un identifiant declare par `view-transition-name`, pas
+   un element. La forme `(*)` plus bas passe, la forme nommee non. */
+@media (prefers-reduced-motion: no-preference) {
+  /* biome-ignore lint/correctness/noUnknownTypeSelector: nom de groupe de transition, pas un element */
+  ::view-transition-group(marque),
+  /* biome-ignore lint/correctness/noUnknownTypeSelector: nom de groupe de transition, pas un element */
+  ::view-transition-group(signature) {
+    animation-duration: var(--duration-slow);
+    animation-timing-function: var(--ease-out);
+  }
+}
+/* La preference systeme coupe la transition net. Les pseudo-elements de
+   transition vivent dans un arbre a part : la regle globale de `tokens.css`
+   ne les atteint pas, il faut les nommer. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
+  }
+}
+
+/* ───────────── les revelations au defilement, sans observateur ────────── */
+
+/**
+ * `animation-timeline: view()` lie la progression de l'animation a la
+ * position de l'element dans la fenetre. C'est le compositeur qui calcule,
+ * pas le fil principal : aucune bibliotheque, aucun `IntersectionObserver`,
+ * et rien a charger.
+ *
+ * **Translation seule, jamais d'opacite sur un texte.** Meme raison qu'au
+ * lot 2 (voir `tokens.css`) : un fondu rend le contraste dependant de
+ * l'instant ou on le mesure, et axe-core lit la page pendant l'animation.
+ * Le seul element dont l'echelle est animee est un filet decoratif.
+ *
+ * Un element deja visible au chargement se trouve APRES la plage declaree :
+ * il rend donc son etat final, sans clignoter.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveler {
+      animation: monter linear both;
+      animation-timeline: view();
+      animation-range: entry 4% entry 58%;
+    }
+    @keyframes monter {
+      from {
+        translate: 0 1.35rem;
+      }
+      to {
+        translate: none;
+      }
+    }
+  }
+}
+
+/* Le focus visible ne se retire jamais : c'est la navigation au clavier. */
+:where(a, button):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+  border-radius: 4px;
+}

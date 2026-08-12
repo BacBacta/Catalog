@@ -11,6 +11,7 @@ import {
 } from "../domain/order/cycle.ts";
 import { appliquerVersement } from "../domain/order/paiement.ts";
 import { appliquerEvenement } from "../domain/proof/machine.ts";
+import { mesurerEtatPreuve } from "../observabilite/mesures.ts";
 import { type SessionDeps, vendeuseCourante } from "./seller.ts";
 
 /**
@@ -31,6 +32,12 @@ export interface CommandeDeps {
   session: SessionDeps;
   /** Injectee pour rester testable : le domaine recoit `now` en parametre. */
   maintenant?: () => Date;
+  /**
+   * Appele APRES la transaction quand une etape a ete acceptee (ADR 0035) —
+   * le bot previent l'acheteuse a la livraison. Toute levee y est avalee :
+   * une notification ratee ne defait jamais une etape.
+   */
+  apresEtape?: (info: { orderId: string; etape: OrderStep }) => Promise<void>;
 }
 
 const CHAMPS = {
@@ -227,6 +234,9 @@ export function commandeRoutes(deps: CommandeDeps) {
         409,
       );
     }
+    if (deps.apresEtape) {
+      await deps.apresEtape({ orderId: commande.id, etape: decision.etape }).catch(() => {});
+    }
     const relu = (await deps.prisma.order.findUnique({
       where: { id: commande.id },
       select: CHAMPS,
@@ -326,6 +336,19 @@ export function commandeRoutes(deps: CommandeDeps) {
         },
       });
     });
+
+    /**
+     * **La mesure du contournement, cote exploitant.**
+     *
+     * L'ecran statistiques du lot 13 montre cette part a la vendeuse ; ce
+     * compteur la montre pour tout le reseau, en fenetre glissante. C'est le
+     * meme chiffre vu de deux bouts, et c'est voulu — celui de la vendeuse
+     * l'aide a se corriger, celui-ci dit si le PRODUIT tient sa promesse.
+     *
+     * Il est pose apres la transaction, pas dedans : une metrique qui compte un
+     * evenement non commit ment, et elle ment dans le sens rassurant.
+     */
+    mesurerEtatPreuve(preuve.ok ? preuve.etat : commande.proofState);
 
     const relu = (await deps.prisma.order.findUnique({
       where: { id: commande.id },

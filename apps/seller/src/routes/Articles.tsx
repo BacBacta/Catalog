@@ -181,22 +181,46 @@ function Liste() {
                       alt=""
                       width={a.image.largeur ?? 64}
                       height={a.image.hauteur ?? 64}
-                      className="h-16 w-16 shrink-0 rounded-field object-cover"
+                      className="h-20 w-20 shrink-0 rounded-field object-cover shadow-card"
                     />
                   </picture>
                 ) : (
                   <div
                     aria-hidden="true"
-                    className="h-16 w-16 shrink-0 rounded-field border border-dashed border-control-line"
-                  />
+                    className="flex h-20 w-20 shrink-0 items-center justify-center rounded-field border border-dashed border-control-line text-muted"
+                  >
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+                      <circle cx="9" cy="10" r="1.6" />
+                      <path d="m5 17.5 4.4-4.2 3.1 2.9 2.9-2.6 3.6 3.4" />
+                    </svg>
+                  </div>
                 )}
 
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className="truncate text-body">{a.name}</CardTitle>
                     {a.archive ? <Badge tone="neutral">Archive</Badge> : null}
+                    {/* Le plafond que le bot fait respecter, la ou la vendeuse
+                        le voit sans ouvrir l'article (ADR 0038). Zero = non
+                        suivi : pas de badge, rien a dire. */}
+                    {a.stock > 0 ? (
+                      <Badge tone={a.stock <= 3 ? "warn" : "neutral"}>{a.stock} en stock</Badge>
+                    ) : null}
                   </div>
-                  <p className="font-semibold text-ink">{formatXaf(a.priceXaf)}</p>
+                  <p className="text-title font-bold text-ink [font-variant-numeric:tabular-nums]">
+                    {formatXaf(a.priceXaf)}
+                  </p>
                   {a.image?.octets ? (
                     <CardNote>Photo de {Math.round(a.image.octets / 1000)} Ko</CardNote>
                   ) : (

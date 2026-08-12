@@ -1,9 +1,10 @@
 import { normalizePhone } from "@catalog/contracts";
 import { Button, Card, CardNote, CardTitle, Field, Input, OfflineState } from "@catalog/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Ecran } from "../components/Ecran.tsx";
+import { CadreConnexion } from "../components/CadreConnexion.tsx";
 import { api, messageDErreur, PanneReseau } from "../lib/api.ts";
+import { clePresumee, seConnecterAvecCle, webAuthnDisponible } from "../lib/cle.ts";
 
 /**
  * Saisie du numero de connexion.
@@ -24,6 +25,98 @@ export function Connexion() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [horsLigne, setHorsLigne] = useState(false);
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
+
+  /**
+   * La connexion par WhatsApp entrant — ADR 0027. Le bouton n'apparait que si
+   * l'API annonce le canal configure : un bouton qui echoue au premier appui
+   * serait pire que pas de bouton. `false` tant qu'on ne SAIT pas.
+   */
+  const [whatsappDispo, setWhatsappDispo] = useState(false);
+  const [googleDispo, setGoogleDispo] = useState(false);
+  const [defiEnCours, setDefiEnCours] = useState(false);
+  const [googleEnCours, setGoogleEnCours] = useState(false);
+
+  /**
+   * Le bouton « empreinte » — ADR 0028. Il ne s'affiche que si une cle a deja
+   * ete enrolee DEPUIS CE NAVIGATEUR (indice local) : sur un appareil vierge,
+   * il n'aurait rien a offrir. Un echec retombe sans bruit sur les boutons du
+   * dessous — jamais un mur.
+   */
+  const [cleDispo] = useState(() => webAuthnDisponible() && clePresumee());
+  const [cleEnCours, setCleEnCours] = useState(false);
+
+  async function connexionParCle() {
+    setErreur(null);
+    setCleEnCours(true);
+    try {
+      const ok = await seConnecterAvecCle();
+      if (ok) {
+        naviguer("/", { replace: true });
+        return;
+      }
+      setErreur("La cle n'a pas repondu. Utilisez WhatsApp ou le code SMS ci-dessous.");
+    } catch {
+      setErreur("La cle n'a pas repondu. Utilisez WhatsApp ou le code SMS ci-dessous.");
+    } finally {
+      setCleEnCours(false);
+    }
+  }
+
+  useEffect(() => {
+    let vivant = true;
+    api
+      .etatConnexionWhatsapp()
+      .then((r) => {
+        if (!vivant || !r.ok) return;
+        if (r.donnees?.disponible) setWhatsappDispo(true);
+        if (r.donnees?.google) setGoogleDispo(true);
+      })
+      .catch(() => {}); // silencieux : l'ecran reste celui du SMS
+    return () => {
+      vivant = false;
+    };
+  }, []);
+
+  async function commencerWhatsapp() {
+    setErreur(null);
+    setDefiEnCours(true);
+    try {
+      const r = await api.creerDefiWhatsapp();
+      if (!r.ok || !r.donnees) {
+        setErreur(messageDErreur(r, "La connexion WhatsApp n'a pas abouti. Reessayez."));
+        return;
+      }
+      naviguer("/connexion/whatsapp", { state: r.donnees });
+    } catch (cause) {
+      if (cause instanceof PanneReseau) setHorsLigne(true);
+      else setErreur("La connexion WhatsApp n'a pas abouti. Reessayez.");
+    } finally {
+      setDefiEnCours(false);
+    }
+  }
+
+  /**
+   * La ceremonie Google — ADR 0029. Une redirection OAuth : on demande l'URL a
+   * l'API, le navigateur part chez Google, revient sur /api/auth/callback et
+   * Better Auth renvoie vers /cle — ou la proposition de passkey enchaine.
+   * Le retour vaut pour la destination : rien a sonder, rien a stocker.
+   */
+  async function commencerGoogle() {
+    setErreur(null);
+    setGoogleEnCours(true);
+    try {
+      const r = await api.commencerGoogle(`${window.location.origin}/cle`);
+      if (r.ok && r.donnees?.url) {
+        window.location.href = r.donnees.url;
+        return; // la page part : ne pas relacher le bouton
+      }
+      setErreur(messageDErreur(r, "La connexion Google n'a pas abouti. Reessayez."));
+    } catch (cause) {
+      if (cause instanceof PanneReseau) setHorsLigne(true);
+      else setErreur("La connexion Google n'a pas abouti. Reessayez.");
+    }
+    setGoogleEnCours(false);
+  }
 
   const numero = normalizePhone(saisie);
 
@@ -52,7 +145,7 @@ export function Connexion() {
 
   if (horsLigne) {
     return (
-      <Ecran titre="Connexion">
+      <CadreConnexion titre="Connexion">
         <OfflineState
           action={
             <Button tone="outline" onClick={() => setHorsLigne(false)}>
@@ -63,17 +156,68 @@ export function Connexion() {
           Le code arrive par SMS, mais la demande a besoin du reseau. Des qu'il revient, reprenez
           ici.
         </OfflineState>
-      </Ecran>
+      </CadreConnexion>
     );
   }
 
   return (
-    <Ecran titre="Connexion">
+    <CadreConnexion
+      titre="Connexion"
+      note="Vos commandes, vos preuves de paiement et vos chiffres, sur votre telephone."
+    >
       <Card>
         <CardTitle>Votre numero</CardTitle>
         <CardNote>
           Nous vous envoyons un code a six chiffres par SMS. Pas de mot de passe a retenir.
         </CardNote>
+
+        {/*
+         * Les autres ceremonies, quand elles existent — maquette
+         * `docs/maquettes/google-passkey.html`. L'ordre est celui de la
+         * maquette : l'empreinte d'abord (elle ne s'affiche que la ou une cle
+         * a deja servi), Google ensuite, WhatsApp enfin. Le SMS reste toujours
+         * en dessous : aucune ceremonie n'est un peage (ADR 0029).
+         */}
+        {(cleDispo || googleDispo || whatsappDispo) && (
+          <div className="mb-4 flex flex-col gap-3">
+            {cleDispo && (
+              <Button
+                type="button"
+                size="lg"
+                onClick={() => void connexionParCle()}
+                loading={cleEnCours}
+              >
+                {cleEnCours ? "Verification…" : "Se connecter avec l'empreinte"}
+              </Button>
+            )}
+            {googleDispo && (
+              <Button
+                type="button"
+                size="lg"
+                tone="outline"
+                onClick={() => void commencerGoogle()}
+                loading={googleEnCours}
+              >
+                {googleEnCours ? "Ouverture de Google…" : "Continuer avec Google"}
+              </Button>
+            )}
+            {whatsappDispo && (
+              <Button
+                type="button"
+                size="lg"
+                tone="outline"
+                onClick={() => void commencerWhatsapp()}
+                loading={defiEnCours}
+              >
+                {defiEnCours ? "Preparation…" : "Continuer avec WhatsApp"}
+              </Button>
+            )}
+            <p aria-hidden="true" className="text-center text-caption text-ink-2">
+              ou
+            </p>
+          </div>
+        )}
+
         <form onSubmit={soumettre} noValidate className="flex flex-col gap-4">
           <Field
             label="Numero de telephone"
@@ -99,11 +243,11 @@ export function Connexion() {
             {erreur}
           </p>
 
-          <Button type="submit" size="lg" disabled={envoiEnCours}>
+          <Button type="submit" size="lg" loading={envoiEnCours}>
             {envoiEnCours ? "Envoi du code…" : "Recevoir le code"}
           </Button>
         </form>
       </Card>
-    </Ecran>
+    </CadreConnexion>
   );
 }

@@ -353,7 +353,7 @@ function EncaisserSolde({ commande, onMaj }: { commande: Commande; onMaj: (c: Co
           {erreur}
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" size="lg" disabled={enCours}>
+          <Button type="submit" size="lg" loading={enCours}>
             {enCours ? "Enregistrement…" : "Enregistrer ce paiement"}
           </Button>
           <Button type="button" tone="ghost" size="lg" onClick={() => setOuvert(false)}>

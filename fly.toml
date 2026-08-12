@@ -1,0 +1,110 @@
+# L'API sur Fly. `apps/shop` va sur Vercel — voir `docs/runbooks/deploiement.md`.
+#
+# Ce fichier decrit la PREPRODUCTION. Le parcours acheteuse y fonctionne
+# entierement ; le parcours vendeuse, non, et pas a cause d'un reglage : le
+# fournisseur SMS n'est pas tranche, `PendingSmsProvider` leve, et le telephone
+# est le seul facteur d'authentification du produit. Mesure le 31/07/2026 :
+# `POST /api/auth/phone-number/send-otp` rend 500. Les quatre points publics —
+# statut, rampe, recu, suivi — rendent 200.
+
+app = "catalog-api-preprod"
+
+# Paris. C'est l'ADR 0003, et sa raison tient en une phrase : les cables WACS et
+# SAT-3 atterrissent a Limbe et Douala et repartent en direct vers l'Europe, en
+# un seul saut sous-marin. Aucun hyperscaler n'a de region en Afrique centrale.
+#
+# **L'ADR 0003 est accepte SOUS RESERVE DE MESURE**, et la reserve n'est pas
+# levee : il faut comparer, depuis un vrai reseau MTN et Orange a Douala, la
+# latence vers Paris et vers Johannesburg. Deux heures de travail remplacent tout
+# le raisonnement. Si la mesure contredit ce choix, cette ligne change — et un
+# ADR la remplace.
+primary_region = "cdg"
+
+[build]
+  dockerfile = "apps/api/Dockerfile"
+
+# Les migrations tournent AVANT que la nouvelle version ne prenne le trafic.
+# `migrate:deploy` enchaine `prisma migrate deploy` puis `apply-constraints.mjs` :
+# les contraintes SQL du lot 3 ne sont pas dans les migrations Prisma, et une
+# base migree sans elles accepterait un montant negatif ou un identifiant
+# d'operateur en double. L'ordre n'est pas negociable.
+#
+# Le depot migre en expand/contract (AGENTS.md §6) : l'ancienne version du code
+# fonctionne sur le nouveau schema. C'est ce qui rend ce release_command sur.
+# ── On appelle les binaires DIRECTEMENT, pas `pnpm db:migrate` ────────────
+#
+# Le raccourci par le lanceur de scripts de pnpm etait tentant — c'est la
+# commande qu'on tape en local. Il ne marche pas ici : pnpm 11 verifie que
+# `node_modules` correspond au lockfile avant d'executer un script et declenche
+# un `pnpm install`, qui echoue en `EACCES` dans une image ou le processus n'a
+# aucune raison d'ecrire. Mesure dans le conteneur, pas deduit.
+#
+# Appeler `prisma` et le script de contraintes directement retire une couche
+# entre le deploiement et la migration. C'est aussi ce qu'on veut d'un
+# `release_command` : le moins d'intermediaires possible.
+[deploy]
+  release_command = "sh -c 'cd /app/packages/db && ./node_modules/.bin/prisma migrate deploy && node scripts/apply-constraints.mjs'"
+  strategy = "rolling"
+
+[env]
+  # UTC+1 sans heure d'ete. Sans ce reglage, les dates lues dans les SMS derivent
+  # d'une heure et la fenetre de 48 h du controle n° 4 se decale.
+  TZ = "Africa/Douala"
+  NODE_ENV = "production"
+  PORT = "8080"
+  # SANS CETTE LIGNE, LA MACHINE NE DEMARRE PAS. `ConsoleSmsSender` refuse de se
+  # construire en production — « aucun OTP ne partirait et les vendeuses
+  # resteraient dehors » — et il est le defaut. Verifie : le processus sort en
+  # erreur a l'import, pas au premier envoi.
+  SMS_PROVIDER = "provider"
+  # L'interrupteur d'arret, position par defaut. Le FICHIER la surcharge a chaud,
+  # sans redeploiement : c'est lui qu'on utilise un jour d'incident.
+  INTERRUPTEUR = "ouvert"
+  INTERRUPTEUR_FICHIER = "/run/catalog/interrupteur"
+  # Preproduction : aucune ecriture vendeuse. Les lectures ne sont JAMAIS
+  # bloquees par la cohorte, et le parcours acheteuse n'est jamais filtre.
+  COHORTE_POURCENT = "0"
+  # Fly termine TLS en bordure : l'application peut annoncer HSTS.
+  HSTS = "true"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # ── `min_machines_running = 1`, et ce n'est pas une question de confort ───
+  #
+  # Un recu est une preuve opposable, montree pendant une negociation au marche.
+  # Un demarrage a froid de plusieurs secondes sur `/api/recu/<code>` arrive
+  # exactement au mauvais moment : celui ou quelqu'un doute. On garde une machine
+  # eveillee.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # ── Avant d'augmenter ce nombre, lire ceci ────────────────────────────────
+  #
+  # La limitation de debit du lot 15 compte EN MEMOIRE DU PROCESSUS. Avec N
+  # machines, la limite effective est N fois celle qui est ecrite dans la
+  # configuration. Passer a deux machines n'est donc pas un reglage neutre : soit
+  # on divise les plafonds par N, soit on sort le compteur du processus. Voir
+  # `apps/api/src/middleware/debit.ts` et l'ADR 0024 §7.
+
+  [[http_service.checks]]
+    # `/health` et `/api/statut` traversent l'interrupteur en toutes positions —
+    # un service muet ne se supervise pas. Sonder `/health` ne dit donc RIEN de
+    # l'etat de l'interrupteur, et c'est voulu : une bascule en `lecture_seule`
+    # ne doit pas faire redemarrer les machines.
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+
+[[vm]]
+  # `sharp` re-encode les photos a qualite degressive jusqu'a tenir sous 100 Ko
+  # (lot 5) : c'est le seul travail de ce service qui demande de la memoire.
+  # 512 Mo est un point de depart, pas une mesure — a revoir avec le premier
+  # televersement reel.
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

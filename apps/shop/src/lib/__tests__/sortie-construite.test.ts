@@ -174,10 +174,18 @@ describeConstruit("la sortie construite", () => {
     expect(externes).toEqual([]);
   });
 
-  it("les pages d'article portent un lien wa.me COMPLET dans le HTML", () => {
-    // Le point du test : si le JavaScript n'arrive jamais, l'acheteuse peut quand
-    // meme commander. Le compteur de quantite est un confort, pas le porteur de
-    // la fonction.
+  it("une page d'article laisse TOUJOURS un geste possible sans JavaScript", () => {
+    // Le point du test, inchange depuis le lot 6 : si le JavaScript n'arrive
+    // jamais, l'acheteuse peut quand meme agir. Ce qu'elle peut faire, en
+    // revanche, depend desormais de TROIS branches de `[produit].astro`, et la
+    // version precedente n'en connaissait qu'une.
+    //
+    // Elle passait donc pour de mauvaises raisons : sans `PUBLIC_BOT_WHATSAPP`,
+    // la construction ne prend jamais la branche du bot, et une boutique en
+    // conges n'existe pas dans les donnees semees. Le jour ou la variable est
+    // posee en production, ce test aurait cesse de garder ce qu'il decrit —
+    // sans jamais rougir.
+    //
     // Une page d'article est a `slug/produit/index.html` ; une page de boutique
     // est a `slug/index.html`. Compter les segments du chemin RELATIF, sans le
     // separateur de tete, evite de confondre les deux.
@@ -185,18 +193,76 @@ describeConstruit("la sortie construite", () => {
       (p) => p.slice(DIST.length).replace(/^\//, "").split("/").length === 3,
     );
     if (articles.length === 0) return; // aucun instantane : rien a verifier ici
+
+    const vues = { conges: 0, bot: 0, ilot: 0 };
     for (const page of articles) {
       const html = readFileSync(page, "utf8");
+      const nom = page.slice(DIST.length);
+      const lienVendeuse = /https:\/\/wa\.me\/237\d{9}"/.test(html);
+
+      // L'identifiant `commander` ne distingue PAS les branches : l'ilot rendu
+      // cote serveur porte le meme. Ce qui les separe est la presence du SECOND
+      // lien — celui de la vendeuse —, que seule la page Astro emet.
+      const versLeBot =
+        /data-testid="commander"/.test(html) && /data-testid="ecrire-vendeuse"/.test(html);
+
+      if (/ne prend pas de nouvelle commande/.test(html)) {
+        // ── Mode conges (ADR 0039). Aucun lien de commande, et c'est la
+        //    decision : un bouton qui ne commande rien est une promesse qu'on
+        //    ne tient pas. Ce qui NE ferme pas, en revanche, c'est la
+        //    conversation — « la vendeuse reste joignable » est la moitie de
+        //    l'ADR qu'un test doit tenir, sinon la boutique fermee devient une
+        //    page morte.
+        vues.conges++;
+        expect(/data-testid="ecrire-vendeuse"/.test(html), nom).toBe(true);
+        expect(lienVendeuse, `${nom} : ferme ET injoignable`).toBe(true);
+        expect(/data-testid="commander"/.test(html), `${nom} : ferme mais commandable`).toBe(false);
+        continue;
+      }
+
+      if (versLeBot) {
+        // ── La branche du comptoir (ADR 0066). Le lien mene au BOT, et porte
+        //    la phrase d'entree. C'est la moitie « boutique » du contrat que
+        //    l'ADR demande de tenir des deux cotes ; l'autre moitie est
+        //    verifiee par `entree-boutique.test.ts`, cote domaine.
+        vues.bot++;
+        const lien = /https:\/\/wa\.me\/\d{8,15}\?text=([^"'\s\\]+)/.exec(html);
+        expect(lien, nom).toBeTruthy();
+        const texte = decodeURIComponent((lien?.[1] ?? "").replaceAll("&#38;", "&"));
+        // Le mot-cle, la boutique, le canal, l'article : quatre mots, dans cet
+        // ordre. L'article est celui de la page — sans lui, l'acheteuse
+        // retomberait sur le catalogue entier, ce que l'ADR 0066 refuse.
+        const mots = texte.trim().split(/\s+/);
+        expect(mots[0], nom).toBe("boutique");
+        expect(mots[1], nom).toBe(nom.replace(/^\//, "").split("/")[0]);
+        expect(mots[2], nom).toBe("web");
+        expect(mots[3], nom).toBe(nom.replace(/^\//, "").split("/")[1]);
+        // Et rien d'un secret : ce lien se copie et se transfere.
+        expect(texte, nom).not.toMatch(/CT-\d/);
+        // La relation ne ferme pas pour autant.
+        expect(lienVendeuse, `${nom} : le numero de la vendeuse a disparu`).toBe(true);
+        continue;
+      }
+
+      // ── L'ilot rendu cote serveur : le lien complet, autosuffisant en texte
+      //    brut (AGENTS.md §2). C'est l'assertion d'origine du lot 6.
+      vues.ilot++;
       const lien = /https:\/\/wa\.me\/237\d{9}\?text=([^"'\s\\]+)/.exec(html);
-      expect(lien, page.slice(DIST.length)).toBeTruthy();
+      expect(lien, nom).toBeTruthy();
       const texte = decodeURIComponent((lien?.[1] ?? "").replaceAll("&#38;", "&"));
       // Les cinq informations canoniques.
-      expect(texte, page).toContain("Total :");
-      expect(texte, page).toContain("Boutique :");
-      expect(texte, page).toContain(" x ");
+      expect(texte, nom).toContain("Total :");
+      expect(texte, nom).toContain("Boutique :");
+      expect(texte, nom).toContain(" x ");
       // Et rien d'invente : la reference et le code arrivent au lot 11.
-      expect(texte, page).not.toMatch(/CT-\d/);
+      expect(texte, nom).not.toMatch(/CT-\d/);
     }
+
+    // Ce que la construction a REELLEMENT emis, dit a voix haute. Sans cette
+    // ligne, la repartition entre les trois branches reste invisible, et c'est
+    // precisement ce qui a laisse le trou : on ne voit pas qu'une branche n'est
+    // jamais exercee.
+    expect(vues.conges + vues.bot + vues.ilot, JSON.stringify(vues)).toBe(articles.length);
   });
 
   it("le budget passe sur la vraie sortie", () => {

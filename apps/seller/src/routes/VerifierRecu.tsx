@@ -2,7 +2,6 @@ import { formatXaf } from "@catalog/contracts/money";
 import { MESSAGE_REFUS, type RecuJson, type RefusRecu } from "@catalog/contracts/recu";
 import { Button, Card, CardNote, CardTitle, ErrorState, OfflineState } from "@catalog/ui";
 import { type FormEvent, useState } from "react";
-import { Link } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { Protege } from "../components/Protege.tsx";
 import { appeler, PanneReseau } from "../lib/api.ts";
@@ -104,15 +103,7 @@ function Ecrans() {
   }
 
   return (
-    <Ecran
-      titre={titre}
-      surtitre="Preuve"
-      actions={
-        <Button tone="ghost" render={<Link to="/" />}>
-          Retour
-        </Button>
-      }
-    >
+    <Ecran titre={titre} surtitre="Preuve" retour={{ vers: "/", libelle: "Accueil" }}>
       <Card>
         <CardTitle>Le code ou l'identifiant</CardTitle>
         <CardNote>
@@ -136,7 +127,7 @@ function Ecrans() {
           <p role="status" aria-live="polite" className="text-caption text-danger">
             {erreur}
           </p>
-          <Button type="submit" size="lg" disabled={envoi}>
+          <Button type="submit" size="lg" loading={envoi}>
             {envoi ? "Recherche…" : "Vérifier"}
           </Button>
         </form>

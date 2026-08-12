@@ -126,7 +126,7 @@ export default function Commander({
           </button>
         </div>
         {stock !== null && stock <= 5 ? (
-          <p class="text-caption text-warn">Il n'en reste que {stock}.</p>
+          <p class="text-caption text-warn">La vendeuse en annonce {stock}.</p>
         ) : null}
       </fieldset>
 

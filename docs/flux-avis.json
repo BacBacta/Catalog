@@ -1,0 +1,57 @@
+{
+  "version": "7.0",
+  "screens": [
+    {
+      "id": "AVIS",
+      "title": "Votre avis",
+      "terminal": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Votre avis est vérifié : il est adossé à un paiement prouvé."
+          },
+          {
+            "type": "Form",
+            "name": "formulaire",
+            "children": [
+              {
+                "type": "RadioButtonsGroup",
+                "name": "note",
+                "label": "Votre note",
+                "required": true,
+                "data-source": [
+                  { "id": "5", "title": "★★★★★ Très bien" },
+                  { "id": "4", "title": "★★★★ Bien" },
+                  { "id": "3", "title": "★★★ Correct" },
+                  { "id": "2", "title": "★★ Décevant" },
+                  { "id": "1", "title": "★ Mauvais" }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "name": "mot",
+                "label": "Un mot (facultatif)",
+                "required": false,
+                "helper-text": "Ce que vous diriez à une amie."
+              },
+              {
+                "type": "Footer",
+                "label": "Envoyer mon avis",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "note": "${form.note}",
+                    "mot": "${form.mot}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

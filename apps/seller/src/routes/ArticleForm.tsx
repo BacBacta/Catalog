@@ -10,7 +10,7 @@ import {
   OfflineState,
 } from "@catalog/ui";
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { Ecran } from "../components/Ecran.tsx";
 import { Protege } from "../components/Protege.tsx";
 import { type Article, api, messageDErreur, PanneReseau } from "../lib/api.ts";
@@ -26,12 +26,22 @@ import {
  *
  * **Trois champs, et pas un de plus : photo, nom, prix.** Chaque champ
  * supplementaire est une vendeuse perdue — elle remplit ce formulaire debout,
- * entre deux clientes. Le stock existe en base mais n'est pas demande ici :
- * beaucoup de vendeuses ne le tiennent pas.
+ * entre deux clientes.
  *
  * Le gain de poids de la photo est **affiche**. Ce n'est pas un gadget de
  * developpeur : c'est son forfait data, et le voir la rassure sur le fait
  * qu'envoyer une photo ne va pas lui couter sa journee.
+ *
+ * La description (ADR 0033) et le stock (ADR 0038) ne contredisent pas la regle
+ * des trois champs : ils sont FACULTATIFS et REPLIES derriere un disclosure.
+ * Ils n'ajoutent rien au chemin oblige.
+ *
+ * Le stock etait jusqu'a la tranche P1d une colonne LUE PARTOUT et ECRITE NULLE
+ * PART : le bot bornait les quantites dessus, la boutique publique affichait
+ * « il n'en reste que N », et aucune interface ne permettait d'y toucher. C'est
+ * exactement le mensonge d'instrumentation que le lot 13 interdit ailleurs.
+ * Ce qu'il vaut est dit en toutes lettres a la vendeuse : un plafond qu'elle
+ * tient, pas un inventaire qui se decompte (ADR 0038).
  */
 export function ArticleForm() {
   return <Protege>{() => <Formulaire />}</Protege>;
@@ -48,6 +58,10 @@ function Formulaire() {
   const [article, setArticle] = useState<Article | null>(null);
   const [nom, setNom] = useState("");
   const [prix, setPrix] = useState("");
+  const [description, setDescription] = useState("");
+  /* Chaine et non nombre : le champ vide doit exister, et il veut dire « je ne
+     suis pas mon stock » — ce qui n'est pas zero. */
+  const [stock, setStock] = useState("");
   const [photo, setPhoto] = useState<PhotoPreparee | null>(null);
   const [apercu, setApercu] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -65,6 +79,10 @@ function Formulaire() {
         setArticle(a);
         setNom(a.name);
         setPrix(String(a.priceXaf));
+        setDescription(a.description ?? "");
+        /* Zero en base = non suivi (ADR 0038) : le champ reste vide, sinon la
+           vendeuse lirait « 0 » et croirait sa boutique en rupture. */
+        setStock(a.stock > 0 ? String(a.stock) : "");
       } else {
         setErreur("Cet article n'existe plus.");
       }
@@ -117,15 +135,29 @@ function Formulaire() {
     setEnCours(true);
     try {
       let cible = article;
+      const desc = description.trim();
+      /* Vide → 0, c'est-a-dire « non suivi ». Le champ n'accepte que des
+         chiffres, donc `Number` ne rend jamais NaN ici. */
+      const quantite = stock.trim() === "" ? 0 : Number(stock.replace(/\D/g, ""));
       if (!cible) {
-        const r = await api.creerArticle(nom.trim(), priceXaf);
+        const r = await api.creerArticle(nom.trim(), priceXaf, desc || undefined, quantite);
         if (!r.ok || !r.donnees) {
           setErreur(messageDErreur(r, "L'article n'a pas pu etre cree."));
           return;
         }
         cible = r.donnees;
-      } else if (cible.name !== nom.trim() || cible.priceXaf !== priceXaf) {
-        const r = await api.modifierArticle(cible.id, { name: nom.trim(), priceXaf });
+      } else if (
+        cible.name !== nom.trim() ||
+        cible.priceXaf !== priceXaf ||
+        (cible.description ?? "") !== desc ||
+        cible.stock !== quantite
+      ) {
+        const r = await api.modifierArticle(cible.id, {
+          name: nom.trim(),
+          priceXaf,
+          description: desc,
+          stock: quantite,
+        });
         if (!r.ok || !r.donnees) {
           setErreur(messageDErreur(r, "La modification n'a pas abouti."));
           return;
@@ -188,11 +220,7 @@ function Formulaire() {
     <Ecran
       titre={titre}
       surtitre="Catalogue"
-      actions={
-        <Button tone="ghost" render={<Link to="/articles" />}>
-          Retour
-        </Button>
-      }
+      retour={{ vers: "/articles", libelle: "Mes articles" }}
     >
       <Card>
         <CardTitle>Photo, nom, prix</CardTitle>
@@ -282,11 +310,59 @@ function Formulaire() {
             />
           </Field>
 
+          {/* Facultatifs et replies : le chemin oblige reste photo, nom, prix. */}
+          <details open={description.trim().length > 0 || stock.trim() !== ""}>
+            <summary className="min-h-[var(--size-touch)] cursor-pointer py-2 text-caption font-semibold text-ink-2">
+              Description et stock (facultatif)
+            </summary>
+            <div className="flex flex-col gap-4">
+              <Field
+                label="Description"
+                htmlFor="description-article"
+                hint={`Matiere, dimensions, usage — elle se lit sur la fiche WhatsApp. ${description.trim().length}/300.`}
+              >
+                <textarea
+                  id="description-article"
+                  name="description"
+                  value={description}
+                  maxLength={300}
+                  rows={3}
+                  onChange={(e) => setDescription(e.target.value)}
+                  aria-describedby="description-article-hint"
+                  className="w-full rounded-field border border-control-line bg-surface p-3 text-body text-ink"
+                />
+              </Field>
+
+              {/* Ce que le nombre VEUT DIRE est ecrit ici, parce qu'il ne se
+                  devine pas : il ne se decompte pas tout seul (ADR 0038). */}
+              <Field
+                label="Combien vous en avez"
+                htmlFor="stock-article"
+                hint={
+                  stock.trim() === ""
+                    ? "Laissez vide si vous ne comptez pas. Sinon, personne ne pourra en commander plus que ce nombre — a vous de le corriger quand vous vendez."
+                    : `Personne ne pourra en commander plus de ${Number(stock.replace(/\D/g, ""))} d'un coup. Ce nombre ne baisse pas tout seul : corrigez-le quand vous vendez.`
+                }
+              >
+                <Input
+                  id="stock-article"
+                  name="stock"
+                  type="text"
+                  inputMode="numeric"
+                  value={stock}
+                  onChange={(e) => setStock(e.target.value.replace(/\D/g, ""))}
+                  aria-describedby="stock-article-hint"
+                  placeholder="vide = je ne compte pas"
+                />
+              </Field>
+            </div>
+          </details>
+
           <p role="status" aria-live="polite" className="text-caption text-danger">
             {erreur}
           </p>
 
-          <Button type="submit" size="lg" disabled={enCours}>
+          <Button type="submit" size="lg" loading={enCours}>
             {enCours ? "Enregistrement…" : nouveau ? "Publier l'article" : "Enregistrer"}
           </Button>
         </form>

@@ -49,7 +49,7 @@ export function StatTile({ label, value, note, loading, className, ...props }: S
     <div
       data-slot="stat-tile"
       className={cx(
-        "flex flex-col gap-1 rounded-card border border-line bg-surface p-4 font-sans",
+        "flex flex-col gap-1 rounded-card border border-line bg-surface p-5 font-sans shadow-card",
         className,
       )}
       {...props}

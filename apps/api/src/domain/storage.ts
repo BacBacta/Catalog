@@ -32,6 +32,14 @@ export interface ObjectStorage {
   supprimer(cle: string): Promise<void>;
   /** Poids de l'objet stocke, ou `null` s'il n'existe pas. */
   taille(cle: string): Promise<number | null>;
+  /**
+   * Les octets d'un objet, ou `null` s'il est illisible — ADR 0037.
+   *
+   * Lecture de NOS objets, cote serveur, pour les recomposer : la
+   * carte-vitrine pose les photos d'articles sur son gabarit. Ce n'est pas un
+   * chemin de service au navigateur : celui-la reste l'URL signee, qui expire.
+   */
+  lire(cle: string): Promise<Uint8Array | null>;
 }
 
 /**
@@ -55,14 +63,18 @@ export function cleOpaque(alea: (n: number) => Uint8Array, prefixe = "img"): str
 }
 
 /**
- * Les deux declinaisons d'une image, derivees de la meme cle de base.
+ * Les declinaisons d'une image, derivees de la meme cle de base.
  *
  * **AVIF avec repli WebP.** L'AVIF pese environ trente pour cent de moins a
  * qualite egale, et c'est trente pour cent du forfait de l'acheteuse. Mais il
  * n'est pas universel : le repli WebP n'est pas un luxe, c'est ce qui evite un
  * cadre vide sur un telephone un peu ancien — et le parc camerounais en compte
  * beaucoup.
+ *
+ * **Le JPEG n'est pas pour les navigateurs.** Il existe pour les canaux qui
+ * n'acceptent ni AVIF ni WebP — l'API Cloud de WhatsApp en tete (ADR 0032).
+ * La boutique publique ne le sert jamais : elle a mieux.
  */
-export function declinaisons(cleDeBase: string): { avif: string; webp: string } {
-  return { avif: `${cleDeBase}.avif`, webp: `${cleDeBase}.webp` };
+export function declinaisons(cleDeBase: string): { avif: string; webp: string; jpg: string } {
+  return { avif: `${cleDeBase}.avif`, webp: `${cleDeBase}.webp`, jpg: `${cleDeBase}.jpg` };
 }

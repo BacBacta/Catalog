@@ -1,0 +1,80 @@
+---
+import { EDITEUR } from "@catalog/contracts/editeur";
+import Base from "../layouts/Base.astro";
+
+/**
+ * Contact et mentions legales — ADR 0043, revisee par l'ADR 0044.
+ *
+ * ── Ce que la fiche porte, et ce qu'elle ne porte pas ─────────────────────
+ *
+ * Le registre de commerce contient beaucoup plus que ce qui doit figurer sur
+ * un site : dates de naissance des associes, duree de la societe, numeraires,
+ * objet social integral. Rien de tout cela n'a sa place ici — publier les
+ * donnees personnelles d'un associe serait meme un contresens sur un site qui
+ * promet de collecter le minimum.
+ *
+ * **Deux rangs ont ete retires sur demande** (ADR 0044) : l'immatriculation
+ * et le directeur de la publication.
+ *
+ * - Le numero RCCM a ete lu sur un champ MANUSCRIT du registre et n'est pas
+ *   confirme sur l'original. Une mention legale fausse est pire qu'une
+ *   mention absente : c'est precisement ce qu'un verificateur recoupe avec le
+ *   document depose. Il reste dans `packages/contracts/src/editeur.ts`, pret a
+ *   revenir ici le jour ou les chiffres sont confirmes.
+ * - Le nom du gerant est une donnee personnelle. Le publier sur un site dont
+ *   la page voisine promet de ne collecter que le minimum se defend mal.
+ *
+ * Reste ce qui identifie la maison : qui edite, sous quelle forme, avec quel
+ * capital, ou est le siege, et a quelle adresse on lui ecrit.
+ *
+ * **Aucun formulaire.** Il supposerait un point de reception, un stockage des
+ * messages et une politique pour eux. Une adresse de courriel ne suppose rien,
+ * arrive au meme endroit, et se met a l'epreuve : on ecrit, on repond.
+ */
+
+const MENTIONS = [
+  { cle: "Dénomination", valeur: EDITEUR.societe },
+  {
+    cle: "Forme juridique",
+    valeur: `${EDITEUR.forme} au capital de ${EDITEUR.capitalXaf.toLocaleString("fr-FR")} FCFA`,
+  },
+  { cle: "Siège social", valeur: EDITEUR.siege },
+  { cle: "Courriel", valeur: EDITEUR.contact },
+] as const;
+---
+<Base
+  chemin="/contact"
+  title={`Contact — ${EDITEUR.nom}`}
+  description="Écrire à Horizon Services, société de services immatriculée à Douala. Mentions légales et coordonnées."
+>
+  <section class="porche porche--court">
+    <div class="enveloppe flex flex-col gap-9">
+      <p class="jalon">Contact</p>
+      <h1 class="titre-geant">Écrivez-nous<span class="accent">.</span></h1>
+      <p class="chapeau">
+        Une seule adresse, pour tout. Une personne vous répond.
+      </p>
+      <p class="m-0">
+        <a href={`mailto:${EDITEUR.contact}`} class="courriel-geant">{EDITEUR.contact}</a>
+      </p>
+    </div>
+  </section>
+
+  <section class="enveloppe" style="padding-block: calc(var(--pas) * 0.6)">
+    <div class="flex flex-col gap-7">
+      <p class="jalon reveler">Mentions légales</p>
+      <dl class="fiche reveler">
+        {
+          MENTIONS.map((m) => (
+            <div class="fiche__rang">
+              <dt>{m.cle}</dt>
+              <dd>
+                {m.cle === "Courriel" ? <a href={`mailto:${m.valeur}`}>{m.valeur}</a> : m.valeur}
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </section>
+</Base>

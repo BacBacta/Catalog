@@ -130,6 +130,14 @@ const MENTIONS_TOLEREES = [
   "apps/api/scripts/README.md",
   "apps/api/scripts/campay-probe.mjs",
   "apps/api/scripts/webhook-capture.mjs",
+  // Simulateur d'entrant sandbox (ADR 0035) : il NOMME la variable
+  // `WABOT_WEBHOOK_AUTH` — celle du canal de MESSAGERIE de l'ADR 0027,
+  // pas un webhook de paiement. Meme famille que webhook-capture.mjs.
+  "apps/api/scripts/sandbox-entrant.mjs",
+  // Meme raison pour l'outil qui RE-POSE ce webhook de messagerie apres une
+  // rotation de cle du bac a sable (04/08/2026). Il ne connait ni commande, ni
+  // paiement, ni etat : il ecrit une URL et un en-tete chez 360dialog.
+  "apps/api/scripts/sandbox-webhook.mjs",
   // Gardes : ces fichiers nomment « webhook » pour l'INTERDIRE. C'est le
   // contraire d'une derive, et c'est aussi ce qui reste dans packages/db une
   // fois la dette du lot 3 payee — le modele de donnees n'en porte plus trace,
@@ -138,6 +146,21 @@ const MENTIONS_TOLEREES = [
   "apps/api/src/__tests__/aggregator-dormant.test.ts",
   "packages/db/prisma/schema.prisma",
   "packages/db/scripts/check-schema.mjs",
+  /**
+   * Le webhook de connexion WhatsApp entrant — ADR 0027, ajout du 01/08/2026.
+   *
+   * Ce n'est PAS un webhook de paiement, et c'est toute la difference que
+   * l'ADR 0011 protege : aucun tiers n'y pilote l'etat d'une commande. Il
+   * recoit le message de CONNEXION de la vendeuse, atteste par Meta, et ne
+   * touche qu'a la table de verification de Better Auth. L'interdit du
+   * webhook de paiement reste entier.
+   */
+  "apps/api/src/routes/whatsapp-entrant.ts",
+  "apps/api/src/__tests__/connexion-whatsapp-flux.test.ts",
+  "apps/api/src/server.ts",
+  "apps/api/src/auth-connexion-whatsapp.ts",
+  "apps/api/src/domain/connexion-whatsapp.ts",
+  "apps/api/src/middleware/debit.ts",
 ].sort();
 
 describe("ADR 0011 — les mentions de webhook restantes sont celles, et rien de plus", () => {

@@ -99,7 +99,22 @@ test.describe("parcours vendeuse", () => {
     // Le numero de reversement est bien DISTINCT de celui de connexion.
     expect(reversement).not.toBe(connexion);
 
-    /* ── 6. la deconnexion ──────────────────────────────────────────── */
+    /* ── 6. le mode conges, aller-retour (ADR 0039) ─────────────────── */
+    await page.goto("/reglages");
+    await expect(page.getByText("Ouverte", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Fermer aux commandes" }).click();
+    await expect(page.getByText("Fermee aux commandes")).toBeVisible();
+    /* Ce que ca ne ferme PAS est dit — sans quoi personne ne s'en sert. */
+    await expect(page.getByText(/commandes en cours continuent/)).toBeVisible();
+
+    // Et c'est en BASE, pas seulement a l'ecran : on recharge.
+    await page.reload();
+    await expect(page.getByText("Fermee aux commandes")).toBeVisible();
+
+    await page.getByRole("button", { name: "Je reprends les commandes" }).click();
+    await expect(page.getByText("Ouverte", { exact: true })).toBeVisible();
+
+    /* ── 7. la deconnexion ──────────────────────────────────────────── */
     await page.getByRole("button", { name: "Me deconnecter" }).click();
     await expect(page.getByRole("heading", { name: "Connexion", level: 1 })).toBeVisible();
   });

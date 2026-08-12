@@ -1,0 +1,310 @@
+name: Déploiement
+
+# ── Manuel, et pas sur fusion ──────────────────────────────────────────────
+#
+# Le declenchement automatique sur `main` viendra, mais pas avant que le retour
+# arriere ait ete joue pour de vrai en preproduction (checklist de lancement
+# §6.3). Une procedure de retour arriere jamais jouee est une hypothese, et
+# armer le deploiement automatique par-dessus une hypothese revient a decouvrir
+# les deux en meme temps, un jour ou ca va mal.
+#
+# Ce fichier rend donc la procedure ECRITE et REJOUABLE — ce qui est l'essentiel
+# — sans la rendre automatique.
+
+on:
+  # ── Le seul declenchement AUTOMATIQUE, et il ne concerne que la boutique ──
+  #
+  # L'API l'emet quand une boutique nait dans le fil WhatsApp ou qu'un article
+  # est publie (ADR 0065). Il refait l'instantane du catalogue depuis la base et
+  # redeploie la boutique — c'est tout ce qu'il fait : `cible` vaut `boutique`
+  # par defaut sur cet evenement, donc le job `api` ne part pas.
+  #
+  # Pourquoi PAS un crochet de deploiement Vercel, qui aurait evite ce detour :
+  # mesure du 11/08/2026, le projet Vercel de la boutique n'est relie a aucun
+  # depot, et un crochet suppose un projet relie. Voir l'ADR 0068 — il explique
+  # aussi pourquoi le relier serait pire que ce detour.
+  #
+  # **La porte reste franchie.** Un dispatch deploie `main` a l'instant ou il
+  # arrive, sans qu'un humain ait regarde : c'est exactement le cas pour lequel
+  # la chaine de verification existe. On ne la saute pas parce que le
+  # declencheur est une machine.
+  #
+  # GitHub ne lit ce fichier que sur la branche par defaut : le dispatch ne
+  # fonctionne donc qu'une fois fusionne.
+  repository_dispatch:
+    types: [reconstruction-boutique]
+
+  workflow_dispatch:
+    inputs:
+      cible:
+        description: "Ce qu'on deploie"
+        type: choice
+        options: [api, boutique, les-deux]
+        default: les-deux
+      environnement:
+        description: "Preproduction ou production"
+        type: choice
+        options: [preproduction, production]
+        default: preproduction
+
+concurrency:
+  # Jamais deux deploiements du meme environnement a la fois : le second
+  # rattraperait le `release_command` du premier au milieu d'une migration.
+  # `inputs` est vide sur `repository_dispatch` : sans repli, le groupe
+  # deviendrait « deploiement- » et un dispatch pourrait tourner en meme temps
+  # qu'un deploiement manuel du meme environnement.
+  group: deploiement-${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24"
+  TZ: "Africa/Douala"
+
+jobs:
+  # ── La porte ───────────────────────────────────────────────────────────
+  #
+  # Rien ne part sans que la chaine de verification soit repassee sur le commit
+  # qu'on deploie. La CI a deja tourne sur la pull request, mais `main` a pu
+  # bouger depuis, et c'est exactement le cas ou l'on veut le savoir avant.
+  porte:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: catalog
+          POSTGRES_PASSWORD: catalog
+          POSTGRES_DB: catalog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U catalog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:migrate
+      - run: pnpm shop:snapshot
+      - run: pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm size
+      - run: pnpm audit --prod --audit-level high
+      # ── La politique de securite de la boutique decrit-elle le HTML emis ? ──
+      #
+      # `vercel.json` et `_headers` sont des ARTEFACTS de construction, produits
+      # dans `dist/`. Ils ne sont pas versionnes : leur contenu depend de
+      # `PUBLIC_API_BASE` et des empreintes du HTML, donc de l'instantane du
+      # catalogue que la CI regenere. Les comparer a un fichier commite ne
+      # pouvait pas marcher — la premiere version de cette garde echouait a
+      # chaque execution, pour cette raison.
+      #
+      # Ce qui est verifie a la place est plus fort : que les empreintes
+      # DECLAREES sont celles des scripts REELLEMENT emis. Ces assertions vivent
+      # dans `entetes.test.ts` et se declarent ignorees sans `dist/` — d'ou ce
+      # second passage, APRES le build. Sans lui, elles ne tournaient jamais en
+      # integration continue.
+      - name: En-tetes et CSP — verifies contre le HTML construit
+        run: pnpm --filter @catalog/shop test
+
+  api:
+    needs: porte
+    # PAS de `${{ }}` ici : `if` est deja un contexte d'expression. Enveloppe,
+    # la condition deviendrait une CHAINE non vide — donc toujours vraie, et le
+    # job partirait a chaque dispatch.
+    if: (inputs.cible || 'boutique') == 'api' || (inputs.cible || 'boutique') == 'les-deux'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Les secrets ne sont PAS poses ici. Ils vivent dans `fly secrets`, et ce
+      # workflow ne les lit jamais : un secret qui traverse un journal
+      # d'integration continue est un secret publie. La liste et la procedure
+      # sont dans docs/runbooks/deploiement.md.
+      # ── La cible est EXPLICITE, et « production » n'existe pas encore ──────
+      #
+      # `flyctl deploy` sans `--config` ni `--app` lit le `fly.toml` de la
+      # racine. Il n'y en a qu'un, il fige `app = "catalog-api-preprod"`, et son
+      # en-tete dit qu'il decrit la preproduction. Choisir `environnement:
+      # production` dans le menu deployait donc SUR LA PREPRODUCTION, sans rien
+      # signaler — pendant que le job `boutique`, lui, prenait bien la variable
+      # `API_BASE_URL` de l'environnement production. Les deux moities du
+      # produit seraient parties a deux endroits differents.
+      #
+      # Un menu qui ment sur ce qu'il fait est pire qu'un menu absent. Tant
+      # qu'aucune configuration de production n'existe, on refuse le choix ici
+      # plutot que de l'honorer de travers.
+      - name: La cible de production n'existe pas encore
+        if: (inputs.environnement || github.event.client_payload.environnement || 'preproduction') == 'production'
+        run: |
+          echo "Aucune configuration Fly de production dans ce depot."
+          echo "Le seul fly.toml decrit la preproduction (catalog-api-preprod)."
+          echo "Creer fly.production.toml et passer --config avant d'utiliser ce choix."
+          exit 1
+      - name: fly deploy
+        run: flyctl deploy --remote-only --wait-timeout 10m --config fly.toml --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Le deploiement est fini quand le service REPOND, pas quand la commande
+      # rend la main. On interroge la page de statut, qui traverse
+      # l'interrupteur en toutes positions.
+      - name: Le service repond
+        run: |
+          set -euo pipefail
+          url="${{ vars.API_BASE_URL }}"
+          for i in $(seq 1 20); do
+            corps=$(curl -sS --max-time 10 "$url/api/statut" || true)
+            echo "$corps"
+            if echo "$corps" | grep -q '"base":"joignable"'; then
+              echo "Service joignable, base joignable."
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "Le service ne repond pas, ou la base est injoignable."
+          exit 1
+
+  boutique:
+    needs: porte
+    if: (inputs.cible || 'boutique') == 'boutique' || (inputs.cible || 'boutique') == 'les-deux'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
+    # ── `id-token` : l'identite de CETTE execution, signee par GitHub ───────
+    #
+    # C'est ce qui remplace le secret de base de donnees (ADR 0070). Le runner
+    # ne pose `ACTIONS_ID_TOKEN_REQUEST_URL` que si cette permission est
+    # declaree — sans elle, le pas de l'instantane s'arrete en le disant.
+    #
+    # Declarer un bloc `permissions` REDUIT le jeton par defaut a ce qui est
+    # ecrit : `contents: read` doit donc y figurer, sans quoi le checkout
+    # echoue.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # ── Sans cette garde, une variable oubliee ne se voit qu'en production ──
+      #
+      # `vars.API_BASE_URL` est une VARIABLE, pas un secret : absente, elle
+      # s'etend en chaine vide, sans erreur. `entetes.mjs` retombe alors sur
+      # `connect-src 'self'` — une politique parfaitement valide —, les ilots
+      # appellent une URL relative sur l'origine de la boutique, ou aucune API
+      # ne repond, et le recu comme le suivi cessent de fonctionner.
+      #
+      # Rien n'echoue : ni le build, ni le deploiement, ni un test. Le defaut
+      # n'apparait que dans le navigateur d'une acheteuse. On refuse donc de
+      # construire plutot que de produire un artefact faux.
+      #
+      # Elle est verifiee EN PREMIER depuis l'ADR 0070 : c'est aussi l'origine
+      # aupres de laquelle l'instantane du catalogue se demande.
+      - name: L'origine de l'API est renseignee
+        run: |
+          test -n "${{ vars.API_BASE_URL }}" || {
+            echo "La variable API_BASE_URL est vide pour l'environnement '${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}'."
+            echo "Elle entre dans connect-src : sans elle la boutique se construit"
+            echo "et se deploie sans jamais pouvoir joindre l'API."
+            echo "Elle sert aussi a recuperer l'instantane du catalogue (ADR 0070)."
+            exit 1
+          }
+      # ── Sans instantane, AUCUNE page de boutique n'est construite ───────
+      #
+      # C'est volontaire (lot 6) : la boutique ne parle pas a la base, elle lit
+      # une photo prise a la construction.
+      #
+      # ── Demandee a l'API, PAS a la base — ADR 0070 ─────────────────────
+      #
+      # Ce pas lisait la base de production directement, ce qui exigeait
+      # `secrets.DATABASE_URL` — hote, identifiant et mot de passe de la base —
+      # dans GitHub. Il n'y a jamais ete pose, et le job n'a donc jamais abouti
+      # (07/08 et 11/08). On ne l'y pose pas : l'API a deja la cle, c'est son
+      # travail ; elle sert la photo, et l'execution s'identifie par le jeton
+      # que GitHub signe pour elle.
+      #
+      # C'est aussi ce qui fait disparaitre `pnpm db:generate` de ce job : plus
+      # rien ici n'importe le client Prisma. La boutique, elle, n'en a jamais
+      # importe — c'est la regle de dependance du lot 6.
+      - name: Instantane du catalogue
+        run: pnpm shop:snapshot:distant
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+      - name: Construction
+        run: pnpm --filter @catalog/shop build
+        env:
+          # L'origine de l'API vue par le NAVIGATEUR. Elle entre dans
+          # `connect-src` de la politique de securite : fausse, les ilots du
+          # recu, du suivi et de la rampe sont bloques par le navigateur.
+          PUBLIC_API_BASE: ${{ vars.API_BASE_URL }}
+          # ── Le numero du bot, et il se pose ICI — pas chez Vercel ──────────
+          #
+          # La boutique est CONSTRUITE dans ce job ; Vercel ne recoit que
+          # `dist/`. Une variable posee dans le tableau de bord Vercel n'entre
+          # donc dans aucun build, et la fiche produit garderait l'ancien
+          # bouton — celui qui menait au numero personnel de la vendeuse, hors
+          # du moteur (ADR 0066).
+          #
+          # Absente, la fiche produit reprend exactement le chemin d'avant : le
+          # comptoir est dormant par defaut, comme tout le reste (AGENTS.md §5).
+          # Elle n'est donc PAS gardee comme `API_BASE_URL` — son absence est un
+          # etat legitime, pas un oubli.
+          PUBLIC_BOT_WHATSAPP: ${{ vars.BOT_WHATSAPP }}
+      - name: Budget de poids
+        run: pnpm --filter @catalog/shop size
+      # ── `--prebuilt` est un DRAPEAU, pas une option a valeur ──────────────
+      #
+      # `--prebuilt=false` ne desactivait rien : au mieux la valeur est ignoree
+      # et le mode prebuild est ACTIVE, au pire l'analyse des arguments echoue.
+      # Or nous n'avons pas de `.vercel/output` — Astro produit `dist/`. Le mode
+      # par defaut, qui est celui qu'on veut, s'obtient en n'ecrivant rien.
+      #
+      # ── `--prod` dans les DEUX environnements, et c'est voulu ─────────────
+      #
+      # Sans `--prod`, Vercel cree une PREVISUALISATION : une URL jetable.
+      # L'adresse reelle continue de servir la version precedente, et le job
+      # passe au vert — on croit avoir deploye la preproduction alors qu'on n'a
+      # rien change de ce que voit un testeur.
+      #
+      # `VERCEL_PROJECT_ID` est un secret porte par l'ENVIRONNEMENT GitHub
+      # (`environment:` ci-dessus) : chaque environnement
+      # designe donc son propre projet Vercel, et « production de ce projet-la »
+      # est exactement ce qu'on veut dans les deux cas.
+      - name: vercel deploy
+        run: |
+          npx --yes vercel@latest deploy apps/shop/dist \
+            --yes --prod --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      # ── Le job `api` verifie que le service repond ; celui-ci ne verifiait
+      # rien. Un deploiement de boutique qui « reussit » sans servir la nouvelle
+      # version est exactement le genre de vert qui coute une demi-journee.
+      - name: La boutique sert la nouvelle version
+        run: |
+          set -euo pipefail
+          base="${{ vars.SHOP_BASE_URL }}"
+          if [ -z "$base" ]; then
+            echo "SHOP_BASE_URL non renseignee : verification sautee."
+            echo "La poser rend ce pas utile — voir docs/runbooks/deploiement.md."
+            exit 0
+          fi
+          entetes=$(curl -sSI --max-time 15 "$base/" || true)
+          echo "$entetes" | head -1
+          echo "$entetes" | grep -qi "referrer-policy: no-referrer" || {
+            echo "Referrer-Policy absent : vercel.json n'a pas ete lu."
+            echo "Le jeton de suivi voyage dans l'URL — voir ADR 0021."
+            exit 1
+          }
+          echo "En-tetes servis par Vercel : vercel.json est bien pris en compte."

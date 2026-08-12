@@ -51,6 +51,13 @@ export const QUALITES_AVIF = [45, 32, 22] as const;
 export const QUALITES_WEBP = [72, 55, 40, 28] as const;
 
 /**
+ * L'echelle JPEG, pour la declinaison destinee aux canaux qui n'acceptent ni
+ * AVIF ni WebP — l'API Cloud de WhatsApp en tete (ADR 0032). `mozjpeg` est
+ * active : meme qualite visuelle, quelques kilo-octets de moins.
+ */
+export const QUALITES_JPEG = [78, 62, 46] as const;
+
+/**
  * `effort` de l'encodeur AVIF.
  *
  * 4 sur 9. Au-dela, le gain de poids devient marginal et le temps de calcul
@@ -62,6 +69,8 @@ export const EFFORT_AVIF = 4;
 export interface ImageReencodee {
   avif: Uint8Array;
   webp: Uint8Array;
+  /** La declinaison des canaux sans AVIF ni WebP (WhatsApp). Jamais servie a la boutique. */
+  jpeg: Uint8Array;
   largeur: number;
   hauteur: number;
   /** Type reellement detecte a l'entree. Utile au journal, pas a l'affichage. */
@@ -147,11 +156,14 @@ export async function reencoderImage(
     .flatten({ background: "#ffffff" });
 
   const cible = options.cibleOctets ?? CIBLE_OCTETS;
-  const [avif, webp] = await Promise.all([
+  const [avif, webp, jpeg] = await Promise.all([
     sousLaCible(QUALITES_AVIF, cible, (q) =>
       prepare.clone().avif({ quality: q, effort: EFFORT_AVIF }).toBuffer(),
     ),
     sousLaCible(QUALITES_WEBP, cible, (q) => prepare.clone().webp({ quality: q }).toBuffer()),
+    sousLaCible(QUALITES_JPEG, cible, (q) =>
+      prepare.clone().jpeg({ quality: q, mozjpeg: true }).toBuffer(),
+    ),
   ]);
 
   // Les dimensions annoncees sont celles de l'objet stocke, apres rotation :
@@ -169,6 +181,7 @@ export async function reencoderImage(
     image: {
       avif: new Uint8Array(avif),
       webp: new Uint8Array(webp),
+      jpeg: new Uint8Array(jpeg),
       largeur: dims.largeur,
       hauteur: dims.hauteur,
       typeEntree: verdict.type,

@@ -21,6 +21,14 @@ Les plus structurants :
   Il remplace l'orientation du `0007` et s'appuie sur les mesures du `0008`.
   C'est celui à lire en premier.
 - `0010` — le produit s'appelle **Catalog** ; `catalogue` reste le nom commun
+- `0025` — **un garde-fou d'AGENTS.md est en veille**, et il faut le savoir avant
+  de toucher aux OTP : quand `SMS_PROVIDER=whatsapp`, les deux codes arrivent sur
+  la même puce, donc la vérification du **numéro de reversement** n'atteste plus
+  le contrôle de ce numéro. C'est un report explicite, décidé par le porteur du
+  produit, borné au canal et réversible par un aiguillage — ce n'est **pas** un
+  défaut à corriger au passage. Le même ADR acte que **ni MTN ni Orange n'offre
+  de vérification de transaction par un tiers** : le SMS reçu par la vendeuse
+  n'est pas le meilleur signal, c'est le seul.
 
 Les ADR `0007` et `0008` restent utiles pour comprendre pourquoi la voie
 agrégateur a été abandonnée, mais ils sont dépassés pour la v1.
@@ -48,6 +56,10 @@ Depuis le lot 13 il mesure **deux** paquets : la boutique, et l'écran
 statistiques de l'app vendeuse (8 Ko, plafond choisi pour qu'aucune
 bibliothèque de graphiques n'y entre).
 
+`pnpm db:sauvegarde` et `pnpm db:restauration` (lot 14) ne sont **pas** dans
+cette chaîne : ils demandent une vraie base, et une restauration ne se lance pas
+par mégarde.
+
 ## Méthode
 
 Un lot à la fois. Test d'abord sur la logique métier. Tout écart au blueprint
@@ -64,7 +76,80 @@ débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutiqu
 publique Astro et Lighthouse CI), lot 7 (domaine commande et preuve, sans réseau),
 lot 8 (analyseurs de SMS, sept contrôles, écran de collage), lot 9 (rampe de
 paiement), lot 10 (reçu vérifiable et contre-signature), lot 11 (cycle de vie des
-commandes), lot 12 (avis vérifiés et réputation), lot 13 (écran statistiques).
+commandes), lot 12 (avis vérifiés et réputation), lot 13 (écran statistiques),
+lot 14 (observabilité, canari de formats, runbooks, sauvegardes). Puis, hors
+séquence `PROMPTS.md` : durcissement et mise en production (ADR 0024),
+canaux du code de connexion et passerelle MboaSMS (0025–0027), architecture
+d'authentification cible et cérémonie Google (0028–0029), refonte UI vendeuse
+(0030), et le bot WhatsApp (0031 à 0039).
+
+### Le bot WhatsApp — trois points ouverts, et ils le restent
+
+Le cap du bot est posé par l'ADR 0031, révisé par le 0032 (sprint A —
+récapitulatif de confirmation, boutons vivants, sorties de secours,
+mémoire d'après-achat) et le 0033 (sprint B — panier multi-articles, stock,
+description, relance d'acompte, FR/EN). **Trois points sont vus, décidés, et
+volontairement NON faits.** Les rouvrir en silence est la dérive que le §7.7
+d'`AGENTS.md` interdit :
+
+1. **`product.variants` reste une colonne morte.** Aucune forme définie, aucun
+   chemin d'écriture, aucune interface. La vendre par le bot exigerait
+   d'inventer le modèle — tailles ? couleurs ? écarts de prix ? stock par
+   variante ? C'est une décision produit à prendre, pas un champ à remplir.
+   D'ici là, la question « taille / couleur / modèle » renvoie à la vendeuse,
+   et c'est le palliatif assumé.
+2. **Le pidgin est ÉCRIT et NON SERVI** (ADR 0034, qui révise le 0033 sur ce
+   point seul). `TEXTES.wes` est complet — `wes` est le code du Kamtok, pas
+   `pcm` qui est nigérian — et `PIDGIN_RELU` vaut `false` : rien n'atteint une
+   acheteuse tant qu'une locutrice n'a pas relu. Le drapeau vit dans le domaine
+   et non dans l'environnement, parce qu'ouvrir une langue est une décision,
+   pas un réglage. Deux tests interdisent la demi-bascule : rien ne sort tant
+   que c'est fermé, et l'aide FR/EN doit annoncer la langue dès que c'est
+   ouvert. Ne jamais passer le drapeau à `true` sans la relecture.
+3. **Tout ce qui exige des gabarits utilitaires attend le WABA** : relances
+   suivantes (24 h, post-expiration), notification de la vendeuse, Flows,
+   catalogue natif, click-to-WhatsApp. L'adaptateur d'envoi est dormant —
+   sans `WABOT_API_KEY`, rien n'est monté.
+
+Deux reports mineurs de la même famille : le retrait d'une ligne du panier
+(« annuler » vide tout, « corriger » revient au panier) et la description sur
+la boutique publique attendent un besoin constaté.
+
+Le **mode congés** (ADR 0039) ferme une boutique aux NOUVELLES commandes sans
+rien fermer d'autre : les commandes en cours vont jusqu'au bout, la boutique
+reste publiée et partageable, la vendeuse reste joignable. Deux choses à savoir
+avant d'y toucher : **le verrou qui compte est dans le service, à la création** —
+la machine et la boutique publique ne font qu'afficher, et l'instantané statique
+est périmé par construction ; et **aucune date de retour n'est demandée nulle
+part**, pour la même raison que le stock ne se décompte pas.
+
+Un quatrième point rejoint la liste avec l'**ADR 0038** : le stock est
+désormais saisissable par la vendeuse, mais **il ne se décompte pas tout
+seul**, et c'est décidé, pas oublié. Le transformer en inventaire réservé
+suppose d'arbitrer ce que devient une commande créée non payée, expirée,
+annulée ou contestée — et de reconnaître que la vendeuse vend aussi hors de
+tout ce que Catalog voit. Un compteur qui ne décompte que la moitié des ventes
+serait plus faux que le nombre qu'elle tient elle-même. En attendant, les
+textes ne promettent pas de rareté : « Plus que 2 disponibles » côté bot,
+« La vendeuse en annonce 2 » côté boutique, et l'app vendeuse dit en toutes
+lettres que le nombre se corrige à la main.
+
+Quatre choses à savoir du lot 14, toutes dans l'ADR 0023 :
+
+- **Le SMS brut ne figure dans AUCUNE trace**, et c'est tenu par deux couches :
+  une liste FERMÉE d'attributs autorisés, et un processeur de rédaction qui
+  nettoie aussi les événements, le message de statut et le nom du span. La fuite
+  réelle n'arrive pas par `setAttribute` — elle arrive par `recordException`,
+  qui recopie le message ET la pile d'appel.
+- **Aucune auto-instrumentation OpenTelemetry.** Elle capturerait les paramètres
+  SQL, dont `buyerToken` — le secret qui autorise la contre-signature.
+- **Le canari rejoue la SPÉCIFICATION**, pas les fixtures : il lit
+  `docs/formats-sms-operateurs.md`, en extrait les messages et les fait passer
+  par les analyseurs réels. Il tourne aussi chaque jour en CI, et c'est ce qui
+  permet de répondre, un jour d'incident, à « est-ce nous ou l'opérateur ? ».
+- **`restauration.sh` refuse d'écrire dans `DATABASE_URL`.** On restaure
+  ailleurs, on vérifie — contraintes SQL du lot 3 réappliquées, trois contrôles
+  d'intégrité —, puis on bascule.
 
 Quatre choses à savoir du lot 13 avant de toucher à un graphique, toutes dans
 l'ADR 0022 :

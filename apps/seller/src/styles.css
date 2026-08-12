@@ -1,9 +1,28 @@
 @import "@catalog/ui/tokens.css";
 
+/* Le lavis d'accueil : une lueur de marque en haut de page, en degrade radial.
+   Il coute zero octet d'image et donne au fond une matiere que le gris plat
+   n'a pas. `color-mix` le derive du jeton de marque : il suit donc chaque
+   theme sans valeur en double. */
+:root {
+  --lavis: color-mix(in oklab, var(--color-brand-500) 7%, transparent);
+}
+
 body {
   margin: 0;
-  background: var(--color-plane);
+  background-color: var(--color-plane);
+  background-image: radial-gradient(120% 24rem at 50% -6rem, var(--lavis), transparent 70%);
+  background-repeat: no-repeat;
   color: var(--color-ink);
   font-family: var(--font-sans);
   line-height: 1.6;
+  /* Le surdefilement elastique revele un fond blanc etranger sous la barre de
+     navigation ; on le contient sans toucher au defilement lui-meme. */
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-brand-500) 24%, transparent);
 }

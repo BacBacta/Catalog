@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { genererJetonSuivi } from "../domain/receipt/jeton.ts";
 import { normaliserCode, recuRoutes, suiviRoutes } from "../routes/recu.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
  * Le recu public et la contre-signature, contre une VRAIE base.
@@ -24,7 +24,20 @@ const URL = process.env.DATABASE_URL;
 const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
-const RUN = Date.now() % 90000;
+/* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
+   fichiers demarres a quelques millisecondes d'ecart visaient le meme
+   identifiant, et Vitest les lance en parallele contre UNE base. Le
+   defaut a fait echouer deux verifications le 11/08/2026, dont un test
+   de fuite — le genre de faux rouge qui masque un vrai. */
+const RUN = 275 * 1000 + selExecution();
+
+/* Les fixtures se numerotaient `RUN + 1` … `RUN + 16`. Deux executions se
+   recouvraient donc des que l'ecart de leurs sels etait inferieur a seize —
+   ~3 %, et la CI enchaine `test` puis `test:coverage` sur la MEME base. Le
+   defaut s'est vu trois fois le 11/08, en doublon d'adresse. Les numeros ont
+   maintenant leurs propres chiffres : voir `_identifiants.ts`. */
+const ids = identifiants("recu-route");
 const NOW = new Date("2026-06-23T12:00:00+01:00");
 const CREEE = new Date("2026-06-23T09:00:00+01:00");
 
@@ -32,24 +45,13 @@ const CREEE = new Date("2026-06-23T09:00:00+01:00");
  * Alea REEL, et non un generateur deterministe.
  *
  * `buyer_token` est UNIQUE et la base n'est pas purgee entre deux executions.
- * Un alea deterministe seme sur `RUN = Date.now() % 90000` se repete toutes les
+ * Un alea deterministe seme sur `RUN = selExecution()` se repete toutes les
  * quatre-vingt-dix secondes : deux executions rapprochees entrent alors en
  * collision avec les lignes laissees par la precedente. Le determinisme du
  * generateur est verifie ailleurs — `jeton-suivi.test.ts` —, il n'a rien a faire
  * ici.
  */
 const alea = () => (n: number) => new Uint8Array(randomBytes(n));
-
-/** Code de verification valide au sens de la contrainte de base. */
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
 
 interface Jeu {
   orderId: string;
@@ -83,7 +85,7 @@ async function creer(
       payoutPhoneVerifiedAt: CREEE,
     },
   });
-  const code = codeDeTest(suffixe);
+  const code = ids.codeVerification();
   const jeton = genererJetonSuivi(alea());
   const ref = `CT-${(800000 + suffixe) % 99999999}`;
   const o = await prisma.order.create({
@@ -109,7 +111,7 @@ async function creer(
       data: {
         orderId: o.id,
         operator: "mtn",
-        operatorTxId: `176${RUN.toString().padStart(5, "0")}${suffixe.toString().padStart(3, "0")}`,
+        operatorTxId: `176${suffixe.toString().padStart(8, "0")}`,
         amountXaf: 26800,
         counterpartyPhone: "652000001",
         occurredAt: new Date("2026-06-23T09:50:32+01:00"),
@@ -138,7 +140,7 @@ describeDb("le recu public", () => {
   });
 
   it("rend le recu, avec l'identifiant de l'operateur", async () => {
-    const j = await creer(RUN + 1);
+    const j = await creer(ids.suivant());
     const r = await app().request(`/api/recu/${j.code}`);
     expect(r.status).toBe(200);
     const corps = (await r.json()) as { recu: Record<string, unknown>; portee: string };
@@ -150,9 +152,11 @@ describeDb("le recu public", () => {
   it("un code INEXISTANT produit un refus explicite, pas une page vide", async () => {
     // On CHERCHE un code absent plutot que d'en supposer un : la base n'est pas
     // purgee entre deux executions, et un code ecrit en dur finirait par exister.
+    // L'encodage injectif rend la collision impossible DANS une execution ;
+    // la boucle ne garde qu'un tour utile — le tirage inter-executions.
     let code = "";
     for (let i = 0; i < 50 && !code; i++) {
-      const candidat = codeDeTest(RUN * 7 + i * 101);
+      const candidat = ids.codeVerification();
       const pris = await prisma.order.findFirst({ where: { verificationCode: candidat } });
       if (!pris) code = candidat;
     }
@@ -175,20 +179,20 @@ describeDb("le recu public", () => {
   it("tolere un code recopie a la main : minuscules, sans tiret", async () => {
     // Une acheteuse le dicte au telephone. Refuser sur la forme serait refuser
     // des gens qui ont le bon code.
-    const j = await creer(RUN + 2);
+    const j = await creer(ids.suivant());
     const brut = j.code.replace("-", "").toLowerCase();
     expect((await app().request(`/api/recu/${brut}`)).status).toBe(200);
   });
 
   it("un depot DECLARE A LA MAIN n'a pas de page de recu", async () => {
-    const j = await creer(RUN + 3, { proofState: "declare_non_trace", avecPreuve: false });
+    const j = await creer(ids.suivant(), { proofState: "declare_non_trace", avecPreuve: false });
     const r = await app().request(`/api/recu/${j.code}`);
     expect(r.status).toBe(404);
     expect(await r.json()).toEqual({ refus: "declare_non_trace", etat: "declare_non_trace" });
   });
 
   it("ne divulgue NI le SMS, NI le solde, NI le jeton de suivi", async () => {
-    const j = await creer(RUN + 4);
+    const j = await creer(ids.suivant());
     const texte = await (await app().request(`/api/recu/${j.code}`)).text();
     expect(texte).not.toContain("chiffre-de-test");
     expect(texte).not.toContain(j.jeton);
@@ -196,7 +200,7 @@ describeDb("le recu public", () => {
   });
 
   it("ne se met pas en cache : il change quand l'acheteuse contresigne", async () => {
-    const j = await creer(RUN + 5);
+    const j = await creer(ids.suivant());
     const r = await app().request(`/api/recu/${j.code}`);
     expect(r.headers.get("cache-control")).toBe("no-store");
     expect(r.headers.get("access-control-allow-origin")).toBe("*");
@@ -212,7 +216,7 @@ describeDb("le suivi et la contre-signature", () => {
   });
 
   it("le lien de suivi ouvre la coquille : reference, montant, recu", async () => {
-    const j = await creer(RUN + 11);
+    const j = await creer(ids.suivant());
     const r = await app().request(`/api/suivi/${j.jeton}`);
     expect(r.status).toBe(200);
     const corps = (await r.json()) as Record<string, unknown>;
@@ -222,7 +226,7 @@ describeDb("le suivi et la contre-signature", () => {
   });
 
   it("un tap contresigne, et la preuve porte la date", async () => {
-    const j = await creer(RUN + 12);
+    const j = await creer(ids.suivant());
     const r = await app().request(`/api/suivi/${j.jeton}/contresigner`, { method: "POST" });
     expect(r.status).toBe(200);
     expect(await r.json()).toEqual({ etat: "contresigne" });
@@ -246,7 +250,7 @@ describeDb("le suivi et la contre-signature", () => {
     // C'est tout l'enjeu : le code est public des qu'un recu est montre, et la
     // reference se devine. Si l'un des deux autorisait, il suffirait d'avoir vu
     // un recu pour valider le paiement de quelqu'un d'autre.
-    const j = await creer(RUN + 13);
+    const j = await creer(ids.suivant());
     for (const cle of [j.ref, j.code, j.code.replace("-", "")]) {
       const r = await app().request(`/api/suivi/${encodeURIComponent(cle)}/contresigner`, {
         method: "POST",
@@ -258,7 +262,7 @@ describeDb("le suivi et la contre-signature", () => {
   });
 
   it("une contestation NE SUPPRIME PAS la preuve", async () => {
-    const j = await creer(RUN + 14);
+    const j = await creer(ids.suivant());
     const r = await app().request(`/api/suivi/${j.jeton}/contester`, {
       method: "POST",
       body: JSON.stringify({ motif: "Je n'ai jamais recu l'article" }),
@@ -279,7 +283,7 @@ describeDb("le suivi et la contre-signature", () => {
   });
 
   it("le motif de contestation est journalise, sans le SMS", async () => {
-    const j = await creer(RUN + 15);
+    const j = await creer(ids.suivant());
     await app().request(`/api/suivi/${j.jeton}/contester`, {
       method: "POST",
       body: JSON.stringify({ motif: "Article jamais recu" }),
@@ -294,7 +298,7 @@ describeDb("le suivi et la contre-signature", () => {
   it("une contre-signature REFUSEE laisse quand meme une trace", async () => {
     // Le contrat de la machine du lot 7 : une transition ignoree sans trace est
     // une anomalie invisible.
-    const j = await creer(RUN + 16, { proofState: "attendu", avecPreuve: false });
+    const j = await creer(ids.suivant(), { proofState: "attendu", avecPreuve: false });
     const r = await app().request(`/api/suivi/${j.jeton}/contresigner`, { method: "POST" });
     expect(r.status).toBe(409);
     expect((await r.json()) as Record<string, unknown>).toMatchObject({
@@ -363,19 +367,19 @@ describeDb("depot d'un avis", () => {
     );
 
   it("refuse une note hors echelle plutot que de la ramener au bord", async () => {
-    const v = await livree((RUN + 9101) % 900000, "prouve");
+    const v = await livree(ids.suivant(), "prouve");
     for (const note of [0, 6, 4.5, "5"]) {
       expect((await deposer(v.jeton, note)).status).toBe(400);
     }
   });
 
   it("une commande non livree n'ouvre pas le depot", async () => {
-    const v = await livree((RUN + 9102) % 900000, "prouve", "preparee");
+    const v = await livree(ids.suivant(), "prouve", "preparee");
     expect((await deposer(v.jeton, 5)).status).toBe(409);
   });
 
   it("une commande livree et prouvee produit un avis VERIFIE", async () => {
-    const v = await livree((RUN + 9103) % 900000, "prouve");
+    const v = await livree(ids.suivant(), "prouve");
     const r = await deposer(v.jeton, 5, "Tres bonne vendeuse");
     expect(r.status).toBe(201);
     expect(await r.json()).toMatchObject({ depose: true, verifie: true });
@@ -387,7 +391,7 @@ describeDb("depot d'un avis", () => {
 
   /** LE critere : non trace → avis publie, mais NON verifie. */
   it("un paiement declare a la main produit un avis NON verifie", async () => {
-    const v = await livree((RUN + 9104) % 900000, "declare_non_trace");
+    const v = await livree(ids.suivant(), "declare_non_trace");
     const r = await deposer(v.jeton, 5);
     expect(r.status).toBe(201);
     expect(await r.json()).toMatchObject({ depose: true, verifie: false });
@@ -397,7 +401,7 @@ describeDb("depot d'un avis", () => {
 
   /** Et il n'entre PAS dans la note : c'est ce que lit l'instantane public. */
   it("un avis non verifie n'entre PAS dans la note de la boutique", async () => {
-    const v = await livree((RUN + 9105) % 900000, "declare_non_trace");
+    const v = await livree(ids.suivant(), "declare_non_trace");
     await deposer(v.jeton, 1);
     const comptees = await prisma.review.count({
       where: { sellerId: v.sellerId, verified: true },
@@ -406,7 +410,7 @@ describeDb("depot d'un avis", () => {
   });
 
   it("un DEUXIEME avis sur la meme commande est rejete", async () => {
-    const v = await livree((RUN + 9106) % 900000, "prouve");
+    const v = await livree(ids.suivant(), "prouve");
     expect((await deposer(v.jeton, 5)).status).toBe(201);
     const second = await deposer(v.jeton, 1);
     expect(second.status).toBe(409);

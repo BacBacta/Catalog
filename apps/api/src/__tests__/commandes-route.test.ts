@@ -1,7 +1,7 @@
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { commandeRoutes } from "../routes/commandes.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
  * Le cycle de vie d'une commande, contre une VRAIE base.
@@ -23,21 +23,20 @@ const URL = process.env.DATABASE_URL;
 const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
-const RUN = Date.now() % 90000;
+/* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
+   fichiers demarres a quelques millisecondes d'ecart visaient le meme
+   identifiant, et Vitest les lance en parallele contre UNE base. Le
+   defaut a fait echouer deux verifications le 11/08/2026, dont un test
+   de fuite — le genre de faux rouge qui masque un vrai. */
+const RUN = 890 * 1000 + selExecution();
+/* Le schema recent ne sert ICI qu'aux codes de verification (tache #68) :
+   l'ancien generateur hachait sa graine, et le bloc ne separe pas ce qu'un
+   hachage fait des nombres — vu en CI le 12/08 (ADR 0078). */
+const ids = identifiants("commandes-route");
 
 const NOW = new Date("2026-07-30T10:00:00+01:00");
 const CREEE = new Date("2026-07-30T09:00:00+01:00");
-
-function codeDeTest(graine: number): string {
-  const A = CODE_ALPHABET;
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return A[n % A.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
 
 interface Vendeuse {
   sellerId: string;
@@ -98,7 +97,7 @@ async function creerVendeuse(suffixe: number): Promise<Vendeuse> {
           buyerPhone: "+237652000001",
           items: [{ nom: "Pagne", quantite: 1, prixUnitaireXaf: 10_000 }],
           totalXaf: 10_000,
-          verificationCode: codeDeTest(suffixe * 7 + i),
+          verificationCode: ids.codeVerification(),
           createdAt: CREEE,
           expiresAt: new Date(CREEE.getTime() + 48 * 3600_000),
           ...opts,

@@ -16,7 +16,9 @@
     "check:offline": "node scripts/check-schema.mjs",
     "seed": "node --experimental-strip-types prisma/seed.ts",
     "db:reset": "prisma migrate reset --force",
-    "migrate:deploy": "prisma migrate deploy && node scripts/apply-constraints.mjs"
+    "migrate:deploy": "prisma migrate deploy && node scripts/apply-constraints.mjs",
+    "sauvegarde": "bash scripts/sauvegarde.sh",
+    "restauration": "bash scripts/restauration.sh"
   },
   "dependencies": {
     "@catalog/contracts": "workspace:*",
@@ -25,10 +27,10 @@
     "pg": "^8.22.0"
   },
   "devDependencies": {
-    "@types/pg": "^8.20.0",
+    "@types/pg": "^8.21.0",
     "prisma": "7.9.1",
     "vitest": "4.1.10",
     "typescript": "6.0.3",
-    "@types/node": "26.1.2"
+    "@types/node": "26.2.0"
   }
 }

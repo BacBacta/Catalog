@@ -96,7 +96,21 @@ export async function appeler<T = unknown>(
  */
 export function messageDErreur(r: ReponseApi<unknown>, repli: string): string {
   if (r.message) return r.message;
-  if (r.statut === 401) return repli;
+  /**
+   * **Un 401 se dit pour ce qu'il est.**
+   *
+   * Il rendait le repli de l'appelant — donc « L'article n'a pas pu etre
+   * cree. » sous un formulaire correctement rempli. Banc du 11/08/2026 : la
+   * vendeuse a cherche le defaut dans son article, puis a renvoye QUATRE
+   * codes de connexion. Les trois sessions creees en base disent que la
+   * connexion marchait ; c'est le message qui mentait.
+   *
+   * Nommer la session coute une ligne et evite une demi-heure a chercher au
+   * mauvais endroit.
+   */
+  if (r.statut === 401) {
+    return "Votre session a expire. Reconnectez-vous, puis reessayez — rien n'est perdu.";
+  }
   if (r.statut === 429) return "Trop de tentatives. Attendez un moment avant de reessayer.";
   if (r.statut >= 500) return "Le service ne repond pas. Reessayez dans un instant.";
   return repli;
@@ -114,6 +128,8 @@ export interface Vendeuse {
     city: string;
     payoutPhone: string | null;
     payoutOperator: string | null;
+    /** Mode conges — ADR 0039. `null` = la boutique prend les commandes. */
+    congesDepuis: string | null;
   } | null;
 }
 
@@ -130,6 +146,7 @@ export interface Article {
   name: string;
   priceXaf: number;
   stock: number;
+  description: string | null;
   position: number;
   archive: boolean;
   image: ImageArticle | null;
@@ -181,10 +198,45 @@ export const api = {
       corps: { phoneNumber, code, disableSession: false },
     }),
 
+  /* ── connexion par WhatsApp entrant — ADR 0027 ── */
+
+  etatConnexionWhatsapp: () =>
+    appeler<{ disponible: boolean; google?: boolean }>("/api/auth/connexion-whatsapp/etat"),
+
+  /* ── ceremonie Google — ADR 0029 : redirection OAuth, aucun client en plus ── */
+
+  commencerGoogle: (callbackURL: string) =>
+    appeler<{ url?: string }>("/api/auth/sign-in/social", {
+      corps: { provider: "google", callbackURL },
+    }),
+
+  creerDefiWhatsapp: () =>
+    appeler<{ jeton: string; suivi: string; code: string; lien: string; expireDansS: number }>(
+      "/api/auth/connexion-whatsapp/defi",
+      { corps: {} },
+    ),
+
+  attenteDefiWhatsapp: (suivi: string) =>
+    appeler<{ statut: "en_attente" | "verifie" | "inconnu" }>(
+      `/api/auth/connexion-whatsapp/attente?suivi=${encodeURIComponent(suivi)}`,
+    ),
+
+  echangerDefiWhatsapp: (jeton: string) =>
+    appeler<{ statut: "connecte" | "en_attente" | "inconnu" }>(
+      "/api/auth/connexion-whatsapp/echanger",
+      { corps: { jeton } },
+    ),
+
   moi: () => appeler<Vendeuse>("/api/vendeuse/moi"),
 
-  creerProfil: (businessName: string, city: string) =>
-    appeler("/api/vendeuse/profil", { corps: { businessName, city } }),
+  creerProfil: (businessName: string, city: string, contactPhone?: string) =>
+    appeler("/api/vendeuse/profil", {
+      corps: { businessName, city, ...(contactPhone ? { contactPhone } : {}) },
+    }),
+
+  /** Mode conges — ADR 0039. Aucun OTP : rien ne bouge d'argent, et ça se défait. */
+  basculerConges: (fermer: boolean) =>
+    appeler<{ congesDepuis: string | null }>("/api/vendeuse/conges", { corps: { fermer } }),
 
   envoyerCodeReversement: (nouveauNumero: string) =>
     appeler("/api/reversement/code", { corps: { nouveauNumero } }),
@@ -201,11 +253,22 @@ export const api = {
   articles: (avecArchives = false) =>
     appeler<{ articles: Article[] }>(`/api/articles${avecArchives ? "?archives=1" : ""}`),
 
-  creerArticle: (name: string, priceXaf: number) =>
-    appeler<Article>("/api/articles", { corps: { name, priceXaf } }),
+  creerArticle: (name: string, priceXaf: number, description?: string, stock?: number) =>
+    appeler<Article>("/api/articles", {
+      corps: {
+        name,
+        priceXaf,
+        ...(description ? { description } : {}),
+        /* Zero vaut « non suivi » et c'est deja le defaut en base : on ne
+           l'envoie pas pour ne pas le faire passer pour un choix. */
+        ...(stock ? { stock } : {}),
+      },
+    }),
 
-  modifierArticle: (id: string, champs: { name?: string; priceXaf?: number; stock?: number }) =>
-    appeler<Article>(`/api/articles/${id}`, { methode: "PATCH", corps: champs }),
+  modifierArticle: (
+    id: string,
+    champs: { name?: string; priceXaf?: number; stock?: number; description?: string },
+  ) => appeler<Article>(`/api/articles/${id}`, { methode: "PATCH", corps: champs }),
 
   archiverArticle: (id: string) => appeler<Article>(`/api/articles/${id}/archiver`, { corps: {} }),
   restaurerArticle: (id: string) =>

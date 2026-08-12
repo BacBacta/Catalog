@@ -1,0 +1,63 @@
+---
+import Statut from "../islands/Statut.tsx";
+import Base from "../layouts/Base.astro";
+
+/**
+ * La page de statut publique.
+ *
+ * **Elle est servie par le CDN, donc elle s'affiche meme quand l'API est
+ * tombee.** C'est toute sa raison d'etre : une page de statut hebergee avec le
+ * service qu'elle decrit tombe avec lui, exactement au moment ou on la regarde.
+ *
+ * Le texte fixe ci-dessous est visible SANS JavaScript et sans reponse de
+ * l'API. Il porte deja l'essentiel — quoi faire, ou ecrire, ce qui n'est jamais
+ * perdu — et l'ilot ne fait qu'y ajouter l'etat du moment.
+ */
+---
+
+<Base
+  title="État du service — Catalog"
+  description="L'état de fonctionnement de Catalog, en direct."
+  noindex
+>
+  <main class="mx-auto flex w-full max-w-[34rem] flex-col gap-5 px-4 py-6">
+    <h1 class="text-title font-bold leading-tight text-ink">État du service</h1>
+
+    <Statut client:only="preact" />
+
+    <noscript>
+      <p class="rounded-card border border-line bg-surface p-4 text-caption text-ink-2">
+        Cette page a besoin de JavaScript pour afficher l'état du moment. Le plus important tient
+        sans elle, et c'est écrit juste en dessous.
+      </p>
+    </noscript>
+
+    <section class="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+      <h2 class="text-body font-bold text-ink">Ce qui ne se perd jamais</h2>
+      <p class="text-caption text-ink-2">
+        Un reçu émis reste un reçu. Il porte l'identifiant de transaction de votre opérateur, et
+        <strong class="text-ink">c'est l'opérateur qui fait foi, pas Catalog</strong>. Même si ce
+        site est entièrement arrêté, l'identifiant que vous avez noté ou reçu en message reste
+        vérifiable auprès de MTN ou d'Orange, en agence ou par leur service client.
+      </p>
+      <p class="text-caption text-ink-2">
+        Une interruption n'annule aucun paiement : l'argent est allé directement de votre
+        portefeuille mobile à celui de la vendeuse. Catalog n'a jamais tenu ces fonds.
+      </p>
+    </section>
+
+    <section class="flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+      <h2 class="text-body font-bold text-ink">Ce que cette page ne dit pas</h2>
+      <p class="text-caption text-ink-2">
+        Elle n'affiche <strong class="text-ink">aucun pourcentage de disponibilité</strong>. Une
+        telle mesure se fait depuis l'extérieur : un service qui calcule la sienne affiche cent pour
+        cent précisément quand il ne répond plus.
+      </p>
+      <p class="text-caption text-ink-2">
+        Elle ne dit rien non plus de l'état des formats de SMS des opérateurs. Cette vérification
+        existe et tourne chaque jour, mais ailleurs — elle n'est pas connue de ce serveur, et
+        l'afficher ici reviendrait à l'inventer.
+      </p>
+    </section>
+  </main>
+</Base>

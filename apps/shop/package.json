@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev --port 4321",
-    "build": "astro build",
+    "build": "astro build && node scripts/entetes.mjs",
     "preview": "astro preview",
     "test": "TZ=Africa/Douala vitest run",
     "typecheck": "astro check --minimumFailingSeverity error",
@@ -25,7 +25,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.10",
     "@lhci/cli": "0.15.1",
-    "@types/node": "26.1.2",
+    "@types/node": "26.2.0",
     "preact-render-to-string": "6.7.0",
     "typescript": "6.0.3",
     "vitest": "4.1.10"

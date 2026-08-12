@@ -1,8 +1,9 @@
 import { Button, Card, CardNote, CardTitle, OfflineState, OtpField } from "@catalog/ui";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { Ecran } from "../components/Ecran.tsx";
+import { CadreConnexion } from "../components/CadreConnexion.tsx";
 import { api, messageDErreur, PanneReseau } from "../lib/api.ts";
+import { destinationApresConnexion } from "../lib/cle.ts";
 import { useSession } from "../lib/session.tsx";
 
 /**
@@ -47,7 +48,7 @@ export function CodeConnexion() {
       // fierait a l'etat charge a l'ouverture de l'application — « anonyme » —
       // et renverrait la vendeuse sur la connexion qu'elle vient de reussir.
       await rafraichir();
-      naviguer("/", { replace: true });
+      naviguer(destinationApresConnexion(), { replace: true });
     } catch (cause) {
       if (cause instanceof PanneReseau) setHorsLigne(true);
       else setErreur("La verification n'a pas abouti. Reessayez.");
@@ -73,7 +74,7 @@ export function CodeConnexion() {
 
   if (!numero) {
     return (
-      <Ecran titre="Connexion">
+      <CadreConnexion titre="Connexion">
         <Card>
           <CardTitle>Reprenons au debut</CardTitle>
           <CardNote>Nous ne savons plus a quel numero le code a ete envoye.</CardNote>
@@ -81,13 +82,13 @@ export function CodeConnexion() {
             Saisir mon numero
           </Button>
         </Card>
-      </Ecran>
+      </CadreConnexion>
     );
   }
 
   if (horsLigne) {
     return (
-      <Ecran titre="Connexion">
+      <CadreConnexion titre="Connexion">
         <OfflineState
           action={
             <Button tone="outline" onClick={() => setHorsLigne(false)}>
@@ -97,12 +98,15 @@ export function CodeConnexion() {
         >
           Votre code reste valable cinq minutes. Des que le reseau revient, saisissez-le ici.
         </OfflineState>
-      </Ecran>
+      </CadreConnexion>
     );
   }
 
   return (
-    <Ecran titre="Votre code" surtitre="Connexion">
+    <CadreConnexion
+      titre="Votre code"
+      note="Le champ accepte le collage et le remplissage automatique du SMS."
+    >
       <Card>
         <CardNote>
           Un SMS est parti au <strong className="text-ink">{numero}</strong>. Il arrive en general
@@ -110,7 +114,7 @@ export function CodeConnexion() {
         </CardNote>
         <form onSubmit={verifier} noValidate className="flex flex-col gap-4">
           <OtpField value={code} onValueChange={setCode} erreur={erreur} autoFocus />
-          <Button type="submit" size="lg" disabled={enCours}>
+          <Button type="submit" size="lg" loading={enCours}>
             {enCours ? "Verification…" : "Me connecter"}
           </Button>
         </form>
@@ -127,6 +131,6 @@ export function CodeConnexion() {
           {renvoye}
         </p>
       </Card>
-    </Ecran>
+    </CadreConnexion>
   );
 }

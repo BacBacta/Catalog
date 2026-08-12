@@ -1,8 +1,8 @@
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ChiffreurAesGcm, ChiffreurInerte } from "../adapters/sms-chiffre.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 import { MTN_RECEPTION, ORANGE_RECEPTION_RECONSTITUE, TEXTE_LIBRE } from "./fixtures-sms.ts";
 
 /**
@@ -23,7 +23,17 @@ const URL = process.env.DATABASE_URL;
 const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
-const RUN = Date.now() % 90000;
+/* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
+   fichiers demarres a quelques millisecondes d'ecart visaient le meme
+   identifiant, et Vitest les lance en parallele contre UNE base. Le
+   defaut a fait echouer deux verifications le 11/08/2026, dont un test
+   de fuite — le genre de faux rouge qui masque un vrai. */
+const RUN = 146 * 1000 + selExecution();
+/* Le schema recent ne sert ICI qu'aux codes de verification (tache #68) :
+   l'ancien generateur hachait sa graine, et le bloc ne separe pas ce qu'un
+   hachage fait des nombres — vu en CI le 12/08 (ADR 0078). */
+const ids = identifiants("preuve-route");
 
 /** L'horloge est figee : les fixtures portent des dates de juin 2026. */
 const NOW = new Date("2026-06-23T10:00:00+01:00");
@@ -40,6 +50,17 @@ const chiffreur = new ChiffreurInerte({ NODE_ENV: "test" });
  * raison, au mauvais endroit.
  */
 const TX = `176${RUN.toString().padStart(8, "0")}`;
+
+/**
+ * Compte les preuves DE CETTE COMMANDE, jamais de toute la table.
+ *
+ * Un `count()` global est une course entre fichiers de test : Vitest les execute
+ * en parallele contre la MEME base, et une preuve ecrite par un autre fichier
+ * entre la mesure et l'assertion fait echouer celle-ci pour une raison etrangere
+ * a ce qu'elle verifie. Ce que le test veut dire est « rien n'a ete ecrit POUR
+ * CETTE COMMANDE » — c'est desormais ce qu'il mesure.
+ */
+const comptePour = (v: Vendeuse) => prisma.paymentProof.count({ where: { orderId: v.orderId } });
 const MTN_UNIQUE = MTN_RECEPTION.replace("17600000002", TX);
 
 interface Vendeuse {
@@ -47,18 +68,6 @@ interface Vendeuse {
   sellerId: string;
   orderId: string;
   app: ReturnType<typeof preuveRoutes>;
-}
-
-/** Code de verification valide au sens de la contrainte de base. */
-function codeDeTest(graine: number): string {
-  const A = CODE_ALPHABET;
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return A[n % A.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
 }
 
 async function creerVendeuse(suffixe: number, totalXaf: number): Promise<Vendeuse> {
@@ -94,14 +103,11 @@ async function creerVendeuse(suffixe: number, totalXaf: number): Promise<Vendeus
       balanceXaf: totalXaf,
       payMode: "integral",
       delivery: { mode: "retrait", pickupPoint: "Carrefour Elf", phone: "+237652000001" },
-      /**
-       * Le code suit l'alphabet non ambigu et la forme XXXX-XXXX, imposes par la
-       * contrainte `order_verification_code_shape`. On l'engendre depuis
-       * `CODE_ALPHABET` plutot que d'ecrire des lettres au hasard : un `B` ou un
-       * `0` feraient echouer l'insertion pour une raison sans rapport avec ce
-       * qu'on teste.
-       */
-      verificationCode: codeDeTest(suffixe),
+      /* L'alphabet non ambigu et la forme XXXX-XXXX (contrainte
+         `order_verification_code_shape`) viennent du schema d'identifiants :
+         un `B` ou un `0` feraient echouer l'insertion pour une raison sans
+         rapport avec ce qu'on teste. */
+      verificationCode: ids.codeVerification(),
       createdAt: CREEE,
       expiresAt: new Date(CREEE.getTime() + 48 * 3600_000),
     },
@@ -219,23 +225,25 @@ describeDb("controle n° 5 — l'unicite est RESEAU-LARGE", () => {
 
 describeDb("ce qui est refuse SANS rien ecrire", () => {
   it("un texte libre est refuse, et n'ecrit aucune ligne", async () => {
-    const avant = await prisma.paymentProof.count();
+    const avant = await comptePour(autre);
     const r = await coller(autre, TEXTE_LIBRE);
     expect(r.status).toBe(422);
     const corps = (await r.json()) as { checks: Array<{ n: number; state: string }> };
     expect(corps.checks[0]).toMatchObject({ n: 1, state: "fail" });
-    expect(await prisma.paymentProof.count()).toBe(avant);
+    expect(await comptePour(autre)).toBe(avant);
   });
 
   it("un montant qui ne correspond pas n'ecrit rien — l'identifiant reste libre", async () => {
     // Reserver un identifiant pour une preuve refusee empecherait la vraie
     // preuve de passer plus tard.
-    const avant = await prisma.paymentProof.count();
+    const avant = await comptePour(autre);
     const r = await coller(autre, ORANGE_RECEPTION_RECONSTITUE);
     expect(r.status).toBe(422);
-    expect(await prisma.paymentProof.count()).toBe(avant);
+    expect(await comptePour(autre)).toBe(avant);
     expect(
-      await prisma.paymentProof.count({ where: { operatorTxId: "MP260623.1403.C73941" } }),
+      await prisma.paymentProof.count({
+        where: { orderId: autre.orderId, operatorTxId: "MP260623.1403.C73941" },
+      }),
     ).toBe(0);
   });
 

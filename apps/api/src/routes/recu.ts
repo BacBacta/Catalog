@@ -7,12 +7,15 @@ import {
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import { operateurParId } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
+import type { Span } from "@opentelemetry/api";
 import { type Context, Hono } from "hono";
 import { etapesDuSuivi } from "../domain/order/cycle.ts";
 import { appliquerEvenement, type EvenementPreuve } from "../domain/proof/machine.ts";
 import { jetonBienForme } from "../domain/receipt/jeton.ts";
 import { emettreRecu, porteeDuRecu } from "../domain/receipt/recu.ts";
 import { droitAuDepot, NOTE_MAX, NOTE_MIN } from "../domain/review/reputation.ts";
+import { mesurerEtatPreuve } from "../observabilite/mesures.ts";
+import { avecSpan, PARCOURS, poser, poserIssue } from "../observabilite/traces.ts";
 import { type SessionDeps, vendeuseCourante } from "./seller.ts";
 
 /**
@@ -37,6 +40,18 @@ export interface RecuDeps {
   rampe: RampeConfig;
   session?: SessionDeps;
   maintenant?: () => Date;
+  /**
+   * Une contestation ACCEPTEE — la vendeuse doit l'apprendre tout de suite.
+   *
+   * Il y a DEUX chemins de contestation : le bouton « ce n'est pas moi » du
+   * fil, et cette route, ouverte depuis le lien de suivi. Ne brancher que le
+   * premier laisserait entier, pour l'autre moitie des acheteuses, le defaut
+   * qu'on ferme : une commande gelee que la vendeuse croit vivante.
+   *
+   * Optionnel, et volontairement : sans bot monte, le suivi web reste entier.
+   * Une notification n'est jamais le chemin critique.
+   */
+  apresContestation?: (orderId: string) => Promise<void>;
 }
 
 /** Les colonnes qu'un recu demande. Le SMS brut n'en fait PAS partie. */
@@ -56,6 +71,8 @@ const CHAMPS_COMMANDE = {
   /** Lot 11 : l'etape et le mode de livraison alimentent le suivi. */
   step: true,
   delivery: true,
+  /** ADR 0035 : l'avis s'attribue a l'article quand la commande n'en a qu'un. */
+  items: true,
   seller: { select: { id: true, businessName: true, payoutPhone: true } },
   proofs: {
     where: { verdict: { in: VERDICTS_RECEVABLES } },
@@ -75,6 +92,7 @@ const CHAMPS_COMMANDE = {
 type CommandeLue = {
   step: OrderStep;
   delivery: unknown;
+  items: unknown;
   /** Typee au lieu de `string` : `etapesDuSuivi` attend le vocabulaire ferme. */
   id: string;
   ref: string;
@@ -314,7 +332,18 @@ export function suiviRoutes(deps: RecuDeps) {
       }),
       actions: {
         contresigner: commande.proofState === "prouve",
-        contester: commande.proofState !== "conteste",
+        /**
+         * **On ne propose pas de contester un paiement qui n'existe pas.**
+         *
+         * Sur `attendu`, personne n'a rien verse ni rien declare : le bouton
+         * n'a aucun objet, et il a coute une commande au banc du 11/08/2026
+         * — appuye trente secondes apres la creation, il l'a laissee en
+         * litige, sans avis ni contre-signature possibles, sans retour.
+         *
+         * Le domaine refuse desormais aussi (`contestation_sans_paiement`) :
+         * cacher un bouton ne suffit pas quand la route reste ouverte.
+         */
+        contester: commande.proofState !== "conteste" && commande.proofState !== "attendu",
       },
     });
   });
@@ -367,12 +396,25 @@ export function suiviRoutes(deps: RecuDeps) {
     if (!droit.possible) return c.json({ erreur: "commande_non_livree" }, 409);
 
     const now = deps.maintenant?.() ?? new Date();
+    /**
+     * L'article note (ADR 0035) : SEULEMENT quand la commande ne porte qu'un
+     * article distinct. Sur un panier mixte, on n'attribue pas un avis global
+     * a un article au hasard — la colonne reste nulle, et c'est un fait dit.
+     */
+    const articlesDistincts = new Set(
+      (Array.isArray(commande.items) ? commande.items : [])
+        .map((l) => (l as { productId?: unknown }).productId)
+        .filter((p): p is string => typeof p === "string"),
+    );
+    const productId = articlesDistincts.size === 1 ? [...articlesDistincts][0] : null;
+
     try {
       await deps.prisma.$transaction(async (tx) => {
         await tx.review.create({
           data: {
             orderId: commande.id,
             sellerId: commande.seller.id,
+            ...(productId ? { productId } : {}),
             rating: note,
             body: texte || null,
             verified: droit.verifie,
@@ -417,10 +459,50 @@ export function suiviRoutes(deps: RecuDeps) {
    * invisible, et c'est exactement le signal qu'on voudra lire le jour ou un etat
    * parait faux.
    */
+  /**
+   * Contre-signature et contestation, tracees.
+   *
+   * La contre-signature est le seul geste a DEUX VOIX du produit — c'est le
+   * controle n° 7, et c'est ce qui distingue une preuve forte d'une preuve
+   * simple. Son taux de passage merite d'etre suivi : s'il s'effondre, ce n'est
+   * pas la preuve qui casse, c'est le lien de suivi qui n'arrive plus.
+   *
+   * **Le jeton n'est JAMAIS un attribut de trace.** C'est le secret qui autorise
+   * la contre-signature (ADR 0021) : le voir passer dans une trace reviendrait a
+   * le publier, et il suffirait alors de lire un tableau de bord pour valider le
+   * paiement d'autrui. On trace l'identifiant de commande, qui n'autorise rien.
+   */
+  /**
+   * Ce qu'on dit a l'acheteuse quand la machine refuse. Un message par raison :
+   * « impossible » sans motif est la reponse qui fait renoncer.
+   */
+  const MESSAGE_REFUS: Record<string, string> = {
+    contestation_sans_paiement:
+      "Aucun paiement n'a encore ete enregistre sur cette commande — il n'y a donc rien a contester. Si vous voulez annuler, ecrivez-le a la vendeuse : c'est elle qui peut le faire.",
+    contresignature_sans_preuve:
+      "Le paiement n'est pas encore prouve : la vendeuse doit d'abord coller le SMS de son operateur. Vous serez prevenue ici des que c'est fait.",
+    recul_ignore: "C'est deja fait — rien de plus n'est necessaire.",
+    litige_ouvert:
+      "Cette commande est en litige : elle n'avance plus sans intervention humaine. Ecrivez a la vendeuse.",
+    transition_interdite: "Ce geste n'est pas possible sur cette commande.",
+  };
+
   async function transition(c: Context, evenement: EvenementPreuve) {
+    return avecSpan(
+      evenement.type === "contresignature" ? PARCOURS.contresignature : PARCOURS.etapeAvancee,
+      {},
+      (span) => transitionTracee(c, evenement, span),
+    );
+  }
+
+  async function transitionTracee(c: Context, evenement: EvenementPreuve, span: Span) {
     sansCache(c);
     const commande = await parJeton(c.req.param("jeton") ?? "");
-    if (!commande) return c.json({ erreur: "lien_inconnu" }, 404);
+    if (!commande) {
+      poserIssue(span, "introuvable");
+      return c.json({ erreur: "lien_inconnu" }, 404);
+    }
+    poser(span, { "catalog.commande.id": commande.id });
 
     const now = deps.maintenant?.() ?? new Date();
     const resultat = appliquerEvenement(commande.proofState as never, evenement, now);
@@ -458,7 +540,27 @@ export function suiviRoutes(deps: RecuDeps) {
     });
 
     if (!resultat.ok) {
-      return c.json({ refuse: resultat.raison, etat: resultat.etat }, 409);
+      poser(span, { "catalog.commande.transition_refusee": resultat.raison });
+      poserIssue(span, "refus_transition");
+      /* Un refus se DIT en francais simple : « 409 » n'apprend rien a une
+         acheteuse, et le silence sur ce qui vient d'echouer est ce qui fait
+         croire que le produit est casse. */
+      return c.json(
+        { refuse: resultat.raison, etat: resultat.etat, message: MESSAGE_REFUS[resultat.raison] },
+        409,
+      );
+    }
+    poser(span, { "catalog.commande.etat_preuve": resultat.etat });
+    mesurerEtatPreuve(resultat.etat);
+    poserIssue(span, "acceptee");
+    /* Apres la transaction, et sans jamais faire echouer la reponse : la
+       contestation est ENREGISTREE, c'est ce qui compte pour l'acheteuse.
+       Une notification qui echoue ne doit pas lui rendre une erreur sur un
+       geste qui, lui, a reussi. */
+    if (evenement.type === "contestation" && deps.apresContestation) {
+      await deps
+        .apresContestation(commande.id)
+        .catch(() => console.warn("suivi : vendeuse non prevenue de la contestation"));
     }
     return c.json({ etat: resultat.etat });
   }

@@ -3,12 +3,14 @@ import type { PrismaClient } from "@catalog/db";
 import { Hono } from "hono";
 import type { OtpAttemptStore } from "../adapters/otp-attempt-store.ts";
 import type { PayoutOtpStore } from "../adapters/payout-otp-store.ts";
+import { envoyerCodeBanc, numeroDuBanc } from "../banc-essai.ts";
 import {
   appliquerChangementReversement,
   type PayoutChangeRequest,
   type ResultatChangement,
 } from "../domain/payout-phone.ts";
 import type { OtpLimits } from "../domain/rate-limit.ts";
+import { decisionAlerte } from "../domain/securite/alerte-reversement.ts";
 import type { SmsSender } from "../domain/sms-sender.ts";
 import { texteSms } from "../domain/sms-sender.ts";
 import { adresseDe, otpRateLimit } from "../middleware/otp-rate-limit.ts";
@@ -34,6 +36,18 @@ export interface PayoutDeps {
   prisma: PrismaClient;
   /** Injectable pour les tests : le domaine ne lit jamais l'horloge. */
   maintenant?: () => Date;
+  /**
+   * L'envoi de l'alerte a l'ancien numero (ADR 0061, rang 2b). **Facultatif** :
+   * absent, le changement se fait et se journalise comme avant — les tests qui
+   * ne s'y interessent pas n'ont rien a fournir.
+   */
+  sms?: SmsSender;
+  /**
+   * Le numero du bot, ou l'ancien numero envoie STOP. Absent : l'alerte part
+   * quand meme, en renvoyant vers le support — mieux vaut un avertissement
+   * sans bouton qu'aucun avertissement.
+   */
+  numeroBot?: string;
 }
 
 /**
@@ -54,9 +68,41 @@ export async function changerNumeroDeReversement(
 
   const vendeuse = await deps.prisma.seller.findUnique({
     where: { id: entree.sellerId },
-    select: { id: true, phone: true, payoutPhone: true, payoutPhoneVerifiedAt: true },
+    select: {
+      id: true,
+      phone: true,
+      payoutPhone: true,
+      payoutPhoneVerifiedAt: true,
+      reversementGeleDepuis: true,
+    },
   });
   if (!vendeuse) throw new Error(`vendeuse introuvable: ${entree.sellerId}`);
+
+  /**
+   * ── Le gel passe AVANT le domaine, et il ne se leve pas tout seul ──────
+   *
+   * Une vendeuse dont l'ancien numero a repondu STOP a signale un vol. Tant
+   * qu'un humain n'a pas tranche, aucun numero ne se pose — y compris par
+   * quelqu'un qui detient l'appareil et sait recevoir un OTP. C'est tout
+   * l'interet du geste : l'OTP prouve qu'on tient une puce, pas qu'on est la
+   * proprietaire.
+   */
+  if (vendeuse.reversementGeleDepuis) {
+    const journal = {
+      sellerId: vendeuse.id,
+      kind: "reversement_refuse" as const,
+      actor: entree.acteur.role,
+      at: now,
+      payload: {
+        ancien: vendeuse.payoutPhone,
+        nouveau: null,
+        raison: "reversement_gele" as const,
+        geleDepuis: vendeuse.reversementGeleDepuis.toISOString(),
+      },
+    };
+    await deps.prisma.sellerAuditEvent.create({ data: journal });
+    return { ok: false, raison: "reversement_gele" as const, journal };
+  }
 
   const resultat = appliquerChangementReversement(
     {
@@ -66,6 +112,9 @@ export async function changerNumeroDeReversement(
       payoutPhoneVerifiedAt: vendeuse.payoutPhoneVerifiedAt,
     },
     { ...entree, now },
+    /* La regle +237, elargie aux seuls numeros NOMMES du banc (ADR 0058) —
+       liste vide par defaut, decision et journal inchanges. */
+    (brut) => normalizePhone(brut) ?? numeroDuBanc(brut),
   );
 
   const journal = {
@@ -86,11 +135,57 @@ export async function changerNumeroDeReversement(
     await tx.sellerAuditEvent.create({ data: journal });
   });
 
+  /**
+   * ── L'alerte a l'ANCIEN numero — ADR 0061, rang 2b ────────────────────
+   *
+   * Elle part APRES la transaction, et volontairement : le changement est
+   * acquis, l'alerte est un plus. Une passerelle SMS injoignable ne doit pas
+   * defaire une operation que la vendeuse a menee correctement — c'est la
+   * meme lecon que la reconstruction de boutique (ADR 0065) : ce qui est en
+   * plus ne casse pas ce qui est essentiel.
+   *
+   * Elle part par SMS, pas par le fil : sur un telephone vole, le fil est
+   * entre les mains du voleur. La puce de secours, elle, recoit un SMS meme
+   * dans un vieil appareil.
+   */
+  if (resultat.ok) {
+    const decision = decisionAlerte({
+      ancienNumero: vendeuse.payoutPhone,
+      nouveauNumero: resultat.changes.payoutPhone,
+    });
+    if (decision.alerter) {
+      try {
+        await deps.sms?.send({
+          to: decision.vers,
+          text: texteSms("alerte_reversement", deps.numeroBot ?? ""),
+          kind: "alerte_reversement",
+        });
+        await deps.prisma.sellerAuditEvent.create({
+          data: {
+            sellerId: vendeuse.id,
+            kind: "reversement_alerte",
+            actor: "systeme",
+            /* Le numero alerte est la CLE du STOP : c'est par lui qu'on
+               retrouve l'alerte quand la reponse arrive. */
+            payload: { vers: decision.vers },
+            at: now,
+          },
+        });
+      } catch {
+        /* Journalise sans detail : un message de passerelle peut refleter le
+           numero appele (ADR 0023). L'echec ne remonte pas a la vendeuse. */
+        console.warn("reversement : alerte a l'ancien numero non delivree");
+      }
+    }
+  }
+
   return resultat;
 }
 
 /** Codes HTTP : un refus metier n'est pas une panne. */
 const STATUT: Record<string, number> = {
+  /* 423 Locked : ni une erreur de saisie, ni un droit manquant — un verrou. */
+  reversement_gele: 423,
   verification_absente: 403,
   verification_dun_autre_numero: 403,
   verification_perimee: 403,
@@ -110,6 +205,10 @@ const MESSAGE: Record<string, string> = {
   verification_perimee: "Le code a expire. Demandez-en un nouveau.",
   numero_invalide: "Ce numero ne ressemble pas a un numero camerounais.",
   numero_inchange: "C'est deja votre numero de reversement.",
+  /* On ne dit PAS « vol signale » : si c'est le voleur qui lit, il apprendrait
+     ce qui se passe et par ou passer. On dit qu'un humain doit intervenir. */
+  reversement_gele:
+    "Le changement de numero est suspendu sur ce compte. Contactez-nous pour le debloquer.",
 };
 
 /** Refus propres a la verification du code. Aucun n'est une panne. */
@@ -173,7 +272,13 @@ export function payoutRoutes(deps: PayoutRoutesDeps) {
     if (!v.seller) return c.json({ erreur: "profil_absent" }, 409);
 
     const corps = await c.req.json().catch(() => null);
-    const numero = normalizePhone(String(corps?.nouveauNumero ?? ""));
+    const brut = String(corps?.nouveauNumero ?? "");
+    /* Les numeros NOMMES du banc d'essai (ADR 0058) sont admis aussi. La
+       liste est VIDE par defaut : sans la variable, la regle +237 est
+       exactement celle d'avant, et le journal d'audit trace le changement
+       comme n'importe quel autre. */
+    const banc = numeroDuBanc(brut);
+    const numero = normalizePhone(brut) ?? banc;
     if (!numero) {
       return c.json(
         {
@@ -189,10 +294,18 @@ export function payoutRoutes(deps: PayoutRoutesDeps) {
 
     const now = deps.maintenant?.() ?? new Date();
     const { code } = await deps.otp.emettre(v.seller.id, numero, now);
+    /* Le code d'un numero du banc part par le WhatsApp du bot : le canal
+       normal (SMS Orange Cameroun) ne livre pas hors du pays. */
+    if (banc) {
+      await envoyerCodeBanc(numero, texteSms("otp_reversement", code));
+      return c.json({ envoye: true, numero });
+    }
     await deps.sms.send({
       to: numero,
       text: texteSms("otp_reversement", code),
       kind: "otp_reversement",
+      /** Le code brut, pour les canaux a gabarit. Voir `SmsMessage`. */
+      valeur: code,
     });
 
     // Le corps de reponse ne porte NI le code, ni son empreinte.
