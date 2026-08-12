@@ -24,7 +24,7 @@ on:
       operation:
         description: "Ce qu'on fait"
         type: choice
-        options: [inventaire, etat-flux, remise-a-zero]
+        options: [inventaire, etat-flux, poser-flux-inscription, remise-a-zero]
         default: inventaire
       confirmation:
         description: "Pour « remise-a-zero » UNIQUEMENT : taper REMISE-A-ZERO-PREPRODUCTION"
@@ -90,6 +90,43 @@ jobs:
       - name: Etat des formulaires
         if: inputs.operation == 'etat-flux'
         run: flyctl ssh console --app catalog-api-preprod -C "node /app/apps/api/scripts/flux.mjs --etat"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Poser l'identifiant du formulaire d'inscription — tache #60 ─────
+      #
+      # La machine sait DEMANDER l'identifiant a Meta (elle seule detient
+      # `WABOT_API_KEY`), mais ne sait pas ecrire ses propres secrets ; le
+      # runner detient `FLY_API_TOKEN` mais pas la cle Meta. Ce pas fait le
+      # pont : il lit l'etat DEPUIS la machine, et pose le secret DEPUIS le
+      # runner. Aucun identifiant ne transite par un humain.
+      #
+      # **Seul un Flow PUBLISHED se pose.** Un brouillon s'envoie sans erreur
+      # et ne s'ouvre jamais — poser son identifiant serait installer la panne
+      # la plus silencieuse du dispositif. On refuse, en le disant.
+      #
+      # `flyctl secrets set` REDEMARRE l'application : le pas est a lancer
+      # apres un deploiement, pas pendant.
+      - name: Poser l'identifiant du formulaire d'inscription
+        if: inputs.operation == 'poser-flux-inscription'
+        run: |
+          set -euo pipefail
+          sortie=$(flyctl ssh console --app catalog-api-preprod \
+            -C "node /app/apps/api/scripts/flux.mjs --etat" | tr -d '\r')
+          echo "$sortie"
+          ligne=$(echo "$sortie" | awk '
+            /catalog_inscription : PUBLISHED/ { ok = 1; next }
+            /WABOT_FLUX_INSCRIPTION_ID=/ { if (ok) { gsub(/^[ \t]+/, ""); print; exit } ok = 0 }
+          ')
+          if [ -z "$ligne" ]; then
+            echo ""
+            echo "catalog_inscription n'est pas PUBLISHED (ou absent) : rien n'est pose."
+            echo "Publier le Flow d'abord — un brouillon s'envoie sans erreur et ne s'ouvre jamais."
+            exit 1
+          fi
+          echo ""
+          echo "Pose : $ligne"
+          flyctl secrets set "$ligne" --app catalog-api-preprod
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
