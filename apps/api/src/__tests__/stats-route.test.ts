@@ -2,6 +2,7 @@ import { CODE_ALPHABET, statsVendeuseSchema } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fenetreDemandee, statsRoutes } from "../routes/stats.ts";
+import { selExecution } from "./_identifiants.ts";
 
 /**
  * L'ecran statistiques, contre une VRAIE base.
@@ -25,12 +26,12 @@ const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 803 * 1000 + (Date.now() % 1000);
+const RUN = 803 * 1000 + selExecution();
 
 /** Midi a Douala, le 30 juillet 2026. La fenetre de 30 jours part du 1er. */
 const MAINTENANT = new Date("2026-07-30T11:00:00Z");

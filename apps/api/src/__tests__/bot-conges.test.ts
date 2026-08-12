@@ -6,6 +6,7 @@ import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
 import { basculerConges } from "../routes/seller.ts";
+import { selExecution } from "./_identifiants.ts";
 
 /**
  * Le mode conges contre une VRAIE base — ADR 0039.
@@ -25,12 +26,12 @@ const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 526 * 1000 + (Date.now() % 1000);
+const RUN = 526 * 1000 + selExecution();
 const NOW = new Date("2026-08-04T12:00:00+01:00");
 
 function codeDeTest(graine: number): string {

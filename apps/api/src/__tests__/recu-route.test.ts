@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { genererJetonSuivi } from "../domain/receipt/jeton.ts";
 import { normaliserCode, recuRoutes, suiviRoutes } from "../routes/recu.ts";
-import { identifiants } from "./_identifiants.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
  * Le recu public et la contre-signature, contre une VRAIE base.
@@ -26,12 +26,12 @@ const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 275 * 1000 + (Date.now() % 1000);
+const RUN = 275 * 1000 + selExecution();
 
 /* Les fixtures se numerotaient `RUN + 1` … `RUN + 16`. Deux executions se
    recouvraient donc des que l'ecart de leurs sels etait inferieur a seize —
@@ -46,7 +46,7 @@ const CREEE = new Date("2026-06-23T09:00:00+01:00");
  * Alea REEL, et non un generateur deterministe.
  *
  * `buyer_token` est UNIQUE et la base n'est pas purgee entre deux executions.
- * Un alea deterministe seme sur `RUN = Date.now() % 90000` se repete toutes les
+ * Un alea deterministe seme sur `RUN = selExecution()` se repete toutes les
  * quatre-vingt-dix secondes : deux executions rapprochees entrent alors en
  * collision avec les lignes laissees par la precedente. Le determinisme du
  * generateur est verifie ailleurs — `jeton-suivi.test.ts` —, il n'a rien a faire

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { BLOCS, type Fichier, identifiants } from "./_identifiants.ts";
+import { BLOCS, type Fichier, identifiants, selExecution, VARIABLE_SEL } from "./_identifiants.ts";
 
 /** Le schema d'identifiants de test — voir l'en-tete de `_identifiants.ts`. */
 
@@ -124,8 +124,11 @@ describe("deux EXECUTIONS ne se croisent pas — la propriete du 11/08", () => {
   });
 
   it("le recouvrement n'est possible QUE sur un sel identique", () => {
-    /* Une chance sur mille, et sans amplification par un pas : c'est la borne
-       que ce schema promet, dite ici plutot que supposee. */
+    /* La borne du schema, dite ici plutot que supposee. Tant que le sel etait
+       tire de l'horloge, c'etait une chance sur mille PAR PAIRE d'executions —
+       et la CI en fabrique une paire a chaque passage. Le sel se pose
+       maintenant : cette borne n'est plus atteinte par accident, seulement par
+       une CI qui poserait deux fois la meme valeur. */
     expect(tous(742)).toEqual(tous(742));
   });
 
@@ -134,5 +137,102 @@ describe("deux EXECUTIONS ne se croisent pas — la propriete du 11/08", () => {
        sinon le fichier de bloc 13 recevrait les identifiants de celui de 12. */
     const dernier = Math.max(...tous(999));
     expect(dernier).toBeLessThan((BLOCS["recu-route"] + 1) * 100_000);
+  });
+});
+
+describe("le sel d'une execution se POSE — la propriete du 12/08", () => {
+  /** Rend l'environnement tel qu'il etait : un test ne laisse pas de trace. */
+  const avec = <T>(valeur: string | undefined, f: () => T): T => {
+    const initial = process.env[VARIABLE_SEL];
+    if (valeur === undefined) delete process.env[VARIABLE_SEL];
+    else process.env[VARIABLE_SEL] = valeur;
+    try {
+      return f();
+    } finally {
+      if (initial === undefined) delete process.env[VARIABLE_SEL];
+      else process.env[VARIABLE_SEL] = initial;
+    }
+  };
+
+  it("pose, il est rendu tel quel tant qu'il tient en trois chiffres", () => {
+    expect(avec("7", selExecution)).toBe(7);
+    expect(avec("0", selExecution)).toBe(0);
+    expect(avec("999", selExecution)).toBe(999);
+  });
+
+  it("un identifiant de passage, long, est ramene modulo mille", () => {
+    /* La CI ne pose pas une constante : elle pose `${github.run_id}` suffixe
+       par l'etape. Une constante separerait les deux etapes d'un passage et
+       recouvrirait ENTIEREMENT le passage precedent si la base lui survivait —
+       mesure du 12/08, quatorze fichiers rouges d'un coup. */
+    expect(avec("31596481184", selExecution)).toBe(184);
+  });
+
+  it("les deux etapes d'un MEME passage different toujours", () => {
+    /* La propriete que la CI achete : suffixe `0` et suffixe `1` sur le meme
+       `run_id` donnent deux sels voisins, donc deux tranches disjointes. */
+    for (const passage of ["31596481184", "1", "999999999999", "7"]) {
+      const a = avec(`${passage}0`, selExecution);
+      const b = avec(`${passage}1`, selExecution);
+      expect(b - a, passage).toBe(1);
+    }
+  });
+
+  it("deux PASSAGES differents ne posent pas le meme sel", () => {
+    /* Ce que la constante ne donnait pas. Deux passages consecutifs de la CI
+       ont des `run_id` distincts, donc des sels distincts, meme si la base
+       survivait de l'un a l'autre. */
+    const a = avec("315964811840", selExecution);
+    const b = avec("315964811850", selExecution);
+    expect(a).not.toBe(b);
+  });
+
+  it("absent, il retombe sur l'horloge", () => {
+    /* Le developpement local : base jetable, une exécution a la fois, le
+       tirage suffit. La CI, elle, pose. */
+    const n = avec(undefined, selExecution);
+    expect(Number.isInteger(n)).toBe(true);
+    expect(n).toBeGreaterThanOrEqual(0);
+    expect(n).toBeLessThanOrEqual(999);
+  });
+
+  it('VIDE, il LEVE — parce que `Number("")` vaut zero', () => {
+    /* La meme arete qu'au lot 8 (ADR 0019), ou un montant fait uniquement de
+       separateurs produisait un paiement de zero franc parfaitement forme. Ici
+       elle donnerait le sel 0 en silence, donc deux executions identiques —
+       precisement le defaut que ce schema ferme. Un repli silencieux serait
+       PIRE que le defaut : la CI redeviendrait intermittente sans que rien ne
+       le dise. */
+    expect(Number("")).toBe(0); // l'arete elle-meme, pour qu'elle soit lisible
+    expect(() => avec("", selExecution)).toThrow(/entier positif/);
+    expect(() => avec("   ", selExecution)).toThrow(/entier positif/);
+  });
+
+  it("mal forme, il LEVE aussi", () => {
+    /* `1000` n'est PAS dans cette liste : la borne porte sur ce qu'on garde du
+       nombre, pas sur ce qu'on accepte — sinon la CI ne pourrait pas poser un
+       identifiant de passage. */
+    for (const mauvais of ["-1", "7.5", "sept", "12a", "1e2", " 12 3", "+7"]) {
+      expect(() => avec(mauvais, selExecution), mauvais).toThrow(/entier positif/);
+    }
+  });
+
+  it("AUCUN fichier de test ne tire son propre sel de l'horloge", () => {
+    /* LE test de ce lot. Le bloc separe les FICHIERS ; il ne separe pas les
+       EXECUTIONS. Un fichier qui refabrique son sel a partir de l'horloge,
+       modulo ce qu'on voudra, se redonne le droit de tomber sur celui du
+       voisin — et il le fera une fois sur mille, c'est-a-dire assez rarement
+       pour que le rouge passe pour un defaut metier, et assez souvent pour
+       empoisonner la CI.
+
+       La liste des exceptions est vide et doit le rester : `_identifiants.ts`
+       est le seul endroit ou l'horloge a le droit d'entrer. Ce test s'est
+       d'abord denonce lui-meme, parce que ce commentaire citait le motif ; on
+       l'a reformule plutot que d'ouvrir une exception, car une liste
+       d'exceptions est la porte par laquelle le defaut revient. */
+    const coupables = readdirSync(ICI)
+      .filter((f) => f.endsWith(".ts") && f !== "_identifiants.ts")
+      .filter((f) => /Date\.now\(\)\s*%/.test(readFileSync(join(ICI, f), "utf8")));
+    expect(coupables).toEqual([]);
   });
 });
