@@ -115,30 +115,57 @@ async function exigerConfiguration() {
    *
    * Constate le 12/08/2026, premiere execution DANS la machine Fly : les
    * depots de Flows avaient toujours ete faits depuis un poste, et personne
-   * n'avait jamais pose le WABA sur l'application. Or le jeton SAIT a quel
-   * compte il est rattache — `debug_token` rend les `target_ids` de ses
-   * portees. Un identifiant que l'environnement connait deja par son jeton
-   * n'a pas a etre recopie a la main.
+   * n'avait jamais pose le WABA sur l'application. Un identifiant que
+   * l'environnement connait deja par son jeton n'a pas a etre recopie a la
+   * main. Deux voies, dans l'ordre :
    *
-   * On ne devine RIEN : plusieurs comptes, ou aucun, c'est un arret franc —
-   * deposer un Flow sur le mauvais WABA serait pire qu'echouer.
+   * 1. `debug_token` — les `target_ids` des portees WhatsApp. **Elle rend
+   *    zero compte quand le jeton est autorise sur « tous les actifs actuels
+   *    et futurs »** : Meta omet alors la liste, et c'est precisement ce que
+   *    la premiere execution a montre (« 0 compte(s) ») ;
+   * 2. `/me/businesses` puis les WABA possedes et clients de chaque
+   *    entreprise — la voie qui couvre ce cas-la.
+   *
+   * On ne devine RIEN : plusieurs comptes, ou aucun, c'est un arret franc qui
+   * LISTE ce qu'il a vu — deposer un Flow sur le mauvais WABA serait pire
+   * qu'echouer.
    */
   const reponse = await appel(`/debug_token?input_token=${encodeURIComponent(JETON)}`);
   const portees = reponse?.data?.granular_scopes ?? [];
-  const cibles = new Set(
-    portees
-      .filter((p) => p?.scope === "whatsapp_business_management")
-      .flatMap((p) => p?.target_ids ?? []),
-  );
+  const cibles = new Map();
+  for (const p of portees) {
+    if (typeof p?.scope === "string" && p.scope.startsWith("whatsapp_business")) {
+      for (const id of p?.target_ids ?? []) cibles.set(String(id), "(portee du jeton)");
+    }
+  }
+
+  if (cibles.size !== 1) {
+    const entreprises =
+      (await appel("/me/businesses?fields=id,name").catch(() => null))?.data ?? [];
+    for (const e of entreprises) {
+      for (const champ of [
+        "owned_whatsapp_business_accounts",
+        "client_whatsapp_business_accounts",
+      ]) {
+        const comptes =
+          (await appel(`/${e.id}/${champ}?fields=id,name`).catch(() => null))?.data ?? [];
+        for (const w of comptes) cibles.set(String(w.id), w.name ?? e.name ?? "");
+      }
+    }
+  }
+
   if (cibles.size !== 1) {
     console.error(
-      `WHATSAPP_WABA_ID est absente, et le jeton designe ${cibles.size} compte(s) — ` +
-        "il en faut exactement un pour continuer sans risque de se tromper de WABA.\n" +
+      `WHATSAPP_WABA_ID est absente, et la resolution a trouve ${cibles.size} compte(s) :`,
+    );
+    for (const [id, nom] of cibles) console.error(`  ${id}  ${nom}`);
+    console.error(
+      "Il en faut exactement un pour continuer sans risque de se tromper de WABA.\n" +
         "Poser WHATSAPP_WABA_ID explicitement (fly secrets set WHATSAPP_WABA_ID=...).",
     );
     process.exit(1);
   }
-  WABA = [...cibles][0];
+  WABA = [...cibles.keys()][0];
   console.log(`WABA resolu depuis le jeton : ${WABA}`);
 }
 

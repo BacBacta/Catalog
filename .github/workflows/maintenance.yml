@@ -30,6 +30,10 @@ on:
         description: "Pour « remise-a-zero » UNIQUEMENT : taper REMISE-A-ZERO-PREPRODUCTION"
         type: string
         default: ""
+      waba:
+        description: "Pour les operations de flux : WHATSAPP_WABA_ID, si la resolution automatique ne suffit pas. Pas un secret."
+        type: string
+        default: ""
 
 concurrency:
   group: maintenance-preproduction
@@ -89,7 +93,9 @@ jobs:
       # est affiche a cote de l'identifiant.
       - name: Etat des formulaires
         if: inputs.operation == 'etat-flux'
-        run: flyctl ssh console --app catalog-api-preprod -C "node /app/apps/api/scripts/flux.mjs --etat"
+        run: |
+          flyctl ssh console --app catalog-api-preprod \
+            -C "sh -c 'WHATSAPP_WABA_ID=${{ inputs.waba }} node /app/apps/api/scripts/flux.mjs --etat'"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -111,8 +117,11 @@ jobs:
         if: inputs.operation == 'poser-flux-inscription'
         run: |
           set -euo pipefail
+          # `inputs.waba` vide : la chaine `WHATSAPP_WABA_ID=` pose une variable
+          # VIDE, que le script traite comme absente (`?.trim()` puis test de
+          # verite) — la resolution automatique reprend la main.
           sortie=$(flyctl ssh console --app catalog-api-preprod \
-            -C "node /app/apps/api/scripts/flux.mjs --etat" | tr -d '\r')
+            -C "sh -c 'WHATSAPP_WABA_ID=${{ inputs.waba }} node /app/apps/api/scripts/flux.mjs --etat'" | tr -d '\r')
           echo "$sortie"
           ligne=$(echo "$sortie" | awk '
             /catalog_inscription : PUBLISHED/ { ok = 1; next }
