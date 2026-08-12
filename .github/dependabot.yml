@@ -4,9 +4,17 @@ updates:
     directory: "/"
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    # Deux groupes, et les MAJEURES restent des PR individuelles — c'est voulu :
+    # une majeure demande un ADR (AGENTS.md §3), elle merite sa propre revue.
+    # Le 12/08, cinq mineures sont arrivees en cinq PR : chaque fusion obligeait
+    # a remettre a jour la suivante, ~12 min de CI par cycle. Groupees, c'est
+    # UNE PR et UN cycle pour le meme resultat.
     groups:
       dev-dependencies:
         dependency-type: development
+      production-mineures:
+        dependency-type: production
+        update-types: [minor, patch]
     # AGENTS.md §3 fige la pile : « ne pas mettre a jour une version majeure sans
     # ADR ». Dependabot ne sait pas lire cette regle, et il rouvrira indefiniment
     # les memes propositions tant qu'on ne la lui ecrit pas ici.
@@ -27,3 +35,10 @@ updates:
   - package-ecosystem: github-actions
     directory: "/"
     schedule: { interval: monthly }
+    # Toutes les actions dans UNE PR mensuelle. Le 12/08, quatre bumps d'actions
+    # sont arrives en quatre PR a fusionner en serie ; leurs conflits entre eux
+    # (lignes `uses:` adjacentes) ont demande deux resolutions manuelles. Un
+    # groupe unique supprime les deux problemes a la fois.
+    groups:
+      actions:
+        patterns: ["*"]
