@@ -1,0 +1,54 @@
+name: Depots Meta
+
+# Execute les scripts de depot (gabarits, Flows) DANS la machine Fly, la ou
+# vivent `WABOT_API_KEY` et ses voisines. Ce workflow existe pour une raison
+# precise : les depots exigent les secrets de production, et les secrets ne
+# sortent pas de leurs coffres — ni dans un poste de travail improvise, ni
+# dans une conversation. La CI detient deja `FLY_API_TOKEN` pour deployer ;
+# le meme jeton ouvre une console SSH ephemere, et rien d'autre ne circule.
+#
+# `--deposer` est un acte SORTANT et durable (Meta examine, et une serie de
+# refus abime la note de qualite du numero) : les scripts eux-memes refusent
+# de partir sans ce mot, et ce workflow ne se declenche qu'a la main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      quoi:
+        description: "Quel script executer"
+        required: true
+        type: choice
+        options: [flux, gabarits, les-deux]
+      mode:
+        description: "Mode (--etat est en lecture seule)"
+        required: true
+        type: choice
+        options: ["--etat", "--deposer"]
+        default: "--etat"
+
+# Jamais deux depots en meme temps, et on n'annule pas un depot en cours :
+# un Flow cree mais non publie s'envoie sans erreur et ne s'ouvre jamais.
+concurrency:
+  group: depots-meta
+  cancel-in-progress: false
+
+jobs:
+  depot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # `-C` execute la commande dans la machine deja en marche
+      # (`min_machines_running = 1` dans fly.toml) : pas de checkout ici,
+      # les scripts vivent dans l'image, sous /app, avec l'environnement
+      # reel du bot. Les modes sont un `choice` ferme : rien d'arbitraire
+      # ne peut etre injecte dans la console.
+      - name: Flows (flux.mjs)
+        if: inputs.quoi == 'flux' || inputs.quoi == 'les-deux'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/flux.mjs ${{ inputs.mode }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Gabarits (gabarits.mjs)
+        if: inputs.quoi == 'gabarits' || inputs.quoi == 'les-deux'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/gabarits.mjs ${{ inputs.mode }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
