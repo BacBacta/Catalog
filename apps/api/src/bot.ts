@@ -50,6 +50,7 @@ import {
 import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
+import { genreDuJeton, jetonFlux, lireInscriptionFlux, messageFlux } from "./domain/bot/flux.ts";
 import {
   demandeInscription,
   type EtatVendeuse,
@@ -161,6 +162,8 @@ export interface BotDeps {
   fluxLivraisonId?: string;
   /** Le Flow d'AVIS — meme regime : absent, le fil est celui d'avant. */
   fluxAvisId?: string;
+  /** Le formulaire d'inscription vendeuse — tache #60. Absent : rien n'est monte. */
+  fluxInscriptionId?: string;
   /**
    * Le declencheur de reconstruction de la boutique publique — ADR 0065.
    * ABSENT par defaut : sans lui, aucun deploiement n'est demande et aucun
@@ -487,7 +490,32 @@ async function filInscription(
     const demande = entree.genre === "texte" ? demandeInscription(entree.texte) : {};
     etat = { nom: "inscription_nom", ...(demande?.parrain ? { parrain: demande.parrain } : {}) };
     await poserEtat(deps, phone, etat);
-    await deps.envoyeur.envoyer(texte(entree.de, PREMIERE_QUESTION));
+    /**
+     * ── Le formulaire s'AJOUTE a la question, il ne la remplace pas ──────
+     *
+     * Meme regle que l'avis (ADR 0063) et que la livraison (ADR 0055) : un
+     * Flow exige un WhatsApp recent, la question marche partout. Celle qui
+     * peut l'ouvrir s'inscrit d'un geste ; les autres suivent le chemin
+     * d'avant, intact — et c'est le meme etat, donc une vendeuse peut
+     * commencer par le formulaire, l'abandonner, et repondre a la question.
+     *
+     * Sans `WABOT_FLUX_INSCRIPTION_ID`, rien n'est envoye et le fil est
+     * exactement celui d'hier (AGENTS.md §5).
+     */
+    await envoyerSequence(deps, [
+      texte(entree.de, PREMIERE_QUESTION),
+      ...(deps.fluxInscriptionId
+        ? [
+            messageFlux(
+              entree.de,
+              deps.fluxInscriptionId,
+              "Remplir le formulaire",
+              jetonFlux("inscription"),
+              "Plus rapide : tout d'un coup, dans un formulaire.",
+            ),
+          ]
+        : []),
+    ]);
     return;
   }
 
@@ -503,6 +531,64 @@ async function filInscription(
         "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
       ),
     );
+    return;
+  }
+
+  /**
+   * ── La reponse du formulaire d'inscription — tache #60 ────────────────
+   *
+   * Elle est traitee ICI et pas dans la machine, parce que `entreePourMachine`
+   * exclut deliberement le genre `flux` : les trois formulaires arrivent par
+   * le meme `nfm_reply`, et c'est le jeton qui les separe (ADR 0063).
+   *
+   * Une reponse ILLISIBLE ne fait pas echouer l'inscription : on le dit, et la
+   * question posee reste la. Le formulaire est un raccourci, jamais un passage
+   * oblige — une vendeuse ne doit pas se retrouver coincee parce qu'un champ
+   * est revenu vide.
+   */
+  if (
+    !sellerId &&
+    entree.genre === "flux" &&
+    genreDuJeton(entree.reponse) === "inscription" &&
+    (etat.nom === "inscription_nom" || etat.nom === "inscription_ville")
+  ) {
+    const lue = lireInscriptionFlux(entree.reponse);
+    if (!lue) {
+      await deps.envoyeur.envoyer(
+        texte(entree.de, "Le formulaire n'a pas pu être lu. Reprenons ici, c'est aussi rapide."),
+      );
+      await deps.envoyeur.envoyer(questionDeLEtat(etat, entree.de));
+      return;
+    }
+    const parrain = "parrain" in etat ? etat.parrain : undefined;
+    const cree = await creerBoutique(deps, phone, {
+      nomBoutique: lue.nomBoutique,
+      ville: lue.ville,
+      ...(parrain ? { parrain } : {}),
+    });
+    const suite: MessageSortant[] = cree.ok
+      ? messageBoutiqueCreee(entree.de, cree.messagerie)
+      : [texte(entree.de, cree.message)];
+    if (cree.ok) {
+      if (deps.planifierRelanceReversement) {
+        await deps
+          .planifierRelanceReversement({ sellerId: cree.id, phone })
+          .catch(() => console.warn("bot : relance reversement non planifiee (details retenus)"));
+      }
+      /* Une boutique neuve n'a AUCUNE page — meme raison qu'au chemin
+         question par question (ADR 0065). */
+      await deps.reconstruction?.demander("boutique_creee");
+    }
+    await poserEtat(deps, phone, cree.ok ? { nom: "article_nom" } : etat);
+    if (cree.ok) {
+      suite.push(
+        texte(
+          entree.de,
+          "*Quel est le nom de votre premier article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+        ),
+      );
+    }
+    await envoyerSequence(deps, suite);
     return;
   }
 

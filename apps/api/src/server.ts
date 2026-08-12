@@ -145,6 +145,11 @@ const bot =
         ...(process.env.WABOT_FLUX_AVIS_ID?.trim()
           ? { fluxAvisId: process.env.WABOT_FLUX_AVIS_ID.trim() }
           : {}),
+        /* Le formulaire d'inscription vendeuse (tache #60). Absent : le fil
+           pose ses questions une par une, exactement comme avant. */
+        ...(process.env.WABOT_FLUX_INSCRIPTION_ID?.trim()
+          ? { fluxInscriptionId: process.env.WABOT_FLUX_INSCRIPTION_ID.trim() }
+          : {}),
         /* La reconstruction de la boutique publique — ADR 0065. `null` sans
            SHOP_REBUILD_HOOK_URL, et le fil n'annonce alors aucun delai. */
         reconstruction: declencheurDepuisEnv(),
