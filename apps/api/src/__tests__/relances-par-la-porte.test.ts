@@ -5,6 +5,7 @@ import { livrerNotificationsEnAttente } from "../bot-notifications.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
 import { executerRelanceAcompte, executerRelanceReversement } from "../jobs/relance-acompte.ts";
+import { selExecution } from "./_identifiants.ts";
 
 /**
  * Les deux relances passent par la PORTE — ADR 0060.
@@ -25,12 +26,12 @@ const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 760 * 1000 + (Date.now() % 1000);
+const RUN = 760 * 1000 + selExecution();
 const NOW = new Date("2026-08-11T10:00:00+01:00");
 /** Hors fenetre : la vendeuse n'a rien ecrit depuis 40 h. */
 const VIEUX = new Date(NOW.getTime() - 40 * 3600_000);

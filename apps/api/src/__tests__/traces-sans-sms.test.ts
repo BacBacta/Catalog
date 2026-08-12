@@ -10,6 +10,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { ProcesseurDeRedaction, ressembleAUnSmsOperateur } from "../observabilite/redaction.ts";
 import { avecSpan } from "../observabilite/traces.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
+import { selExecution } from "./_identifiants.ts";
 import {
   MTN_PAIEMENT_SORTANT,
   MTN_RECEPTION,
@@ -51,7 +52,7 @@ const URL = process.env.DATABASE_URL;
 const describeDb = URL ? describe : describe.skip;
 
 /** Graine partagee par les identifiants d'operateur de cette execution. */
-const RUN_TX = Date.now() % 90000;
+const RUN_TX = selExecution();
 
 const SMS = [
   MTN_PAIEMENT_SORTANT,
@@ -88,9 +89,23 @@ const INTERDITS = [
  *
  * Le texte reste un vrai SMS : seuls les chiffres de l'identifiant bougent, et
  * c'est bien ce texte-la qu'on cherche ensuite dans les traces.
+ *
+ * ── Deux details qui ne sont pas cosmetiques ──────────────────────────────
+ *
+ * **Le pas de 100 doit depasser l'etendue des suffixes.** Ils vont jusqu'a 24 ;
+ * un pas de 10 ferait retomber le suffixe `20 + i` d'une execution sur le
+ * `10 + i` de la suivante — exactement le recouvrement qu'on ferme.
+ *
+ * **Le remplissage a six chiffres n'est pas de la mise en forme.** Un
+ * identifiant MTN a une longueur fixe : le raccourcir d'un chiffre ne produit
+ * pas un identifiant different, il produit un SMS que l'analyseur ne reconnait
+ * plus, donc un test qui echoue pour une raison qui n'est pas la sienne.
  */
 const unique = (sms: string, txOrigine: string, suffixe: number) =>
-  sms.replace(txOrigine, `${txOrigine.slice(0, -6)}${String(RUN_TX * 10 + suffixe).slice(-6)}`);
+  sms.replace(
+    txOrigine,
+    `${txOrigine.slice(0, -6)}${String(RUN_TX * 100 + suffixe).padStart(6, "0")}`,
+  );
 
 const exporteur = new InMemorySpanExporter();
 const redaction = new ProcesseurDeRedaction(new SimpleSpanProcessor(exporteur));
@@ -253,12 +268,12 @@ describe("le filet de redaction couvre les chemins involontaires", () => {
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 831 * 1000 + (Date.now() % 1000);
+const RUN = 831 * 1000 + selExecution();
 let compteur = 0;
 
 function codeUnique(): string {

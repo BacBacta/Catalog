@@ -6,7 +6,7 @@ import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { LONGUEUR_JETON } from "../domain/receipt/jeton.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
 import { recuRoutes, suiviRoutes } from "../routes/recu.ts";
-import { identifiants } from "./_identifiants.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 import {
   MTN_PAIEMENT_SORTANT,
   MTN_RECEPTION,
@@ -46,12 +46,12 @@ const describeDb = URL_BASE ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 446 * 1000 + (Date.now() % 1000);
+const RUN = 446 * 1000 + selExecution();
 
 /** Horloge figee : les fixtures portent des dates de juin 2026. */
 const NOW = new Date("2026-06-23T15:00:00+01:00");

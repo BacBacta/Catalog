@@ -6,6 +6,7 @@ import { DUREE_OTP_MS, ESSAIS_MAX } from "../domain/payout-otp.ts";
 import type { OtpAttempt } from "../domain/rate-limit.ts";
 import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
 import { payoutRoutes } from "../routes/payout.ts";
+import { selExecution } from "./_identifiants.ts";
 
 /**
  * L'OTP de reversement contre une VRAIE base, routes comprises.
@@ -24,12 +25,12 @@ const describeDb = URL ? describe : describe.skip;
 let prisma: PrismaClient;
 let otp: PayoutOtpStore;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 798 * 1000 + (Date.now() % 1000);
+const RUN = 798 * 1000 + selExecution();
 let sellerId: string;
 let userId: string;
 
