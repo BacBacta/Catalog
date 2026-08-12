@@ -1,0 +1,224 @@
+name: Maintenance
+
+# ── Manuel, et uniquement manuel ───────────────────────────────────────────
+#
+# Rien ici ne part sur un evenement. Ces operations touchent la base de
+# preproduction ; elles se declenchent parce que quelqu'un l'a decide, jamais
+# parce qu'une branche a bouge.
+#
+# ── Pourquoi ce workflow existe — ADR 0071 ────────────────────────────────
+#
+# Depuis l'ADR 0070, `DATABASE_URL` ne vit plus qu'a UN endroit : les secrets
+# de l'application Fly. C'est un progres, et il a un corollaire : plus personne
+# ne peut regarder ni corriger la base depuis un poste. La seule facon d'agir
+# est de le faire DEPUIS la machine, ou le secret est chez lui — et le seul
+# canal qui y mene sans distribuer de nouveau secret est celui-ci, avec le
+# `FLY_API_TOKEN` que le deploiement utilise deja.
+#
+# La contrepartie est bonne : chaque intervention laisse une execution datee,
+# nominative et relisible, au lieu d'un terminal dont il ne reste rien.
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Ce qu'on fait"
+        type: choice
+        options: [inventaire, etat-flux, poser-waba, poser-flux, remise-a-zero]
+        default: inventaire
+      waba:
+        description: "Pour « poser-waba » UNIQUEMENT : l'identifiant du compte WhatsApp Business (chiffres)"
+        type: string
+        default: ""
+      confirmation:
+        description: "Pour « remise-a-zero » UNIQUEMENT : taper REMISE-A-ZERO-PREPRODUCTION"
+        type: string
+        default: ""
+
+concurrency:
+  group: maintenance-preproduction
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    environment: preproduction
+    steps:
+      - uses: actions/checkout@v5
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # ── Les scripts viennent de l'IMAGE, pas de ce checkout ─────────────
+      #
+      # `flyctl ssh console` execute le code de l'image DEPLOYEE. Le checkout
+      # ci-dessus ne sert qu'au contexte du workflow : un script fraichement
+      # fusionne dans `main` n'existe pas dans la machine tant que l'API n'a
+      # pas ete redeployee.
+      #
+      # Constate le 11/08/2026, premiere execution de ce workflow :
+      # « Cannot find module /app/packages/db/scripts/inventaire.mjs ». Le
+      # message ne dit pas que l'image est en retard — il se lit comme un
+      # chemin faux. On refuse donc de partir, en le disant.
+      - name: L'image deployee connait ces scripts
+        run: |
+          set -euo pipefail
+          if ! flyctl ssh console --app catalog-api-preprod \
+                 -C "test -f /app/packages/db/scripts/inventaire.mjs"; then
+            echo "L'API deployee ne contient pas les scripts de maintenance."
+            echo
+            echo "Ils vivent dans l'IMAGE, pas dans ce checkout : lancer d'abord"
+            echo "« Deploiement » avec cible=api pour embarquer le commit courant."
+            exit 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Lecture seule : rien n'est ecrit, rien n'est confirme ───────────
+      - name: Inventaire
+        if: inputs.operation == 'inventaire'
+        run: flyctl ssh console --app catalog-api-preprod -C "node /app/packages/db/scripts/inventaire.mjs"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Les identifiants des formulaires, demandes a Meta ──────────────
+      #
+      # `flux.mjs --etat` liste les Flows du compte et affiche, pour chacun,
+      # son statut et la ligne `WABOT_FLUX_..._ID=<id>` prete a coller. Il
+      # tourne DANS la machine, seule a detenir `WABOT_API_KEY`.
+      #
+      # Ce qui sort n'est PAS un secret : des identifiants de formulaire et
+      # des statuts. La cle, elle, ne quitte pas la machine.
+      #
+      # Un Flow en BROUILLON s'envoie sans erreur et ne s'ouvre jamais — c'est
+      # l'oubli le plus couteux du dispositif, et c'est pour cela que le statut
+      # est affiche a cote de l'identifiant.
+      - name: Etat des formulaires
+        if: inputs.operation == 'etat-flux'
+        run: flyctl ssh console --app catalog-api-preprod -C "node /app/apps/api/scripts/flux.mjs --etat"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Poser l'identifiant du COMPTE WhatsApp Business ─────────────────
+      #
+      # Constate le 12/08/2026, premiere execution de « poser-flux-inscription »
+      # : l'application n'a jamais porte `WHATSAPP_WABA_ID` — les depots de
+      # Flows venaient toujours d'un poste, ou la variable vivait dans un `.env`
+      # local. `flux.mjs` sait la demander au jeton, mais le jeton ne la rend
+      # que s'il est restreint a un actif ; ce n'est pas le cas ici.
+      #
+      # L'identifiant n'est PAS un secret — c'est un numero de compte, visible
+      # dans la console Meta. Il est pose en secret Fly parce que c'est le seul
+      # endroit ou l'application lit sa configuration (ADR 0070).
+      #
+      # Il se saisit UNE fois. Ensuite, « poser-flux » se suffit.
+      - name: Poser l'identifiant du compte WhatsApp Business
+        if: inputs.operation == 'poser-waba'
+        run: |
+          set -euo pipefail
+          # La valeur passe par l'environnement, jamais par une interpolation
+          # dans le corps du script : une saisie libre ne devient pas du shell.
+          waba=$(printf '%s' "$WABA_SAISI" | tr -d '[:space:]')
+          case "$waba" in
+            "" | *[!0-9]*)
+              echo "L'identifiant du compte WhatsApp Business est une suite de chiffres."
+              echo ""
+              echo "Il se lit dans la console Meta : WhatsApp > Configuration de l'API,"
+              echo "champ « Identifiant du compte WhatsApp Business »."
+              exit 1
+              ;;
+          esac
+          echo "Pose : WHATSAPP_WABA_ID=$waba"
+          flyctl secrets set "WHATSAPP_WABA_ID=$waba" --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          WABA_SAISI: ${{ inputs.waba }}
+
+      # ── Poser les identifiants des formulaires — tache #60 ─────────────
+      #
+      # La machine sait DEMANDER les identifiants a Meta (elle seule detient
+      # `WABOT_API_KEY`), mais ne sait pas ecrire ses propres secrets ; le
+      # runner detient `FLY_API_TOKEN` mais pas la cle Meta. Ce pas fait le
+      # pont : il lit l'etat DEPUIS la machine, et pose les secrets DEPUIS le
+      # runner. Aucun identifiant ne transite par un humain.
+      #
+      # **Seul un Flow PUBLISHED se pose.** Un brouillon s'envoie sans erreur
+      # et ne s'ouvre jamais — poser son identifiant serait installer la panne
+      # la plus silencieuse du dispositif. Un Flow absent ou en brouillon est
+      # donc SAUTE, et le pas le dit ; il n'echoue que si RIEN n'est posable.
+      #
+      # Le pas ne connait aucun nom de formulaire : il pose ce que `--etat`
+      # declare publie. C'est `flux.mjs` qui tient la liste, et lui seul —
+      # ajouter un quatrieme formulaire un jour ne se paiera pas ici.
+      #
+      # `flyctl secrets set` REDEMARRE l'application : le pas est a lancer
+      # apres un deploiement, pas pendant.
+      - name: Poser les identifiants des formulaires publies
+        if: inputs.operation == 'poser-flux'
+        run: |
+          set -euo pipefail
+          sortie=$(flyctl ssh console --app catalog-api-preprod \
+            -C "node /app/apps/api/scripts/flux.mjs --etat" | tr -d '\r')
+          echo "$sortie"
+          # `--etat` rend deux lignes par formulaire : le statut, puis la ligne
+          # « WABOT_FLUX_..._ID=<id> » prete a coller. On ne retient la seconde
+          # que si la premiere disait PUBLISHED.
+          lignes=$(echo "$sortie" | awk '
+            / : PUBLISHED/ { publie = 1; next }
+            /^[ \t]*WABOT_FLUX_[A-Z]+_ID=/ {
+              if (publie) { gsub(/^[ \t]+/, ""); print }
+              publie = 0; next
+            }
+            { publie = 0 }
+          ')
+          if [ -z "$lignes" ]; then
+            echo ""
+            echo "Aucun formulaire PUBLISHED : rien n'est pose."
+            echo "Publier chez Meta d'abord — un brouillon s'envoie sans erreur et ne s'ouvre jamais."
+            exit 1
+          fi
+          echo ""
+          echo "Pose :"
+          echo "$lignes"
+          # Expansion VOULUE sans guillemets : une ligne par secret, et chaque
+          # ligne est un « NOM=chiffres » sans espace — c'est `flux.mjs` qui les
+          # ecrit, pas une saisie libre.
+          # shellcheck disable=SC2086
+          flyctl secrets set $lignes --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── La phrase se tape, elle ne se coche pas ─────────────────────────
+      #
+      # Un menu deroulant a deux entrees se choisit de travers ; une phrase de
+      # vingt-six caracteres ne s'ecrit pas par accident. C'est le meme verrou
+      # que le script porte lui-meme, et il est ici EN PLUS, pas a la place :
+      # celui du script protege aussi les invocations qui ne passent pas par ce
+      # workflow.
+      - name: La confirmation est exacte
+        if: inputs.operation == 'remise-a-zero'
+        run: |
+          test "${{ inputs.confirmation }}" = "REMISE-A-ZERO-PREPRODUCTION" || {
+            echo "Confirmation absente ou inexacte : rien n'a ete touche."
+            echo "Taper exactement REMISE-A-ZERO-PREPRODUCTION dans le champ prevu."
+            exit 1
+          }
+
+      - name: Remise a zero de la preproduction
+        if: inputs.operation == 'remise-a-zero'
+        run: |
+          flyctl ssh console --app catalog-api-preprod \
+            -C "sh -c 'CONFIRMATION=REMISE-A-ZERO-PREPRODUCTION sh /app/packages/db/scripts/remise-a-zero.sh'"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── La boutique publiee est PERIMEE des cet instant ─────────────────
+      #
+      # Elle est statique : ses pages continuent d'etre servies par le CDN avec
+      # les boutiques d'avant. Le dire ici evite de le decouvrir en constatant
+      # qu'une page effacee repond encore.
+      - name: Et maintenant
+        if: inputs.operation == 'remise-a-zero'
+        run: |
+          echo "La base est neuve. La boutique publiee, elle, sert encore l'ancien"
+          echo "instantane — elle est statique, c'est normal."
+          echo
+          echo "Lancer « Deploiement » avec cible=boutique pour la reconstruire."

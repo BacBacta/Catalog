@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
 import { basculerConges } from "../routes/seller.ts";
+import { selExecution } from "./_identifiants.ts";
 
 /**
  * Le mode conges contre une VRAIE base — ADR 0039.
@@ -25,23 +25,13 @@ const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 526 * 1000 + (Date.now() % 1000);
+const RUN = 526 * 1000 + selExecution();
 const NOW = new Date("2026-08-04T12:00:00+01:00");
-
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
 
 class EnvoyeurMemoire implements EnvoyeurBot {
   readonly nom = "memoire";
@@ -106,7 +96,6 @@ async function scene(suffixe: number): Promise<Scene> {
   const p = await prisma.product.create({
     data: { sellerId: v.id, name: "Sac en raphia", priceXaf: 8000, position: 0 },
   });
-  void codeDeTest(suffixe);
 
   const envoyeur = new EnvoyeurMemoire();
   return {

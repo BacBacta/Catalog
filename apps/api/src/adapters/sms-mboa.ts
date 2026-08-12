@@ -44,6 +44,8 @@ const EST_UN_CODE: Record<SmsMessage["kind"], boolean> = {
   otp_reversement: true,
   rappel_solde: false,
   expiration: false,
+  /* Une alerte n'est pas un code : envoi ordinaire, pas le point d'entree OTP. */
+  alerte_reversement: false,
 };
 
 export function cheminMboa(baseUrl: string, kind: SmsMessage["kind"]): string {

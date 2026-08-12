@@ -14,15 +14,28 @@ const CARTE_CIBLE_OCTETS = 300_000;
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
+import { slugArticle } from "@catalog/contracts/slug";
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
-import { rendreCarte } from "./adapters/carte-vitrine.ts";
+import { rendreCarte, rendreCarteAvis } from "./adapters/carte-vitrine.ts";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
 import type { DeclencheurReconstruction } from "./adapters/reconstruction-boutique.ts";
 import { emailTechnique } from "./auth.ts";
-import { livrerNotificationsEnAttente, notifier, notifierLivree } from "./bot-notifications.ts";
+import {
+  livrerNotificationsEnAttente,
+  notifier,
+  notifierConteste,
+  notifierLivree,
+} from "./bot-notifications.ts";
 import { aiguiller } from "./domain/bot/aiguillage.ts";
 import { ARTICLES_MAX, CARTE_HAUTEUR } from "./domain/bot/carte-vitrine.ts";
+import {
+  COMPTOIR_DEPART,
+  demandeComptoir,
+  messageATransferer,
+  type VenteDeclaree,
+} from "./domain/bot/comptoir-vendeuse.ts";
+import { confianceAuPaiement, type VerdictConfiance } from "./domain/bot/confiance.ts";
 import {
   type ArticleBot,
   type BoutiqueBot,
@@ -39,16 +52,26 @@ import {
   reagirVendeuse,
   type StatutDerniereCommande,
 } from "./domain/bot/conversation.ts";
+import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
+import {
+  genreDuJeton,
+  jetonFlux,
+  lireArticleFlux,
+  lireInscriptionFlux,
+  messageFlux,
+} from "./domain/bot/flux.ts";
 import {
   demandeInscription,
   type EtatVendeuse,
   etatVendeuseApresInactivite,
   messageArticlePublie,
   messageBoutiqueCreee,
+  messageOnboarding,
   normaliserEtatVendeuse,
   PREMIERE_QUESTION,
+  questionDeLEtat,
   rappelConges,
   reagirInscription,
 } from "./domain/bot/inscription.ts";
@@ -66,6 +89,7 @@ import {
   corpsLivraisonRefusee,
   corpsNouvelleCommande,
 } from "./domain/bot/notifications.ts";
+import { consigneDuPack, packStatut } from "./domain/bot/pack-statut.ts";
 import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
@@ -81,6 +105,7 @@ import { appliquerEvenement, type EvenementPreuve } from "./domain/proof/machine
 import { analyserSms } from "./domain/proof/motifs.ts";
 import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
 import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
+import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeRelance } from "./jobs/relance-acompte.ts";
@@ -149,6 +174,11 @@ export interface BotDeps {
   fluxLivraisonId?: string;
   /** Le Flow d'AVIS — meme regime : absent, le fil est celui d'avant. */
   fluxAvisId?: string;
+  /** Le formulaire d'inscription vendeuse — tache #60. Absent : rien n'est monte. */
+  fluxInscriptionId?: string;
+  /** Le formulaire de creation d'article — tache #62. Meme regime : un raccourci
+      qui s'AJOUTE aux questions, jamais un passage oblige. */
+  fluxArticleId?: string;
   /**
    * Le declencheur de reconstruction de la boutique publique — ADR 0065.
    * ABSENT par defaut : sans lui, aucun deploiement n'est demande et aucun
@@ -299,6 +329,69 @@ function cleConversation(waId: string): string | null {
  * proposer d'ouvrir sa boutique au lieu d'etre renvoyee a un lien qu'elle
  * n'a pas.
  */
+/**
+ * Le STOP qui gele le reversement — ADR 0061, rang 2b.
+ *
+ * Rend `true` quand le message a ete TRAITE ici : l'appelant s'arrete alors,
+ * et le message ne traverse ni l'aiguillage ni la machine d'achat.
+ *
+ * ── Pourquoi passer par le journal d'audit plutot qu'une table ─────────
+ *
+ * L'alerte y est deja consignee (`reversement_alerte`), en ajout seul, avec le
+ * numero destinataire. C'est exactement l'index dont le STOP a besoin, et le
+ * signal de securite reste dans le registre indelebile plutot que dans une
+ * table qu'on pourrait vider.
+ */
+async function filStopReversement(
+  deps: BotDeps,
+  phone: string,
+  entree: EntreeBot,
+): Promise<boolean> {
+  if (entree.genre !== "texte") return false;
+  const maintenant = deps.maintenant?.() ?? new Date();
+
+  const alerte = await deps.prisma.sellerAuditEvent.findFirst({
+    where: { kind: "reversement_alerte", payload: { path: ["vers"], equals: phone } },
+    orderBy: { at: "desc" },
+    select: { sellerId: true, at: true },
+  });
+
+  const decision = decisionGel({
+    texte: entree.texte,
+    alerteEnvoyeeA: alerte?.at ?? null,
+    maintenant,
+  });
+  if (!decision.geler || !alerte) return false;
+
+  const effet = effetDuGel(maintenant);
+  await deps.prisma.$transaction(async (tx) => {
+    await tx.seller.update({ where: { id: alerte.sellerId }, data: effet });
+    await tx.sellerAuditEvent.create({
+      data: {
+        sellerId: alerte.sellerId,
+        kind: "reversement_gele",
+        actor: "systeme",
+        payload: { surStopDe: phone },
+        at: maintenant,
+      },
+    });
+  });
+
+  /**
+   * L'accuse est bref et ne nomme rien. Celui qui lit peut etre la vendeuse
+   * — auquel cas il la rassure — ou quelqu'un d'autre, auquel cas il ne lui
+   * apprend ni quelle boutique, ni quel numero, ni quoi faire ensuite.
+   */
+  await deps.envoyeur.envoyer(
+    texte(
+      entree.de,
+      "C'est noté : les paiements à l'avance sont suspendus sur ce compte. " +
+        "Nous allons vous contacter.",
+    ),
+  );
+  return true;
+}
+
 async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   const phone = cleConversation(entree.de);
   if (!phone) return;
@@ -306,6 +399,16 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   /* Le message entrant vient d'OUVRIR la fenetre de service : les
      notifications en attente partent d'abord (ADR 0035), la reponse suit. */
   await livrerNotificationsEnAttente(deps, phone);
+
+  /**
+   * ── Le STOP passe AVANT l'aiguillage — ADR 0061, rang 2b ──────────────
+   *
+   * Il vient de l'ANCIEN numero de reversement, qui n'est presque jamais le
+   * numero de connexion de la vendeuse : l'aiguillage le prendrait pour une
+   * acheteuse et lui repondrait un catalogue. Le seul endroit ou ce message
+   * peut etre reconnu est ici, avant toute regle d'identite.
+   */
+  if (await filStopReversement(deps, phone, entree)) return;
 
   /**
    * La vendeuse se reconnait par `authUser.phoneNumber` OU par `seller.phone` :
@@ -350,6 +453,9 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
       etatVendeuseEnCours: etatVendeuse !== null,
       smsReconnu,
       achatEnCours: etatAchat.nom !== "accueil",
+      /* Le jeton vit dans la charge utile, que l'aiguillage ne lit pas :
+         c'est ICI qu'on le regarde, une fois, pour toutes les regles. */
+      formulaireArticle: entree.genre === "flux" && genreDuJeton(entree.reponse) === "article",
     },
   );
 
@@ -389,13 +495,77 @@ async function filInscription(
   let etat: EtatVendeuse;
   if (etatCourant) {
     etat = etatCourant;
+  } else if (sellerId && entree.genre === "texte" && demandeComptoir(entree.texte)) {
+    /* Le comptoir vendeuse — rang 1, ADR 0061. « Vendu » ouvre la declaration
+       d'une vente negociee ; quatre questions, puis le moteur. */
+    etat = { nom: "comptoir", comptoir: COMPTOIR_DEPART };
+    await poserEtat(deps, phone, etat);
+    await deps.envoyeur.envoyer(questionDeLEtat(etat, entree.de));
+    return;
   } else if (sellerId) {
     etat = { nom: "article_nom" };
   } else {
     const demande = entree.genre === "texte" ? demandeInscription(entree.texte) : {};
     etat = { nom: "inscription_nom", ...(demande?.parrain ? { parrain: demande.parrain } : {}) };
     await poserEtat(deps, phone, etat);
-    await deps.envoyeur.envoyer(texte(entree.de, PREMIERE_QUESTION));
+    /**
+     * ── Le formulaire s'AJOUTE a la question, il ne la remplace pas ──────
+     *
+     * Meme regle que l'avis (ADR 0063) et que la livraison (ADR 0055) : un
+     * Flow exige un WhatsApp recent, la question marche partout. Celle qui
+     * peut l'ouvrir s'inscrit d'un geste ; les autres suivent le chemin
+     * d'avant, intact — et c'est le meme etat, donc une vendeuse peut
+     * commencer par le formulaire, l'abandonner, et repondre a la question.
+     *
+     * Sans `WABOT_FLUX_INSCRIPTION_ID`, rien n'est envoye et le fil est
+     * exactement celui d'hier (AGENTS.md §5).
+     */
+    await envoyerSequence(deps, [
+      texte(entree.de, PREMIERE_QUESTION),
+      ...(deps.fluxInscriptionId
+        ? [
+            messageFlux(
+              entree.de,
+              deps.fluxInscriptionId,
+              "Remplir le formulaire",
+              jetonFlux("inscription"),
+              "Plus rapide : tout d'un coup, dans un formulaire.",
+            ),
+          ]
+        : []),
+    ]);
+    return;
+  }
+
+  /**
+   * ── La reponse du formulaire d'article — tache #62 ────────────────────
+   *
+   * Traitee ICI et pas dans la machine, comme l'inscription : les formulaires
+   * arrivent tous par le meme `nfm_reply`, et c'est le jeton qui les separe
+   * (ADR 0063). Elle passe AVANT la question directe, sinon une reponse
+   * arrivant apres l'expiration de l'etat serait avalee par « quel est le
+   * nom de l'article ? ».
+   *
+   * Illisible : on le dit, et la question reste — le formulaire est un
+   * raccourci, jamais un passage oblige (meme regle que l'inscription).
+   */
+  if (sellerId && entree.genre === "flux" && genreDuJeton(entree.reponse) === "article") {
+    const lu = lireArticleFlux(entree.reponse);
+    if (!lu) {
+      await poserEtat(deps, phone, { nom: "article_nom" });
+      await deps.envoyeur.envoyer(
+        texte(entree.de, "Le formulaire n'a pas pu être lu. Reprenons ici, c'est aussi rapide."),
+      );
+      await deps.envoyeur.envoyer(
+        texte(
+          entree.de,
+          "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+        ),
+      );
+      return;
+    }
+    await poserEtat(deps, phone, ETAT_INITIAL);
+    await envoyerSequence(deps, await publierArticleDepuisFil(deps, sellerId, entree.de, lu));
     return;
   }
 
@@ -405,12 +575,98 @@ async function filInscription(
      deja l'article entier (ADR 0035). */
   if (!etatCourant && sellerId && entree.genre !== "image") {
     await poserEtat(deps, phone, etat);
-    await deps.envoyeur.envoyer(
+    /* Le formulaire s'AJOUTE a la question — meme regle que l'inscription
+       (tache #60) : un Flow exige un WhatsApp recent, la question marche
+       partout, et c'est le meme etat derriere les deux. La QUESTION part en
+       dernier : c'est elle qui reste visible si le formulaire echoue. */
+    await envoyerSequence(deps, [
+      ...(deps.fluxArticleId
+        ? [
+            messageFlux(
+              entree.de,
+              deps.fluxArticleId,
+              "Remplir le formulaire",
+              jetonFlux("article"),
+              "Ou tout d'un coup, dans un formulaire : nom, prix, stock.",
+            ),
+          ]
+        : []),
       texte(
         entree.de,
         "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
       ),
-    );
+    ]);
+    return;
+  }
+
+  /**
+   * ── La reponse du formulaire d'inscription — tache #60 ────────────────
+   *
+   * Elle est traitee ICI et pas dans la machine, parce que `entreePourMachine`
+   * exclut deliberement le genre `flux` : les trois formulaires arrivent par
+   * le meme `nfm_reply`, et c'est le jeton qui les separe (ADR 0063).
+   *
+   * Une reponse ILLISIBLE ne fait pas echouer l'inscription : on le dit, et la
+   * question posee reste la. Le formulaire est un raccourci, jamais un passage
+   * oblige — une vendeuse ne doit pas se retrouver coincee parce qu'un champ
+   * est revenu vide.
+   */
+  if (
+    !sellerId &&
+    entree.genre === "flux" &&
+    genreDuJeton(entree.reponse) === "inscription" &&
+    (etat.nom === "inscription_nom" || etat.nom === "inscription_ville")
+  ) {
+    const lue = lireInscriptionFlux(entree.reponse);
+    if (!lue) {
+      await deps.envoyeur.envoyer(
+        texte(entree.de, "Le formulaire n'a pas pu être lu. Reprenons ici, c'est aussi rapide."),
+      );
+      await deps.envoyeur.envoyer(questionDeLEtat(etat, entree.de));
+      return;
+    }
+    const parrain = "parrain" in etat ? etat.parrain : undefined;
+    const cree = await creerBoutique(deps, phone, {
+      nomBoutique: lue.nomBoutique,
+      ville: lue.ville,
+      ...(parrain ? { parrain } : {}),
+    });
+    const suite: MessageSortant[] = cree.ok
+      ? messageBoutiqueCreee(entree.de, cree.messagerie)
+      : [texte(entree.de, cree.message)];
+    if (cree.ok) {
+      if (deps.planifierRelanceReversement) {
+        await deps
+          .planifierRelanceReversement({ sellerId: cree.id, phone })
+          .catch(() => console.warn("bot : relance reversement non planifiee (details retenus)"));
+      }
+      /* Une boutique neuve n'a AUCUNE page — meme raison qu'au chemin
+         question par question (ADR 0065). */
+      await deps.reconstruction?.demander("boutique_creee");
+    }
+    await poserEtat(deps, phone, cree.ok ? { nom: "article_nom" } : etat);
+    if (cree.ok) {
+      /* Celle qui vient de remplir UN formulaire est exactement celle qui en
+         remplira un second : il s'ajoute a la question, comme partout. */
+      if (deps.fluxArticleId) {
+        suite.push(
+          messageFlux(
+            entree.de,
+            deps.fluxArticleId,
+            "Remplir le formulaire",
+            jetonFlux("article"),
+            "Ou tout d'un coup, dans un formulaire : nom, prix, stock.",
+          ),
+        );
+      }
+      suite.push(
+        texte(
+          entree.de,
+          "*Quel est le nom de votre premier article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+        ),
+      );
+    }
+    await envoyerSequence(deps, suite);
     return;
   }
 
@@ -450,58 +706,41 @@ async function filInscription(
     await deps.reconstruction?.demander("boutique_creee");
   }
 
+  if (reaction.effet?.type === "creer_vente" && sellerId) {
+    messages.push(...(await creerVenteAuComptoir(deps, sellerId, entree.de, reaction.effet.vente)));
+  }
+
   if (reaction.effet?.type === "creer_article" && sellerId) {
-    const article = await creerArticleDepuisFil(deps, sellerId, reaction.effet);
-    /* L'etat de conges se relit ICI, dans la base — ADR 0057. Elle a pu
-       fermer depuis un autre appareil, ou depuis l'app, entre deux messages :
-       c'est le meme principe que le verrou de creation de commande. */
-    const enConges =
-      (
-        await deps.prisma.seller.findUnique({
-          where: { id: sellerId },
-          select: { congesDepuis: true },
-        })
-      )?.congesDepuis != null;
-    /**
-     * La page WEB se reconstruit — ADR 0065.
-     *
-     * L'article entre en base tout de suite ; la boutique publique, elle, lit
-     * un instantane pris a la CONSTRUCTION. Sans ce declenchement, une
-     * boutique nee dans le fil restait en 404 — mesure du 11/08/2026.
-     *
-     * Le delai n'est annonce que si la demande est REELLEMENT partie : sans
-     * crochet configure, ou si le regroupement l'absorbe, la page n'arrivera
-     * pas dans le delai qu'on annoncerait. Le silence est alors honnete.
-     */
-    const pageWebDansMinutes =
-      article && (await deps.reconstruction?.demander("article_publie"))
-        ? ATTENTE_ANNONCEE_MIN
-        : null;
-    messages.push(
-      article
-        ? messageArticlePublie(entree.de, article, enConges, pageWebDansMinutes)
-        : texte(
-            entree.de,
-            "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
-          ),
-    );
-    /**
-     * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
-     * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
-     * sans article ne donne envie a personne — et pas aux suivants, ce serait
-     * du bruit ; « ma carte » la redonne quand on veut.
-     */
-    if (article) {
-      const nb = await deps.prisma.product.count({
-        where: { sellerId, archivedAt: null },
-      });
-      if (nb === 1) {
-        messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
-      }
-    }
+    /* Le corps vit dans `publierArticleDepuisFil` : le formulaire d'article
+       (tache #62) publie par le MEME chemin — un seul endroit decide de ce
+       qui accompagne une publication (carte, pack, mode d'emploi). */
+    messages.push(...(await publierArticleDepuisFil(deps, sellerId, entree.de, reaction.effet)));
     etatSuivant = ETAT_INITIAL;
   }
 
+  /* L'ENTREE dans « nom de l'article » — d'ou qu'elle vienne : bouton
+     « Premier article », « ajouter », « corriger » au recapitulatif. Le
+     formulaire s'insere AVANT les messages de la machine : la question de la
+     machine reste en dernier, visible si le formulaire echoue. On n'envoie
+     rien quand l'etat ne fait que BOUCLER sur article_nom (nom refuse) —
+     reproposer le formulaire a chaque faute de frappe serait du bruit. */
+  if (
+    deps.fluxArticleId &&
+    typeof etatSuivant === "object" &&
+    etatSuivant.nom === "article_nom" &&
+    etat.nom !== "article_nom" &&
+    messages.length > 0
+  ) {
+    messages.unshift(
+      messageFlux(
+        entree.de,
+        deps.fluxArticleId,
+        "Remplir le formulaire",
+        jetonFlux("article"),
+        "Ou tout d'un coup, dans un formulaire : nom, prix, stock.",
+      ),
+    );
+  }
   await poserEtat(deps, phone, etatSuivant);
   await envoyerSequence(deps, messages);
 }
@@ -745,11 +984,113 @@ function lienBot(deps: BotDeps, texteInitial: string): string {
  * Une photo illisible ne fait pas echouer l'article : il se publie sans, et
  * la vendeuse peut la renvoyer. Un article sans photo vaut mieux qu'aucun.
  */
+/**
+ * Publier un article, et tout ce qui l'accompagne — le SEUL chemin.
+ *
+ * Deux entrees y menent : l'effet `creer_article` de la machine (questions ou
+ * photo legendee) et la reponse du formulaire d'article (tache #62). Les deux
+ * doivent produire exactement la meme suite — l'annonce, la reconstruction de
+ * la page web (ADR 0065), la carte-vitrine au premier article (ADR 0037), le
+ * pack statut a chaque publication (rang 3a) et le mode d'emploi au premier
+ * article (tache #62). Un second exemplaire de cette liste divergerait au
+ * premier lot venu.
+ */
+async function publierArticleDepuisFil(
+  deps: BotDeps,
+  sellerId: string,
+  vers: string,
+  demande: { nom: string; prixXaf: number; mediaId?: string; stock?: number },
+): Promise<MessageSortant[]> {
+  const messages: MessageSortant[] = [];
+  const article = await creerArticleDepuisFil(deps, sellerId, demande);
+  /* L'etat de conges se relit ICI, dans la base — ADR 0057. Elle a pu
+     fermer depuis un autre appareil, ou depuis l'app, entre deux messages :
+     c'est le meme principe que le verrou de creation de commande. */
+  const enConges =
+    (
+      await deps.prisma.seller.findUnique({
+        where: { id: sellerId },
+        select: { congesDepuis: true },
+      })
+    )?.congesDepuis != null;
+  /**
+   * La page WEB se reconstruit — ADR 0065.
+   *
+   * L'article entre en base tout de suite ; la boutique publique, elle, lit
+   * un instantane pris a la CONSTRUCTION. Sans ce declenchement, une
+   * boutique nee dans le fil restait en 404 — mesure du 11/08/2026.
+   *
+   * Le delai n'est annonce que si la demande est REELLEMENT partie : sans
+   * crochet configure, ou si le regroupement l'absorbe, la page n'arrivera
+   * pas dans le delai qu'on annoncerait. Le silence est alors honnete.
+   */
+  const pageWebDansMinutes =
+    article && (await deps.reconstruction?.demander("article_publie"))
+      ? ATTENTE_ANNONCEE_MIN
+      : null;
+  messages.push(
+    article
+      ? messageArticlePublie(vers, article, enConges, pageWebDansMinutes)
+      : texte(
+          vers,
+          "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
+        ),
+  );
+  /**
+   * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
+   * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
+   * sans article ne donne envie a personne — et pas aux suivants, ce serait
+   * du bruit ; « ma carte » la redonne quand on veut.
+   */
+  if (article) {
+    const nb = await deps.prisma.product.count({
+      where: { sellerId, archivedAt: null },
+    });
+    if (nb === 1) {
+      messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
+    }
+    /**
+     * Le pack statut part a CHAQUE publication — ADR 0061, rang 3a.
+     *
+     * La carte-vitrine, elle, ne part qu'au premier article : elle dit « la
+     * boutique existe », une fois. Le pack dit « poste CELUI-CI aujourd'hui »,
+     * et c'est vrai a chaque fois. Sur la premiere publication les deux
+     * partent, et c'est voulu : ils ne disent pas la meme chose.
+     */
+    messages.push(...(await packStatutArticle(deps, sellerId, article).catch(() => [])));
+    /**
+     * Le mode d'emploi — tache #62, et il part EN DERNIER : c'est lui qui
+     * reste sous le pouce. Au premier article seulement, comme la carte, et
+     * pour la meme raison — c'est l'instant ou la boutique devient reelle,
+     * donc l'instant ou « que se passe-t-il maintenant ? » se pose.
+     */
+    if (nb === 1) {
+      const profil = await deps.prisma.seller.findUnique({
+        where: { id: sellerId },
+        select: { slug: true },
+      });
+      messages.push(
+        messageOnboarding(vers, {
+          lienBoutique: profil && deps.baseBoutique ? `${deps.baseBoutique}/${profil.slug}` : null,
+          lienEspace: deps.baseApp ?? null,
+        }),
+      );
+    }
+  }
+  return messages;
+}
+
 async function creerArticleDepuisFil(
   deps: BotDeps,
   sellerId: string,
-  demande: { nom: string; prixXaf: number; mediaId?: string },
-): Promise<{ nom: string; prixXaf: number; avecPhoto: boolean } | null> {
+  demande: { nom: string; prixXaf: number; mediaId?: string; stock?: number },
+): Promise<{
+  id: string;
+  nom: string;
+  prixXaf: number;
+  avecPhoto: boolean;
+  imageKey: string | null;
+} | null> {
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
 
   let image: {
@@ -793,6 +1134,9 @@ async function creerArticleDepuisFil(
         name: demande.nom,
         priceXaf: demande.prixXaf,
         position: (dernier._max.position ?? -1) + 1,
+        /* Le stock du formulaire (tache #62). Absent = 0, la valeur « non
+           annonce » de l'ADR 0038 — il ne se decompte pas tout seul. */
+        ...(demande.stock ? { stock: demande.stock } : {}),
         ...(image
           ? {
               imageKey: image.cle,
@@ -802,11 +1146,21 @@ async function creerArticleDepuisFil(
             }
           : {}),
       },
-      select: { name: true, priceXaf: true },
+      select: { id: true, name: true, priceXaf: true },
     })
     .catch(() => null);
 
-  return cree ? { nom: cree.name, prixXaf: cree.priceXaf, avecPhoto: image !== null } : null;
+  return cree
+    ? {
+        id: cree.id,
+        nom: cree.name,
+        prixXaf: cree.priceXaf,
+        avecPhoto: image !== null,
+        /* La cle sert au pack statut (rang 3a) : la photo se recompose sur la
+           carte, elle ne se re-telecharge pas depuis WhatsApp. */
+        imageKey: image?.cle ?? null,
+      }
+    : null;
 }
 
 /* ────────────────────────── fil acheteuse ───────────────────────────────── */
@@ -898,7 +1252,17 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
       );
       etat = { nom: "catalogue", slug: boutique.slug, page: 0 };
     } else {
-      const commande = await creerCommande(deps, boutique, resolution.articles, livraison.data);
+      const commande = await creerCommande(
+        deps,
+        boutique,
+        resolution.articles.map((a) => ({
+          productId: a.article.id,
+          name: a.article.nom,
+          unitPriceXaf: a.article.prixXaf,
+          quantity: a.quantite,
+        })),
+        livraison.data,
+      );
       commandeCreeeId = commande.id;
       /**
        * Le bloc paiement DANS le fil (ADR 0035) : le numero de reversement de
@@ -921,6 +1285,9 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
                     charge.reversement.numero,
                   )}&montant=${commande.duAvantXaf}`
                 : null,
+              /* ADR 0061, rang 2a — la reputation au moment ou l'on paie. */
+              ...(charge ? { confiance: charge.confiance } : {}),
+              lienBoutique: deps.baseBoutique ? `${deps.baseBoutique}/${boutique.slug}` : null,
             }
           : null;
       const chiffresVendeuse = boutique.whatsappVendeuse?.replace(/\D/g, "") ?? "";
@@ -1013,6 +1380,9 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
   }
   if (idApresAchat && reaction.effet?.type === "contester") {
     await transitionApresAchat(deps, idApresAchat, { type: "contestation", par: "acheteuse" });
+    /* La vendeuse l'apprend MAINTENANT. Sans cela elle continue de preparer
+       une commande deja gelee, et decouvre le litige plusieurs jours apres. */
+    await notifierConteste(deps, idApresAchat);
   }
   if (idApresAchat && reaction.effet?.type === "deposer_avis") {
     await deposerAvis(deps, idApresAchat, reaction.effet.note);
@@ -1058,6 +1428,72 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
  * Rend le message a envoyer, ou une explication : sans article la carte n'a
  * rien a montrer, sans numero Catalog elle porterait un lien faux.
  */
+/**
+ * Le PACK STATUT d'un article — ADR 0061, rang 3a.
+ *
+ * Deux messages, et leur separation compte : l'IMAGE porte une consigne qui
+ * reste entre nous, la LEGENDE part telle quelle chez les clientes. Les
+ * melanger ferait poster a la vendeuse une phrase qui lui etait destinee.
+ *
+ * Le mot-cle du lien porte le canal `statut` : chaque commande nee d'un Statut
+ * se compte comme telle (rang 0). Sans lui, la vendeuse ne saurait jamais
+ * lequel de ses gestes rapporte.
+ *
+ * Ne leve jamais : la publication de l'article est faite, le pack est un plus
+ * — meme lecon que la reconstruction de boutique (ADR 0065).
+ */
+async function packStatutArticle(
+  deps: BotDeps,
+  sellerId: string,
+  article: { id: string; nom: string; prixXaf: number; imageKey: string | null },
+): Promise<MessageSortant[]> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { businessName: true, slug: true, city: true, phone: true },
+  });
+  const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
+  if (!seller || !chiffres || !deps.storage) return [];
+  const a = (seller.phone ?? "").replace(/^\+/, "");
+  if (!a) return [];
+
+  const pack = packStatut({
+    nomBoutique: seller.businessName,
+    slug: seller.slug,
+    article: {
+      nom: article.nom,
+      prixXaf: article.prixXaf,
+      slugArticle: slugArticle(article.nom, article.id),
+    },
+    lien: lienBot(deps, texteEntreeBoutique({ slug: seller.slug, canal: "statut" })),
+  });
+
+  const photo = article.imageKey
+    ? await deps.storage
+        .lire(`${article.imageKey}.jpg`)
+        .then((o) => (o ? { octets: o } : null))
+        .catch(() => null)
+    : null;
+
+  const carte = await carteEnMessage(
+    deps,
+    {
+      nomBoutique: seller.businessName,
+      ville: seller.city,
+      lien: lienBot(deps, pack.motCle),
+      lienAffiche: `wa.me/${chiffres}`,
+      motCle: pack.motCle,
+      /* UN seul article : le gabarit lui donne toute la place (ADR 0037). */
+      articles: [{ nom: article.nom, prixXaf: article.prixXaf, avecPhoto: photo !== null }],
+    },
+    [photo],
+    a,
+    consigneDuPack(),
+  );
+  /* La legende arrive SEULE, dans son propre message : c'est ce qui la rend
+     transferable d'un appui long, sans rien a effacer. */
+  return [...carte, texte(a, pack.legende)];
+}
+
 async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSortant[]> {
   const vers = (phone: string) => phone.replace(/^\+/, "");
   const seller = await deps.prisma.seller.findUnique({
@@ -1110,8 +1546,9 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
 
   const rep = reputation(seller.reviews.map((r) => ({ note: r.rating, verifie: r.verified })));
   const motCle = `boutique ${seller.slug}`;
-  const png = await rendreCarte({
-    donnees: {
+  return carteEnMessage(
+    deps,
+    {
       nomBoutique: seller.businessName,
       ville: seller.city,
       lien: lienBot(deps, motCle),
@@ -1126,7 +1563,28 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
       })),
     },
     photos,
-  });
+    a,
+    `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
+  );
+}
+
+/**
+ * Rend une carte, l'encode, la range et la renvoie en message image.
+ *
+ * Extrait de `carteVitrine` au rang 3a : le pack statut (ADR 0061) rend la
+ * MEME carte avec d'autres donnees et une autre legende. Deux copies de ce
+ * pipeline auraient derive — et l'une des deux aurait fini par perdre le
+ * calibrage de l'ADR 0059, qui est precisement ce qu'on n'a pas le droit
+ * d'oublier ici.
+ */
+async function carteEnMessage(
+  deps: BotDeps,
+  donnees: Parameters<typeof rendreCarte>[0]["donnees"],
+  photos: ReadonlyArray<{ octets: Uint8Array } | null>,
+  a: string,
+  legende: string,
+): Promise<MessageSortant[]> {
+  const png = await rendreCarte({ donnees, photos });
 
   /**
    * Le meme pipeline que les photos, mais PAS le meme calibrage — ADR 0059.
@@ -1160,13 +1618,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
   const url = await urlJpegVerifiee(deps, base);
   if (!url) return [texte(a, "La carte n'a pas pu être publiée. Réessayez dans un instant.")];
 
-  return [
-    imageMessage(
-      a,
-      url,
-      `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
-    ),
-  ];
+  return [imageMessage(a, url, legende)];
 }
 
 /**
@@ -1300,7 +1752,86 @@ async function deposerAvis(
     .catch(() => {
       /* `Review.orderId` est UNIQUE : un second avis est refuse par la base.
          La machine l'a deja dit a l'acheteuse ; ici on se tait. */
-    });
+      return "refuse" as const;
+    })
+    .then((r) => r !== "refuse");
+
+  /**
+   * ── La carte d'avis VERIFIE part chez la vendeuse — ADR 0061, rang 3c ──
+   *
+   * **Jamais pour un avis non verifie.** Un avis non verifie existe et il est
+   * honnete — le depot direct non trace le produit (AGENTS.md §2) —, mais en
+   * faire une carte qui dit « verifie par paiement » serait la reputation
+   * achetable que le produit refuse. La condition est ici, une fois.
+   *
+   * Elle ne leve jamais : l'avis est enregistre, la carte est un plus.
+   */
+  if (droit.verifie) {
+    await envoyerCarteAvis(deps, commande.sellerId, note, mot).catch(() => {});
+  }
+}
+
+/**
+ * Fabrique et envoie la carte d'avis verifie a la vendeuse.
+ *
+ * Le compteur affiche est relu APRES l'enregistrement : il compte donc l'avis
+ * qui vient d'arriver. Le lire avant afficherait un nombre en retard d'une
+ * unite sur la carte que la vendeuse va justement poster.
+ */
+async function envoyerCarteAvis(
+  deps: BotDeps,
+  sellerId: string,
+  note: number,
+  mot: string | undefined,
+): Promise<void> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { businessName: true, slug: true, phone: true },
+  });
+  const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
+  if (!seller?.phone || !chiffres || !deps.storage) return;
+
+  const nbVerifies = await deps.prisma.review.count({
+    where: { sellerId, verified: true },
+  });
+  /* Le canal `chaine` : une commande nee d'un repost se compte comme telle. */
+  const motCle = texteEntreeBoutique({ slug: seller.slug, canal: "chaine" });
+  const png = await rendreCarteAvis(
+    {
+      nomBoutique: seller.businessName,
+      note,
+      ...(mot ? { mot } : {}),
+      nbVerifies,
+      lienAffiche: `wa.me/${chiffres}`,
+      motCle,
+    },
+    lienBot(deps, motCle),
+  );
+
+  const resultat = await reencoderImage(png, {
+    plusGrandCote: CARTE_HAUTEUR,
+    cibleOctets: CARTE_CIBLE_OCTETS,
+  });
+  if (!resultat.ok) return;
+  const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
+  const base = cleOpaque(alea, "carte");
+  const d = declinaisons(base);
+  await Promise.all([
+    deps.storage.put({ cle: d.avif, corps: resultat.image.avif, contentType: "image/avif" }),
+    deps.storage.put({ cle: d.webp, corps: resultat.image.webp, contentType: "image/webp" }),
+    deps.storage.put({ cle: d.jpg, corps: resultat.image.jpeg, contentType: "image/jpeg" }),
+  ]);
+  const url = await urlJpegVerifiee(deps, base);
+  if (!url) return;
+
+  await deps.envoyeur.envoyer(
+    imageMessage(
+      seller.phone.replace(/^\+/, ""),
+      url,
+      "⭐ Un avis vérifié vient d'arriver — voici votre carte à poster.\n" +
+        "Aucune concurrente ne peut poster celle-ci : elle est adossée à un paiement prouvé.",
+    ),
+  );
 }
 
 interface BoutiqueChargee {
@@ -1309,6 +1840,13 @@ interface BoutiqueChargee {
   clesImage: Map<string, string>;
   /** Le reversement pour le bloc paiement (ADR 0035) — jamais montre ailleurs. */
   reversement: { numero: string; operateur: string | null } | null;
+  /**
+   * Ce que la boutique a DEJA prouve, pour le dire au moment du doute
+   * (ADR 0061, rang 2a). Compte a part de `reputation` : un paiement prouve
+   * n'est pas un avis, et c'est le premier des deux qui rassure devant un
+   * acompte.
+   */
+  confiance: VerdictConfiance;
 }
 
 async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueChargee | null> {
@@ -1332,6 +1870,17 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
   });
   if (!seller) return null;
   const rep = reputation(seller.reviews.map((a) => ({ note: a.rating, verifie: a.verified })));
+  /**
+   * ── Ce qui compte comme « prouve », et ce qui n'y entre pas ────────────
+   *
+   * Seuls `prouve` et `contresigne`. PAS `declare_non_trace` : le depot direct
+   * non trace fait avancer la commande mais ne prouve rien (AGENTS.md §2), et
+   * le compter ici transformerait un compteur de preuves en compteur de
+   * ventes — exactement le chiffre invérifiable que le produit refuse.
+   */
+  const paiementsProuves = await deps.prisma.order.count({
+    where: { sellerId: seller.id, proofState: { in: ["prouve", "contresigne"] } },
+  });
   const clesImage = new Map<string, string>();
   for (const p of seller.products) {
     if (p.imageKey) clesImage.set(p.id, p.imageKey);
@@ -1361,6 +1910,7 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
     reversement: seller.payoutPhone
       ? { numero: seller.payoutPhone, operateur: seller.payoutOperator ?? null }
       : null,
+    confiance: confianceAuPaiement({ paiementsProuves, avisVerifies: rep.nbVerifies }),
   };
 }
 
@@ -1477,8 +2027,14 @@ async function statutDerniereCommande(
 async function creerCommande(
   deps: BotDeps,
   boutique: BoutiqueBot,
-  articles: Array<{ article: ArticleBot; quantite: number }>,
+  items: OrderItem[],
   livraison: unknown,
+  /* Qui a fait naitre la commande, et par quelle porte. Les DEUX comptoirs de
+     l'ADR 0061 passent ici — c'est ce qui fait qu'il n'y a qu'UN moteur. */
+  origine: { actor: "acheteuse" | "vendeuse"; canal: string } = {
+    actor: "acheteuse",
+    canal: "bot_whatsapp",
+  },
 ): Promise<{
   id: string;
   ref: string;
@@ -1490,12 +2046,6 @@ async function creerCommande(
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
   const maintenant = deps.maintenant?.() ?? new Date();
 
-  const items: OrderItem[] = articles.map((a) => ({
-    productId: a.article.id,
-    name: a.article.nom,
-    unitPriceXaf: a.article.prixXaf,
-    quantity: a.quantite,
-  }));
   const totalXaf = itemsTotalXaf(items);
   /* Acompte seulement si la rampe existe : sans reversement pose, exiger un
      prepaiement enverrait l'acheteuse payer vers nulle part. */
@@ -1541,8 +2091,8 @@ async function creerCommande(
             orderId: commande.id,
             sellerId: boutique.id,
             kind: "commande_creee",
-            payload: { canal: "bot_whatsapp" },
-            actor: "acheteuse",
+            payload: { canal: origine.canal },
+            actor: origine.actor,
           },
         });
         return commande;
@@ -1563,6 +2113,91 @@ async function creerCommande(
   throw new Error("creation de commande : collisions de reference repetees");
 }
 
+/**
+ * La vente declaree au comptoir vendeuse — rang 1, ADR 0069.
+ *
+ * Elle passe par `creerCommande`, l'UNIQUE fonction ou une commande nait :
+ * c'est ce qui fait qu'il n'y a qu'un moteur (ADR 0061), et que le plan de
+ * paiement, la reference, le code et le jeton sont EXACTEMENT ceux du comptoir
+ * acheteuse.
+ *
+ * Le mode conges NE bloque PAS ce comptoir : il ferme la boutique aux
+ * commandes que des ACHETEUSES initient (ADR 0039). Ici c'est la vendeuse
+ * elle-meme qui declare une vente qu'elle vient de conclure — la refuser
+ * pousserait la vente hors du moteur, la fuite exacte que ce rang ferme. Un
+ * rappel part quand la boutique est fermee, comme apres la carte (ADR 0057).
+ */
+async function creerVenteAuComptoir(
+  deps: BotDeps,
+  sellerId: string,
+  vers: string,
+  vente: VenteDeclaree,
+): Promise<MessageSortant[]> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { slug: true, congesDepuis: true },
+  });
+  const charge = seller ? await chargerBoutique(deps, seller.slug) : null;
+  if (!charge) {
+    return [
+      texte(vers, "La vente n'a pas pu être enregistrée. Réécrivez « vendu » — rien n'est perdu."),
+    ];
+  }
+
+  /* La MEME porte de validation que le comptoir acheteuse : le point de remise
+     et le numero repassent par le schema, pas seulement par la machine. */
+  const livraison = deliverySchema.safeParse({
+    mode: "retrait",
+    pickupPoint: vente.pointRemise,
+    phone: vente.cliente,
+  });
+  if (!livraison.success) {
+    return [
+      texte(vers, "La vente n'a pas pu être enregistrée. Réécrivez « vendu » — rien n'est perdu."),
+    ];
+  }
+
+  const commande = await creerCommande(
+    deps,
+    charge.boutique,
+    /* PAS de productId : l'article est en texte libre, au prix CONVENU — c'est
+       toute la raison d'etre de ce comptoir. Le contrat l'admet (ADR 0069). */
+    [{ name: vente.article, unitPriceXaf: vente.prixXaf, quantity: 1 }],
+    livraison.data,
+    { actor: "vendeuse", canal: "comptoir_vendeuse" },
+  );
+
+  const operateur =
+    charge.reversement?.operateur && deps.rampe
+      ? (deps.rampe.operateurs.find((o) => o.id === charge.reversement?.operateur) ?? null)
+      : null;
+  const aTransferer = messageATransferer({
+    boutique: charge.boutique.nom,
+    article: vente.article,
+    prixXaf: vente.prixXaf,
+    reference: commande.ref,
+    codeVerification: commande.verificationCode,
+    aPayerXaf: commande.duAvantXaf,
+    resteXaf: commande.totalXaf - commande.duAvantXaf,
+    numeroReversement: charge.reversement ? formatPhone(charge.reversement.numero) : "",
+    operateurNom: operateur?.nom ?? null,
+    codeEntree: operateur?.codeEntree.modele ?? null,
+  });
+
+  const messages: MessageSortant[] = [
+    texte(
+      vers,
+      `✅ *${commande.ref} est créée.* Transférez le message suivant à votre cliente — il porte tout ce qu'il lui faut pour payer.\nDès qu'elle a payé, collez ici le SMS de votre opérateur : il devient son reçu vérifiable.`,
+    ),
+    /* Le message a transferer part SEUL : c'est lui qu'elle fait suivre, sans
+       avoir a decouper le notre. Il ne porte NI jeton NI lien de suivi — il
+       passe par ses mains, et le controle n° 7 en depend (ADR 0069). */
+    texte(vers, aTransferer),
+  ];
+  if (seller?.congesDepuis) messages.push(rappelConges(vers));
+  return messages;
+}
+
 /* ────────────────────────── fil vendeuse ────────────────────────────────── */
 
 async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string): Promise<void> {
@@ -1579,6 +2214,7 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
         businessName: true,
         slug: true,
         congesDepuis: true,
+        chaineUrl: true,
         _count: { select: { products: { where: { archivedAt: null } } } },
       },
     }),
@@ -1602,6 +2238,8 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
           lienBoutique: lienBot(deps, `boutique ${profil.slug}`),
           lienEspace: deps.baseApp || null,
           ...(profil.congesDepuis ? { enConges: true } : {}),
+          /* ADR 0061, rang 3b — « ma chaine » rappelle le lien range. */
+          chaine: profil.chaineUrl,
         }
       : null,
   });
@@ -1645,6 +2283,40 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
                 : ""
             }\nÉcrivez « je reprends » quand vous revenez.`
           : "☀️ C'est reparti — votre boutique accepte de nouveau les commandes. Bon retour !",
+      ),
+    );
+  }
+
+  /**
+   * ── La chaine WhatsApp — ADR 0061, rang 3b ────────────────────────────
+   *
+   * Le lien arrive DEJA canonise par le domaine (`lireLienChaine`) : le
+   * service n'assainit rien, il range. C'est ce qui garantit que la page
+   * publique et la carte affichent la meme chose pour une meme chaine.
+   *
+   * La page se reconstruit, parce que « Suivre la boutique » en depend et que
+   * la boutique est statique (ADR 0065). Le regroupement absorbe la rafale
+   * d'une vendeuse qui se ravise deux fois.
+   */
+  if (reaction.effet?.type === "poser_chaine") {
+    const lien = reaction.effet.lien;
+    await deps.prisma.seller.update({
+      where: { id: sellerIdent },
+      data: { chaineUrl: lien },
+    });
+    const dansMinutes = (await deps.reconstruction?.demander("boutique_modifiee"))
+      ? ATTENTE_ANNONCEE_MIN
+      : null;
+    messages.push(
+      texte(
+        entree.de,
+        lien
+          ? `📣 C'est rangé. « Suivre la boutique » mène maintenant à votre chaîne.${
+              dansMinutes ? `\nVotre page se met à jour dans ~${dansMinutes} minutes.` : ""
+            }\n\nPartagez votre boutique dans la chaîne : chaque commande qui en vient se comptera à part.`
+          : `📣 Lien retiré. « Suivre la boutique » disparaît de votre page.${
+              dansMinutes ? `\nMise à jour dans ~${dansMinutes} minutes.` : ""
+            }`,
       ),
     );
   }

@@ -176,6 +176,18 @@ jobs:
     if: (inputs.cible || 'boutique') == 'boutique' || (inputs.cible || 'boutique') == 'les-deux'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
+    # ── `id-token` : l'identite de CETTE execution, signee par GitHub ───────
+    #
+    # C'est ce qui remplace le secret de base de donnees (ADR 0070). Le runner
+    # ne pose `ACTIONS_ID_TOKEN_REQUEST_URL` que si cette permission est
+    # declaree — sans elle, le pas de l'instantane s'arrete en le disant.
+    #
+    # Declarer un bloc `permissions` REDUIT le jeton par defaut a ce qui est
+    # ecrit : `contents: read` doit donc y figurer, sans quoi le checkout
+    # echoue.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -184,24 +196,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # ── Le client Prisma, et ce n'est pas une precaution ────────────────
-      #
-      # `exporter-catalogue.mjs` importe `createPrismaClient` depuis
-      # `@catalog/db`, dont le client est GENERE — il n'est pas dans le depot.
-      # Le job `porte` lance bien `pnpm db:generate`, mais il tourne sur un
-      # autre executeur : rien ne se transmet d'un job a l'autre. Sans cette
-      # ligne, `pnpm shop:snapshot` meurt sur un module absent, au tout premier
-      # deploiement, avant d'avoir rien construit.
-      - run: pnpm db:generate
-      # ── Sans instantane, AUCUNE page de boutique n'est construite ───────
-      #
-      # C'est volontaire (lot 6) : la boutique ne parle pas a la base, elle lit
-      # une photo prise a la construction. L'instantane a donc besoin de la vraie
-      # base — c'est le seul pas de ce job qui la touche.
-      - name: Instantane du catalogue
-        run: pnpm shop:snapshot
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       # ── Sans cette garde, une variable oubliee ne se voit qu'en production ──
       #
       # `vars.API_BASE_URL` est une VARIABLE, pas un secret : absente, elle
@@ -213,14 +207,39 @@ jobs:
       # Rien n'echoue : ni le build, ni le deploiement, ni un test. Le defaut
       # n'apparait que dans le navigateur d'une acheteuse. On refuse donc de
       # construire plutot que de produire un artefact faux.
+      #
+      # Elle est verifiee EN PREMIER depuis l'ADR 0070 : c'est aussi l'origine
+      # aupres de laquelle l'instantane du catalogue se demande.
       - name: L'origine de l'API est renseignee
         run: |
           test -n "${{ vars.API_BASE_URL }}" || {
             echo "La variable API_BASE_URL est vide pour l'environnement '${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}'."
             echo "Elle entre dans connect-src : sans elle la boutique se construit"
             echo "et se deploie sans jamais pouvoir joindre l'API."
+            echo "Elle sert aussi a recuperer l'instantane du catalogue (ADR 0070)."
             exit 1
           }
+      # ── Sans instantane, AUCUNE page de boutique n'est construite ───────
+      #
+      # C'est volontaire (lot 6) : la boutique ne parle pas a la base, elle lit
+      # une photo prise a la construction.
+      #
+      # ── Demandee a l'API, PAS a la base — ADR 0070 ─────────────────────
+      #
+      # Ce pas lisait la base de production directement, ce qui exigeait
+      # `secrets.DATABASE_URL` — hote, identifiant et mot de passe de la base —
+      # dans GitHub. Il n'y a jamais ete pose, et le job n'a donc jamais abouti
+      # (07/08 et 11/08). On ne l'y pose pas : l'API a deja la cle, c'est son
+      # travail ; elle sert la photo, et l'execution s'identifie par le jeton
+      # que GitHub signe pour elle.
+      #
+      # C'est aussi ce qui fait disparaitre `pnpm db:generate` de ce job : plus
+      # rien ici n'importe le client Prisma. La boutique, elle, n'en a jamais
+      # importe — c'est la regle de dependance du lot 6.
+      - name: Instantane du catalogue
+        run: pnpm shop:snapshot:distant
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
       - name: Construction
         run: pnpm --filter @catalog/shop build
         env:

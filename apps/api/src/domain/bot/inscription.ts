@@ -1,5 +1,14 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { villeAcceptable } from "@catalog/contracts/villes";
+import {
+  avancerComptoir,
+  type EtatComptoir,
+  normaliserEtatComptoir,
+  phraseRefusComptoir,
+  questionComptoir,
+  recapComptoir,
+  type VenteDeclaree,
+} from "./comptoir-vendeuse.ts";
 import { extraireSlugBoutique, INACTIVITE_MAX_MS, motCleGlobal } from "./conversation.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
@@ -67,7 +76,16 @@ export type EtatVendeuse =
       prixXaf: number;
       mediaId: string;
       enPause?: GesteEnPause;
-    };
+    }
+  /**
+   * Le comptoir vendeuse — rang 1 de l'ADR 0061. Un ETAT de cette machine et
+   * non une seconde machine : meme persistance (`BotConversation.etat`), meme
+   * horloge d'abandon, memes protections — le SMS colle traverse (regle 0 de
+   * l'aiguillage), le lien de boutique se met en pause. « Deux horloges pour
+   * une seule notion d'abandon se contrediraient un jour » ; deux persistances
+   * aussi.
+   */
+  | { nom: "comptoir"; comptoir: EtatComptoir; enPause?: GesteEnPause };
 
 /**
  * Un flux vendeuse abandonne PERIME — ADR 0048.
@@ -96,7 +114,9 @@ export type EffetVendeuse =
   /** « Voir la boutique » : le fil vendeuse se libere, l'achat reprend — ADR 0052. */
   | { type: "aller_boutique"; slug: string }
   | { type: "creer_boutique"; nomBoutique: string; ville: string; parrain?: string }
-  | { type: "creer_article"; nom: string; prixXaf: number; mediaId?: string };
+  | { type: "creer_article"; nom: string; prixXaf: number; mediaId?: string }
+  /** La vente negociee, remise au moteur — l'UNIQUE moteur (ADR 0061). */
+  | { type: "creer_vente"; vente: VenteDeclaree };
 
 export interface ReactionVendeuse {
   etat: EtatVendeuse | null;
@@ -160,6 +180,10 @@ export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
             ...enPause,
           }
         : null;
+    case "comptoir": {
+      const comptoir = normaliserEtatComptoir(e.comptoir);
+      return comptoir ? { nom: "comptoir", comptoir, ...enPause } : null;
+    }
     default:
       return null;
   }
@@ -280,8 +304,9 @@ const QUESTION_NOM_ARTICLE =
 
 const SORTIE_DE_SECOURS = "\n\nPour sortir : tapez « annuler ».";
 
-const NOM_MIN = 2;
-const NOM_MAX = 80;
+/** Exportees : le formulaire d'article (flux.ts) refuse ce que la question refuse. */
+export const NOM_MIN = 2;
+export const NOM_MAX = 80;
 const abandon = (t: string) =>
   /^(?:annuler|stop|cancel)$/.test(sansAccents(t.trim().toLowerCase()));
 
@@ -318,6 +343,44 @@ export function messageBoutiqueCreee(
       { id: "plus_tard", titre: "Plus tard" },
     ]),
   ];
+}
+
+/**
+ * Le mode d'emploi, au moment ou la boutique devient reelle — tache #62.
+ *
+ * ── Pourquoi ICI, au premier article, et pas a la creation ────────────────
+ *
+ * A la creation, la vendeuse recoit deja trois messages (lien, reversement,
+ * premier article) : un mode d'emploi de plus s'y noierait. Au premier
+ * article publie, la boutique est MONTRABLE — c'est le moment ou elle va
+ * recevoir sa premiere commande, donc le moment ou savoir quoi en faire
+ * compte. Meme logique que la carte-vitrine (ADR 0037), qui part a cet
+ * instant precis et pour la meme raison.
+ *
+ * ── Chaque ligne promet un geste qui EXISTE ───────────────────────────────
+ *
+ * « livree <reference> » (`demandeRemise`), « ma boutique »
+ * (`demandeEspaceVendeuse`), « ajouter » (`demandeAjoutArticle`), « vendu »
+ * (`demandeComptoir`). Rien d'autre : une ligne d'aide qui promet un mot que
+ * le bot ne comprend pas est pire que pas d'aide du tout.
+ *
+ * Texte brut autosuffisant (AGENTS.md §2) : les liens sont un confort, la
+ * phrase reste vraie sans eux — on ne fabrique jamais une URL fausse.
+ */
+export function messageOnboarding(
+  vers: string,
+  liens: { lienBoutique: string | null; lienEspace: string | null },
+): MessageSortant {
+  const boutique = liens.lienBoutique
+    ? `4. Votre boutique en ligne, à partager partout :\n${liens.lienBoutique}`
+    : "4. Votre boutique en ligne se partage depuis « ma carte ».";
+  const reversement = liens.lienEspace
+    ? `3. Pour être payée d'AVANCE, posez votre numéro Mobile Money :\n${liens.lienEspace}/reversement`
+    : "3. Pour être payée d'AVANCE, posez votre numéro Mobile Money dans votre espace vendeuse.";
+  return texte(
+    vers,
+    `📖 *Votre boutique, mode d'emploi :*\n\n1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.\n2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-482910\n${reversement}\n${boutique}\n\nÀ tout moment : « ma boutique » pour le menu, « ajouter » pour un article, « vendu » pour déclarer une vente déjà négociée.`,
+  );
 }
 
 export function messageArticlePublie(
@@ -432,6 +495,8 @@ function travailEnCours(etat: EtatVendeuse): string {
       return "d'ouvrir votre boutique";
     case "inscription_ville":
       return `d'ouvrir *${etat.nomBoutique}*`;
+    case "comptoir":
+      return "de déclarer une vente";
     case "article_nom":
       return "d'ajouter un article";
     case "article_prix":
@@ -485,7 +550,23 @@ export function questionDeLEtat(etat: EtatVendeuse, vers: string): MessageSortan
       );
     case "article_confirme":
       return messageConfirmationLegende(vers, { nom: etat.nomArticle, prixXaf: etat.prixXaf });
+    case "comptoir":
+      return etat.comptoir.pas === "recap"
+        ? boutonsRecapComptoir(etat.comptoir, vers)
+        : texte(vers, `${questionComptoir(etat.comptoir)}${SORTIE_DE_SECOURS}`);
   }
+}
+
+/** Le recapitulatif du comptoir, avec ses trois boutons — jamais de creation muette. */
+function boutonsRecapComptoir(
+  etat: Extract<EtatComptoir, { pas: "recap" }>,
+  vers: string,
+): MessageSortant {
+  return boutons(vers, recapComptoir(etat), [
+    { id: "confirmer", titre: "Confirmer ✓" },
+    { id: "corriger", titre: "Corriger" },
+    { id: "annuler", titre: "Annuler" },
+  ]);
 }
 
 /**
@@ -546,7 +627,9 @@ export function reagirInscription(
         messages: [
           texte(
             vers,
-            "Vous êtes en train de créer votre boutique ou d'ajouter un article." +
+            (etat.nom === "comptoir"
+              ? "Vous êtes en train de déclarer une vente : je crée la commande et je vous rends le message de paiement à transférer à votre cliente."
+              : "Vous êtes en train de créer votre boutique ou d'ajouter un article.") +
               SORTIE_DE_SECOURS,
           ),
           questionDeLEtat(etat, vers),
@@ -591,6 +674,26 @@ export function reagirInscription(
   }
 
   switch (etat.nom) {
+    case "comptoir": {
+      /* La machine du comptoir decide ; on ne fait qu'envelopper. `annuler` et
+         `aide` sont deja passes plus haut, comme pour tous les etats. */
+      const r = avancerComptoir(etat.comptoir, {
+        texte: entree.genre === "texte" ? (entree.texte ?? "") : "",
+        ...(entree.genre === "bouton" || entree.genre === "liste" ? { id: entree.id } : {}),
+      });
+      if (r.type === "creer" && r.vente) {
+        return { etat: null, messages: [], effet: { type: "creer_vente", vente: r.vente } };
+      }
+      if (r.type === "abandon") {
+        return { etat: null, messages: [texte(vers, "C'est annulé — rien n'a été créé.")] };
+      }
+      const suivant: EtatVendeuse = { nom: "comptoir", comptoir: r.etat };
+      const messages: MessageSortant[] =
+        r.type === "refus" && r.motif
+          ? [texte(vers, phraseRefusComptoir(r.motif)), questionDeLEtat(suivant, vers)]
+          : [questionDeLEtat(suivant, vers)];
+      return { etat: suivant, messages };
+    }
     case "inscription_nom": {
       const nom = entree.genre === "texte" ? (entree.texte ?? "").trim() : "";
       if (nom.length < NOM_MIN || nom.length > NOM_MAX) {

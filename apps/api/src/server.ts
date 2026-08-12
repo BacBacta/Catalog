@@ -1,6 +1,8 @@
 import { IMAGE_TAILLE_MAX_OCTETS } from "@catalog/contracts";
 import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
+import { construireInstantane } from "./adapters/instantane-catalogue.ts";
+import { verificateurDepuisEnv } from "./adapters/jeton-actions-github.ts";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
 import { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
 import { declencheurDepuisEnv } from "./adapters/reconstruction-boutique.ts";
@@ -14,7 +16,7 @@ import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
 import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
 import { traiterLivraisonBot } from "./bot.ts";
-import { notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
+import { notifierConteste, notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
@@ -32,6 +34,7 @@ import { accuseLivraisonRoutes } from "./routes/accuse-livraison.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { commandeRoutes } from "./routes/commandes.ts";
 import { devOtpRoutes } from "./routes/dev-otp.ts";
+import { instantaneRoutes } from "./routes/instantane.ts";
 import { mediaRoutes } from "./routes/media.ts";
 import { payoutRoutes } from "./routes/payout.ts";
 import { preuveRoutes } from "./routes/preuve.ts";
@@ -77,6 +80,11 @@ app.route(
     sms,
     otpStore,
     limits,
+    /* Ou l'ancien numero envoie STOP (ADR 0061, rang 2b). Absent, l'alerte
+       part quand meme et renvoie vers le support. */
+    ...(process.env.WHATSAPP_WABA_NUMERO?.trim()
+      ? { numeroBot: process.env.WHATSAPP_WABA_NUMERO.trim() }
+      : {}),
   }),
 );
 
@@ -137,6 +145,14 @@ const bot =
         ...(process.env.WABOT_FLUX_AVIS_ID?.trim()
           ? { fluxAvisId: process.env.WABOT_FLUX_AVIS_ID.trim() }
           : {}),
+        /* Le formulaire d'inscription vendeuse (tache #60). Absent : le fil
+           pose ses questions une par une, exactement comme avant. */
+        ...(process.env.WABOT_FLUX_INSCRIPTION_ID?.trim()
+          ? { fluxInscriptionId: process.env.WABOT_FLUX_INSCRIPTION_ID.trim() }
+          : {}),
+        ...(process.env.WABOT_FLUX_ARTICLE_ID?.trim()
+          ? { fluxArticleId: process.env.WABOT_FLUX_ARTICLE_ID.trim() }
+          : {}),
         /* La reconstruction de la boutique publique — ADR 0065. `null` sans
            SHOP_REBUILD_HOOK_URL, et le fil n'annonce alors aucun delai. */
         reconstruction: declencheurDepuisEnv(),
@@ -188,12 +204,49 @@ app.route(
   }),
 );
 
+/**
+ * L'instantane du catalogue, servi a la CONSTRUCTION de la boutique — ADR 0070.
+ *
+ * Il evite de deposer `DATABASE_URL` chez GitHub : le seul endroit qui a besoin
+ * du secret de la base est celui dont c'est le travail. L'appelant s'identifie
+ * par le jeton signe de son execution — aucun secret partage, donc aucun secret
+ * a inventer, a transmettre, ni a faire tourner.
+ *
+ * **Dormant sans `SHOP_REBUILD_GITHUB_REPO`** : la meme variable que le
+ * declencheur, vue dans l'autre sens. L'API reveille le workflow, il revient
+ * chercher la photo.
+ */
+const verificateurActions = verificateurDepuisEnv();
+if (verificateurActions) {
+  app.route(
+    "/api/instantane",
+    instantaneRoutes({
+      verificateur: verificateurActions,
+      construire: () => construireInstantane(prisma),
+    }),
+  );
+}
+
 app.route("/api/rampe", rampeRoutes(rampe));
 
 // Le recu et le suivi : publics, sans session. C'est une ACHETEUSE qui les lit,
 // et c'est le principe meme du recu — n'importe qui doit pouvoir controler.
 app.route("/api/recu", recuRoutes({ prisma, rampe, session }));
-app.route("/api/suivi", suiviRoutes({ prisma, rampe }));
+app.route(
+  "/api/suivi",
+  suiviRoutes({
+    prisma,
+    rampe,
+    /* Contestation depuis le lien de suivi → la vendeuse l'apprend dans son
+       fil, comme pour celle qui vient du bouton du bot. */
+    ...(bot
+      ? {
+          apresContestation: (orderId: string) =>
+            notifierConteste({ prisma, envoyeur: bot.envoyeur }, orderId),
+        }
+      : {}),
+  }),
+);
 
 /**
  * La page de statut publique. Elle passe l'interrupteur en toutes positions —

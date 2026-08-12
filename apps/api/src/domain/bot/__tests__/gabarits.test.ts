@@ -183,9 +183,35 @@ describe("chaque variable a son exemple", () => {
  * suffixe est le prix d'une manoeuvre ratee, pas la trace d'une version.
  */
 describe("les noms deposes", () => {
-  it("portent tous le suffixe qui a debloque le depot", () => {
+  /**
+   * Les noms BRULES le 08/08/2026 : deposes, refuses faute d'exemples, puis
+   * supprimes. Chez Meta la suppression est asynchrone et le nom reste retenu
+   * jusqu'a 30 jours — ceux-la ont du reprendre un suffixe pour repasser.
+   */
+  const BRULES = [
+    "catalog_nouvelle_commande",
+    "catalog_paiement_prouve",
+    "catalog_commande_livree",
+    "catalog_acompte_attendu",
+    "catalog_reversement_absent",
+  ];
+
+  it("aucun gabarit ne reprend un nom BRULE", () => {
+    /* La regle reelle, et la seule qui protege quelque chose. Elle disait
+       avant « tous les noms finissent par _v2 », ce qui confondait l'accident
+       avec la convention : le module l'ecrit noir sur blanc, le suffixe est le
+       prix d'une manoeuvre ratee et ne se cherche pas de v1. Un gabarit neuf
+       qui l'aurait porte aurait menti sur son histoire. */
     for (const g of Object.values(GABARITS)) {
-      expect(g.nom, g.nom).toMatch(/_v2$/);
+      expect(BRULES, g.nom).not.toContain(g.nom);
+    }
+  });
+
+  it("les cinq noms redeposes gardent le suffixe qui les a debloques", () => {
+    for (const nom of BRULES) {
+      const repris = Object.values(GABARITS).filter((g) => g.nom.startsWith(`${nom}_`));
+      expect(repris.length, nom).toBe(1);
+      expect(repris[0]?.nom, nom).toBe(`${nom}_v2`);
     }
   });
 

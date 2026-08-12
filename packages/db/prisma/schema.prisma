@@ -81,6 +81,26 @@ model Seller {
   /// l'instantane public.
   congesDepuis DateTime? @map("conges_depuis")
 
+  /// **Le reversement est GELE** — ADR 0061, rang 2b. Pose quand l'ancien
+  /// numero repond STOP a l'alerte de changement : le telephone a
+  /// vraisemblablement ete vole. Le numero de reversement est efface et aucun
+  /// nouveau ne s'accepte tant qu'un humain n'a pas tranche.
+  ///
+  /// Ce gel **ne ferme pas la boutique** : les commandes en cours vont a leur
+  /// terme, la page reste en ligne, la vendeuse reste joignable. Il arrete
+  /// l'argent, il ne punit pas la victime.
+  reversementGeleDepuis DateTime? @map("reversement_gele_depuis")
+
+  /// La CHAINE WhatsApp de la vendeuse — ADR 0061, rang 3b.
+  ///
+  /// Un lien, sous forme canonique `https://whatsapp.com/channel/<id>`. Catalog
+  /// ne cree ni n'alimente aucune chaine : il range ce lien, le montre sur la
+  /// page publique, et fournit des munitions marquees `chaine`.
+  ///
+  /// On ne verifie NI que la chaine existe, NI qu'elle lui appartient — aucune
+  /// API ne le permet. Seule la forme du lien est validee, et c'est dit.
+  chaineUrl String? @map("chaine_url")
+
   user        AuthUser?          @relation(fields: [userId], references: [id])
   products    Product[]
   orders      Order[]

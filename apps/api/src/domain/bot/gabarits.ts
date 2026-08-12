@@ -45,7 +45,8 @@ export type SujetNotification =
   | "paiement_prouve"
   | "commande_livree"
   | "acompte_attendu"
-  | "reversement_absent";
+  | "reversement_absent"
+  | "paiement_conteste";
 
 export interface Gabarit {
   /**
@@ -130,6 +131,31 @@ export const GABARITS: Record<SujetNotification, Gabarit> = {
       en: "Your order {{1}} is still waiting for a deposit of {{2}}.\nReply to this message to continue the payment.",
     },
     exemples: ["CT-482910", "7 500 FCFA"],
+  },
+  /**
+   * L'acheteuse dement le paiement — ADR 0036, et c'est le sujet le plus
+   * urgent des trois qui manquaient.
+   *
+   * La contre-signature donne a l'acheteuse un bouton « ce n'est pas moi ».
+   * Sans ce gabarit, la vendeuse ne l'apprend qu'a sa prochaine visite dans le
+   * fil — et une contestation decouverte trois jours plus tard est un litige
+   * devenu insoluble. C'est la valeur n° 1 du produit, la preuve opposable,
+   * qui se retournerait contre celle qu'elle est censee proteger.
+   *
+   * **Le nom ne porte pas de suffixe**, et ce n'est pas un oubli : celui des
+   * cinq autres est le prix de la manoeuvre ratee du 08/08, pas une marque de
+   * version. Un nom neuf passe sur-le-champ.
+   */
+  paiement_conteste: {
+    nom: "catalog_paiement_conteste",
+    categorie: "utility",
+    variables: 1,
+    destinataire: "vendeuse",
+    corps: {
+      fr: "L'acheteuse de la commande {{1}} ne reconnaît pas ce paiement.\nLa commande est gelée : elle n'avance plus tant que le désaccord n'est pas réglé.\nRépondez à ce message pour en parler.",
+      en: "The buyer of order {{1}} does not recognise this payment.\nThe order is frozen: it will not move until the disagreement is settled.\nReply to this message to discuss it.",
+    },
+    exemples: ["CT-482910"],
   },
   reversement_absent: {
     nom: "catalog_reversement_absent_v2",

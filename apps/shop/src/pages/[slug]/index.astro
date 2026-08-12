@@ -56,6 +56,24 @@ const lieu = [boutique.quartier, boutique.ville].filter(Boolean).join(", ");
         ) : null
       }
       {
+        /* « Suivre la boutique » — ADR 0061, rang 3b.
+           Absent quand la vendeuse n'a pas de chaine, ce qui est l'etat
+           normal : on ne montre pas un bouton qui ne mene nulle part.
+           `rel` ferme l'onglet ouvert sur nous — un lien sortant ne doit
+           jamais laisser la page appelante manipulable (`noopener`), et le
+           jeton de suivi ne voyage pas en referent (`noreferrer`, ADR 0021). */
+        boutique.chaine ? (
+          <a
+            href={boutique.chaine}
+            rel="noopener noreferrer"
+            data-testid="suivre-boutique"
+            class="inline-flex min-h-touch items-center gap-2 self-start rounded-field border border-line px-3 py-2 text-body font-semibold text-ink no-underline"
+          >
+            📣 Suivre la boutique
+          </a>
+        ) : null
+      }
+      {
         /* Mode congés — ADR 0039. Annoncé en haut, pas au moment de commander :
            on ne laisse pas choisir un article pour refuser ensuite. */
         boutique.enConges ? (
