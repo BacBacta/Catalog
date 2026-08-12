@@ -255,6 +255,44 @@ describe("la lecture d'un article — tache #62", () => {
     }
   });
 
+  it("la photo rend l'identifiant du media — mesure du 12/08", () => {
+    /* La valeur d'un PhotoPicker est un TABLEAU d'objets media ; seul
+       l'identifiant nous sert — c'est le meme genre d'identifiant qu'une
+       photo du fil, et il emprunte le meme pipeline. */
+    expect(
+      lireArticleFlux(
+        reponse({
+          nom: "Sac",
+          prix: "1000",
+          photo: [{ id: "1713578936575692", file_name: "sac.jpg", mime_type: "image/jpeg" }],
+        }),
+      ),
+    ).toEqual({ nom: "Sac", prixXaf: 1000, mediaId: "1713578936575692" });
+  });
+
+  it("une photo de forme inattendue vaut ABSENTE, jamais un echec", () => {
+    /* Meme tolerance que le stock : l'article se publie sans photo — le
+       comportement d'avant le champ, donc aucune regression possible. La
+       forme LIVE du tableau n'a que la doc pour elle tant qu'une vraie
+       soumission ne l'a pas confirmee : c'est precisement pour cela que
+       l'inattendu doit etre un non-evenement. */
+    for (const photo of [
+      undefined,
+      "",
+      "1713578936575692",
+      [],
+      [{}],
+      [{ id: 42 }],
+      [{ id: "des espaces dedans" }],
+      { id: "1713578936575692" },
+    ]) {
+      expect(lireArticleFlux(reponse({ nom: "Sac", prix: "1000", photo }))).toEqual({
+        nom: "Sac",
+        prixXaf: 1000,
+      });
+    }
+  });
+
   it("son jeton se reconnait, et ne se confond avec aucun autre", () => {
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("article") }))).toBe("article");
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("avis") }))).not.toBe("article");

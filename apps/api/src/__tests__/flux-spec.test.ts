@@ -74,9 +74,9 @@ describe("la spec du formulaire d'ARTICLE suit le code — tache #62", () => {
   const champs = formulaire.children.filter((c) => c.name).map((c) => c.name as string);
 
   it("declare EXACTEMENT les champs que `lireArticleFlux` lit", () => {
-    /* Les trois cles litterales de `lireArticleFlux` — les changer d'un cote
+    /* Les quatre cles litterales de `lireArticleFlux` — les changer d'un cote
        casse la lecture de l'autre EN SILENCE. */
-    expect(champs.sort()).toEqual(["nom", "prix", "stock"].sort());
+    expect(champs.sort()).toEqual(["nom", "prix", "stock", "photo"].sort());
   });
 
   it("nom et prix sont OBLIGATOIRES — un article sans eux n'existe pas", () => {
@@ -93,12 +93,16 @@ describe("la spec du formulaire d'ARTICLE suit le code — tache #62", () => {
     expect(stock?.required).not.toBe(true);
   });
 
-  it("AUCUN champ photo — le point reste OUVERT, pas tranche en silence", () => {
-    /* `PhotoPicker` n'a jamais ete mesure sur notre WABA (§7.7) : tant que la
-       mesure n'est pas faite, la photo reste un envoi separe. Ce test tombera
-       le jour ou quelqu'un l'ajoute — et c'est le bon moment pour exiger la
-       mesure, pas six mois apres un formulaire muet. */
-    const types = formulaire.children.map((c) => c.type);
-    expect(types).not.toContain("PhotoPicker");
+  it("la photo est un PhotoPicker FACULTATIF borne a UNE image — mesure du 12/08", () => {
+    /* Le point ouvert est TRANCHE par une mesure, pas par une envie :
+       `PhotoPicker` a ete accepte sans point de terminaison sur notre WABA le
+       12/08/2026 (formulaire jetable 1713578936575692, aucune
+       validation_error — mode `--mesurer-photopicker` de flux.mjs). Facultatif
+       parce que la photo legendee dans le fil reste le geste le plus rapide ;
+       UNE image parce qu'un article n'en porte qu'une (`imageKey`). */
+    const photo = formulaire.children.find((c) => c.name === "photo");
+    expect(photo?.type).toBe("PhotoPicker");
+    expect(photo?.["min-uploaded-photos"]).toBe(0);
+    expect(photo?.["max-uploaded-photos"]).toBe(1);
   });
 });
