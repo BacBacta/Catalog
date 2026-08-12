@@ -11,7 +11,7 @@ import { CODE_ALPHABET } from "@catalog/contracts";
  * reseau. Deux tests qui fabriquent le meme identifiant ne se genent pas
  * poliment : l'un des deux echoue, et son echec ressemble a un defaut metier.
  *
- * Trois recouvrements ont ete corriges, dans cet ordre :
+ * Quatre recouvrements ont ete corriges, dans cet ordre :
  *
  * 1. **entre FICHIERS joues en parallele** (10/08) — un bloc par fichier ;
  * 2. **entre EXECUTIONS sur la meme base** (11/08) — celui-ci. La CI enchaine
@@ -26,6 +26,14 @@ import { CODE_ALPHABET } from "@catalog/contracts";
  *    retire le recouvrement. Deux executions partageant la meme milliseconde
  *    modulo 1000 restaient entierement confondues, et la CI en fabrique une
  *    paire a chaque passage. Le sel se POSE desormais — voir `selExecution()`.
+ * 4. **les variantes taillees dans les chiffres du sel** (12/08, run
+ *    31630675339) — un fichier non migre fabriquait des identifiants voisins
+ *    en ecrasant les deux derniers chiffres du sien (`TX.slice(0, -2)+"91"`).
+ *    Ces chiffres portent le SEL : quand celui de `pnpm test` finissait en 90,
+ *    la variante etait l'identifiant de BASE de `pnpm test:coverage`, que la
+ *    CI rend voisin par construction. Un passage sur dix, et DETERMINISTE au
+ *    reessai — le `run_id` ne change pas. Les variantes sortent du schema
+ *    desormais : le compteur a ses propres chiffres, il est fait pour ca.
  *
  * ── La contrainte qui commande la forme ───────────────────────────────────
  *
@@ -68,9 +76,10 @@ export const BLOCS = {
   "bot-comptoir": 13,
   "gabarits-jamais-appeles": 14,
   "bot-flux-article": 15,
-  /* Les sept ci-dessous n'utilisent le schema QUE pour `codeVerification()`
-     (tache #68) : leurs telephones et adresses restent sur l'ancien sel — les
-     deux familles sont disjointes par construction, voir l'en-tete. */
+  /* Les sept ci-dessous gardent telephones et adresses sur l'ancien sel — les
+     deux familles sont disjointes par construction, voir l'en-tete. Ils
+     prennent au schema `codeVerification()` (tache #68), et `preuve-route`
+     y prend AUSSI ses identifiants MTN depuis le recouvrement n° 4. */
   "bot-apres-achat": 16,
   "bot-conges": 17,
   "commandes-route": 18,

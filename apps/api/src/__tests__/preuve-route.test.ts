@@ -30,9 +30,10 @@ let prisma: PrismaClient;
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
 const RUN = 146 * 1000 + selExecution();
-/* Le schema recent ne sert ICI qu'aux codes de verification (tache #68) :
-   l'ancien generateur hachait sa graine, et le bloc ne separe pas ce qu'un
-   hachage fait des nombres — vu en CI le 12/08 (ADR 0078). */
+/* Le schema recent sert ICI aux codes de verification (tache #68) et aux
+   identifiants d'operateur : l'ancien generateur hachait sa graine, et le bloc
+   ne separe pas ce qu'un hachage fait des nombres — vu en CI le 12/08. Les
+   identifiants MTN l'ont rejoint le meme jour, pour la raison dite sur `TX`. */
 const ids = identifiants("preuve-route");
 
 /** L'horloge est figee : les fixtures portent des dates de juin 2026. */
@@ -48,8 +49,19 @@ const chiffreur = new ChiffreurInerte({ NODE_ENV: "test" });
  * jamais purgee — c'est tout l'objet du controle n° 5. Reutiliser l'identifiant
  * de la fixture ferait echouer la deuxieme execution de la suite pour la bonne
  * raison, au mauvais endroit.
+ *
+ * Il sort du SCHEMA, jamais d'une retouche de ses chiffres. L'ancienne forme
+ * (`176` + RUN) fabriquait ses variantes en ecrasant les deux derniers chiffres
+ * (`TX.slice(0, -2) + "91"`) — or ces chiffres portent le SEL, et la CI pose
+ * des sels CONSECUTIFS (`run_id` suffixe par l'etape). Quand le sel de
+ * `pnpm test` finissait en 90, la variante « 91 » etait exactement le TX de
+ * base de `pnpm test:coverage` : premier collage en 409, un passage sur dix —
+ * les `run_id` finissant par 9 —, et la relance ne guerit rien puisque le
+ * `run_id` ne change pas. Vu en CI le 12/08, run 31630675339. Dans le schema,
+ * le compteur a ses propres chiffres : deux appels ne se croisent jamais, ni
+ * entre eux ni avec l'execution voisine.
  */
-const TX = `176${RUN.toString().padStart(8, "0")}`;
+const TX = ids.txMtn();
 
 /**
  * Compte les preuves DE CETTE COMMANDE, jamais de toute la table.
@@ -284,7 +296,7 @@ describeDb("le SMS brut ne fuit nulle part", () => {
     try {
       const troisieme = await creerVendeuse((RUN + 8765) % 900000, 26800);
       // Un cas accepte, un refuse, un non reconnu : les trois chemins.
-      await coller(troisieme, MTN_UNIQUE.replace(TX, `${TX.slice(0, -2)}91`));
+      await coller(troisieme, MTN_UNIQUE.replace(TX, ids.txMtn()));
       await coller(troisieme, TEXTE_LIBRE);
       await coller(troisieme, MTN_UNIQUE);
     } finally {
@@ -300,7 +312,7 @@ describeDb("le SMS brut ne fuit nulle part", () => {
 
   it("la reponse HTTP ne renvoie jamais le texte ni le solde", async () => {
     const quatrieme = await creerVendeuse((RUN + 13579) % 900000, 26800);
-    for (const sms of [MTN_UNIQUE.replace(TX, `${TX.slice(0, -2)}92`), TEXTE_LIBRE]) {
+    for (const sms of [MTN_UNIQUE.replace(TX, ids.txMtn()), TEXTE_LIBRE]) {
       const corps = await (await coller(quatrieme, sms)).text();
       expect(corps).not.toContain("Vous avez recu");
       expect(corps).not.toContain("29398");
