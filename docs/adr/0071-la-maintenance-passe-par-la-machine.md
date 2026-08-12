@@ -109,6 +109,15 @@ verrou porte sur le nom de l'application, et non sur une intention.
 - Ces scripts ne sont **pas** dans la chaîne de vérification, pour la même
   raison que `db:sauvegarde` et `db:restauration` : ils demandent une vraie
   base, et une remise à zéro ne se lance pas par mégarde.
-- Le canal `flyctl ssh console` avec un jeton de déploiement **n'a pas encore
-  été éprouvé** dans ce dépôt. L'inventaire, en lecture seule, est le premier à
-  l'exercer : c'est le bon ordre pour découvrir un refus de permission.
+- Le canal `flyctl ssh console` avec un jeton de déploiement **fonctionne** —
+  éprouvé le 11/08/2026, dès la première exécution. La permission n'était pas
+  le problème.
+- **Les scripts viennent de l'IMAGE, pas du dépôt**, et c'est le vrai piège de
+  ce canal. La première exécution est morte sur
+  « Cannot find module /app/packages/db/scripts/inventaire.mjs » : les scripts
+  venaient d'être fusionnés dans `main`, l'API en ligne datait de la veille de
+  cette fusion. Le message se lit comme un chemin faux alors que l'image est
+  simplement en retard.
+
+  Toute maintenance suppose donc un **déploiement de l'API d'abord**. Le
+  workflow le vérifie désormais avant d'agir, plutôt que de laisser déduire.

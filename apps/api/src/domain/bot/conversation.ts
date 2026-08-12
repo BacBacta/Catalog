@@ -2,6 +2,7 @@ import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
+import type { VerdictConfiance } from "./confiance.ts";
 import { lireEntreeBoutique } from "./entree-boutique.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import {
@@ -1750,6 +1751,14 @@ export function confirmationCommande(
       operateurNom: string | null;
       codeEntree: string | null;
       lienPayer: string | null;
+      /**
+       * La reputation de la boutique, dite AU MOMENT DU DOUTE — ADR 0061,
+       * rang 2a. Elle voyage avec le paiement et non avec la boutique parce
+       * que c'est la QU'ELLE SERT : une acheteuse qui consulte un catalogue ne
+       * risque rien, celle qui s'apprete a envoyer un acompte, si.
+       */
+      confiance?: VerdictConfiance | null;
+      lienBoutique?: string | null;
     } | null;
     /** Le wa.me de la vendeuse : la conversation continue chez elle. */
     waVendeuse?: string | null;

@@ -14,6 +14,7 @@ const CARTE_CIBLE_OCTETS = 300_000;
 import { deliverySchema, itemsTotalXaf, normalizePhone, type OrderItem } from "@catalog/contracts";
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
+import { slugArticle } from "@catalog/contracts/slug";
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
 import { rendreCarte } from "./adapters/carte-vitrine.ts";
@@ -29,6 +30,7 @@ import {
   messageATransferer,
   type VenteDeclaree,
 } from "./domain/bot/comptoir-vendeuse.ts";
+import { confianceAuPaiement, type VerdictConfiance } from "./domain/bot/confiance.ts";
 import {
   type ArticleBot,
   type BoutiqueBot,
@@ -45,6 +47,7 @@ import {
   reagirVendeuse,
   type StatutDerniereCommande,
 } from "./domain/bot/conversation.ts";
+import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import {
@@ -73,6 +76,7 @@ import {
   corpsLivraisonRefusee,
   corpsNouvelleCommande,
 } from "./domain/bot/notifications.ts";
+import { consigneDuPack, packStatut } from "./domain/bot/pack-statut.ts";
 import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
@@ -88,6 +92,7 @@ import { appliquerEvenement, type EvenementPreuve } from "./domain/proof/machine
 import { analyserSms } from "./domain/proof/motifs.ts";
 import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
 import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
+import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeRelance } from "./jobs/relance-acompte.ts";
@@ -306,6 +311,69 @@ function cleConversation(waId: string): string | null {
  * proposer d'ouvrir sa boutique au lieu d'etre renvoyee a un lien qu'elle
  * n'a pas.
  */
+/**
+ * Le STOP qui gele le reversement — ADR 0061, rang 2b.
+ *
+ * Rend `true` quand le message a ete TRAITE ici : l'appelant s'arrete alors,
+ * et le message ne traverse ni l'aiguillage ni la machine d'achat.
+ *
+ * ── Pourquoi passer par le journal d'audit plutot qu'une table ─────────
+ *
+ * L'alerte y est deja consignee (`reversement_alerte`), en ajout seul, avec le
+ * numero destinataire. C'est exactement l'index dont le STOP a besoin, et le
+ * signal de securite reste dans le registre indelebile plutot que dans une
+ * table qu'on pourrait vider.
+ */
+async function filStopReversement(
+  deps: BotDeps,
+  phone: string,
+  entree: EntreeBot,
+): Promise<boolean> {
+  if (entree.genre !== "texte") return false;
+  const maintenant = deps.maintenant?.() ?? new Date();
+
+  const alerte = await deps.prisma.sellerAuditEvent.findFirst({
+    where: { kind: "reversement_alerte", payload: { path: ["vers"], equals: phone } },
+    orderBy: { at: "desc" },
+    select: { sellerId: true, at: true },
+  });
+
+  const decision = decisionGel({
+    texte: entree.texte,
+    alerteEnvoyeeA: alerte?.at ?? null,
+    maintenant,
+  });
+  if (!decision.geler || !alerte) return false;
+
+  const effet = effetDuGel(maintenant);
+  await deps.prisma.$transaction(async (tx) => {
+    await tx.seller.update({ where: { id: alerte.sellerId }, data: effet });
+    await tx.sellerAuditEvent.create({
+      data: {
+        sellerId: alerte.sellerId,
+        kind: "reversement_gele",
+        actor: "systeme",
+        payload: { surStopDe: phone },
+        at: maintenant,
+      },
+    });
+  });
+
+  /**
+   * L'accuse est bref et ne nomme rien. Celui qui lit peut etre la vendeuse
+   * — auquel cas il la rassure — ou quelqu'un d'autre, auquel cas il ne lui
+   * apprend ni quelle boutique, ni quel numero, ni quoi faire ensuite.
+   */
+  await deps.envoyeur.envoyer(
+    texte(
+      entree.de,
+      "C'est noté : les paiements à l'avance sont suspendus sur ce compte. " +
+        "Nous allons vous contacter.",
+    ),
+  );
+  return true;
+}
+
 async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   const phone = cleConversation(entree.de);
   if (!phone) return;
@@ -313,6 +381,16 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
   /* Le message entrant vient d'OUVRIR la fenetre de service : les
      notifications en attente partent d'abord (ADR 0035), la reponse suit. */
   await livrerNotificationsEnAttente(deps, phone);
+
+  /**
+   * ── Le STOP passe AVANT l'aiguillage — ADR 0061, rang 2b ──────────────
+   *
+   * Il vient de l'ANCIEN numero de reversement, qui n'est presque jamais le
+   * numero de connexion de la vendeuse : l'aiguillage le prendrait pour une
+   * acheteuse et lui repondrait un catalogue. Le seul endroit ou ce message
+   * peut etre reconnu est ici, avant toute regle d'identite.
+   */
+  if (await filStopReversement(deps, phone, entree)) return;
 
   /**
    * La vendeuse se reconnait par `authUser.phoneNumber` OU par `seller.phone` :
@@ -516,6 +594,15 @@ async function filInscription(
       if (nb === 1) {
         messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
       }
+      /**
+       * Le pack statut part a CHAQUE publication — ADR 0061, rang 3a.
+       *
+       * La carte-vitrine, elle, ne part qu'au premier article : elle dit « la
+       * boutique existe », une fois. Le pack dit « poste CELUI-CI aujourd'hui »,
+       * et c'est vrai a chaque fois. Sur la premiere publication les deux
+       * partent, et c'est voulu : ils ne disent pas la meme chose.
+       */
+      messages.push(...(await packStatutArticle(deps, sellerId, article).catch(() => [])));
     }
     etatSuivant = ETAT_INITIAL;
   }
@@ -767,7 +854,13 @@ async function creerArticleDepuisFil(
   deps: BotDeps,
   sellerId: string,
   demande: { nom: string; prixXaf: number; mediaId?: string },
-): Promise<{ nom: string; prixXaf: number; avecPhoto: boolean } | null> {
+): Promise<{
+  id: string;
+  nom: string;
+  prixXaf: number;
+  avecPhoto: boolean;
+  imageKey: string | null;
+} | null> {
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
 
   let image: {
@@ -820,11 +913,21 @@ async function creerArticleDepuisFil(
             }
           : {}),
       },
-      select: { name: true, priceXaf: true },
+      select: { id: true, name: true, priceXaf: true },
     })
     .catch(() => null);
 
-  return cree ? { nom: cree.name, prixXaf: cree.priceXaf, avecPhoto: image !== null } : null;
+  return cree
+    ? {
+        id: cree.id,
+        nom: cree.name,
+        prixXaf: cree.priceXaf,
+        avecPhoto: image !== null,
+        /* La cle sert au pack statut (rang 3a) : la photo se recompose sur la
+           carte, elle ne se re-telecharge pas depuis WhatsApp. */
+        imageKey: image?.cle ?? null,
+      }
+    : null;
 }
 
 /* ────────────────────────── fil acheteuse ───────────────────────────────── */
@@ -949,6 +1052,9 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
                     charge.reversement.numero,
                   )}&montant=${commande.duAvantXaf}`
                 : null,
+              /* ADR 0061, rang 2a — la reputation au moment ou l'on paie. */
+              ...(charge ? { confiance: charge.confiance } : {}),
+              lienBoutique: deps.baseBoutique ? `${deps.baseBoutique}/${boutique.slug}` : null,
             }
           : null;
       const chiffresVendeuse = boutique.whatsappVendeuse?.replace(/\D/g, "") ?? "";
@@ -1086,6 +1192,72 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
  * Rend le message a envoyer, ou une explication : sans article la carte n'a
  * rien a montrer, sans numero Catalog elle porterait un lien faux.
  */
+/**
+ * Le PACK STATUT d'un article — ADR 0061, rang 3a.
+ *
+ * Deux messages, et leur separation compte : l'IMAGE porte une consigne qui
+ * reste entre nous, la LEGENDE part telle quelle chez les clientes. Les
+ * melanger ferait poster a la vendeuse une phrase qui lui etait destinee.
+ *
+ * Le mot-cle du lien porte le canal `statut` : chaque commande nee d'un Statut
+ * se compte comme telle (rang 0). Sans lui, la vendeuse ne saurait jamais
+ * lequel de ses gestes rapporte.
+ *
+ * Ne leve jamais : la publication de l'article est faite, le pack est un plus
+ * — meme lecon que la reconstruction de boutique (ADR 0065).
+ */
+async function packStatutArticle(
+  deps: BotDeps,
+  sellerId: string,
+  article: { id: string; nom: string; prixXaf: number; imageKey: string | null },
+): Promise<MessageSortant[]> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { businessName: true, slug: true, city: true, phone: true },
+  });
+  const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
+  if (!seller || !chiffres || !deps.storage) return [];
+  const a = (seller.phone ?? "").replace(/^\+/, "");
+  if (!a) return [];
+
+  const pack = packStatut({
+    nomBoutique: seller.businessName,
+    slug: seller.slug,
+    article: {
+      nom: article.nom,
+      prixXaf: article.prixXaf,
+      slugArticle: slugArticle(article.nom, article.id),
+    },
+    lien: lienBot(deps, texteEntreeBoutique({ slug: seller.slug, canal: "statut" })),
+  });
+
+  const photo = article.imageKey
+    ? await deps.storage
+        .lire(`${article.imageKey}.jpg`)
+        .then((o) => (o ? { octets: o } : null))
+        .catch(() => null)
+    : null;
+
+  const carte = await carteEnMessage(
+    deps,
+    {
+      nomBoutique: seller.businessName,
+      ville: seller.city,
+      lien: lienBot(deps, pack.motCle),
+      lienAffiche: `wa.me/${chiffres}`,
+      motCle: pack.motCle,
+      /* UN seul article : le gabarit lui donne toute la place (ADR 0037). */
+      articles: [{ nom: article.nom, prixXaf: article.prixXaf, avecPhoto: photo !== null }],
+    },
+    [photo],
+    a,
+    consigneDuPack(),
+  );
+  /* La legende arrive SEULE, dans son propre message : c'est ce qui la rend
+     transferable d'un appui long, sans rien a effacer. */
+  return [...carte, texte(a, pack.legende)];
+}
+
 async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSortant[]> {
   const vers = (phone: string) => phone.replace(/^\+/, "");
   const seller = await deps.prisma.seller.findUnique({
@@ -1138,8 +1310,9 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
 
   const rep = reputation(seller.reviews.map((r) => ({ note: r.rating, verifie: r.verified })));
   const motCle = `boutique ${seller.slug}`;
-  const png = await rendreCarte({
-    donnees: {
+  return carteEnMessage(
+    deps,
+    {
       nomBoutique: seller.businessName,
       ville: seller.city,
       lien: lienBot(deps, motCle),
@@ -1154,7 +1327,28 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
       })),
     },
     photos,
-  });
+    a,
+    `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
+  );
+}
+
+/**
+ * Rend une carte, l'encode, la range et la renvoie en message image.
+ *
+ * Extrait de `carteVitrine` au rang 3a : le pack statut (ADR 0061) rend la
+ * MEME carte avec d'autres donnees et une autre legende. Deux copies de ce
+ * pipeline auraient derive — et l'une des deux aurait fini par perdre le
+ * calibrage de l'ADR 0059, qui est precisement ce qu'on n'a pas le droit
+ * d'oublier ici.
+ */
+async function carteEnMessage(
+  deps: BotDeps,
+  donnees: Parameters<typeof rendreCarte>[0]["donnees"],
+  photos: ReadonlyArray<{ octets: Uint8Array } | null>,
+  a: string,
+  legende: string,
+): Promise<MessageSortant[]> {
+  const png = await rendreCarte({ donnees, photos });
 
   /**
    * Le meme pipeline que les photos, mais PAS le meme calibrage — ADR 0059.
@@ -1188,13 +1382,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
   const url = await urlJpegVerifiee(deps, base);
   if (!url) return [texte(a, "La carte n'a pas pu être publiée. Réessayez dans un instant.")];
 
-  return [
-    imageMessage(
-      a,
-      url,
-      `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
-    ),
-  ];
+  return [imageMessage(a, url, legende)];
 }
 
 /**
@@ -1337,6 +1525,13 @@ interface BoutiqueChargee {
   clesImage: Map<string, string>;
   /** Le reversement pour le bloc paiement (ADR 0035) — jamais montre ailleurs. */
   reversement: { numero: string; operateur: string | null } | null;
+  /**
+   * Ce que la boutique a DEJA prouve, pour le dire au moment du doute
+   * (ADR 0061, rang 2a). Compte a part de `reputation` : un paiement prouve
+   * n'est pas un avis, et c'est le premier des deux qui rassure devant un
+   * acompte.
+   */
+  confiance: VerdictConfiance;
 }
 
 async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueChargee | null> {
@@ -1360,6 +1555,17 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
   });
   if (!seller) return null;
   const rep = reputation(seller.reviews.map((a) => ({ note: a.rating, verifie: a.verified })));
+  /**
+   * ── Ce qui compte comme « prouve », et ce qui n'y entre pas ────────────
+   *
+   * Seuls `prouve` et `contresigne`. PAS `declare_non_trace` : le depot direct
+   * non trace fait avancer la commande mais ne prouve rien (AGENTS.md §2), et
+   * le compter ici transformerait un compteur de preuves en compteur de
+   * ventes — exactement le chiffre invérifiable que le produit refuse.
+   */
+  const paiementsProuves = await deps.prisma.order.count({
+    where: { sellerId: seller.id, proofState: { in: ["prouve", "contresigne"] } },
+  });
   const clesImage = new Map<string, string>();
   for (const p of seller.products) {
     if (p.imageKey) clesImage.set(p.id, p.imageKey);
@@ -1389,6 +1595,7 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
     reversement: seller.payoutPhone
       ? { numero: seller.payoutPhone, operateur: seller.payoutOperator ?? null }
       : null,
+    confiance: confianceAuPaiement({ paiementsProuves, avisVerifies: rep.nbVerifies }),
   };
 }
 

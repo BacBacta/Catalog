@@ -80,6 +80,11 @@ app.route(
     sms,
     otpStore,
     limits,
+    /* Ou l'ancien numero envoie STOP (ADR 0061, rang 2b). Absent, l'alerte
+       part quand meme et renvoie vers le support. */
+    ...(process.env.WHATSAPP_WABA_NUMERO?.trim()
+      ? { numeroBot: process.env.WHATSAPP_WABA_NUMERO.trim() }
+      : {}),
   }),
 );
 
