@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { composerCarteAvis, type DonneesCarteAvis } from "../domain/bot/carte-avis.ts";
 import {
   CARTE_HAUTEUR,
   CARTE_LARGEUR,
@@ -102,5 +103,31 @@ export async function rendreCarte(entree: EntreeCarte): Promise<Uint8Array> {
   const fond = sharp(Buffer.from(svg), { density: 96 }).resize(CARTE_LARGEUR, CARTE_HAUTEUR);
   const composee = calques.filter((c) => c !== null);
   const png = await (composee.length > 0 ? fond.composite(composee) : fond).png().toBuffer();
+  return new Uint8Array(png);
+}
+
+/**
+ * Rend la carte d'AVIS VERIFIE — ADR 0061, rang 3c.
+ *
+ * Meme chaine que la carte-vitrine, et volontairement : meme gabarit 1080x1920,
+ * meme QR, meme calibrage en aval (ADR 0059). Ce qui change est le dessin, et
+ * lui seul — il vit dans le domaine, ou il se teste sans `sharp`.
+ *
+ * Aucune photo a composer : cette carte-la porte des etoiles et un mot, pas un
+ * catalogue.
+ */
+export async function rendreCarteAvis(
+  donnees: Omit<DonneesCarteAvis, "qrChemin" | "qrTaille">,
+  lienQr: string,
+): Promise<Uint8Array> {
+  const qr = qrChemin(lienQr);
+  const svg = composerCarteAvis({
+    ...donnees,
+    ...(qr ? { qrChemin: qr.chemin, qrTaille: qr.taille } : {}),
+  });
+  const png = await sharp(Buffer.from(svg), { density: 96 })
+    .resize(CARTE_LARGEUR, CARTE_HAUTEUR)
+    .png()
+    .toBuffer();
   return new Uint8Array(png);
 }

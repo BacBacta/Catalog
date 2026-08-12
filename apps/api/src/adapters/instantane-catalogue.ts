@@ -43,6 +43,11 @@ export interface BoutiqueInstantane {
   whatsapp: string;
   reversementVerifie: boolean;
   enConges: boolean;
+  /**
+   * La chaine WhatsApp — ADR 0061, rang 3b. `null` est l'etat normal : la page
+   * n'affiche « Suivre la boutique » que si le lien existe.
+   */
+  chaine: string | null;
   notes: number[];
   articles: ArticleInstantane[];
 }
@@ -65,6 +70,7 @@ export async function construireInstantane(prisma: PrismaClient): Promise<Instan
       phone: true,
       payoutPhoneVerifiedAt: true,
       congesDepuis: true,
+      chaineUrl: true,
       products: {
         where: { archivedAt: null },
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
@@ -102,6 +108,7 @@ export async function construireInstantane(prisma: PrismaClient): Promise<Instan
       // Une boutique retiree de l'instantane perdrait son referencement et le
       // lien deja partage en Statut renverrait sur une page absente.
       enConges: v.congesDepuis !== null,
+      chaine: v.chaineUrl,
       notes: v.reviews.map((r) => r.rating),
       articles: v.products.map((p) => ({
         id: p.id,
