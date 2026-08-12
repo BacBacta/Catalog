@@ -24,7 +24,7 @@ on:
       operation:
         description: "Ce qu'on fait"
         type: choice
-        options: [inventaire, etat-flux, poser-waba, poser-flux-inscription, remise-a-zero]
+        options: [inventaire, etat-flux, poser-waba, poser-flux, remise-a-zero]
         default: inventaire
       waba:
         description: "Pour « poser-waba » UNIQUEMENT : l'identifiant du compte WhatsApp Business (chiffres)"
@@ -109,7 +109,7 @@ jobs:
       # dans la console Meta. Il est pose en secret Fly parce que c'est le seul
       # endroit ou l'application lit sa configuration (ADR 0070).
       #
-      # Il se saisit UNE fois. Ensuite, « poser-flux-inscription » se suffit.
+      # Il se saisit UNE fois. Ensuite, « poser-flux » se suffit.
       - name: Poser l'identifiant du compte WhatsApp Business
         if: inputs.operation == 'poser-waba'
         run: |
@@ -132,40 +132,57 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           WABA_SAISI: ${{ inputs.waba }}
 
-      # ── Poser l'identifiant du formulaire d'inscription — tache #60 ─────
+      # ── Poser les identifiants des formulaires — tache #60 ─────────────
       #
-      # La machine sait DEMANDER l'identifiant a Meta (elle seule detient
+      # La machine sait DEMANDER les identifiants a Meta (elle seule detient
       # `WABOT_API_KEY`), mais ne sait pas ecrire ses propres secrets ; le
       # runner detient `FLY_API_TOKEN` mais pas la cle Meta. Ce pas fait le
-      # pont : il lit l'etat DEPUIS la machine, et pose le secret DEPUIS le
+      # pont : il lit l'etat DEPUIS la machine, et pose les secrets DEPUIS le
       # runner. Aucun identifiant ne transite par un humain.
       #
       # **Seul un Flow PUBLISHED se pose.** Un brouillon s'envoie sans erreur
       # et ne s'ouvre jamais — poser son identifiant serait installer la panne
-      # la plus silencieuse du dispositif. On refuse, en le disant.
+      # la plus silencieuse du dispositif. Un Flow absent ou en brouillon est
+      # donc SAUTE, et le pas le dit ; il n'echoue que si RIEN n'est posable.
+      #
+      # Le pas ne connait aucun nom de formulaire : il pose ce que `--etat`
+      # declare publie. C'est `flux.mjs` qui tient la liste, et lui seul —
+      # ajouter un quatrieme formulaire un jour ne se paiera pas ici.
       #
       # `flyctl secrets set` REDEMARRE l'application : le pas est a lancer
       # apres un deploiement, pas pendant.
-      - name: Poser l'identifiant du formulaire d'inscription
-        if: inputs.operation == 'poser-flux-inscription'
+      - name: Poser les identifiants des formulaires publies
+        if: inputs.operation == 'poser-flux'
         run: |
           set -euo pipefail
           sortie=$(flyctl ssh console --app catalog-api-preprod \
             -C "node /app/apps/api/scripts/flux.mjs --etat" | tr -d '\r')
           echo "$sortie"
-          ligne=$(echo "$sortie" | awk '
-            /catalog_inscription : PUBLISHED/ { ok = 1; next }
-            /WABOT_FLUX_INSCRIPTION_ID=/ { if (ok) { gsub(/^[ \t]+/, ""); print; exit } ok = 0 }
+          # `--etat` rend deux lignes par formulaire : le statut, puis la ligne
+          # « WABOT_FLUX_..._ID=<id> » prete a coller. On ne retient la seconde
+          # que si la premiere disait PUBLISHED.
+          lignes=$(echo "$sortie" | awk '
+            / : PUBLISHED/ { publie = 1; next }
+            /^[ \t]*WABOT_FLUX_[A-Z]+_ID=/ {
+              if (publie) { gsub(/^[ \t]+/, ""); print }
+              publie = 0; next
+            }
+            { publie = 0 }
           ')
-          if [ -z "$ligne" ]; then
+          if [ -z "$lignes" ]; then
             echo ""
-            echo "catalog_inscription n'est pas PUBLISHED (ou absent) : rien n'est pose."
-            echo "Publier le Flow d'abord — un brouillon s'envoie sans erreur et ne s'ouvre jamais."
+            echo "Aucun formulaire PUBLISHED : rien n'est pose."
+            echo "Publier chez Meta d'abord — un brouillon s'envoie sans erreur et ne s'ouvre jamais."
             exit 1
           fi
           echo ""
-          echo "Pose : $ligne"
-          flyctl secrets set "$ligne" --app catalog-api-preprod
+          echo "Pose :"
+          echo "$lignes"
+          # Expansion VOULUE sans guillemets : une ligne par secret, et chaque
+          # ligne est un « NOM=chiffres » sans espace — c'est `flux.mjs` qui les
+          # ecrit, pas une saisie libre.
+          # shellcheck disable=SC2086
+          flyctl secrets set $lignes --app catalog-api-preprod
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
