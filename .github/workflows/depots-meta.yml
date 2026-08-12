@@ -35,6 +35,11 @@ concurrency:
 jobs:
   depot:
     runs-on: ubuntu-latest
+    # `FLY_API_TOKEN` n'est PAS un secret du depot : il vit dans l'environnement
+    # GitHub `preproduction`, comme dans deploiement.yml. Sans cette ligne, le
+    # secret se resout en chaine vide et flyctl repond « no access token » —
+    # mesure au premier run (31640602429, 13 secondes).
+    environment: preproduction
     steps:
       - uses: superfly/flyctl-actions/setup-flyctl@master
       # `-C` execute la commande dans la machine deja en marche
