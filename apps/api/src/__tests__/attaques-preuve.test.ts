@@ -1,4 +1,4 @@
-import { type CheckResult, CODE_ALPHABET, type Verdict } from "@catalog/contracts";
+import type { CheckResult, Verdict } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ChiffreurInerte } from "../adapters/sms-chiffre.ts";
@@ -6,7 +6,7 @@ import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { LONGUEUR_JETON } from "../domain/receipt/jeton.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
 import { recuRoutes, suiviRoutes } from "../routes/recu.ts";
-import { identifiants } from "./_identifiants.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 import {
   MTN_PAIEMENT_SORTANT,
   MTN_RECEPTION,
@@ -46,12 +46,12 @@ const describeDb = URL_BASE ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 446 * 1000 + (Date.now() % 1000);
+const RUN = 446 * 1000 + selExecution();
 
 /** Horloge figee : les fixtures portent des dates de juin 2026. */
 const NOW = new Date("2026-06-23T15:00:00+01:00");
@@ -71,17 +71,8 @@ const chiffreur = new ChiffreurInerte({ NODE_ENV: "test" });
    executions se recouvraient des que l'ecart de leurs sels etait un multiple de
    7. Mesure : ~7 %, et la CI enchaine `test` puis `test:coverage` sur la MEME
    base. Le compteur a maintenant ses propres chiffres — voir `_identifiants.ts`. */
-const { txMtn, txOrange } = identifiants("attaques-preuve");
-
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
+const ids = identifiants("attaques-preuve");
+const { txMtn, txOrange } = ids;
 
 /**
  * Un jeton de test, unique par graine et bien forme.
@@ -130,7 +121,7 @@ async function scene(
       payoutPhoneVerifiedAt: CREEE,
     },
   });
-  const code = codeDeTest(suffixe);
+  const code = ids.codeVerification();
   const jeton = jetonDeTest(suffixe);
   const ref = `CT-${(800000 + suffixe) % 99999999}`;
   const o = await prisma.order.create({

@@ -36,7 +36,7 @@ jobs:
     env:
       DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # PAS de `version:` ici. `pnpm/action-setup` REFUSE que la version soit
       # declaree a deux endroits, et `packageManager` de `package.json` en est
       # deja la source de verite — c'est aussi elle que `corepack` lit en local.
@@ -66,14 +66,40 @@ jobs:
         run: pnpm typecheck
       - name: Lint et format
         run: pnpm lint
+      # ── Les deux etapes qui suivent partagent UNE base ────────────────
+      #
+      # C'est un choix : monter un second conteneur postgres couterait plus que
+      # ce qu'il rapporterait. Mais il a une consequence, et elle a empoisonne
+      # la CI pendant deux jours — les identifiants de test se recouvraient
+      # d'une exécution a l'autre, sur des contraintes UNIQUE que la base ne
+      # purge jamais (le controle n° 5 est RESEAU-LARGE, par construction).
+      #
+      # Le bloc par fichier separait les fichiers ; rien ne separait les
+      # executions, sinon un sel tire de l'horloge — donc la chance, une fois
+      # sur mille. Ces deux valeurs le POSENT.
+      #
+      # **Elles derivent du PASSAGE, elles ne sont pas constantes**, et ce n'est
+      # pas de la coquetterie : `1` et `2` en dur separeraient bien les deux
+      # etapes, mais le passage suivant reposerait `1` et recouvrirait le
+      # precedent EN ENTIER si la base lui survivait. Mesure du 12/08 : quatorze
+      # fichiers rouges d'un coup. Le conteneur postgres est neuf a chaque job,
+      # donc le cas ne se presente pas ICI — mais faire dependre la justesse du
+      # schema d'un detail d'infrastructure, c'est le perdre le jour ou ce detail
+      # change. Le suffixe separe les deux etapes, `run_id` separe les passages.
+      #
+      # La valeur est longue : `selExecution()` la ramene modulo mille.
       - name: Tests unitaires
         run: pnpm test
+        env:
+          CATALOG_SEL_EXECUTION: "${{ github.run_id }}0"
       # Couverture du DOMAINE, pas du paquet : `src/adapters` parle a la base et
       # au reseau, et un seuil global pousserait a simuler ces frontieres pour
       # faire monter un chiffre. Le domaine est pur — s'il n'est pas couvert,
       # c'est qu'une regle metier n'est pas verifiee. Seuil dur a 90 %.
       - name: Couverture de src/domain
         run: pnpm test:coverage
+        env:
+          CATALOG_SEL_EXECUTION: "${{ github.run_id }}1"
       - name: Build
         run: pnpm build
       - name: Budget de poids — la boutique doit rester sous 30 Ko de JS
@@ -139,7 +165,7 @@ jobs:
     env:
       DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # PAS de `version:` ici. `pnpm/action-setup` REFUSE que la version soit
       # declaree a deux endroits, et `packageManager` de `package.json` en est
       # deja la source de verite — c'est aussi elle que `corepack` lit en local.

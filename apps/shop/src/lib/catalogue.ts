@@ -41,6 +41,7 @@ export interface BoutiqueBrute {
   whatsapp: string;
   reversementVerifie: boolean;
   enConges?: boolean;
+  chaine?: string | null;
   notes: number[];
   articles: ArticleBrut[];
 }
@@ -86,6 +87,15 @@ export interface BoutiquePublique {
    * qui lit la base a chaque message : ces pages sont figees a la construction.
    */
   enConges: boolean;
+  /**
+   * La chaine WhatsApp de la vendeuse — ADR 0061, rang 3b. `null` est l'etat
+   * normal : « Suivre la boutique » ne parait que si le lien existe.
+   *
+   * Le lien est CANONISE cote API (`lireLienChaine`) : la page ne recoit
+   * jamais autre chose que `https://whatsapp.com/channel/<id>`, donc rien a
+   * assainir ici.
+   */
+  chaine: string | null;
   note: { moyenne: number; nombre: number } | null;
   articles: ArticlePublic[];
 }
@@ -131,16 +141,17 @@ export function imagePublique(
  * Le suffixe garantit l'unicite sans exiger une colonne de plus — deux articles
  * peuvent legitimement s'appeler « pagne wax ».
  */
-export function slugArticle(nom: string, id: string): string {
-  const base = nom
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return `${base || "article"}-${id.slice(-6)}`;
-}
+/**
+ * Le slug d'article vit dans `@catalog/contracts/slug` — **une seule
+ * ecriture** (ADR 0073). Le bot en a besoin pour ses liens marques, et les
+ * deux paquets ne peuvent pas s'importer l'un l'autre : la regle est donc
+ * remontee dans le seul endroit que les deux ont deja le droit de lire.
+ *
+ * Reexporte ici pour que les appelants existants ne changent pas.
+ */
+import { slugArticle } from "@catalog/contracts/slug";
+
+export { slugArticle };
 
 /** Variantes : une forme inattendue est ignoree, jamais devinee. */
 export function variantes(valeur: unknown): string[] {
@@ -190,6 +201,7 @@ export function versBoutiquePublique(
      * commander pour rien ; il ne garantit rien a lui seul.
      */
     enConges: b.enConges === true,
+    chaine: b.chaine ?? null,
     note: noteMoyenne(b.notes ?? []),
     articles: (b.articles ?? []).map((a) => ({
       id: a.id,

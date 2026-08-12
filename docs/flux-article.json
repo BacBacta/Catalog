@@ -1,0 +1,62 @@
+{
+  "version": "7.0",
+  "screens": [
+    {
+      "id": "ARTICLE",
+      "title": "Nouvel article",
+      "terminal": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Nom, prix, stock — et l'article est en ligne."
+          },
+          {
+            "type": "Form",
+            "name": "formulaire",
+            "children": [
+              {
+                "type": "TextInput",
+                "name": "nom",
+                "label": "Nom de l'article",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Exemple : Pagne wax 6 yards"
+              },
+              {
+                "type": "TextInput",
+                "name": "prix",
+                "label": "Prix, en francs",
+                "required": true,
+                "input-type": "number",
+                "helper-text": "Exemple : 15000"
+              },
+              {
+                "type": "TextInput",
+                "name": "stock",
+                "label": "Quantité disponible (facultatif)",
+                "required": false,
+                "input-type": "number",
+                "helper-text": "Il ne se décompte pas tout seul — vous le corrigez à la main."
+              },
+              {
+                "type": "Footer",
+                "label": "Publier l'article",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "nom": "${form.nom}",
+                    "prix": "${form.prix}",
+                    "stock": "${form.stock}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -18,7 +18,17 @@ export interface SmsMessage {
    * Etiquette de journalisation. Ne contient JAMAIS le code lui-meme :
    * un OTP dans un log est un OTP compromis.
    */
-  kind: "otp_connexion" | "otp_reversement" | "rappel_solde" | "expiration";
+  kind:
+    | "otp_connexion"
+    | "otp_reversement"
+    | "rappel_solde"
+    | "expiration"
+    /**
+     * L'alerte a l'ANCIEN numero de reversement — ADR 0061, rang 2b. Elle ne
+     * porte aucun code et aucun numero : seulement le fait qu'un changement a
+     * eu lieu, et ou repondre STOP.
+     */
+    | "alerte_reversement";
   /**
    * La valeur BRUTE qui a servi a composer `text` — le code a six chiffres, le
    * montant, la reference.
@@ -79,6 +89,33 @@ const TEXTES: Record<SmsMessage["kind"], Record<Langue, (code: string) => string
     fr: (c) => `Catalog : la commande ${c} n'a pas ete payee et va expirer.`,
     en: (c) => `Catalog: order ${c} has not been paid and will expire.`,
     pcm: (c) => `Catalog: order ${c} no don pay, e go expire.`,
+  },
+  /**
+   * ── L'alerte a l'ancien numero — ADR 0061, rang 2b ──────────────────────
+   *
+   * La « valeur » n'est PAS un code : c'est le numero du bot, ou l'ancien
+   * numero envoie STOP. Le SMS entrant n'existe pas chez nous (AGENTS.md §9),
+   * donc la reponse ne peut pas revenir par ce canal — il faut dire ou aller.
+   *
+   * Le message ne nomme jamais le NOUVEAU numero : le republier vers une puce
+   * dont on ne sait pas qui la tient serait offrir la cible.
+   */
+  alerte_reversement: {
+    fr: (ou) =>
+      "Catalog : le numero Mobile Money de votre boutique vient d'etre change. " +
+      (ou
+        ? `Si ce n'est pas vous, envoyez STOP sur WhatsApp au ${ou}.`
+        : "Si ce n'est pas vous, contactez-nous immediatement."),
+    en: (ou) =>
+      "Catalog: your shop's Mobile Money number has just been changed. " +
+      (ou
+        ? `If this was not you, send STOP on WhatsApp to ${ou}.`
+        : "If this was not you, contact us immediately."),
+    pcm: (ou) =>
+      "Catalog: dem don change di Mobile Money number for your shop. " +
+      (ou
+        ? `If na no be you, send STOP for WhatsApp to ${ou}.`
+        : "If na no be you, call us sharp sharp."),
   },
 };
 

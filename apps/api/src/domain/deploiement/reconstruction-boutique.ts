@@ -70,6 +70,15 @@ export const REGROUPEMENT_S = 10 * 60;
  */
 export const ATTENTE_ANNONCEE_MIN = Math.ceil(REGROUPEMENT_S / 60) + 5;
 
+/**
+ * Ce qu'on annonce quand le regroupement est SAUTE — la naissance d'une
+ * boutique. Il ne reste que la chaine de verification et la construction,
+ * mesurees le 12/08/2026 : trois minutes de porte, deux de construction et de
+ * mise en ligne. On annonce cinq, pas quatre : une promesse tenue de justesse
+ * est une promesse qu'on finira par manquer.
+ */
+export const ATTENTE_SANS_REGROUPEMENT_MIN = 5;
+
 export type DecisionReconstruction =
   | { reconstruire: true; motif: MotifReconstruction; attenteAnnonceeMinutes: number }
   | { reconstruire: false; raison: "motif_inconnu" | "deja_demandee" };
@@ -84,7 +93,24 @@ export function decisionReconstruction(entree: {
     return { reconstruire: false, raison: "motif_inconnu" };
   }
 
-  if (entree.derniereDemandeA) {
+  /**
+   * ── La NAISSANCE d'une boutique ne se regroupe pas ─────────────────────
+   *
+   * Le regroupement existe pour absorber une rafale : une vendeuse qui publie
+   * sa collection declencherait un deploiement par photo. Une naissance n'est
+   * jamais une rafale — elle n'arrive qu'une fois par boutique, et c'est
+   * exactement le moment ou la vendeuse regarde.
+   *
+   * Mesure du 12/08/2026 : une boutique creee dans le fil pouvait attendre
+   * jusqu'a dix minutes derriere la fenetre d'une AUTRE vendeuse avant meme
+   * que la construction commence. Du point de vue de celle qui vient de
+   * s'inscrire, « ma page n'existe pas » et « ma page arrive dans quinze
+   * minutes » se ressemblent beaucoup trop.
+   *
+   * Le cout de l'exemption est borne par construction : une boutique ne peut
+   * naitre qu'une fois, donc ce chemin ne peut pas s'emballer.
+   */
+  if (entree.motif !== "boutique_creee" && entree.derniereDemandeA) {
     const ecoule = (entree.maintenant.getTime() - entree.derniereDemandeA.getTime()) / 1000;
     if (ecoule < REGROUPEMENT_S) return { reconstruire: false, raison: "deja_demandee" };
   }
@@ -92,6 +118,12 @@ export function decisionReconstruction(entree: {
   return {
     reconstruire: true,
     motif: entree.motif,
-    attenteAnnonceeMinutes: ATTENTE_ANNONCEE_MIN,
+    /**
+     * Ce qu'on annonce depend du chemin qu'on vient de prendre. Une naissance
+     * ne traverse pas le regroupement : lui annoncer quinze minutes serait
+     * faux dans le sens qui coute — la vendeuse renoncerait a regarder.
+     */
+    attenteAnnonceeMinutes:
+      entree.motif === "boutique_creee" ? ATTENTE_SANS_REGROUPEMENT_MIN : ATTENTE_ANNONCEE_MIN,
   };
 }

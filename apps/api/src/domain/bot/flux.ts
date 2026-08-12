@@ -1,5 +1,6 @@
 import { normalizePhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
+import { lirePrix, NOM_MAX, NOM_MIN } from "./inscription.ts";
 import type { MessageFlux } from "./messages.ts";
 import type { Langue } from "./textes.ts";
 
@@ -104,9 +105,9 @@ export function lireReponseFlux(brut: string): LivraisonLue | null {
  * livraison.
  */
 
-export type GenreFlux = "livraison" | "inscription" | "avis";
+export type GenreFlux = "livraison" | "inscription" | "avis" | "article";
 
-const GENRES: readonly GenreFlux[] = ["livraison", "inscription", "avis"];
+const GENRES: readonly GenreFlux[] = ["livraison", "inscription", "avis", "article"];
 
 /**
  * Le jeton d'un envoi : le genre, puis une reference facultative.
@@ -170,6 +171,54 @@ export function lireInscriptionFlux(brut: string): InscriptionLue | null {
   if (!villeAcceptable(ville)) return null;
   const langueLue = champ(d, "langue");
   return { nomBoutique, ville, langue: langueLue === "en" ? "en" : "fr" };
+}
+
+/** Ce que le formulaire d'article rend — la meme forme que les questions. */
+export interface ArticleLu {
+  nom: string;
+  prixXaf: number;
+  /** Absent quand la vendeuse n'a rien mis : le stock est un champ de confort
+      (ADR 0038), jamais une condition de publication. */
+  stock?: number;
+}
+
+/** La borne du contrat produit (`productSchema.stock`) — pas une invention locale. */
+const STOCK_MAX = 1_000_000;
+
+/**
+ * Lit un article. Les MEMES bornes que la saisie libre : le nom entre 2 et 80,
+ * le prix par `lirePrix` — un formulaire ne fait pas entrer ce que la question
+ * refuse (meme regle que l'inscription).
+ *
+ * ── Le stock est TOLERANT, le prix ne l'est pas ────────────────────────────
+ *
+ * Un prix illisible rend `null` : publier a un prix devine serait pire que
+ * reposer la question. Un stock illisible, lui, devient ABSENT : c'est un
+ * champ de confort (ADR 0038, il ne se decompte pas tout seul), et faire
+ * echouer l'article entier pour lui serait la meme faute que faire echouer
+ * une inscription pour la langue.
+ *
+ * ── PAS de photo ici, et c'est un point OUVERT ────────────────────────────
+ *
+ * `PhotoPicker` n'a jamais ete mesure sur notre WABA (meme methode que la
+ * localisation : formulaire jetable, on lit ce que Meta refuse). Tant que la
+ * mesure n'est pas faite, on ne suppose rien (AGENTS.md §7.7) : le formulaire
+ * porte nom + prix + stock, la photo reste un envoi separe — et le chemin
+ * photo legendee (« nom prix ») reste le geste le plus rapide du canal.
+ */
+export function lireArticleFlux(brut: string): ArticleLu | null {
+  const d = objetDe(brut);
+  if (!d) return null;
+  const nom = champ(d, "nom");
+  if (nom.length < NOM_MIN || nom.length > NOM_MAX) return null;
+  const prixXaf = lirePrix(champ(d, "prix"));
+  if (prixXaf === null) return null;
+  const brutStock = champ(d, "stock");
+  const stock =
+    /^\d+$/.test(brutStock) && Number(brutStock) <= STOCK_MAX ? Number(brutStock) : undefined;
+  /* 0 vaut ABSENT : c'est deja la convention de la base (`stock Int @default(0)`
+     = « non annonce »), et « il en annonce zero » ne veut rien dire. */
+  return { nom, prixXaf, ...(stock ? { stock } : {}) };
 }
 
 /** Ce que le formulaire d'avis rend. Le mot est facultatif — il l'est partout. */

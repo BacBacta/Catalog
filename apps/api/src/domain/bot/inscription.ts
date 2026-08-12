@@ -304,8 +304,9 @@ const QUESTION_NOM_ARTICLE =
 
 const SORTIE_DE_SECOURS = "\n\nPour sortir : tapez « annuler ».";
 
-const NOM_MIN = 2;
-const NOM_MAX = 80;
+/** Exportees : le formulaire d'article (flux.ts) refuse ce que la question refuse. */
+export const NOM_MIN = 2;
+export const NOM_MAX = 80;
 const abandon = (t: string) =>
   /^(?:annuler|stop|cancel)$/.test(sansAccents(t.trim().toLowerCase()));
 
@@ -342,6 +343,44 @@ export function messageBoutiqueCreee(
       { id: "plus_tard", titre: "Plus tard" },
     ]),
   ];
+}
+
+/**
+ * Le mode d'emploi, au moment ou la boutique devient reelle — tache #62.
+ *
+ * ── Pourquoi ICI, au premier article, et pas a la creation ────────────────
+ *
+ * A la creation, la vendeuse recoit deja trois messages (lien, reversement,
+ * premier article) : un mode d'emploi de plus s'y noierait. Au premier
+ * article publie, la boutique est MONTRABLE — c'est le moment ou elle va
+ * recevoir sa premiere commande, donc le moment ou savoir quoi en faire
+ * compte. Meme logique que la carte-vitrine (ADR 0037), qui part a cet
+ * instant precis et pour la meme raison.
+ *
+ * ── Chaque ligne promet un geste qui EXISTE ───────────────────────────────
+ *
+ * « livree <reference> » (`demandeRemise`), « ma boutique »
+ * (`demandeEspaceVendeuse`), « ajouter » (`demandeAjoutArticle`), « vendu »
+ * (`demandeComptoir`). Rien d'autre : une ligne d'aide qui promet un mot que
+ * le bot ne comprend pas est pire que pas d'aide du tout.
+ *
+ * Texte brut autosuffisant (AGENTS.md §2) : les liens sont un confort, la
+ * phrase reste vraie sans eux — on ne fabrique jamais une URL fausse.
+ */
+export function messageOnboarding(
+  vers: string,
+  liens: { lienBoutique: string | null; lienEspace: string | null },
+): MessageSortant {
+  const boutique = liens.lienBoutique
+    ? `4. Votre boutique en ligne, à partager partout :\n${liens.lienBoutique}`
+    : "4. Votre boutique en ligne se partage depuis « ma carte ».";
+  const reversement = liens.lienEspace
+    ? `3. Pour être payée d'AVANCE, posez votre numéro Mobile Money :\n${liens.lienEspace}/reversement`
+    : "3. Pour être payée d'AVANCE, posez votre numéro Mobile Money dans votre espace vendeuse.";
+  return texte(
+    vers,
+    `📖 *Votre boutique, mode d'emploi :*\n\n1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.\n2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-482910\n${reversement}\n${boutique}\n\nÀ tout moment : « ma boutique » pour le menu, « ajouter » pour un article, « vendu » pour déclarer une vente déjà négociée.`,
+  );
 }
 
 export function messageArticlePublie(

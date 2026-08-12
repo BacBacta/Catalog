@@ -45,6 +45,16 @@ export interface ContexteAiguillage {
   smsReconnu: boolean;
   /** Une conversation d'achat est en cours (panier, quantite, details…). */
   achatEnCours: boolean;
+  /**
+   * La reponse d'un formulaire VENDEUSE (jeton `article`) — tache #62.
+   *
+   * Calcule par le service (le jeton vit dans la charge utile, que ce module
+   * ne lit pas). Sans cette regle, une vendeuse dont l'etat a expire — le
+   * formulaire reste ouvert sur son telephone aussi longtemps qu'elle veut —
+   * verrait sa reponse partir au fil acheteuse des qu'un panier est ouvert,
+   * et son article se perdre.
+   */
+  formulaireArticle?: boolean;
 }
 
 export interface EntreeAiguillee {
@@ -95,6 +105,9 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
      geste le plus naturel du canal, il part a l'inscription qui sait le lire. */
   if (ctx.estVendeuse) {
     if (entree.genre === "image") return "inscription";
+    /* La reponse du formulaire d'article — un geste vendeuse s'il en est :
+       elle ne peut venir QUE d'un message que le fil inscription a envoye. */
+    if (entree.genre === "flux" && ctx.formulaireArticle) return "inscription";
     if (entree.genre === "bouton" && (entree.id === "article" || entree.id === "ma_boutique")) {
       return entree.id === "article" ? "inscription" : "vendeuse";
     }

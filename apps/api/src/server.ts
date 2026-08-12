@@ -16,7 +16,7 @@ import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
 import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
 import { traiterLivraisonBot } from "./bot.ts";
-import { notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
+import { notifierConteste, notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
@@ -80,6 +80,11 @@ app.route(
     sms,
     otpStore,
     limits,
+    /* Ou l'ancien numero envoie STOP (ADR 0061, rang 2b). Absent, l'alerte
+       part quand meme et renvoie vers le support. */
+    ...(process.env.WHATSAPP_WABA_NUMERO?.trim()
+      ? { numeroBot: process.env.WHATSAPP_WABA_NUMERO.trim() }
+      : {}),
   }),
 );
 
@@ -139,6 +144,14 @@ const bot =
         /* Le Flow d'AVIS, meme regime et meme raison. */
         ...(process.env.WABOT_FLUX_AVIS_ID?.trim()
           ? { fluxAvisId: process.env.WABOT_FLUX_AVIS_ID.trim() }
+          : {}),
+        /* Le formulaire d'inscription vendeuse (tache #60). Absent : le fil
+           pose ses questions une par une, exactement comme avant. */
+        ...(process.env.WABOT_FLUX_INSCRIPTION_ID?.trim()
+          ? { fluxInscriptionId: process.env.WABOT_FLUX_INSCRIPTION_ID.trim() }
+          : {}),
+        ...(process.env.WABOT_FLUX_ARTICLE_ID?.trim()
+          ? { fluxArticleId: process.env.WABOT_FLUX_ARTICLE_ID.trim() }
           : {}),
         /* La reconstruction de la boutique publique — ADR 0065. `null` sans
            SHOP_REBUILD_HOOK_URL, et le fil n'annonce alors aucun delai. */
@@ -219,7 +232,21 @@ app.route("/api/rampe", rampeRoutes(rampe));
 // Le recu et le suivi : publics, sans session. C'est une ACHETEUSE qui les lit,
 // et c'est le principe meme du recu — n'importe qui doit pouvoir controler.
 app.route("/api/recu", recuRoutes({ prisma, rampe, session }));
-app.route("/api/suivi", suiviRoutes({ prisma, rampe }));
+app.route(
+  "/api/suivi",
+  suiviRoutes({
+    prisma,
+    rampe,
+    /* Contestation depuis le lien de suivi → la vendeuse l'apprend dans son
+       fil, comme pour celle qui vient du bouton du bot. */
+    ...(bot
+      ? {
+          apresContestation: (orderId: string) =>
+            notifierConteste({ prisma, envoyeur: bot.envoyeur }, orderId),
+        }
+      : {}),
+  }),
+);
 
 /**
  * La page de statut publique. Elle passe l'interrupteur en toutes positions —

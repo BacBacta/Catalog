@@ -1,8 +1,8 @@
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ChiffreurAesGcm, ChiffreurInerte } from "../adapters/sms-chiffre.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 import { MTN_RECEPTION, ORANGE_RECEPTION_RECONSTITUE, TEXTE_LIBRE } from "./fixtures-sms.ts";
 
 /**
@@ -24,12 +24,16 @@ const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `Date.now() % 90000` seul donnait des blocs qui se recouvraient : deux
+   `selExecution()` seul donnait des blocs qui se recouvraient : deux
    fichiers demarres a quelques millisecondes d'ecart visaient le meme
    identifiant, et Vitest les lance en parallele contre UNE base. Le
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 146 * 1000 + (Date.now() % 1000);
+const RUN = 146 * 1000 + selExecution();
+/* Le schema recent ne sert ICI qu'aux codes de verification (tache #68) :
+   l'ancien generateur hachait sa graine, et le bloc ne separe pas ce qu'un
+   hachage fait des nombres — vu en CI le 12/08 (ADR 0078). */
+const ids = identifiants("preuve-route");
 
 /** L'horloge est figee : les fixtures portent des dates de juin 2026. */
 const NOW = new Date("2026-06-23T10:00:00+01:00");
@@ -66,18 +70,6 @@ interface Vendeuse {
   app: ReturnType<typeof preuveRoutes>;
 }
 
-/** Code de verification valide au sens de la contrainte de base. */
-function codeDeTest(graine: number): string {
-  const A = CODE_ALPHABET;
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return A[n % A.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
-
 async function creerVendeuse(suffixe: number, totalXaf: number): Promise<Vendeuse> {
   const n = (base: string) => `+237${base}${suffixe.toString().padStart(7, "0").slice(-7)}`;
   const u = await prisma.authUser.create({
@@ -111,14 +103,11 @@ async function creerVendeuse(suffixe: number, totalXaf: number): Promise<Vendeus
       balanceXaf: totalXaf,
       payMode: "integral",
       delivery: { mode: "retrait", pickupPoint: "Carrefour Elf", phone: "+237652000001" },
-      /**
-       * Le code suit l'alphabet non ambigu et la forme XXXX-XXXX, imposes par la
-       * contrainte `order_verification_code_shape`. On l'engendre depuis
-       * `CODE_ALPHABET` plutot que d'ecrire des lettres au hasard : un `B` ou un
-       * `0` feraient echouer l'insertion pour une raison sans rapport avec ce
-       * qu'on teste.
-       */
-      verificationCode: codeDeTest(suffixe),
+      /* L'alphabet non ambigu et la forme XXXX-XXXX (contrainte
+         `order_verification_code_shape`) viennent du schema d'identifiants :
+         un `B` ou un `0` feraient echouer l'insertion pour une raison sans
+         rapport avec ce qu'on teste. */
+      verificationCode: ids.codeVerification(),
       createdAt: CREEE,
       expiresAt: new Date(CREEE.getTime() + 48 * 3600_000),
     },
