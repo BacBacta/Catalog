@@ -41,7 +41,7 @@ jobs:
   formats:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # PAS de `version:` : `packageManager` de package.json en est la source.
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
