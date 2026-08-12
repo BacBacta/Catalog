@@ -40,6 +40,18 @@ export interface RecuDeps {
   rampe: RampeConfig;
   session?: SessionDeps;
   maintenant?: () => Date;
+  /**
+   * Une contestation ACCEPTEE — la vendeuse doit l'apprendre tout de suite.
+   *
+   * Il y a DEUX chemins de contestation : le bouton « ce n'est pas moi » du
+   * fil, et cette route, ouverte depuis le lien de suivi. Ne brancher que le
+   * premier laisserait entier, pour l'autre moitie des acheteuses, le defaut
+   * qu'on ferme : une commande gelee que la vendeuse croit vivante.
+   *
+   * Optionnel, et volontairement : sans bot monte, le suivi web reste entier.
+   * Une notification n'est jamais le chemin critique.
+   */
+  apresContestation?: (orderId: string) => Promise<void>;
 }
 
 /** Les colonnes qu'un recu demande. Le SMS brut n'en fait PAS partie. */
@@ -541,6 +553,15 @@ export function suiviRoutes(deps: RecuDeps) {
     poser(span, { "catalog.commande.etat_preuve": resultat.etat });
     mesurerEtatPreuve(resultat.etat);
     poserIssue(span, "acceptee");
+    /* Apres la transaction, et sans jamais faire echouer la reponse : la
+       contestation est ENREGISTREE, c'est ce qui compte pour l'acheteuse.
+       Une notification qui echoue ne doit pas lui rendre une erreur sur un
+       geste qui, lui, a reussi. */
+    if (evenement.type === "contestation" && deps.apresContestation) {
+      await deps
+        .apresContestation(commande.id)
+        .catch(() => console.warn("suivi : vendeuse non prevenue de la contestation"));
+    }
     return c.json({ etat: resultat.etat });
   }
 

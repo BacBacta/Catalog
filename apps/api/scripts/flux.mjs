@@ -1,5 +1,5 @@
 /**
- * Les trois formulaires (Flows) a deposer chez Meta.
+ * Les quatre formulaires (Flows) a deposer chez Meta.
  *
  *   node apps/api/scripts/flux.mjs             → les affiche et les valide
  *   node apps/api/scripts/flux.mjs --etat      → dit lesquels existent deja
@@ -30,7 +30,7 @@ const BASE = (process.env.WABOT_GRAPH_URL ?? "https://graph.facebook.com/v26.0")
 const mode = process.argv[2] ?? "--voir";
 
 /**
- * Les trois formulaires. `variable` est le nom a poser dans l'environnement
+ * Les quatre formulaires. `variable` est le nom a poser dans l'environnement
  * avec l'identifiant rendu : sans elle, le code reste dormant — c'est voulu.
  */
 const FLUX = [
@@ -54,6 +54,19 @@ const FLUX = [
     variable: "WABOT_FLUX_INSCRIPTION_ID",
     categories: ["SIGN_UP"],
     champs: ["boutique", "ville", "langue"],
+  },
+  {
+    cle: "article",
+    nom: "catalog_article",
+    fichier: "docs/flux-article.json",
+    variable: "WABOT_FLUX_ARTICLE_ID",
+    categories: ["OTHER"],
+    /** PAS de photo dans le formulaire — et c'est un POINT OUVERT, pas un
+        choix definitif. `PhotoPicker` n'a jamais ete mesure sur notre WABA
+        (meme methode que la localisation : formulaire jetable, on lit ce que
+        Meta refuse — addendum de l'ADR 0063). Tant que ce n'est pas fait, la
+        photo reste un envoi separe, et le formulaire porte le reste. */
+    champs: ["nom", "prix", "stock"],
   },
   {
     cle: "avis",
@@ -183,7 +196,7 @@ async function exigerConfiguration() {
 }
 
 if (mode === "--voir") {
-  console.log("\nLes trois formulaires :\n");
+  console.log("\nLes quatre formulaires :\n");
   for (const f of FLUX) {
     const manquants = verifier(f);
     const ecrans = definition(f)

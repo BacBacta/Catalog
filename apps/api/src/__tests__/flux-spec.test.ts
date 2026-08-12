@@ -59,3 +59,46 @@ describe("la spec du Flow suit le code", () => {
     for (const c of champs) expect(c).not.toMatch(/adresse|address/i);
   });
 });
+
+describe("la spec du formulaire d'ARTICLE suit le code — tache #62", () => {
+  const spec = JSON.parse(
+    readFileSync(new URL("../../../../docs/flux-article.json", import.meta.url), "utf8"),
+  ) as {
+    screens: Array<{ layout: { children: Array<{ children: Array<Record<string, unknown>> }> } }>;
+  };
+  const ecran = spec.screens[0];
+  if (!ecran) throw new Error("la spec du formulaire d'article n'a aucun ecran");
+  const formulaire = ecran.layout.children[1] ?? ecran.layout.children[0];
+  if (!formulaire?.children)
+    throw new Error("l'ecran du formulaire d'article n'a aucun formulaire");
+  const champs = formulaire.children.filter((c) => c.name).map((c) => c.name as string);
+
+  it("declare EXACTEMENT les champs que `lireArticleFlux` lit", () => {
+    /* Les trois cles litterales de `lireArticleFlux` — les changer d'un cote
+       casse la lecture de l'autre EN SILENCE. */
+    expect(champs.sort()).toEqual(["nom", "prix", "stock"].sort());
+  });
+
+  it("nom et prix sont OBLIGATOIRES — un article sans eux n'existe pas", () => {
+    for (const nom of ["nom", "prix"]) {
+      const c = formulaire.children.find((x) => x.name === nom);
+      expect(c?.required, nom).toBe(true);
+    }
+  });
+
+  it("le stock reste FACULTATIF — c'est un champ de confort (ADR 0038)", () => {
+    /* Le rendre obligatoire forcerait chaque vendeuse a inventer un nombre
+       qu'elle ne tient pas — exactement la fausse rarete que l'ADR refuse. */
+    const stock = formulaire.children.find((c) => c.name === "stock");
+    expect(stock?.required).not.toBe(true);
+  });
+
+  it("AUCUN champ photo — le point reste OUVERT, pas tranche en silence", () => {
+    /* `PhotoPicker` n'a jamais ete mesure sur notre WABA (§7.7) : tant que la
+       mesure n'est pas faite, la photo reste un envoi separe. Ce test tombera
+       le jour ou quelqu'un l'ajoute — et c'est le bon moment pour exiger la
+       mesure, pas six mois apres un formulaire muet. */
+    const types = formulaire.children.map((c) => c.type);
+    expect(types).not.toContain("PhotoPicker");
+  });
+});

@@ -1,11 +1,10 @@
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { livrerNotificationsEnAttente } from "../bot-notifications.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
 import { executerRelanceAcompte, executerRelanceReversement } from "../jobs/relance-acompte.ts";
-import { selExecution } from "./_identifiants.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
  * Les deux relances passent par la PORTE — ADR 0060.
@@ -32,6 +31,10 @@ let prisma: PrismaClient;
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
 const RUN = 760 * 1000 + selExecution();
+/* Le schema recent ne sert ICI qu'aux codes de verification (tache #68) :
+   l'ancien generateur hachait sa graine, et le bloc ne separe pas ce qu'un
+   hachage fait des nombres — vu en CI le 12/08 (ADR 0078). */
+const ids = identifiants("relances-par-la-porte");
 const NOW = new Date("2026-08-11T10:00:00+01:00");
 /** Hors fenetre : la vendeuse n'a rien ecrit depuis 40 h. */
 const VIEUX = new Date(NOW.getTime() - 40 * 3600_000);
@@ -56,17 +59,6 @@ const nomsGabarits = (e: EnvoyeurMemoire) =>
 
 let compteur = 0;
 const suivant = () => RUN * 100 + ++compteur;
-
-/** Un code de verification conforme a la contrainte SQL du lot 3. */
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
 
 async function vendeuseSansReversement(suffixe: number) {
   const waId = `23767${String(1000000 + suffixe).slice(-7)}`;
@@ -194,7 +186,7 @@ describeDb("les relances passent par la porte (ADR 0060)", () => {
         },
         /* L'alphabet non ambigu du lot 3 — une contrainte SQL le verifie :
            ni O/0, ni I/1/L, ni B/8, ni S/5, ni Z/2. */
-        verificationCode: codeDeTest(RUN * 100 + compteur),
+        verificationCode: ids.codeVerification(),
         createdAt: new Date(NOW.getTime() - 2 * 3600_000),
         expiresAt: new Date(NOW.getTime() + 46 * 3600_000),
       },

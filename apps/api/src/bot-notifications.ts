@@ -96,7 +96,15 @@ export async function notifier(
       if (g && variablesManquantes(g, horsFenetre.parametres) === 0) {
         const langue = horsFenetre.langue ?? (conversation?.langue === "en" ? "en" : "fr");
         try {
-          await deps.envoyeur.envoyer(gabarit(phone, g, langue, horsFenetre.parametres));
+          /* `versWhatsapp` ICI AUSSI. Le module pose sa regle en tete — le
+             `to` de l'API est un wa_id, donc sans son `+` — et seul le chemin
+             texte la suivait : tout gabarit partait avec un `+` que les
+             messages ordinaires n'avaient pas. Meta tolere les deux, mais un
+             code qui n'obeit qu'a moitie a sa propre regle est un code dont
+             on ne sait plus laquelle des deux formes fait foi. */
+          await deps.envoyeur.envoyer(
+            gabarit(versWhatsapp(phone), g, langue, horsFenetre.parametres),
+          );
           return;
         } catch (e) {
           /* Meme regle de redaction que partout (ADR 0023) : nos propres
@@ -203,6 +211,55 @@ export async function notifierPaiementProuve(
   }
 }
 
+/**
+ * L'acheteuse dement le paiement — la VENDEUSE doit l'apprendre tout de suite.
+ *
+ * ── Pourquoi ce message existe ─────────────────────────────────────────────
+ *
+ * La contre-signature (ADR 0036) donne a l'acheteuse un bouton « ce n'est pas
+ * moi ». Il gele la commande. Sans notification, la vendeuse ne l'apprenait
+ * qu'a sa prochaine visite dans le fil : elle continuait a preparer, a livrer,
+ * a relancer une commande deja arretee — et decouvrait le litige plusieurs
+ * jours apres, quand plus rien ne se retablit a l'amiable.
+ *
+ * C'est le seul endroit du produit ou la preuve opposable, qui est sa valeur
+ * n° 1, se retournait contre celle qu'elle protege.
+ *
+ * ── Deux choix a ne pas defaire ────────────────────────────────────────────
+ *
+ * **Aucun bouton.** Un litige ne se tranche pas d'un tap. Le message ouvre la
+ * conversation, il ne propose pas de la clore.
+ *
+ * **Le fil vendeuse est en francais** (ADR 0033) : la langue de l'acheteuse ne
+ * commande pas celle de la vendeuse, et c'est bien SA langue a elle qu'il faut
+ * ici. Le pidgin reste ecrit et non servi (ADR 0034).
+ *
+ * Comme partout dans ce module : ne leve pas vers l'appelant. Une contestation
+ * qui n'a pas pu etre notifiee reste une contestation enregistree.
+ */
+export async function notifierConteste(deps: NotificateurDeps, orderId: string): Promise<void> {
+  try {
+    const commande = await deps.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { ref: true, seller: { select: { phone: true } } },
+    });
+    if (!commande?.seller.phone) return;
+    await notifier(
+      deps,
+      commande.seller.phone,
+      `⚠️ *${commande.ref} est contestée.*\nL'acheteuse dit ne pas reconnaître ce paiement. La commande est gelée : elle n'avance plus tant que le désaccord n'est pas réglé.\nLa preuve n'est pas effacée — elle reste au dossier. Le plus rapide reste d'appeler l'acheteuse.`,
+      undefined,
+      /* Hors fenetre, le gabarit ouvre la porte — ADR 0054. C'est le sujet ou
+         l'attente coute le plus cher : une commande gelee que la vendeuse
+         croit vivante, c'est du travail fait pour rien et un litige qui
+         durcit pendant ce temps. */
+      { sujet: "paiement_conteste", parametres: [commande.ref], langue: "fr" },
+    );
+  } catch {
+    console.warn("bot : notification de contestation non envoyee (details retenus)");
+  }
+}
+
 /** Commande livree : l'invitation a noter part au SEUL bon moment. */
 export async function notifierLivree(deps: NotificateurDeps, orderId: string): Promise<void> {
   try {
@@ -221,6 +278,17 @@ export async function notifierLivree(deps: NotificateurDeps, orderId: string): P
       conversation.phone,
       t.notifLivree(commande.ref, commande.seller.businessName),
       [{ id: "avis", titre: t.btnDonnerAvis }],
+      /* Le gabarit existe, il est approuve et il etait DEJA paye — il n'etait
+         simplement pas passe. Sans ce cinquieme argument, une remise faite a
+         18 h attendait que l'acheteuse reecrive d'elle-meme, ce qu'elle n'a
+         aucune raison de faire : c'est la vendeuse qui vient de livrer.
+         L'avis verifie, lui, se depose depuis CE message — le faire attendre,
+         c'est perdre l'avis, pas le retarder. */
+      {
+        sujet: "commande_livree",
+        parametres: [commande.ref],
+        langue: conversation.langue === "en" ? "en" : "fr",
+      },
     );
   } catch {
     console.warn("bot : notification de livraison non envoyee (details retenus)");
