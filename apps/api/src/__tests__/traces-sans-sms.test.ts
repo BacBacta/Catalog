@@ -137,11 +137,32 @@ function texteDesSpans(): string {
     .join("\n");
 }
 
+/**
+ * Un solde nu se cherche avec des FRONTIERES, pas par sous-chaine.
+ *
+ * Les attributs autorises portent des UUID (`catalog.commande.id`), et les
+ * evenements portent des horodatages : autant de flux de chiffres et d'hexa
+ * ALEATOIRES ou « 12020 » finit par apparaitre par hasard — c'est arrive sur
+ * le run CI 31627692055, un UUID v7 tire ce soir-la contenait la sous-chaine.
+ * Une aiguille de cinq chiffres dans un tel flux n'est pas le solde de la
+ * fixture ; le solde qui FUIT, lui, arrive delimite — `"solde": 12020`,
+ * `12020 FCFA`, un attribut numerique — jamais soude a d'autres chiffres.
+ *
+ * Les frontieres sont HEXADECIMALES et non decimales : dans « 3bf12020e5 »,
+ * le voisin est une lettre a-f, et une frontiere decimale le compterait
+ * encore comme une fuite. Les aiguilles textuelles, elles, restent en
+ * recherche de sous-chaine stricte.
+ */
+function contientInterdit(tout: string, interdit: string): boolean {
+  if (!/^\d+$/.test(interdit)) return tout.includes(interdit);
+  return new RegExp(`(?<![0-9a-fA-F])${interdit}(?![0-9a-fA-F])`).test(tout);
+}
+
 function verifierAucuneFuite() {
   const tout = texteDesSpans();
   for (const interdit of INTERDITS) {
     expect(
-      tout.includes(interdit),
+      contientInterdit(tout, interdit),
       `« ${interdit.slice(0, 48)}… » se retrouve dans une trace`,
     ).toBe(false);
   }
@@ -166,6 +187,22 @@ describe("le detecteur de contenu de SMS", () => {
     expect(ressembleAUnSmsOperateur("Votre nouveau solde: 12020 XAF.")).toBe(true);
     expect(ressembleAUnSmsOperateur("Transaction Id: 17600000001")).toBe(true);
     expect(ressembleAUnSmsOperateur("You have received 650 FCFA of")).toBe(true);
+  });
+
+  /**
+   * Le chercheur d'interdits lui-meme : un solde DELIMITE est une fuite, le
+   * meme solde SOUDE dans l'hexadecimal d'un UUID ou d'un horodatage n'en est
+   * pas une. Sans cette distinction, le test tombe au hasard des UUID v7 —
+   * c'est le faux positif du run 31627692055.
+   */
+  it("distingue un solde nu d'un solde noye dans un UUID", () => {
+    expect(contientInterdit('"solde": 12020', "12020")).toBe(true);
+    expect(contientInterdit("reste 12020 FCFA", "12020")).toBe(true);
+    expect(contientInterdit('"catalog.x":12020,"y":1', "12020")).toBe(true);
+    expect(contientInterdit("019ff73b-f505-70d0-91e7-56a7312020e9", "12020")).toBe(false);
+    expect(contientInterdit('"time":[1786512020,412020567]', "12020")).toBe(false);
+    /* Les aiguilles textuelles restent en sous-chaine stricte. */
+    expect(contientInterdit("…Votre nouveau solde est la…", "Votre nouveau solde")).toBe(true);
   });
 
   it("laisse passer ce qu'une trace a le droit de porter", () => {
