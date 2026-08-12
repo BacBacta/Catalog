@@ -21,7 +21,12 @@ import { rendreCarte, rendreCarteAvis } from "./adapters/carte-vitrine.ts";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
 import type { DeclencheurReconstruction } from "./adapters/reconstruction-boutique.ts";
 import { emailTechnique } from "./auth.ts";
-import { livrerNotificationsEnAttente, notifier, notifierLivree } from "./bot-notifications.ts";
+import {
+  livrerNotificationsEnAttente,
+  notifier,
+  notifierConteste,
+  notifierLivree,
+} from "./bot-notifications.ts";
 import { aiguiller } from "./domain/bot/aiguillage.ts";
 import { ARTICLES_MAX, CARTE_HAUTEUR } from "./domain/bot/carte-vitrine.ts";
 import {
@@ -1233,6 +1238,9 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
   }
   if (idApresAchat && reaction.effet?.type === "contester") {
     await transitionApresAchat(deps, idApresAchat, { type: "contestation", par: "acheteuse" });
+    /* La vendeuse l'apprend MAINTENANT. Sans cela elle continue de preparer
+       une commande deja gelee, et decouvre le litige plusieurs jours apres. */
+    await notifierConteste(deps, idApresAchat);
   }
   if (idApresAchat && reaction.effet?.type === "deposer_avis") {
     await deposerAvis(deps, idApresAchat, reaction.effet.note);
