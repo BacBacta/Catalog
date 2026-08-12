@@ -2,13 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   genreDuJeton,
   jetonFlux,
+  lireArticleFlux,
   lireAvisFlux,
   lireInscriptionFlux,
   lireReponseFlux,
 } from "../flux.ts";
 
 /**
- * Trois formulaires, un seul fil — le sprint « le bot devient une application ».
+ * Quatre formulaires, un seul fil — le sprint « le bot devient une application »,
+ * puis le formulaire d'article (tache #62).
  *
  * Une reponse de Flow arrive TOUJOURS par le meme chemin (`nfm_reply`) : rien
  * dans le message ne dit quel formulaire a repondu. C'est le `flow_token`,
@@ -215,5 +217,46 @@ describe("le formulaire d'avis s'ajoute, il ne remplace pas", () => {
     );
     expect(r.effet?.type).not.toBe("deposer_avis_complet");
     expect(r.effet?.type).not.toBe("deposer_avis");
+  });
+});
+
+describe("la lecture d'un article — tache #62", () => {
+  it("rend nom, prix et stock — les memes bornes que la saisie libre", () => {
+    expect(
+      lireArticleFlux(reponse({ nom: "Pagne wax 6 yards", prix: "15000", stock: "3" })),
+    ).toEqual({ nom: "Pagne wax 6 yards", prixXaf: 15_000, stock: 3 });
+  });
+
+  it("le prix accepte les ecritures de la question : espaces, points, devise", () => {
+    /* `lirePrix` est LE lecteur — le formulaire ne fait pas mieux ni pire. */
+    expect(lireArticleFlux(reponse({ nom: "Sac", prix: "15 000 FCFA" }))?.prixXaf).toBe(15_000);
+  });
+
+  it("un prix illisible rend null — publier a un prix devine serait pire", () => {
+    expect(lireArticleFlux(reponse({ nom: "Sac", prix: "gratuit" }))).toBeNull();
+    expect(lireArticleFlux(reponse({ nom: "Sac", prix: "0" }))).toBeNull();
+    expect(lireArticleFlux(reponse({ nom: "Sac" }))).toBeNull();
+  });
+
+  it("un nom hors bornes rend null — 2 a 80, comme la question", () => {
+    expect(lireArticleFlux(reponse({ nom: "X", prix: "1000" }))).toBeNull();
+    expect(lireArticleFlux(reponse({ nom: "y".repeat(81), prix: "1000" }))).toBeNull();
+  });
+
+  it("le stock est TOLERANT : vide, illisible ou zero valent ABSENT", () => {
+    /* Champ de confort (ADR 0038) : faire echouer l'article entier pour lui
+       serait la meme faute que faire echouer une inscription pour la langue.
+       Et zero vaut absent — c'est la convention de la base (« non annonce »). */
+    for (const stock of ["", "beaucoup", "0", "-2", "3.5", "2000000"]) {
+      expect(lireArticleFlux(reponse({ nom: "Sac", prix: "1000", stock }))).toEqual({
+        nom: "Sac",
+        prixXaf: 1000,
+      });
+    }
+  });
+
+  it("son jeton se reconnait, et ne se confond avec aucun autre", () => {
+    expect(genreDuJeton(reponse({ flow_token: jetonFlux("article") }))).toBe("article");
+    expect(genreDuJeton(reponse({ flow_token: jetonFlux("avis") }))).not.toBe("article");
   });
 });

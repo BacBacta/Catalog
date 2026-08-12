@@ -1,5 +1,4 @@
 import { randomBytes } from "node:crypto";
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { Hono } from "hono";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -54,17 +53,6 @@ const CREEE = new Date("2026-06-23T09:00:00+01:00");
  */
 const alea = () => (n: number) => new Uint8Array(randomBytes(n));
 
-/** Code de verification valide au sens de la contrainte de base. */
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
-
 interface Jeu {
   orderId: string;
   code: string;
@@ -97,7 +85,7 @@ async function creer(
       payoutPhoneVerifiedAt: CREEE,
     },
   });
-  const code = codeDeTest(suffixe);
+  const code = ids.codeVerification();
   const jeton = genererJetonSuivi(alea());
   const ref = `CT-${(800000 + suffixe) % 99999999}`;
   const o = await prisma.order.create({
@@ -164,9 +152,11 @@ describeDb("le recu public", () => {
   it("un code INEXISTANT produit un refus explicite, pas une page vide", async () => {
     // On CHERCHE un code absent plutot que d'en supposer un : la base n'est pas
     // purgee entre deux executions, et un code ecrit en dur finirait par exister.
+    // L'encodage injectif rend la collision impossible DANS une execution ;
+    // la boucle ne garde qu'un tour utile — le tirage inter-executions.
     let code = "";
     for (let i = 0; i < 50 && !code; i++) {
-      const candidat = codeDeTest(RUN * 7 + i * 101);
+      const candidat = ids.codeVerification();
       const pris = await prisma.order.findFirst({ where: { verificationCode: candidat } });
       if (!pris) code = candidat;
     }

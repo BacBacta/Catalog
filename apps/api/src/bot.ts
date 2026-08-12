@@ -55,13 +55,20 @@ import {
 import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
 import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
-import { genreDuJeton, jetonFlux, lireInscriptionFlux, messageFlux } from "./domain/bot/flux.ts";
+import {
+  genreDuJeton,
+  jetonFlux,
+  lireArticleFlux,
+  lireInscriptionFlux,
+  messageFlux,
+} from "./domain/bot/flux.ts";
 import {
   demandeInscription,
   type EtatVendeuse,
   etatVendeuseApresInactivite,
   messageArticlePublie,
   messageBoutiqueCreee,
+  messageOnboarding,
   normaliserEtatVendeuse,
   PREMIERE_QUESTION,
   questionDeLEtat,
@@ -169,6 +176,9 @@ export interface BotDeps {
   fluxAvisId?: string;
   /** Le formulaire d'inscription vendeuse — tache #60. Absent : rien n'est monte. */
   fluxInscriptionId?: string;
+  /** Le formulaire de creation d'article — tache #62. Meme regime : un raccourci
+      qui s'AJOUTE aux questions, jamais un passage oblige. */
+  fluxArticleId?: string;
   /**
    * Le declencheur de reconstruction de la boutique publique — ADR 0065.
    * ABSENT par defaut : sans lui, aucun deploiement n'est demande et aucun
@@ -443,6 +453,9 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
       etatVendeuseEnCours: etatVendeuse !== null,
       smsReconnu,
       achatEnCours: etatAchat.nom !== "accueil",
+      /* Le jeton vit dans la charge utile, que l'aiguillage ne lit pas :
+         c'est ICI qu'on le regarde, une fois, pour toutes les regles. */
+      formulaireArticle: entree.genre === "flux" && genreDuJeton(entree.reponse) === "article",
     },
   );
 
@@ -524,18 +537,65 @@ async function filInscription(
     return;
   }
 
+  /**
+   * ── La reponse du formulaire d'article — tache #62 ────────────────────
+   *
+   * Traitee ICI et pas dans la machine, comme l'inscription : les formulaires
+   * arrivent tous par le meme `nfm_reply`, et c'est le jeton qui les separe
+   * (ADR 0063). Elle passe AVANT la question directe, sinon une reponse
+   * arrivant apres l'expiration de l'etat serait avalee par « quel est le
+   * nom de l'article ? ».
+   *
+   * Illisible : on le dit, et la question reste — le formulaire est un
+   * raccourci, jamais un passage oblige (meme regle que l'inscription).
+   */
+  if (sellerId && entree.genre === "flux" && genreDuJeton(entree.reponse) === "article") {
+    const lu = lireArticleFlux(entree.reponse);
+    if (!lu) {
+      await poserEtat(deps, phone, { nom: "article_nom" });
+      await deps.envoyeur.envoyer(
+        texte(entree.de, "Le formulaire n'a pas pu être lu. Reprenons ici, c'est aussi rapide."),
+      );
+      await deps.envoyeur.envoyer(
+        texte(
+          entree.de,
+          "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+        ),
+      );
+      return;
+    }
+    await poserEtat(deps, phone, ETAT_INITIAL);
+    await envoyerSequence(deps, await publierArticleDepuisFil(deps, sellerId, entree.de, lu));
+    return;
+  }
+
   /* Une vendeuse installee qui vient d'appuyer sur « Autre article » entre
      directement dans l'etat — sans que son appui soit lu comme un nom. Une
      PHOTO, elle, traverse jusqu'a la machine : legendee « nom prix », c'est
      deja l'article entier (ADR 0035). */
   if (!etatCourant && sellerId && entree.genre !== "image") {
     await poserEtat(deps, phone, etat);
-    await deps.envoyeur.envoyer(
+    /* Le formulaire s'AJOUTE a la question — meme regle que l'inscription
+       (tache #60) : un Flow exige un WhatsApp recent, la question marche
+       partout, et c'est le meme etat derriere les deux. La QUESTION part en
+       dernier : c'est elle qui reste visible si le formulaire echoue. */
+    await envoyerSequence(deps, [
+      ...(deps.fluxArticleId
+        ? [
+            messageFlux(
+              entree.de,
+              deps.fluxArticleId,
+              "Remplir le formulaire",
+              jetonFlux("article"),
+              "Ou tout d'un coup, dans un formulaire : nom, prix, stock.",
+            ),
+          ]
+        : []),
       texte(
         entree.de,
         "*Quel est le nom de l'article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
       ),
-    );
+    ]);
     return;
   }
 
@@ -586,6 +646,19 @@ async function filInscription(
     }
     await poserEtat(deps, phone, cree.ok ? { nom: "article_nom" } : etat);
     if (cree.ok) {
+      /* Celle qui vient de remplir UN formulaire est exactement celle qui en
+         remplira un second : il s'ajoute a la question, comme partout. */
+      if (deps.fluxArticleId) {
+        suite.push(
+          messageFlux(
+            entree.de,
+            deps.fluxArticleId,
+            "Remplir le formulaire",
+            jetonFlux("article"),
+            "Ou tout d'un coup, dans un formulaire : nom, prix, stock.",
+          ),
+        );
+      }
       suite.push(
         texte(
           entree.de,
@@ -638,66 +711,36 @@ async function filInscription(
   }
 
   if (reaction.effet?.type === "creer_article" && sellerId) {
-    const article = await creerArticleDepuisFil(deps, sellerId, reaction.effet);
-    /* L'etat de conges se relit ICI, dans la base — ADR 0057. Elle a pu
-       fermer depuis un autre appareil, ou depuis l'app, entre deux messages :
-       c'est le meme principe que le verrou de creation de commande. */
-    const enConges =
-      (
-        await deps.prisma.seller.findUnique({
-          where: { id: sellerId },
-          select: { congesDepuis: true },
-        })
-      )?.congesDepuis != null;
-    /**
-     * La page WEB se reconstruit — ADR 0065.
-     *
-     * L'article entre en base tout de suite ; la boutique publique, elle, lit
-     * un instantane pris a la CONSTRUCTION. Sans ce declenchement, une
-     * boutique nee dans le fil restait en 404 — mesure du 11/08/2026.
-     *
-     * Le delai n'est annonce que si la demande est REELLEMENT partie : sans
-     * crochet configure, ou si le regroupement l'absorbe, la page n'arrivera
-     * pas dans le delai qu'on annoncerait. Le silence est alors honnete.
-     */
-    const pageWebDansMinutes =
-      article && (await deps.reconstruction?.demander("article_publie"))
-        ? ATTENTE_ANNONCEE_MIN
-        : null;
-    messages.push(
-      article
-        ? messageArticlePublie(entree.de, article, enConges, pageWebDansMinutes)
-        : texte(
-            entree.de,
-            "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
-          ),
-    );
-    /**
-     * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
-     * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
-     * sans article ne donne envie a personne — et pas aux suivants, ce serait
-     * du bruit ; « ma carte » la redonne quand on veut.
-     */
-    if (article) {
-      const nb = await deps.prisma.product.count({
-        where: { sellerId, archivedAt: null },
-      });
-      if (nb === 1) {
-        messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
-      }
-      /**
-       * Le pack statut part a CHAQUE publication — ADR 0061, rang 3a.
-       *
-       * La carte-vitrine, elle, ne part qu'au premier article : elle dit « la
-       * boutique existe », une fois. Le pack dit « poste CELUI-CI aujourd'hui »,
-       * et c'est vrai a chaque fois. Sur la premiere publication les deux
-       * partent, et c'est voulu : ils ne disent pas la meme chose.
-       */
-      messages.push(...(await packStatutArticle(deps, sellerId, article).catch(() => [])));
-    }
+    /* Le corps vit dans `publierArticleDepuisFil` : le formulaire d'article
+       (tache #62) publie par le MEME chemin — un seul endroit decide de ce
+       qui accompagne une publication (carte, pack, mode d'emploi). */
+    messages.push(...(await publierArticleDepuisFil(deps, sellerId, entree.de, reaction.effet)));
     etatSuivant = ETAT_INITIAL;
   }
 
+  /* L'ENTREE dans « nom de l'article » — d'ou qu'elle vienne : bouton
+     « Premier article », « ajouter », « corriger » au recapitulatif. Le
+     formulaire s'insere AVANT les messages de la machine : la question de la
+     machine reste en dernier, visible si le formulaire echoue. On n'envoie
+     rien quand l'etat ne fait que BOUCLER sur article_nom (nom refuse) —
+     reproposer le formulaire a chaque faute de frappe serait du bruit. */
+  if (
+    deps.fluxArticleId &&
+    typeof etatSuivant === "object" &&
+    etatSuivant.nom === "article_nom" &&
+    etat.nom !== "article_nom" &&
+    messages.length > 0
+  ) {
+    messages.unshift(
+      messageFlux(
+        entree.de,
+        deps.fluxArticleId,
+        "Remplir le formulaire",
+        jetonFlux("article"),
+        "Ou tout d'un coup, dans un formulaire : nom, prix, stock.",
+      ),
+    );
+  }
   await poserEtat(deps, phone, etatSuivant);
   await envoyerSequence(deps, messages);
 }
@@ -941,10 +984,106 @@ function lienBot(deps: BotDeps, texteInitial: string): string {
  * Une photo illisible ne fait pas echouer l'article : il se publie sans, et
  * la vendeuse peut la renvoyer. Un article sans photo vaut mieux qu'aucun.
  */
+/**
+ * Publier un article, et tout ce qui l'accompagne — le SEUL chemin.
+ *
+ * Deux entrees y menent : l'effet `creer_article` de la machine (questions ou
+ * photo legendee) et la reponse du formulaire d'article (tache #62). Les deux
+ * doivent produire exactement la meme suite — l'annonce, la reconstruction de
+ * la page web (ADR 0065), la carte-vitrine au premier article (ADR 0037), le
+ * pack statut a chaque publication (rang 3a) et le mode d'emploi au premier
+ * article (tache #62). Un second exemplaire de cette liste divergerait au
+ * premier lot venu.
+ */
+async function publierArticleDepuisFil(
+  deps: BotDeps,
+  sellerId: string,
+  vers: string,
+  demande: { nom: string; prixXaf: number; mediaId?: string; stock?: number },
+): Promise<MessageSortant[]> {
+  const messages: MessageSortant[] = [];
+  const article = await creerArticleDepuisFil(deps, sellerId, demande);
+  /* L'etat de conges se relit ICI, dans la base — ADR 0057. Elle a pu
+     fermer depuis un autre appareil, ou depuis l'app, entre deux messages :
+     c'est le meme principe que le verrou de creation de commande. */
+  const enConges =
+    (
+      await deps.prisma.seller.findUnique({
+        where: { id: sellerId },
+        select: { congesDepuis: true },
+      })
+    )?.congesDepuis != null;
+  /**
+   * La page WEB se reconstruit — ADR 0065.
+   *
+   * L'article entre en base tout de suite ; la boutique publique, elle, lit
+   * un instantane pris a la CONSTRUCTION. Sans ce declenchement, une
+   * boutique nee dans le fil restait en 404 — mesure du 11/08/2026.
+   *
+   * Le delai n'est annonce que si la demande est REELLEMENT partie : sans
+   * crochet configure, ou si le regroupement l'absorbe, la page n'arrivera
+   * pas dans le delai qu'on annoncerait. Le silence est alors honnete.
+   */
+  const pageWebDansMinutes =
+    article && (await deps.reconstruction?.demander("article_publie"))
+      ? ATTENTE_ANNONCEE_MIN
+      : null;
+  messages.push(
+    article
+      ? messageArticlePublie(vers, article, enConges, pageWebDansMinutes)
+      : texte(
+          vers,
+          "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
+        ),
+  );
+  /**
+   * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
+   * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
+   * sans article ne donne envie a personne — et pas aux suivants, ce serait
+   * du bruit ; « ma carte » la redonne quand on veut.
+   */
+  if (article) {
+    const nb = await deps.prisma.product.count({
+      where: { sellerId, archivedAt: null },
+    });
+    if (nb === 1) {
+      messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
+    }
+    /**
+     * Le pack statut part a CHAQUE publication — ADR 0061, rang 3a.
+     *
+     * La carte-vitrine, elle, ne part qu'au premier article : elle dit « la
+     * boutique existe », une fois. Le pack dit « poste CELUI-CI aujourd'hui »,
+     * et c'est vrai a chaque fois. Sur la premiere publication les deux
+     * partent, et c'est voulu : ils ne disent pas la meme chose.
+     */
+    messages.push(...(await packStatutArticle(deps, sellerId, article).catch(() => [])));
+    /**
+     * Le mode d'emploi — tache #62, et il part EN DERNIER : c'est lui qui
+     * reste sous le pouce. Au premier article seulement, comme la carte, et
+     * pour la meme raison — c'est l'instant ou la boutique devient reelle,
+     * donc l'instant ou « que se passe-t-il maintenant ? » se pose.
+     */
+    if (nb === 1) {
+      const profil = await deps.prisma.seller.findUnique({
+        where: { id: sellerId },
+        select: { slug: true },
+      });
+      messages.push(
+        messageOnboarding(vers, {
+          lienBoutique: profil && deps.baseBoutique ? `${deps.baseBoutique}/${profil.slug}` : null,
+          lienEspace: deps.baseApp ?? null,
+        }),
+      );
+    }
+  }
+  return messages;
+}
+
 async function creerArticleDepuisFil(
   deps: BotDeps,
   sellerId: string,
-  demande: { nom: string; prixXaf: number; mediaId?: string },
+  demande: { nom: string; prixXaf: number; mediaId?: string; stock?: number },
 ): Promise<{
   id: string;
   nom: string;
@@ -995,6 +1134,9 @@ async function creerArticleDepuisFil(
         name: demande.nom,
         priceXaf: demande.prixXaf,
         position: (dernier._max.position ?? -1) + 1,
+        /* Le stock du formulaire (tache #62). Absent = 0, la valeur « non
+           annonce » de l'ADR 0038 — il ne se decompte pas tout seul. */
+        ...(demande.stock ? { stock: demande.stock } : {}),
         ...(image
           ? {
               imageKey: image.cle,

@@ -1,11 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { CODE_ALPHABET } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
-import { selExecution } from "./_identifiants.ts";
+import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
  * L'apres-achat DANS le fil, contre une VRAIE base — ADR 0036.
@@ -30,17 +29,11 @@ let prisma: PrismaClient;
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
 const RUN = 74 * 1000 + selExecution();
+/* Le schema recent ne sert ICI qu'aux codes de verification (tache #68) :
+   l'ancien generateur hachait sa graine, et le bloc ne separe pas ce qu'un
+   hachage fait des nombres — vu en CI le 12/08 (ADR 0078). */
+const ids = identifiants("bot-apres-achat");
 const NOW = new Date("2026-08-04T12:00:00+01:00");
-
-function codeDeTest(graine: number): string {
-  let n = graine;
-  const car = () => {
-    n = (n * 31 + 17) % 1_000_003;
-    return CODE_ALPHABET[n % CODE_ALPHABET.length] as string;
-  };
-  const bloc = () => Array.from({ length: 4 }, car).join("");
-  return `${bloc()}-${bloc()}`;
-}
 
 /** Un envoyeur qui garde ce qu'il envoie — le fil se relit dans les tests. */
 class EnvoyeurMemoire implements EnvoyeurBot {
@@ -120,7 +113,7 @@ async function scene(suffixe: number, options: { proofState?: string } = {}): Pr
       step: "livree",
       proofState: (options.proofState ?? "prouve") as never,
       delivery: { mode: "retrait", pickupPoint: "Marche central", phone: "+237677889900" },
-      verificationCode: codeDeTest(suffixe),
+      verificationCode: ids.codeVerification(),
       expiresAt: new Date(NOW.getTime() + 48 * 3600_000),
     },
     select: { id: true, ref: true },
