@@ -2,6 +2,7 @@ import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
+import { demandeChaine, demandeRetraitChaine, lireLienChaine } from "./chaine.ts";
 import type { VerdictConfiance } from "./confiance.ts";
 import { lireEntreeBoutique } from "./entree-boutique.ts";
 import type { FormeNonLue } from "./entrees.ts";
@@ -323,6 +324,12 @@ export type EffetBot =
   | { type: "envoyer_carte" }
   /** « congés » / « je reprends » — la boutique se ferme et se rouvre (ADR 0039). */
   | { type: "basculer_conges"; fermer: boolean }
+  /**
+   * La chaine WhatsApp — ADR 0061, rang 3b. `lien` a `null` la retire : le
+   * geste inverse existe toujours, et il se dit dans le meme effet plutot que
+   * dans un second qu'on oublierait de brancher.
+   */
+  | { type: "poser_chaine"; lien: string | null }
   /* ─── l'apres-achat, autorise par l'identite du fil — ADR 0036 ─── */
   | { type: "contresigner" }
   | { type: "contester" }
@@ -1810,6 +1817,11 @@ export interface BoutiqueVendeuse {
   lienEspace: string | null;
   /** Mode conges — ADR 0039. Le menu dit l'etat et propose l'inverse. */
   enConges?: boolean;
+  /**
+   * La chaine WhatsApp rangee — ADR 0061, rang 3b. `null` ou absente : la
+   * vendeuse n'en a pas, ce qui est l'etat normal.
+   */
+  chaine?: string | null;
 }
 
 /**
@@ -1881,6 +1893,47 @@ export function reagirVendeuse(
       etat: ETAT_INITIAL,
       messages: [],
       effet: { type: "basculer_conges", fermer: bascule },
+    };
+  }
+
+  /**
+   * ── « Ma chaine » — ADR 0061, rang 3b ────────────────────────────────
+   *
+   * Deux temps, et le second n'a pas d'etat : « ma chaine » RAPPELLE le lien
+   * range (ou son absence) et invite a le coller ; le message suivant qui
+   * CONTIENT un lien de chaine le range. Pas de machine a etats parce qu'il
+   * n'en faut pas — un lien se reconnait a sa forme, et une vendeuse qui
+   * change d'avis entre les deux messages n'est bloquee nulle part.
+   */
+  if (entree.genre === "texte") {
+    const lien = lireLienChaine(entree.texte);
+    if (lien) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [],
+        effet: { type: "poser_chaine", lien },
+      };
+    }
+  }
+  if (id === "chaine" || (entree.genre === "texte" && demandeChaine(entree.texte))) {
+    const actuelle = contexte.boutique?.chaine ?? null;
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        texte(
+          vers,
+          actuelle
+            ? `📣 Votre chaîne : ${actuelle}\n\n« Suivre la boutique » y mène depuis votre page.\nPour la changer, collez le nouveau lien. Pour l'enlever, écrivez « retirer ».`
+            : "📣 Vous avez une chaîne WhatsApp ? Collez son lien ici — il apparaîtra sur votre page, sous « Suivre la boutique ».\n\nLe lien se copie depuis WhatsApp : ouvrez votre chaîne, ⋮, *Lien de la chaîne*.",
+        ),
+      ],
+    };
+  }
+  if (entree.genre === "texte" && demandeRetraitChaine(entree.texte) && contexte.boutique?.chaine) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [],
+      effet: { type: "poser_chaine", lien: null },
     };
   }
 

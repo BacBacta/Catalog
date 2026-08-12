@@ -17,7 +17,7 @@ import { formatPhone } from "@catalog/contracts/phone";
 import { slugArticle } from "@catalog/contracts/slug";
 import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
-import { rendreCarte } from "./adapters/carte-vitrine.ts";
+import { rendreCarte, rendreCarteAvis } from "./adapters/carte-vitrine.ts";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
 import type { DeclencheurReconstruction } from "./adapters/reconstruction-boutique.ts";
 import { emailTechnique } from "./auth.ts";
@@ -1602,7 +1602,86 @@ async function deposerAvis(
     .catch(() => {
       /* `Review.orderId` est UNIQUE : un second avis est refuse par la base.
          La machine l'a deja dit a l'acheteuse ; ici on se tait. */
-    });
+      return "refuse" as const;
+    })
+    .then((r) => r !== "refuse");
+
+  /**
+   * ── La carte d'avis VERIFIE part chez la vendeuse — ADR 0061, rang 3c ──
+   *
+   * **Jamais pour un avis non verifie.** Un avis non verifie existe et il est
+   * honnete — le depot direct non trace le produit (AGENTS.md §2) —, mais en
+   * faire une carte qui dit « verifie par paiement » serait la reputation
+   * achetable que le produit refuse. La condition est ici, une fois.
+   *
+   * Elle ne leve jamais : l'avis est enregistre, la carte est un plus.
+   */
+  if (droit.verifie) {
+    await envoyerCarteAvis(deps, commande.sellerId, note, mot).catch(() => {});
+  }
+}
+
+/**
+ * Fabrique et envoie la carte d'avis verifie a la vendeuse.
+ *
+ * Le compteur affiche est relu APRES l'enregistrement : il compte donc l'avis
+ * qui vient d'arriver. Le lire avant afficherait un nombre en retard d'une
+ * unite sur la carte que la vendeuse va justement poster.
+ */
+async function envoyerCarteAvis(
+  deps: BotDeps,
+  sellerId: string,
+  note: number,
+  mot: string | undefined,
+): Promise<void> {
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { businessName: true, slug: true, phone: true },
+  });
+  const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
+  if (!seller?.phone || !chiffres || !deps.storage) return;
+
+  const nbVerifies = await deps.prisma.review.count({
+    where: { sellerId, verified: true },
+  });
+  /* Le canal `chaine` : une commande nee d'un repost se compte comme telle. */
+  const motCle = texteEntreeBoutique({ slug: seller.slug, canal: "chaine" });
+  const png = await rendreCarteAvis(
+    {
+      nomBoutique: seller.businessName,
+      note,
+      ...(mot ? { mot } : {}),
+      nbVerifies,
+      lienAffiche: `wa.me/${chiffres}`,
+      motCle,
+    },
+    lienBot(deps, motCle),
+  );
+
+  const resultat = await reencoderImage(png, {
+    plusGrandCote: CARTE_HAUTEUR,
+    cibleOctets: CARTE_CIBLE_OCTETS,
+  });
+  if (!resultat.ok) return;
+  const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
+  const base = cleOpaque(alea, "carte");
+  const d = declinaisons(base);
+  await Promise.all([
+    deps.storage.put({ cle: d.avif, corps: resultat.image.avif, contentType: "image/avif" }),
+    deps.storage.put({ cle: d.webp, corps: resultat.image.webp, contentType: "image/webp" }),
+    deps.storage.put({ cle: d.jpg, corps: resultat.image.jpeg, contentType: "image/jpeg" }),
+  ]);
+  const url = await urlJpegVerifiee(deps, base);
+  if (!url) return;
+
+  await deps.envoyeur.envoyer(
+    imageMessage(
+      seller.phone.replace(/^\+/, ""),
+      url,
+      "⭐ Un avis vérifié vient d'arriver — voici votre carte à poster.\n" +
+        "Aucune concurrente ne peut poster celle-ci : elle est adossée à un paiement prouvé.",
+    ),
+  );
 }
 
 interface BoutiqueChargee {
@@ -1985,6 +2064,7 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
         businessName: true,
         slug: true,
         congesDepuis: true,
+        chaineUrl: true,
         _count: { select: { products: { where: { archivedAt: null } } } },
       },
     }),
@@ -2008,6 +2088,8 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
           lienBoutique: lienBot(deps, `boutique ${profil.slug}`),
           lienEspace: deps.baseApp || null,
           ...(profil.congesDepuis ? { enConges: true } : {}),
+          /* ADR 0061, rang 3b — « ma chaine » rappelle le lien range. */
+          chaine: profil.chaineUrl,
         }
       : null,
   });
@@ -2051,6 +2133,40 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
                 : ""
             }\nÉcrivez « je reprends » quand vous revenez.`
           : "☀️ C'est reparti — votre boutique accepte de nouveau les commandes. Bon retour !",
+      ),
+    );
+  }
+
+  /**
+   * ── La chaine WhatsApp — ADR 0061, rang 3b ────────────────────────────
+   *
+   * Le lien arrive DEJA canonise par le domaine (`lireLienChaine`) : le
+   * service n'assainit rien, il range. C'est ce qui garantit que la page
+   * publique et la carte affichent la meme chose pour une meme chaine.
+   *
+   * La page se reconstruit, parce que « Suivre la boutique » en depend et que
+   * la boutique est statique (ADR 0065). Le regroupement absorbe la rafale
+   * d'une vendeuse qui se ravise deux fois.
+   */
+  if (reaction.effet?.type === "poser_chaine") {
+    const lien = reaction.effet.lien;
+    await deps.prisma.seller.update({
+      where: { id: sellerIdent },
+      data: { chaineUrl: lien },
+    });
+    const dansMinutes = (await deps.reconstruction?.demander("boutique_modifiee"))
+      ? ATTENTE_ANNONCEE_MIN
+      : null;
+    messages.push(
+      texte(
+        entree.de,
+        lien
+          ? `📣 C'est rangé. « Suivre la boutique » mène maintenant à votre chaîne.${
+              dansMinutes ? `\nVotre page se met à jour dans ~${dansMinutes} minutes.` : ""
+            }\n\nPartagez votre boutique dans la chaîne : chaque commande qui en vient se comptera à part.`
+          : `📣 Lien retiré. « Suivre la boutique » disparaît de votre page.${
+              dansMinutes ? `\nMise à jour dans ~${dansMinutes} minutes.` : ""
+            }`,
       ),
     );
   }
