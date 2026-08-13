@@ -831,6 +831,89 @@ export const TEXTES: Record<Langue, TextesAcheteuse> = { fr, en, wes };
  * demande \u2014 le bot ne sait pas dire \u00ab non \u00bb a une langue, et lui apprendre
  * co\u00fbterait un message de plus dans trois catalogues.
  */
+/**
+ * La langue LUE dans le message lui-meme — ADR 0084, decide par le porteur
+ * du produit au banc du 12/08 : « si l'utilisateur ecrit en francais, la
+ * langue s'adapte, s'il switch en anglais ca s'adapte ».
+ *
+ * Des SIGNAUX sans ambiguite, jamais une analyse : deux listes fermees de
+ * mots du commerce quotidien, comptes a la frontiere de mot. La langue qui
+ * en compte STRICTEMENT plus gagne ; egalite — zero compris — et la
+ * conversation reste ou elle est. Un « 2 », un nom de quartier, un emoji ne
+ * basculent rien.
+ *
+ * Le pidgin n'a pas de liste ICI : il n'est pas servi (`PIDGIN_RELU`), et un
+ * signal qu'on ne peut pas honorer serait une promesse. « How much e dey »
+ * touche « how much » et recoit l'anglais — la langue la plus proche que
+ * l'on SAIT servir.
+ */
+const SIGNAUX_FR = [
+  "bonjour",
+  "bonsoir",
+  "salut",
+  "svp",
+  "s'il vous plait",
+  "combien",
+  "prix",
+  "je veux",
+  "je voudrais",
+  "acheter",
+  "commander",
+  "livraison",
+  "disponible",
+  "merci",
+  "avez-vous",
+  "taille",
+  "couleur",
+] as const;
+
+const SIGNAUX_EN = [
+  "hello",
+  "hi",
+  "good morning",
+  "good afternoon",
+  "good evening",
+  "please",
+  "how much",
+  "price",
+  "i want",
+  "i need",
+  "i would like",
+  "do you have",
+  "buy",
+  "order",
+  "delivery",
+  "available",
+  "thanks",
+  "thank you",
+  "size",
+  "colour",
+  "color",
+] as const;
+
+function compteSignaux(net: string, signaux: readonly string[]): number {
+  let n = 0;
+  for (const s of signaux) {
+    /* Frontiere de mot des deux cotes : « prix » ne se lit pas dans
+       « surprixe », « hi » ne se lit pas dans « chichi ». */
+    const motif = new RegExp(`(?:^|[^a-z])${s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:[^a-z]|$)`);
+    if (motif.test(net)) n += 1;
+  }
+  return n;
+}
+
+export function langueDetectee(texteBrut: string): Langue | null {
+  const net = texteBrut
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const fr = compteSignaux(net, SIGNAUX_FR);
+  const en = compteSignaux(net, SIGNAUX_EN);
+  if (fr > en) return servie("fr");
+  if (en > fr) return servie("en");
+  return null;
+}
+
 export function langueDemandee(texteBrut: string): Langue | null {
   const net = texteBrut
     .trim()

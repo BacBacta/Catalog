@@ -24,7 +24,13 @@ import {
   reaction,
   texte,
 } from "./messages.ts";
-import { type Langue, langueDemandee, TEXTES, type TextesAcheteuse } from "./textes.ts";
+import {
+  type Langue,
+  langueDemandee,
+  langueDetectee,
+  TEXTES,
+  type TextesAcheteuse,
+} from "./textes.ts";
 
 /**
  * La machine de conversation du bot — ADR 0031, revisee par les ADR 0032
@@ -538,6 +544,25 @@ function texteEstDuContenu(etat: EtatConv): boolean {
 }
 
 export function reagirAcheteuse(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse): Reaction {
+  /**
+   * La langue s'adapte au MESSAGE — ADR 0084. Detection passive, jamais dans
+   * les etats ou le texte libre est du CONTENU (une adresse a Bonapriso peut
+   * contenir « near the pharmacy » sans que la conversation bascule), et
+   * seulement quand le signal est net (`langueDetectee`). La reponse a CE
+   * message part deja dans la langue detectee, et elle est persistee par le
+   * canal existant (`Reaction.langue`) — exactement comme le mot-cle.
+   */
+  const courante = ctx.langue ?? "fr";
+  const detectee =
+    entree.genre === "texte" && !texteEstDuContenu(etat) ? langueDetectee(entree.texte) : null;
+  if (detectee && detectee !== courante) {
+    const r = reagirEnLangue(etat, entree, { ...ctx, langue: detectee });
+    return { ...r, langue: r.langue ?? detectee };
+  }
+  return reagirEnLangue(etat, entree, ctx);
+}
+
+function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse): Reaction {
   const langue = ctx.langue ?? "fr";
   const t = TEXTES[langue];
   const vers = ctx.vers;
