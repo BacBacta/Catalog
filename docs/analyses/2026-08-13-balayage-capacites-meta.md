@@ -129,28 +129,33 @@ Les Flows de Catalog n'utilisent aujourd'hui que des champs de saisie. Ces
 composants sont **documentés** (versions Flow JSON indiquées) et ouvriraient des
 gestes entiers :
 
-| Composant | Version min. | Ce qu'il automatiserait chez Catalog |
-|---|---|---|
-| `PhotoPicker` | **MESURÉ accepté** (12/08) | déjà dans `catalog_article` |
-| `DocumentPicker` | documenté | — peu d'usage ici |
-| `RichText` | 5.1 | un récapitulatif de commande lisible **dans** le formulaire |
-| `If` / `Switch` | 4.0 | livraison **ou** retrait dans UN formulaire au lieu de deux écrans |
-| `CalendarPicker` | 6.1 | date de remise convenue — mais `data_exchange` **seulement** (voir piège) |
-| `ImageCarousel` | non documenté sur les pages atteintes | feuilleter les articles **dans** un formulaire |
-| `ChipsSelector` | non documenté sur les pages atteintes | quantité, taille, couleur en un tap |
-| `NavigationList` | non documenté sur les pages atteintes | un catalogue navigable sans quitter le formulaire |
+| Composant | Version min. | Source | Ce qu'il automatiserait chez Catalog |
+|---|---|---|---|
+| `PhotoPicker` | 4.0 | **MESURÉ accepté** (12/08) + page officielle | déjà dans `catalog_article` |
+| `DocumentPicker` | 4.0 | officielle | — peu d'usage ici |
+| `RichText` | 5.1 | officielle | un récapitulatif de commande lisible **dans** le formulaire |
+| `If` / `Switch` | 4.0 | officielle | livraison **ou** retrait dans UN formulaire au lieu de deux écrans |
+| `DatePicker` | 1.0 | officielle | **la date de remise, SANS endpoint** — voir la correction ci-dessous |
+| `CalendarPicker` | 6.1 | officielle | version riche de la date — `data_exchange` **seulement** (voir piège) |
+| `ImageCarousel` | **7.1** | secondaire (2e passe) | feuilleter les articles **dans** un formulaire |
+| `ChipsSelector` | **6.3** | secondaire (2e passe) | quantité, taille, couleur en un tap |
+| `NavigationList` | **6.2** | secondaire (2e passe) | un catalogue navigable sans quitter le formulaire |
 
-**Le piège à connaître** : `CalendarPicker` est donné comme
-`data_exchange` **uniquement**. Or Catalog n'a **aucun** point de terminaison de
-Flow, et c'est un choix (ADR 0087 : « seul `data_exchange` exigerait un serveur
-— on ne l'emploie pas »). Tout composant qui l'exige est **hors d'atteinte sans
-un nouvel ADR** qui rouvre cette décision, avec ce qu'elle implique : un
-endpoint public, chiffré, signé, disponible — et une panne de plus qui casse un
-formulaire.
+**Le piège à connaître, et sa correction (2e passe)** : `CalendarPicker` est
+donné comme `data_exchange` **uniquement** — hors d'atteinte, donc, Catalog
+n'ayant aucun point de terminaison de Flow par choix (ADR 0087). La première
+passe en concluait que la date de remise était bloquée. C'était faux :
+**`DatePicker` (version 1.0) est un champ de formulaire ordinaire**, accepté
+dans un `complete` sans endpoint — seule sa variante « on-select-action » exige
+l'échange de données. La date de remise convenue est donc atteignable
+aujourd'hui, avec le composant le plus ancien de la plateforme.
 
-Les trois composants « non documentés sur les pages atteintes » sont exactement
-le cas de `PhotoPicker` avant sa mesure. Ils se **mesurent**, ils ne se
-supposent pas.
+Les schémas d'`ImageCarousel`, `ChipsSelector` et `NavigationList` viennent de
+sources **secondaires** (références de fournisseurs, dérivées de la
+spécification Meta) : les pages Meta de ces composants rendaient HTTP 500 le
+13/08. C'est exactement le cas de `PhotoPicker` avant sa mesure — ils se
+**mesurent**, ils ne se supposent pas. L'instrument existe désormais :
+`flux.mjs --mesurer-composants` (voir §6).
 
 ### 3.2 Carrousels — attention au coût
 
@@ -236,23 +241,83 @@ pas : `product.variants` sans modèle, le pidgin écrit et non servi
 
 ---
 
+## 5 bis. Deuxième passe (13/08, soir) — ce que le balayage approfondi ajoute
+
+### La version de Flow JSON est un chantier en soi
+
+La version courante est **7.3** ; les cinq formulaires de Catalog sont en
+**7.0**. Trois des composants visés exigent plus que 7.0 — `NavigationList`
+6.2+ (déjà couvert), `ChipsSelector` 6.3+ (déjà couvert), mais **`ImageCarousel`
+7.1+**. La mesure sonde donc la version **avant** les composants : son premier
+brouillon ne porte que le témoin, en 7.3 — s'il est refusé, les verdicts
+suivants diraient « version » et non « composant », et il faut le savoir avant
+de les lire.
+
+### Les sélecteurs de médias, cette fois sur page officielle
+
+La page `media_upload` — atteignable, elle — confirme et borne ce que la mesure
+du 12/08 avait établi : `PhotoPicker` et `DocumentPicker` sont en version 4.0+,
+acceptés dans `complete` **et** `data_exchange`, **jamais dans `navigate`** ;
+**un seul sélecteur par écran**, jamais les deux ensemble ; 30 fichiers et
+25 Mio par fichier au plus, 10 fichiers et 100 Mio par réponse. Les fichiers
+arrivent chiffrés (AES256-CBC + HMAC-SHA256), avec leurs métadonnées dans le
+`nfm_reply` — la lecture sous deux formes que le dépôt fait déjà (tâche #66).
+
+### Le paiement dans les Flows n'existe pas pour le Cameroun
+
+Les annonces de « paiement sans quitter WhatsApp » sont réelles et **limitées à
+deux marchés** : l'Inde (UPI) et Singapour (Stripe). Aucun calendrier
+d'extension annoncé. Pour Catalog c'est doublement sans objet : indisponible —
+et l'architecture v1 (ADR 0009, dépôt direct, Catalog n'encaisse jamais) ne
+changerait pas pour autant. À classer, pas à surveiller.
+
+### Les appels — documenté, non mesuré
+
+L'API d'appels existe des deux côtés : l'acheteuse appelle l'entreprise, ou
+l'entreprise appelle après permission. La permission se demande **dans une
+conversation ouverte** (une demande par 24 h, deux par 7 jours ; accordée, elle
+vaut 72 h ou jusqu'à cinq appels sur 7 jours selon les sources — elles
+divergent, et c'est le genre d'écart qui se mesure). Facturation **à la
+minute**, cartes d'avril 2026. Les appels sortants sont interdits dans une
+liste de pays où le Cameroun **ne figure pas**. Tout ceci vient de sources
+secondaires : **NON MESURÉ**, et sans usage identifié chez Catalog — la
+vendeuse et l'acheteuse s'appellent déjà, en direct, sans nous.
+
+### Les groupes — nouveau en 2026, et hors doctrine
+
+Une API de groupes existe désormais : jusqu'à 8 membres, 10 000 groupes par
+numéro, facturés comme du 1:1. Deux raisons de ne pas y toucher : elle exige un
+**compte officiel (OBA)** que Catalog n'a pas, et elle ne porte **aucun message
+interactif** — ni boutons, ni listes, ni Flows, c'est-à-dire rien de ce dont le
+bot est fait. Un trio vendeuse-acheteuse-livreur est une idée séduisante et un
+produit différent. Consigné, refermé.
+
+---
+
 ## 6. Plan de mesure, dans l'ordre
 
 Chaque ligne se fait avec l'outil qui existe déjà : `depots-meta`, mode
 `--etat`, ou un brouillon jetable comme celui de `PhotoPicker`.
 
-| # | Mesure | Ce qu'elle débloque | Coût |
+| # | Mesure | Ce qu'elle débloque | État |
 |---|---|---|---|
-| 1 | **État réel des cinq `WABOT_FLUX_*_ID` sur la machine** | l'ouverture en un formulaire, déjà construite | nul |
-| 2 | Brouillon jetable : `ImageCarousel` + `ChipsSelector` + `NavigationList` sans endpoint | un catalogue et une quantité **dans** le formulaire | un brouillon supprimé |
-| 3 | Brouillon jetable : `If`/`Switch` | livraison/retrait en un écran au lieu de deux | idem |
-| 4 | `RichText` dans un écran de récapitulatif | la relecture avant commande, dans le formulaire | idem |
+| 1 | **État réel des cinq `WABOT_FLUX_*_ID` sur la machine** | l'ouverture en un formulaire, déjà construite | `depots-meta → flux --etat`, prêt |
+| 2-4 | **Sept brouillons jetables** : sonde de version 7.3, puis `RichText`, `If`/`Switch`, `ChipsSelector`, `NavigationList`, `ImageCarousel`, `CalendarPicker` | catalogue, quantité, récapitulatif et conditionnel **dans** le formulaire — et le verdict `CalendarPicker` qui contredit ou confirme la doc | **INSTRUMENTÉ** — `flux.mjs --mesurer-composants [version]`, option `mesurer-composants` du workflow |
 | 5 | Amorces et commandes : les **observer** sur un téléphone réel | l'accueil avant le premier message | un aller-retour terrain |
 
-Les mesures 2 à 4 se font en un seul brouillon si l'on veut, mais **un composant
-par écran témoin** : si le témoin est refusé aussi, c'est la définition qui est
-cassée, pas le composant. C'est la méthode qu'a suivie la mesure de
-`PhotoPicker`, et elle a marché.
+**Un brouillon PAR composant**, pas un brouillon à sept écrans : une erreur de
+parse globale masquerait les autres verdicts. Chaque écran garde son témoin
+`TextInput` — si le témoin est refusé aussi, c'est la définition ou la version
+qui est cassée, pas le composant. C'est la méthode de `PhotoPicker`, étendue
+d'un cran : la version se mesure d'abord.
+
+**Où la mesure s'exécute — et pourquoi pas ici.** Le workflow `depots-meta`
+lance les scripts **dans l'image Fly déployée** (« les scripts vivent dans
+l'image, sous /app ») : le mode `--mesurer-composants` n'y sera qu'après le
+déploiement de cette branche. D'ici là, le chemin historique reste ouvert — un
+poste avec `WABOT_API_KEY` et `WHATSAPP_WABA_ID` dans son `.env`, comme les
+trois premiers dépôts de formulaires. Cette session n'a ni l'un ni l'autre, et
+c'est voulu : les secrets ne sortent pas de leurs coffres.
 
 **Chaque verdict s'écrit dans un ADR — accepté ou refusé — avant toute ligne de
 code qui en dépend.**

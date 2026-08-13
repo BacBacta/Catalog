@@ -440,9 +440,283 @@ if (mode === "--voir") {
     return null;
   });
   if (suppression) console.log(`brouillon supprime : ${cree.id}`);
+} else if (mode === "--mesurer-composants") {
+  await exigerConfiguration();
+
+  /**
+   * ── La mesure des composants NON EMPLOYES — balayage du 13/08/2026 ──────
+   *
+   * La methode est celle de `--mesurer-photopicker`, etendue : pour CHAQUE
+   * composant candidat, un brouillon JETABLE, jamais publie, avec un
+   * `TextInput` temoin dans le meme ecran — si le temoin est refuse aussi,
+   * c'est la definition (ou la version) qui est cassee, pas le composant.
+   * Verdict lu dans `validation_errors`, brouillon supprime, ecran suivant.
+   *
+   * UN brouillon PAR composant, et non un brouillon a six ecrans : une erreur
+   * de parse globale masquerait les cinq autres verdicts, et la mesure ne
+   * vaudrait plus rien.
+   *
+   * ── Pourquoi la version se mesure D'ABORD ───────────────────────────────
+   *
+   * Nos cinq formulaires sont en Flow JSON 7.0. Les schemas releves (sources
+   * SECONDAIRES — les pages Meta de ces composants etaient inaccessibles le
+   * 13/08, HTTP 500) annoncent : NavigationList 6.2+, ChipsSelector 6.3+,
+   * ImageCarousel 7.1+, version courante 7.3. Le premier brouillon ne porte
+   * donc QUE le temoin, dans la version visee : s'il est refuse, tous les
+   * verdicts suivants diraient « version » et non « composant », et il faut
+   * le savoir avant de les lire.
+   *
+   * La version se passe en argument (defaut : 7.3) :
+   *
+   *   node apps/api/scripts/flux.mjs --mesurer-composants        → 7.3
+   *   node apps/api/scripts/flux.mjs --mesurer-composants 7.1    → 7.1
+   *
+   * Chaque verdict — accepte OU refuse — s'ecrit dans un ADR avant toute
+   * ligne de code qui en depend (AGENTS.md §7.7, methode de l'ADR 0087).
+   */
+  const VERSION_ESSAI = process.argv[3] ?? "7.3";
+
+  /* 1×1 pixel PNG — le plus petit `src` possible. Si Meta exige une taille
+     minimale d'image, l'erreur le DIRA, et c'est une mesure aussi. */
+  const PIXEL =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+  const temoin = {
+    type: "TextInput",
+    name: "temoin",
+    label: "Temoin",
+    required: false,
+    "input-type": "text",
+  };
+  const pied = (charge) => ({
+    type: "Footer",
+    label: "Envoyer",
+    "on-click-action": { name: "complete", payload: { temoin: "${form.temoin}", ...charge } },
+  });
+  const formulaire = (enfants, charge = {}) => ({
+    type: "Form",
+    name: "formulaire",
+    children: [...enfants, temoin, pied(charge)],
+  });
+
+  /**
+   * Les candidats, chacun avec la QUESTION qu'il pose. `horsFormulaire` porte
+   * les composants d'affichage (ils vivent a cote du formulaire, pas dedans).
+   */
+  const CANDIDATS = [
+    {
+      cle: "temoin",
+      question: `la version ${VERSION_ESSAI} elle-meme — nos formulaires sont en 7.0`,
+      horsFormulaire: [],
+      dansFormulaire: [],
+    },
+    {
+      cle: "richtext",
+      question: "RichText (5.1+ annonce) : un recapitulatif lisible DANS un formulaire",
+      horsFormulaire: [
+        { type: "RichText", text: ["# Recapitulatif", "Article 1 × 2 : **15 000 FCFA**"] },
+      ],
+      dansFormulaire: [],
+    },
+    {
+      cle: "si",
+      question: "If et Switch (4.0+ annonces) : livraison OU retrait dans UN ecran",
+      donnees: {
+        montrer: { type: "boolean", __example__: true },
+        mode: { type: "string", __example__: "livraison" },
+      },
+      horsFormulaire: [
+        {
+          type: "If",
+          condition: "${data.montrer}",
+          /* `then` est le nom EXACT de la propriete du composant If chez Meta —
+             ce n'est pas un thenable, et le renommer casserait la mesure. */
+          // biome-ignore lint/suspicious/noThenProperty: schema Flow JSON impose
+          then: [{ type: "TextBody", text: "Visible si vrai" }],
+          else: [{ type: "TextBody", text: "Visible sinon" }],
+        },
+        {
+          type: "Switch",
+          value: "${data.mode}",
+          cases: {
+            livraison: [{ type: "TextBody", text: "Quartier, repere, telephone" }],
+            retrait: [{ type: "TextBody", text: "Le point de rendez-vous" }],
+          },
+        },
+      ],
+      dansFormulaire: [],
+    },
+    {
+      cle: "chips",
+      question: "ChipsSelector (6.3+ annonce) : quantite ou variante en un tap",
+      horsFormulaire: [],
+      dansFormulaire: [
+        {
+          type: "ChipsSelector",
+          name: "choix",
+          label: "Combien ?",
+          "max-selected-items": 1,
+          "data-source": [
+            { id: "1", title: "1" },
+            { id: "2", title: "2" },
+            { id: "3", title: "3 ou plus" },
+          ],
+        },
+      ],
+      charge: { choix: "${form.choix}" },
+    },
+    {
+      cle: "navigation",
+      question: "NavigationList (6.2+ annonce) : un catalogue navigable DANS le formulaire",
+      horsFormulaire: [
+        {
+          type: "NavigationList",
+          name: "catalogue",
+          "list-items": [
+            {
+              id: "a1",
+              "main-content": { title: "Robe wax", description: "15 000 FCFA" },
+              "on-click-action": { name: "complete", payload: { choisi: "a1" } },
+            },
+            {
+              id: "a2",
+              "main-content": { title: "Sac en cuir", description: "8 000 FCFA" },
+              "on-click-action": { name: "complete", payload: { choisi: "a2" } },
+            },
+          ],
+        },
+      ],
+      dansFormulaire: [],
+    },
+    {
+      cle: "carrousel",
+      question: "ImageCarousel (7.1+ annonce) : feuilleter les photos d'un article",
+      horsFormulaire: [
+        {
+          type: "ImageCarousel",
+          images: [
+            { src: PIXEL, "alt-text": "Photo 1" },
+            { src: PIXEL, "alt-text": "Photo 2" },
+          ],
+        },
+      ],
+      dansFormulaire: [],
+    },
+    {
+      cle: "calendrier",
+      question:
+        "CalendarPicker (6.1+, donne `data_exchange` SEULEMENT) : la doc dit non — notre WABA ?",
+      horsFormulaire: [],
+      dansFormulaire: [
+        { type: "CalendarPicker", name: "date", label: "Jour de la remise", mode: "single" },
+      ],
+      charge: { date: "${form.date}" },
+    },
+  ];
+
+  const verdicts = [];
+  for (const c of CANDIDATS) {
+    const nomEssai = `catalog_essai_${c.cle}`;
+    console.log(`\n════ ${nomEssai} — ${c.question} ════`);
+    const essai = {
+      version: VERSION_ESSAI,
+      screens: [
+        {
+          id: "ESSAI",
+          title: "Essai composant",
+          terminal: true,
+          data: c.donnees ?? {},
+          layout: {
+            type: "SingleColumnLayout",
+            children: [...c.horsFormulaire, formulaire(c.dansFormulaire, c.charge ?? {})],
+          },
+        },
+      ],
+    };
+
+    let brouillonId = null;
+    try {
+      const cree = await appel(`/${WABA}/flows`, {
+        method: "POST",
+        body: JSON.stringify({ name: nomEssai, categories: ["OTHER"] }),
+      });
+      brouillonId = cree.id;
+      console.log(`brouillon cree : ${brouillonId}`);
+
+      const donnees = new FormData();
+      donnees.set("name", "flow.json");
+      donnees.set("asset_type", "FLOW_JSON");
+      donnees.set(
+        "file",
+        new Blob([JSON.stringify(essai)], { type: "application/json" }),
+        "flow.json",
+      );
+      const envoi = await fetch(`${BASE}/${brouillonId}/assets`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${JETON}` },
+        body: donnees,
+      });
+      const reponse = await envoi.json().catch(() => null);
+
+      if (!envoi.ok) {
+        verdicts.push({ cle: c.cle, verdict: "REFUS EN BLOC", detail: `HTTP ${envoi.status}` });
+        console.log(
+          `televersement refuse : ${JSON.stringify(reponse?.error ?? reponse).slice(0, 300)}`,
+        );
+      } else if (reponse?.validation_errors?.length) {
+        verdicts.push({
+          cle: c.cle,
+          verdict: "ERREURS",
+          detail: reponse.validation_errors.map((e) => e?.message ?? JSON.stringify(e)).join(" | "),
+        });
+        console.log("erreurs de validation (le temoin distingue la definition du composant) :");
+        for (const e of reponse.validation_errors) console.log(`  ${JSON.stringify(e)}`);
+      } else {
+        verdicts.push({
+          cle: c.cle,
+          verdict: "ACCEPTE",
+          detail: `Flow JSON ${VERSION_ESSAI}, complete sans endpoint`,
+        });
+        console.log("AUCUNE erreur de validation : ACCEPTE sur ce WABA.");
+      }
+    } catch (e) {
+      verdicts.push({
+        cle: c.cle,
+        verdict: "ECHEC D'APPEL",
+        detail: e instanceof Error ? e.message : String(e),
+      });
+      console.log(`echec d'appel : ${e instanceof Error ? e.message : e}`);
+    } finally {
+      if (brouillonId) {
+        const suppr = await appel(`/${brouillonId}`, { method: "DELETE" }).catch((e) => {
+          console.log(
+            `⚠ brouillon NON supprime (${e instanceof Error ? e.message : e}) — id ${brouillonId}`,
+          );
+          return null;
+        });
+        if (suppr) console.log(`brouillon supprime : ${brouillonId}`);
+      }
+    }
+  }
+
+  console.log("\n══════ RESUME DE LA MESURE ══════");
+  console.log(`Flow JSON vise : ${VERSION_ESSAI}\n`);
+  for (const v of verdicts) {
+    console.log(`  ${v.cle.padEnd(12)} ${v.verdict.padEnd(14)} ${v.detail.slice(0, 140)}`);
+  }
+  if (verdicts[0]?.verdict !== "ACCEPTE") {
+    console.log(
+      `\n⚠ Le TEMOIN est refuse : la version ${VERSION_ESSAI} ne passe pas sur ce WABA.` +
+        "\n  Les autres verdicts ne disent rien des composants — rejouer avec une version plus basse :" +
+        `\n  node apps/api/scripts/flux.mjs --mesurer-composants 7.0`,
+    );
+  }
+  console.log(
+    "\nChaque verdict s'ecrit dans un ADR — accepte ou refuse — avant toute ligne de code qui en depend.",
+  );
 } else {
   console.error(
-    `mode inconnu : ${mode}. Utilisez --voir, --etat, --deposer ou --mesurer-photopicker.`,
+    `mode inconnu : ${mode}. Utilisez --voir, --etat, --deposer, --mesurer-photopicker ou --mesurer-composants.`,
   );
   process.exit(1);
 }

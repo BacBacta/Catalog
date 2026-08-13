@@ -18,7 +18,7 @@ on:
         description: "Quel script executer"
         required: true
         type: choice
-        options: [flux, gabarits, les-deux, mesurer-photopicker, accueil-etat, accueil-poser, mesurer-cta]
+        options: [flux, gabarits, les-deux, mesurer-photopicker, mesurer-composants, accueil-etat, accueil-poser, mesurer-cta]
       mode:
         description: "Mode (--etat est en lecture seule)"
         required: true
@@ -29,6 +29,13 @@ on:
       # part vers un numero devine serait un vrai message chez un inconnu.
       numero:
         description: "mesurer-cta seulement : le numero destinataire, en E.164 (+237…)"
+        required: false
+        type: string
+      # `mesurer-composants` seulement : la version Flow JSON visee. Vide, le
+      # script prend 7.3. Filtree en shell comme `numero` — c'est un champ
+      # libre, il finit dans une ligne de commande distante.
+      version:
+        description: "mesurer-composants seulement : version Flow JSON (defaut 7.3)"
         required: false
         type: string
 
@@ -71,6 +78,23 @@ jobs:
         run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/flux.mjs --mesurer-photopicker"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # La mesure des composants NON EMPLOYES (balayage du 13/08/2026) : un
+      # brouillon jetable PAR composant — ChipsSelector, NavigationList,
+      # ImageCarousel, RichText, If/Switch, CalendarPicker —, un temoin par
+      # ecran, et une sonde de VERSION en tete (nos formulaires sont en 7.0,
+      # ImageCarousel annonce 7.1+). Rien n'est publie, rien ne survit.
+      # Elle ignore `mode`, comme la mesure photo.
+      - name: Mesure des composants de Flow (brouillons jetables)
+        if: inputs.quoi == 'mesurer-composants'
+        run: |
+          if [ -n "$VERSION" ] && printf '%s' "$VERSION" | grep -qv '^[0-9]\{1,2\}\.[0-9]\{1,2\}$'; then
+            echo "La version doit etre de la forme N.N (exemple : 7.3)."
+            exit 1
+          fi
+          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/flux.mjs --mesurer-composants $VERSION"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          VERSION: ${{ inputs.version }}
       # Les amorces du fil (« ice breakers ») — ADR 0087. Elles s'affichent au
       # PREMIER ouvrage de la conversation, avant tout message : c'est la
       # reponse a « le bot doit interagir meme sans que l'utilisateur ecrive ».
