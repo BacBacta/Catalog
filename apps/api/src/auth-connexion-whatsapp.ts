@@ -87,21 +87,39 @@ export async function creerDefi(
 }
 
 /**
+ * L'issue d'un message entrant, du point de vue de la connexion — ADR 0081.
+ *
+ * Elle est NOMMEE parce qu'elle se journalise : le defaut du 13/08 n'etait pas
+ * qu'un message soit ignore, c'est qu'aucune trace ne disait lequel des quatre
+ * chemins il avait pris. Aucune de ces valeurs ne porte de contenu — ni le
+ * code, ni le numero, ni le texte (ADR 0023).
+ */
+export type IssueMessageEntrant =
+  /** Pas de code dans le texte : le cas ordinaire, tout le trafic du bot. */
+  | "sans_code"
+  /** Un code, mais un `wa_id` inutilisable — un +237 malforme (ADR 0080). */
+  | "numero_refuse"
+  /** Un code, mais aucun defi vivant : inconnu, expire, ou deja consomme. */
+  | "defi_inconnu"
+  | "verifie";
+
+/**
  * Ce que le webhook applique quand un message arrive.
  *
  * `consume` sur la cle du code d'abord : un code ne sert qu'une fois, et un
  * message rejoue par Meta — les relivraisons existent — tombe sur du vide.
  * Le numero vient du `wa_id` Meta, pas du texte : c'est Meta qui l'atteste.
  *
- * Ne renvoie rien : le webhook repond toujours 200, et un code inconnu ou
- * expire n'est pas une erreur — c'est un message ordinaire.
+ * Ne leve jamais : le webhook repond toujours 200, et un code inconnu ou
+ * expire n'est pas une erreur — c'est un message ordinaire. Il RAPPORTE en
+ * revanche lequel des chemins il a pris, pour que l'appelant puisse le dire.
  */
 export async function appliquerMessageEntrant(
   magasin: MagasinDefis,
   m: { de: string; texte: string; maintenant: Date },
-): Promise<"verifie" | "ignore"> {
+): Promise<IssueMessageEntrant> {
   const code = extraireCodeDefi(m.texte);
-  if (!code) return "ignore";
+  if (!code) return "sans_code";
 
   /* Hors Cameroun : la porte est OUVERTE — ADR 0080, decide le 13/08 par le
      porteur du produit. La diaspora vend au Cameroun, et c'est Meta qui
@@ -111,19 +129,19 @@ export async function appliquerMessageEntrant(
      rails Mobile Money ne changent pas de pays. Le banc d'essai (ADR 0058)
      n'est plus necessaire ICI ; il reste pour le reversement de test. */
   const numero = normalizePhone(m.de) ?? numeroInternational(m.de);
-  if (!numero) return "ignore";
+  if (!numero) return "numero_refuse";
 
   const porteur = await magasin.consumeVerificationValue(CLE_CODE(code));
-  if (!porteur) return "ignore";
-  if (m.maintenant.getTime() >= porteur.expiresAt.getTime()) return "ignore";
+  if (!porteur) return "defi_inconnu";
+  if (m.maintenant.getTime() >= porteur.expiresAt.getTime()) return "defi_inconnu";
 
   let cles: { jeton?: string; suivi?: string };
   try {
     cles = JSON.parse(porteur.value) as { jeton?: string; suivi?: string };
   } catch {
-    return "ignore";
+    return "defi_inconnu";
   }
-  if (!cles.jeton || !cles.suivi) return "ignore";
+  if (!cles.jeton || !cles.suivi) return "defi_inconnu";
 
   /**
    * « Mise a jour » = consommer puis recreer sous la meme cle, en GARDANT

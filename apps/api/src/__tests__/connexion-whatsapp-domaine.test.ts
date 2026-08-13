@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { lireEntreesBot } from "../domain/bot/entrees.ts";
 import {
   ALPHABET_DEFI,
   composerCodeDefi,
@@ -142,6 +143,60 @@ describe("lireMessagesEntrants", () => {
       expect(lireMessagesEntrants(corps)).toEqual([]);
     }
   });
+
+  /**
+   * La forme PLATE — ADR 0081. Le bac a sable 360dialog livre `messages[]` a
+   * la racine ; le bot la lisait depuis le 02/08/2026, la connexion non. Sur
+   * ce transport, le bot repondait et la connexion restait muette : le defaut
+   * du 13/08, et il ne se voyait nulle part.
+   */
+  it("lit aussi la forme plate v1, sans enveloppe", () => {
+    const plate = {
+      contacts: [{ profile: { name: "Vendeuse" }, wa_id: "32466457281" }],
+      messages: [
+        {
+          from: "32466457281",
+          id: "ABGGh0",
+          type: "text",
+          text: { body: "Connexion Catalog : 7F3K-2M." },
+        },
+      ],
+    };
+    expect(lireMessagesEntrants(plate)).toEqual([
+      { de: "32466457281", texte: "Connexion Catalog : 7F3K-2M." },
+    ]);
+  });
+});
+
+/**
+ * Le garde-fou qui vaut plus que les deux corrections : les DEUX parseurs du
+ * meme webhook doivent voir les MEMES messages. Ils lisent des choses
+ * differentes — le bot comprend les boutons et les photos, la connexion ne
+ * veut que le texte —, mais aucune enveloppe ne doit exister pour l'un et pas
+ * pour l'autre. C'est leur desaccord qui a coute la connexion du 13/08, pas
+ * l'un des deux pris isolement.
+ */
+describe("les deux parseurs du webhook s'accordent sur les enveloppes", () => {
+  const message = {
+    from: "32466457281",
+    id: "wamid.abc",
+    type: "text",
+    text: { body: "Connexion Catalog : 7F3K-2M." },
+  };
+
+  const enveloppes: Record<string, unknown> = {
+    "Cloud API": { entry: [{ changes: [{ field: "messages", value: { messages: [message] } }] }] },
+    "plate v1": { messages: [message] },
+  };
+
+  for (const [nom, corps] of Object.entries(enveloppes)) {
+    it(`voit le meme texte dans l'enveloppe ${nom}`, () => {
+      const parDefi = lireMessagesEntrants(corps);
+      const parBot = lireEntreesBot(corps).filter((e) => e.genre === "texte");
+      expect(parDefi).toEqual([{ de: message.from, texte: message.text.body }]);
+      expect(parBot.map((e) => ({ de: e.de, texte: e.texte }))).toEqual(parDefi);
+    });
+  }
 });
 
 describe("decisionEchange", () => {

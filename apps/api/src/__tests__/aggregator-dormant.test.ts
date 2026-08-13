@@ -161,6 +161,11 @@ const MENTIONS_TOLEREES = [
   "apps/api/src/auth-connexion-whatsapp.ts",
   "apps/api/src/domain/connexion-whatsapp.ts",
   "apps/api/src/middleware/debit.ts",
+  /* Le lecteur d'enveloppe partage par les deux parseurs de ce meme webhook
+     de messagerie — ADR 0081. Meme raison que ci-dessus : il lit des formes
+     de livraison, il ne connait ni commande ni paiement. */
+  "apps/api/src/domain/enveloppe-entrante.ts",
+  "apps/api/src/__tests__/connexion-whatsapp-domaine.test.ts",
 ].sort();
 
 describe("ADR 0011 — les mentions de webhook restantes sont celles, et rien de plus", () => {

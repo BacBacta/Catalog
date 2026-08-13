@@ -104,7 +104,7 @@ describe("le cycle de vie d'un defi", () => {
       texte: DEFI.code,
       maintenant: T_2MIN,
     });
-    expect(r).toBe("ignore");
+    expect(r).toBe("defi_inconnu");
     expect((await echangerDefi(magasin, DEFI.jeton, T_2MIN)).decision).toBe("inconnu");
   });
 
@@ -126,7 +126,7 @@ describe("le cycle de vie d'un defi", () => {
       texte: DEFI.code,
       maintenant: T_6MIN,
     });
-    expect(r).toBe("ignore");
+    expect(r).toBe("defi_inconnu");
   });
 
   it("un expediteur hors Cameroun se connecte — la diaspora vend au Cameroun (ADR 0080)", async () => {
@@ -157,7 +157,7 @@ describe("le cycle de vie d'un defi", () => {
       texte: DEFI.code,
       maintenant: T_2MIN,
     });
-    expect(r).toBe("ignore");
+    expect(r).toBe("numero_refuse");
     expect(await consulterSuivi(magasin, DEFI.suivi, T_2MIN)).toBe("en_attente");
   });
 
@@ -169,19 +169,61 @@ describe("le cycle de vie d'un defi", () => {
         texte: DEFI.code,
         maintenant: T_2MIN,
       });
-      expect(r, de).toBe("ignore");
+      expect(r, de).toBe("numero_refuse");
     }
     expect(await consulterSuivi(magasin, DEFI.suivi, T_2MIN)).toBe("en_attente");
   });
 
   it("un texte sans code est ignore sans toucher au magasin", async () => {
     const { magasin, table } = await defiFrais();
-    await appliquerMessageEntrant(magasin, {
+    const r = await appliquerMessageEntrant(magasin, {
       de: "237683921934",
       texte: "bonjour, je passe demain",
       maintenant: T_2MIN,
     });
+    expect(r).toBe("sans_code");
     expect(table.size).toBe(3);
+  });
+
+  /**
+   * Les quatre chemins sont NOMMES — ADR 0081. Ce n'est pas de la cosmetique :
+   * c'est ce qui separe « la livraison n'est jamais arrivee » de « le code
+   * n'avait plus de defi » et de « le numero a ete refuse ». Le 13/08, les
+   * trois se presentaient pareil — rien ne se passe —, et il a fallu lire le
+   * code source pour les distinguer.
+   */
+  it("chaque chemin porte un nom distinct, et aucun ne porte de contenu", async () => {
+    const { magasin } = await defiFrais();
+    const issues = new Set([
+      await appliquerMessageEntrant(magasin, {
+        de: "237683921934",
+        texte: "bonjour",
+        maintenant: T_2MIN,
+      }),
+      await appliquerMessageEntrant(magasin, {
+        de: "237123",
+        texte: DEFI.code,
+        maintenant: T_2MIN,
+      }),
+      await appliquerMessageEntrant(magasin, {
+        de: "237683921934",
+        texte: "Connexion Catalog : 9WXY-4Q.",
+        maintenant: T_2MIN,
+      }),
+      await appliquerMessageEntrant(magasin, {
+        de: "237683921934",
+        texte: DEFI.code,
+        maintenant: T_2MIN,
+      }),
+    ]);
+    expect(issues).toEqual(new Set(["sans_code", "numero_refuse", "defi_inconnu", "verifie"]));
+    /* Aucune issue ne peut fuir dans un journal ce que le journal ne doit pas
+       porter : ni le code — il vaut une session pendant cinq minutes —, ni le
+       numero. */
+    for (const issue of issues) {
+      expect(issue).not.toContain(DEFI.code);
+      expect(issue).not.toContain("237");
+    }
   });
 });
 
@@ -242,6 +284,39 @@ describe("la route webhook", () => {
     );
     expect(r.status).toBe(200);
     expect(recus).toEqual([{ de: "237683921934", texte: "Connexion Catalog : 7F3K-2M." }]);
+  });
+
+  /**
+   * Le bout en bout de la panne du 13/08 — ADR 0081. Le bac a sable 360dialog
+   * livre `messages[]` A LA RACINE : le bot lisait cette forme, la connexion
+   * non. Le fil restait vivant — le bot repondait — et la connexion mourait en
+   * silence, ce qui est le pire des deux mondes pour diagnostiquer.
+   *
+   * Ce test part du webhook et va jusqu'au defi verifie : il ne tomberait pas
+   * si l'on ne corrigeait que le parseur sans brancher le reste.
+   */
+  it("verifie un defi livre par une enveloppe PLATE, comme le bac a sable", async () => {
+    const { magasin } = await defiFrais();
+    const corps = JSON.stringify({
+      contacts: [{ wa_id: "32466457281" }],
+      messages: [
+        {
+          from: "32466457281",
+          id: "ABGGh0",
+          type: "text",
+          text: { body: texteMessageDefi(DEFI.code) },
+        },
+      ],
+    });
+    const r = await poster(
+      application(async (m) => {
+        await appliquerMessageEntrant(magasin, { ...m, maintenant: T_2MIN });
+      }),
+      corps,
+      { "x-hub-signature-256": signature(corps) },
+    );
+    expect(r.status).toBe(200);
+    expect(await consulterSuivi(magasin, DEFI.suivi, T_2MIN)).toBe("verifie");
   });
 
   it("REFUSE un corps sans signature — sinon quiconque a l'URL fabrique une connexion", async () => {

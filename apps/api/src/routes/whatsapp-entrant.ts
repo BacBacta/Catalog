@@ -132,7 +132,10 @@ export function whatsappEntrantRoutes(deps: WhatsAppEntrantDeps) {
        * facon — mieux vaut un defi perdu qu'une boucle de relivraison.
        */
       await deps.surMessage(message).catch((e: unknown) => {
-        console.warn(`bot : message entrant non traite (${resumerErreur(e)})`);
+        /* `surMessage` est le chemin des DEFIS DE CONNEXION, pas celui du bot
+           — la trace le disait de travers, et un jour de panne de connexion
+           c'est exactement la ligne qu'on cherche. */
+        console.warn(`connexion whatsapp : message non traite (${resumerErreur(e)})`);
       });
     }
 

@@ -20,6 +20,8 @@
  * ADR 0049. Le vocal vient en tete : c'est le geste le plus naturel d'une
  * vendeuse qui tape lentement, et c'etait la sortie muette du produit.
  */
+import { messagesDeLivraison } from "../enveloppe-entrante.ts";
+
 export type FormeNonLue =
   | "vocal"
   | "video"
@@ -84,121 +86,107 @@ export type EntreeBot =
 export function lireEntreesBot(corps: unknown): EntreeBot[] {
   const sortie: EntreeBot[] = [];
   /**
-   * DEUX formes de livraison, toutes deux mesurees le 02/08/2026 :
-   * - l'enveloppe Cloud API (`entry[].changes[].value.messages[]`) — Meta
-   *   directe et production 360dialog ;
-   * - la forme PLATE v1 (`messages[]` a la racine) — le sandbox 360dialog.
-   * Le parseur lit les deux ; tout le reste du bot n'en sait rien.
+   * Les DEUX formes de livraison — Cloud API et plate v1 — sont lues par
+   * `messagesDeLivraison`, partage avec le parseur des defis de connexion.
+   * Elles vivaient ici, et elles n'y vivaient QUE ici : la connexion ne
+   * connaissait pas la forme plate, donc sur ce transport le bot repondait
+   * pendant qu'elle restait muette (ADR 0081). Tout le reste du bot n'en sait
+   * toujours rien.
    */
-  const paquets: unknown[] = [];
-  const racine = corps as { entry?: unknown; messages?: unknown } | null;
-  if (Array.isArray(racine?.messages)) paquets.push(racine.messages);
-  if (Array.isArray(racine?.entry)) {
-    for (const entree of racine.entry) {
-      const changements = (entree as { changes?: unknown } | null)?.changes;
-      if (!Array.isArray(changements)) continue;
-      for (const changement of changements) {
-        const messages = (changement as { value?: { messages?: unknown } } | null)?.value?.messages;
-        if (Array.isArray(messages)) paquets.push(messages);
-      }
-    }
-  }
-  for (const messages of paquets as unknown[][]) {
-    for (const message of messages) {
-      const m = message as {
-        from?: unknown;
-        id?: unknown;
+  for (const message of messagesDeLivraison(corps)) {
+    const m = message as {
+      from?: unknown;
+      id?: unknown;
+      type?: unknown;
+      text?: { body?: unknown };
+      image?: { id?: unknown; caption?: unknown };
+      location?: { latitude?: unknown; longitude?: unknown };
+      interactive?: {
         type?: unknown;
-        text?: { body?: unknown };
-        image?: { id?: unknown; caption?: unknown };
-        location?: { latitude?: unknown; longitude?: unknown };
-        interactive?: {
-          type?: unknown;
-          button_reply?: { id?: unknown };
-          list_reply?: { id?: unknown };
-          nfm_reply?: { response_json?: unknown };
-        };
-      } | null;
-      if (typeof m?.from !== "string") continue;
-      const messageId = typeof m.id === "string" && m.id ? { messageId: m.id } : {};
+        button_reply?: { id?: unknown };
+        list_reply?: { id?: unknown };
+        nfm_reply?: { response_json?: unknown };
+      };
+    } | null;
+    if (typeof m?.from !== "string") continue;
+    const messageId = typeof m.id === "string" && m.id ? { messageId: m.id } : {};
 
-      if (m.type === "text" && typeof m.text?.body === "string") {
-        sortie.push({ de: m.from, genre: "texte", texte: m.text.body, ...messageId });
-        continue;
-      }
-      if (m.type === "image" && typeof m.image?.id === "string") {
-        sortie.push({
-          de: m.from,
-          genre: "image",
-          mediaId: m.image.id,
-          ...(typeof m.image.caption === "string" ? { legende: m.image.caption } : {}),
-          ...messageId,
-        });
-        continue;
-      }
-      /**
-       * La position — lue POUR de bon, la ou elle n'etait qu'une « forme non
-       * traitee ». `deliverySchema` porte un `geo?` optionnel depuis le lot 7,
-       * prevu et jamais alimente : c'est ce chemin-la qui manquait.
-       *
-       * Les deux coordonnees sont EXIGEES et doivent etre finies. Zero degre
-       * de latitude est un point REEL — le golfe de Guinee, a 300 km de
-       * Douala : une coordonnee absente ne devient jamais un 0, elle retombe
-       * sur la forme non lue.
-       */
-      if (m.type === "location") {
-        const lat = m.location?.latitude;
-        const lng = m.location?.longitude;
-        if (
-          typeof lat === "number" &&
-          Number.isFinite(lat) &&
-          typeof lng === "number" &&
-          Number.isFinite(lng)
-        ) {
-          sortie.push({ de: m.from, genre: "localisation", lat, lng, ...messageId });
-          continue;
-        }
-        /* Coordonnees inexploitables : rien n'est retenu, et la suite traite
-           le message comme une forme non lue. */
-      }
-
-      if (m.type === "interactive") {
-        const i = m.interactive;
-        if (i?.type === "button_reply" && typeof i.button_reply?.id === "string") {
-          sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id, ...messageId });
-        } else if (i?.type === "list_reply" && typeof i.list_reply?.id === "string") {
-          sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id, ...messageId });
-        } else if (i?.type === "nfm_reply" && typeof i.nfm_reply?.response_json === "string") {
-          /* La reponse d'un Flow — ADR 0055. */
-          sortie.push({
-            de: m.from,
-            genre: "flux",
-            reponse: i.nfm_reply.response_json,
-            ...messageId,
-          });
-        } else {
-          /* Une reponse interactive d'une forme inedite — catalogue natif,
-             carrousel — ne se perd pas en silence tant qu'elle n'est pas
-             traitee. */
-          sortie.push({ de: m.from, genre: "autre", forme: "inconnue", ...messageId });
-        }
-        continue;
-      }
-
-      /* Tout le reste — ADR 0049. Ce qui n'est pas une question ne recoit pas
-         de reponse ; ce qui en est une en recoit toujours une, meme si c'est
-         pour dire qu'on ne sait pas encore la lire. */
-      if (typeof m.type === "string" && !SANS_REPONSE.has(m.type)) {
-        sortie.push({
-          de: m.from,
-          genre: "autre",
-          forme: FORMES[m.type] ?? "inconnue",
-          ...messageId,
-        });
-      }
-      /* Depuis l'ADR 0049, plus rien n'est ignore en silence : le parseur
-         NOMME la forme, et chaque fil decide de la reponse. */
+    if (m.type === "text" && typeof m.text?.body === "string") {
+      sortie.push({ de: m.from, genre: "texte", texte: m.text.body, ...messageId });
+      continue;
     }
+    if (m.type === "image" && typeof m.image?.id === "string") {
+      sortie.push({
+        de: m.from,
+        genre: "image",
+        mediaId: m.image.id,
+        ...(typeof m.image.caption === "string" ? { legende: m.image.caption } : {}),
+        ...messageId,
+      });
+      continue;
+    }
+    /**
+     * La position — lue POUR de bon, la ou elle n'etait qu'une « forme non
+     * traitee ». `deliverySchema` porte un `geo?` optionnel depuis le lot 7,
+     * prevu et jamais alimente : c'est ce chemin-la qui manquait.
+     *
+     * Les deux coordonnees sont EXIGEES et doivent etre finies. Zero degre
+     * de latitude est un point REEL — le golfe de Guinee, a 300 km de
+     * Douala : une coordonnee absente ne devient jamais un 0, elle retombe
+     * sur la forme non lue.
+     */
+    if (m.type === "location") {
+      const lat = m.location?.latitude;
+      const lng = m.location?.longitude;
+      if (
+        typeof lat === "number" &&
+        Number.isFinite(lat) &&
+        typeof lng === "number" &&
+        Number.isFinite(lng)
+      ) {
+        sortie.push({ de: m.from, genre: "localisation", lat, lng, ...messageId });
+        continue;
+      }
+      /* Coordonnees inexploitables : rien n'est retenu, et la suite traite
+         le message comme une forme non lue. */
+    }
+
+    if (m.type === "interactive") {
+      const i = m.interactive;
+      if (i?.type === "button_reply" && typeof i.button_reply?.id === "string") {
+        sortie.push({ de: m.from, genre: "bouton", id: i.button_reply.id, ...messageId });
+      } else if (i?.type === "list_reply" && typeof i.list_reply?.id === "string") {
+        sortie.push({ de: m.from, genre: "liste", id: i.list_reply.id, ...messageId });
+      } else if (i?.type === "nfm_reply" && typeof i.nfm_reply?.response_json === "string") {
+        /* La reponse d'un Flow — ADR 0055. */
+        sortie.push({
+          de: m.from,
+          genre: "flux",
+          reponse: i.nfm_reply.response_json,
+          ...messageId,
+        });
+      } else {
+        /* Une reponse interactive d'une forme inedite — catalogue natif,
+           carrousel — ne se perd pas en silence tant qu'elle n'est pas
+           traitee. */
+        sortie.push({ de: m.from, genre: "autre", forme: "inconnue", ...messageId });
+      }
+      continue;
+    }
+
+    /* Tout le reste — ADR 0049. Ce qui n'est pas une question ne recoit pas
+       de reponse ; ce qui en est une en recoit toujours une, meme si c'est
+       pour dire qu'on ne sait pas encore la lire. */
+    if (typeof m.type === "string" && !SANS_REPONSE.has(m.type)) {
+      sortie.push({
+        de: m.from,
+        genre: "autre",
+        forme: FORMES[m.type] ?? "inconnue",
+        ...messageId,
+      });
+    }
+    /* Depuis l'ADR 0049, plus rien n'est ignore en silence : le parseur
+       NOMME la forme, et chaque fil decide de la reponse. */
   }
   return sortie;
 }

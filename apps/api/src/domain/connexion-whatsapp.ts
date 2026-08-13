@@ -27,6 +27,8 @@
  * `buyerToken` (ADR 0023).
  */
 
+import { messagesDeLivraison } from "./enveloppe-entrante.ts";
+
 /** Duree de vie d'un defi, creation → echange. */
 export const DUREE_DEFI_S = 300;
 
@@ -109,34 +111,29 @@ export interface MessageEntrant {
 }
 
 /**
- * Extrait les messages texte d'une livraison de webhook Meta.
+ * Extrait les messages texte d'une livraison de webhook entrante.
  *
- * La forme est `entry[].changes[].value.messages[]`, et TOUT y est optionnel :
- * les livraisons de statut (`statuses`) n'ont pas de `messages`, et Meta ajoute
- * des champs sans preavis. On ne valide pas ce qu'on n'utilise pas — on cueille
- * ce qu'on connait et on ignore le reste, comme pour l'accuse de livraison.
+ * Les ENVELOPPES sont lues par `messagesDeLivraison`, partage avec le parseur
+ * du bot : les deux doivent voir les memes messages, et ils ne les voyaient
+ * pas — la forme plate v1 du bac a sable 360dialog n'etait connue que du bot,
+ * si bien qu'il repondait pendant que la connexion restait muette (ADR 0081).
+ *
+ * Ici ne reste donc que la cueillette : TOUT est optionnel dans un message —
+ * les livraisons de statut n'en portent aucun, et Meta ajoute des champs sans
+ * preavis. On ne valide pas ce qu'on n'utilise pas — on cueille ce qu'on
+ * connait et on ignore le reste, comme pour l'accuse de livraison.
  */
 export function lireMessagesEntrants(corps: unknown): MessageEntrant[] {
   const sortie: MessageEntrant[] = [];
-  const entrees = (corps as { entry?: unknown } | null)?.entry;
-  if (!Array.isArray(entrees)) return sortie;
-  for (const entree of entrees) {
-    const changements = (entree as { changes?: unknown } | null)?.changes;
-    if (!Array.isArray(changements)) continue;
-    for (const changement of changements) {
-      const messages = (changement as { value?: { messages?: unknown } } | null)?.value?.messages;
-      if (!Array.isArray(messages)) continue;
-      for (const message of messages) {
-        const m = message as {
-          from?: unknown;
-          type?: unknown;
-          text?: { body?: unknown };
-        } | null;
-        if (m?.type !== "text") continue;
-        if (typeof m.from !== "string" || typeof m.text?.body !== "string") continue;
-        sortie.push({ de: m.from, texte: m.text.body });
-      }
-    }
+  for (const message of messagesDeLivraison(corps)) {
+    const m = message as {
+      from?: unknown;
+      type?: unknown;
+      text?: { body?: unknown };
+    } | null;
+    if (m?.type !== "text") continue;
+    if (typeof m.from !== "string" || typeof m.text?.body !== "string") continue;
+    sortie.push({ de: m.from, texte: m.text.body });
   }
   return sortie;
 }

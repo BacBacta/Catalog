@@ -319,10 +319,24 @@ if (secretEntrant && secretAppMeta) {
       authEnTete: process.env.WABOT_WEBHOOK_AUTH?.trim() || undefined,
       surMessage: async (message) => {
         const contexte = await auth.$context;
-        await appliquerMessageEntrant(contexte.internalAdapter as unknown as MagasinDefis, {
-          ...message,
-          maintenant: new Date(),
-        });
+        const issue = await appliquerMessageEntrant(
+          contexte.internalAdapter as unknown as MagasinDefis,
+          { ...message, maintenant: new Date() },
+        );
+        /**
+         * La trace qui manquait le 13/08 — ADR 0081. Une vendeuse envoie son
+         * message, rien ne se passe, et RIEN nulle part ne disait ou ca
+         * s'arretait : livraison jamais recue, code sans defi, numero refuse ?
+         * Trois pannes distinctes, un seul symptome.
+         *
+         * `sans_code` ne s'ecrit pas : c'est tout le trafic du bot, et une
+         * ligne par message noierait justement celles qui comptent.
+         *
+         * SANS CONTENU, comme la trace de refus au-dessus (ADR 0023) : ni le
+         * code — il vaut une session pendant cinq minutes —, ni le numero.
+         * L'issue seule suffit a savoir quoi regarder ensuite.
+         */
+        if (issue !== "sans_code") console.log(`connexion whatsapp : ${issue}`);
       },
       ...(bot
         ? {
