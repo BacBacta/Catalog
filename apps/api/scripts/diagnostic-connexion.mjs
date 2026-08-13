@@ -5,7 +5,7 @@
  *
  * Elle repond a UNE question, celle qui a coute une matinee le 13/08 : quand
  * une connexion echoue, ou la chaine s'arrete-t-elle ? Le defi est-il cree
- * (l'app a parle a l'API), consomme (le webhook a applique le message), ou
+ * (l'app a parle a l'API), consomme (la route entrante a applique le message), ou
  * verifie sans que l'app ne le voie (le probleme est cote navigateur) ?
  *
  * Elle n'imprime AUCUN secret : les identifiants de defi sont masques a
@@ -63,7 +63,7 @@ if (lignes.length === 0) {
     );
   }
   console.log(
-    "\nLecture : un CODE encore present = le webhook n'a rien applique ;" +
+    "\nLecture : un CODE encore present = la route entrante n'a rien applique ;" +
       "\nun defi/suivi VERIFIE = le serveur a fini, le probleme est cote app.",
   );
 }
