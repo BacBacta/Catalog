@@ -88,6 +88,15 @@ export const BLOCS = {
   "stats-route": 21,
   "traces-sans-sms": 22,
   "bot-preuve-fil": 23,
+  /* Le harnais d'audit (phase 2). Trois blocs et non un : le balayage
+     systematique cree une scene par ETAPE — vingt-deux gestes chacune —, et
+     les deux fichiers de parcours en creent une par scenario. Un bloc unique
+     buterait sur la borne de 99 identifiants par execution, et cette borne
+     LEVE au lieu de boucler : le harnais s'arreterait net au lieu de se
+     recouvrir en silence, mais il s'arreterait. */
+  "harnais-balayage": 24,
+  "harnais-vendeuse": 25,
+  "harnais-acheteuse": 26,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

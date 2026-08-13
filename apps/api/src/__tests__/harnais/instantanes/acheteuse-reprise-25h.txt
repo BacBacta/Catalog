@@ -1,0 +1,47 @@
+# reprise après 25 h
+
+## 1. texte « boutique harnais-2683107 »
+   intention : comprendre
+   étape : aucun_prospect → catalogue
+    ← boutons[catalogue · vendeuse]
+      *‹boutique›* — Douala
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+
+## 2. bouton « cmd:019ffceb-6ca3-75d8-8a8d-734c235831ac »
+   intention : avancer
+   étape : catalogue → quantite
+    ← liste[qte:1 · qte:2 · qte:3 · qte:4 · qte:5 · vendeuse]
+      Combien de « Article 1 » voulez-vous ? (5 en stock)
+
+## 3. ligne de liste « qte:1 »
+   intention : avancer
+   étape : quantite → ajout
+    ← boutons[commander · catalogue · vendeuse]
+      ✅ Ajouté : Article 1 × 1.
+      
+      🧺 *Votre panier*
+      Article 1 × 1 : 15 000 FCFA l'unité
+      *Total : 15 000 FCFA* (hors livraison)
+      
+      Et ensuite ?
+
+## 4. bouton « commander »
+   intention : avancer
+   étape : ajout → mode
+    ← boutons[mode:livraison · mode:retrait · vendeuse]
+      Comment recevoir votre commande (15 000 FCFA) ?
+
+## 5. bouton « mode:livraison »
+   intention : avancer
+   étape : mode → ville
+    ← boutons[ville:boutique · vendeuse]
+      *Livraison dans quelle ville ?*
+      Appuyez sur *Douala*, ou écrivez la vôtre.
+
+## 6. reprise après 25 h « bonjour »
+   intention : recommencer
+   étape : catalogue (inchangée)
+   temps écoulé : 1500 min
+    ← boutons[catalogue · vendeuse]
+      *‹boutique›* — Douala
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.

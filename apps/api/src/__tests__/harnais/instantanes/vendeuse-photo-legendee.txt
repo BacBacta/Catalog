@@ -1,0 +1,28 @@
+# photo légendée
+
+## 1. photo légendée « Sac à main 8000 »
+   intention : avancer
+   étape : aucun_vendeuse → article_confirme
+    ← réaction
+      réaction 👍
+    ← boutons[publier · corriger]
+      J'ai lu : *Sac à main* — *8 000 FCFA*. C'est bon ?
+
+## 2. bouton « publier »
+   intention : avancer
+   étape : article_confirme → aucun_vendeuse
+    ← boutons[article · carte]
+      ✅ *Sac à main* — 8 000 FCFA est dans votre catalogue.
+      Sans photo pour l'instant — envoyez-la quand vous voulez.
+    ← texte
+      📖 *Votre boutique, mode d'emploi :*
+      
+      1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.
+      2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-‹ref›
+      3. Pour être payée d'AVANCE, posez votre numéro Mobile Money :
+      https://app.test/reversement
+      4. Votre boutique en ligne, à partager partout :
+      https://boutique.test/‹slug›
+      5. Votre affiche à poster en Statut : écrivez « ma carte » — ou touchez le bouton après chaque article.
+      
+      À tout moment : « ma boutique » pour le menu, « ajouter » pour un article, « vendu » pour déclarer une vente déjà négociée.

@@ -1,0 +1,77 @@
+# ouverture question par question
+
+## 1. texte « bonjour »
+   intention : comprendre
+   étape : aucun_prospect → accueil
+    ← boutons[vendre]
+      Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes.
+
+## 2. bouton « vendre »
+   intention : avancer
+   étape : accueil → inscription_nom
+    ← texte
+      Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même.
+      
+      *Comment s'appelle votre boutique ?*
+      Exemple : Chez Amina
+
+## 3. texte « Chez Solange »
+   intention : avancer
+   étape : inscription_nom → inscription_ville
+    ← texte
+      *Chez Solange* — c'est noté.
+      
+      *Dans quelle ville vendez-vous ?*
+      Exemple : Douala
+
+## 4. texte « Douala »
+   intention : avancer
+   étape : inscription_ville → aucun_vendeuse
+    ← liste[article · carte · ma_boutique]
+      ✅ *Chez Solange* est ouverte.
+      
+      Votre lien à partager — mettez-le en statut WhatsApp :
+      https://wa.me/‹tel›?text=boutique%20‹slug›
+
+## 5. ligne de liste « article »
+   intention : avancer
+   étape : aucun_vendeuse → article_nom
+    ← texte
+      *Quel est le nom de l'article ?*
+      Exemple : Pagne wax 6 yards
+      
+      Plus rapide : envoyez directement la photo, avec « nom prix » en légende.
+
+## 6. texte « Pagne wax 6 yards »
+   intention : avancer
+   étape : article_nom → article_prix
+    ← texte
+      *Pagne wax 6 yards* — son prix, en francs ?
+      Exemple : 15000
+
+## 7. texte « 15000 »
+   intention : avancer
+   étape : article_prix → article_photo
+    ← boutons[sans_photo]
+      Pagne wax 6 yards — 15 000 FCFA.
+      
+      *Envoyez maintenant la photo de l'article.* Prenez-la ici, elle sera allégée automatiquement.
+
+## 8. bouton « sans_photo »
+   intention : avancer
+   étape : article_photo → aucun_vendeuse
+    ← boutons[article · carte]
+      ✅ *Pagne wax 6 yards* — 15 000 FCFA est dans votre catalogue.
+      Sans photo pour l'instant — envoyez-la quand vous voulez.
+    ← texte
+      📖 *Votre boutique, mode d'emploi :*
+      
+      1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.
+      2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-‹ref›
+      3. Pour être payée d'AVANCE, posez votre numéro Mobile Money :
+      https://app.test/reversement
+      4. Votre boutique en ligne, à partager partout :
+      https://boutique.test/‹slug›
+      5. Votre affiche à poster en Statut : écrivez « ma carte » — ou touchez le bouton après chaque article.
+      
+      À tout moment : « ma boutique » pour le menu, « ajouter » pour un article, « vendu » pour déclarer une vente déjà négociée.

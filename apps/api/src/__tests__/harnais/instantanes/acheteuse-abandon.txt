@@ -1,0 +1,35 @@
+# abandon du tunnel
+
+## 1. texte « boutique harnais-2683103 »
+   intention : comprendre
+   étape : aucun_prospect → catalogue
+    ← boutons[catalogue · vendeuse]
+      *‹boutique›* — Douala
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+
+## 2. bouton « cmd:019ffceb-6beb-773b-861e-868edb6c4515 »
+   intention : avancer
+   étape : catalogue → quantite
+    ← liste[qte:1 · qte:2 · qte:3 · qte:4 · qte:5 · vendeuse]
+      Combien de « Article 1 » voulez-vous ? (5 en stock)
+
+## 3. ligne de liste « qte:1 »
+   intention : avancer
+   étape : quantite → ajout
+    ← boutons[commander · catalogue · vendeuse]
+      ✅ Ajouté : Article 1 × 1.
+      
+      🧺 *Votre panier*
+      Article 1 × 1 : 15 000 FCFA l'unité
+      *Total : 15 000 FCFA* (hors livraison)
+      
+      Et ensuite ?
+
+## 4. abandon « annuler »
+   intention : abandonner
+   étape : ajout → catalogue
+    ← texte
+      C'est annulé — le panier est vide, rien n'a été commandé.
+    ← boutons[catalogue · vendeuse]
+      *‹boutique›* — Douala
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.

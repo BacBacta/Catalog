@@ -1,0 +1,100 @@
+# commande complète
+
+## 1. texte « boutique harnais-2683101 »
+   intention : comprendre
+   étape : aucun_prospect → catalogue
+    ← boutons[catalogue · vendeuse]
+      *‹boutique›* — Douala
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+
+## 2. ligne de liste « art:019ffceb-6a99-723c-92f6-7d4e8515aaca »
+   intention : avancer
+   étape : catalogue (inchangée)
+    ← boutons[cmd:019ffceb-6a99-723c-92f6-7d4e8515aaca · cat:0]
+      *Article 1*
+      15 000 FCFA
+      5 disponibles
+
+## 3. bouton « cmd:019ffceb-6a99-723c-92f6-7d4e8515aaca »
+   intention : avancer
+   étape : catalogue → quantite
+    ← liste[qte:1 · qte:2 · qte:3 · qte:4 · qte:5 · vendeuse]
+      Combien de « Article 1 » voulez-vous ? (5 en stock)
+
+## 4. ligne de liste « qte:2 »
+   intention : avancer
+   étape : quantite → ajout
+    ← boutons[commander · catalogue · vendeuse]
+      ✅ Ajouté : Article 1 × 2.
+      
+      🧺 *Votre panier*
+      Article 1 × 2 : 15 000 FCFA l'unité
+      *Total : 30 000 FCFA* (hors livraison)
+      
+      Et ensuite ?
+
+## 5. bouton « commander »
+   intention : avancer
+   étape : ajout → mode
+    ← boutons[mode:livraison · mode:retrait · vendeuse]
+      Comment recevoir votre commande (30 000 FCFA) ?
+
+## 6. bouton « mode:livraison »
+   intention : avancer
+   étape : mode → ville
+    ← boutons[ville:boutique · vendeuse]
+      *Livraison dans quelle ville ?*
+      Appuyez sur *Douala*, ou écrivez la vôtre.
+
+## 7. texte « Bafoussam »
+   intention : avancer
+   étape : ville → details
+    ← boutons[vendeuse · annuler]
+      Votre quartier, un repère, puis le numéro à appeler — en un seul message.
+      Exemple : Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33
+    ← demande de position
+      Facultatif : envoyez aussi votre position, le livreur vous trouvera plus vite. Le quartier, le repère et le numéro restent nécessaires.
+
+## 8. texte « Bonapriso, en face de la pharmacie Bleue, 690112233 »
+   intention : avancer
+   étape : details → recap
+    ← boutons[confirmer · corriger · annuler]
+      *Récapitulatif — ‹boutique›*
+      Article 1 × 2 : 15 000 FCFA l'unité
+      Total : *30 000 FCFA*
+      (hors livraison — le prix de la course se convient avec la vendeuse)
+      Acompte pour confirmer : *15 000 FCFA*
+      Livraison à Bafoussam : Bonapriso, en face de la pharmacie Bleue
+      Numéro à appeler : 690 11 22 33
+      
+      Rien n'est encore commandé. Vérifiez, puis confirmez.
+
+## 9. bouton « confirmer »
+   intention : avancer
+   étape : recap → catalogue
+    ← gabarit
+      gabarit catalog_nouvelle_commande_v2
+    ← texte
+      *Commande CT-‹ref› — ‹boutique›*
+      Article 1 × 2 : 15 000 FCFA l'unité
+      Total : *30 000 FCFA*
+      (hors livraison — le prix de la course se convient avec la vendeuse)
+      Acompte pour confirmer : *15 000 FCFA*
+      Livraison à Bafoussam : Bonapriso, en face de la pharmacie Bleue
+      Numéro à appeler : 690 11 22 33
+      Code de vérification : ‹code›
+      
+      💳 *À payer maintenant : 15 000 FCFA*
+      Mobile Money : 656 74 62 15
+      Votre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.
+      En un tap, le clavier pré-rempli : https://boutique.test/payer?numero=%2B‹tel›&montant=15000
+      Dès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici.
+      
+      🆕 Cette boutique débute sur Catalog : aucun paiement n'y est encore prouvé.
+    ← texte
+      Votre suivi et votre reçu vérifiable vivent ici — gardez ce lien : https://boutique.test/suivi/‹jeton›
+      
+      Une fois le paiement prouvé, n'importe qui peut contrôler le reçu avec le code de vérification, ici : https://boutique.test/v/?c=‹code›
+      
+      Pour la suite — livraison, questions, précisions — écrivez directement à ‹boutique› :
+      https://wa.me/‹tel-vendeuse›
