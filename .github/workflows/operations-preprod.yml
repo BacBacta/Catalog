@@ -87,11 +87,19 @@ jobs:
         # flux qui ne vient pas, et une sonde qui pend est pire qu'une sonde
         # absente, parce qu'on l'attend.
         run: |
+          # `-k`, `-s KILL` et `</dev/null` ne sont pas de la ceinture-bretelles.
+          # Mesure du 13/08 : `timeout 120 flyctl ssh console` a tenu DIX
+          # minutes — flyctl survit au SIGTERM, garde le tuyau de sortie ouvert,
+          # et le runner attend une fin de flux qui ne vient pas. `</dev/null`
+          # ferme au passage la porte d'une invite interactive, qui bloquerait
+          # de la meme facon et sans rien dire.
           echo "── etat des defis en base ──"
-          timeout 120 flyctl ssh console --app catalog-api-preprod \
-            -C "node apps/api/scripts/diagnostic-connexion.mjs" || echo "(sonde en base injoignable)"
+          timeout -k 10 -s KILL 120 flyctl ssh console --app catalog-api-preprod \
+            -C "node apps/api/scripts/diagnostic-connexion.mjs" </dev/null \
+            || echo "(sonde en base injoignable ou trop lente)"
           echo "── journaux recents de la route entrante ──"
-          timeout 90 flyctl logs --no-tail --app catalog-api-preprod > /tmp/journaux.txt 2>/dev/null || true
+          timeout -k 10 -s KILL 90 flyctl logs --no-tail --app catalog-api-preprod \
+            </dev/null >/tmp/journaux.txt 2>/dev/null || true
           echo "  lignes lues : $(wc -l < /tmp/journaux.txt)"
           grep -E "connexion whatsapp|non traite|livraison entrante refusee|entrant" /tmp/journaux.txt \
             | tail -20 || echo "  (aucune ligne de la route entrante dans la fenetre)"
