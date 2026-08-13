@@ -181,12 +181,21 @@ describe("les messages de publication", () => {
       lienParrainage: "https://wa.me/237600?text=vendre%20avec%20chez-bea",
       lienEspace: null,
     });
+    /**
+     * UN SEUL message — banc du 13/08/2026. L'ouverture en produisait cinq
+     * d'affilee : « une serie de liens, de messages apparaissent, ce qui
+     * noie l'essentiel ». Ce qui reste est ce dont elle a besoin dans la
+     * minute — son lien, et le geste suivant.
+     */
+    expect(messages).toHaveLength(1);
     expect(corps(messages[0])).toContain("Chez Bea");
     expect(corps(messages[0])).toContain("boutique%20chez-bea");
-    // Le reversement est NOMME mais jamais demande ici (AGENTS.md §2).
-    expect(corps(messages[1])).toMatch(/vérification/);
-    expect(corps(messages[1])).toContain("vendre%20avec%20chez-bea");
-    expect(idsBoutons(messages[2])).toEqual(["article", "plus_tard"]);
+    expect(idsBoutons(messages[0])).toEqual(["article", "plus_tard"]);
+    /* Le reversement et le parrainage sont SERVIS AILLEURS — relance a
+       ~20 h, notification de premiere commande, menu « ma boutique » —, et
+       surtout pas dans la salve d'ouverture. */
+    expect(corps(messages[0])).not.toContain("vendre%20avec%20chez-bea");
+    expect(corps(messages[0])).not.toMatch(/vérification/);
   });
 
   it("l'article publie dit le prix, et le manque de photo sans le reprocher", () => {
@@ -195,7 +204,9 @@ describe("les messages de publication", () => {
     expect(corps(avec)).not.toMatch(/sans photo/i);
     const sans = messageArticlePublie(VERS, { nom: "Pagne", prixXaf: 15000, avecPhoto: false });
     expect(corps(sans)).toMatch(/Sans photo/);
-    expect(idsBoutons(sans)).toEqual(["article", "ma_boutique"]);
+    /* « Ma carte » a pris la place de « Ma boutique » : le pack statut ne
+       part plus tout seul, il s'obtient d'un appui (banc du 13/08). */
+    expect(idsBoutons(sans)).toEqual(["article", "carte"]);
   });
 });
 
