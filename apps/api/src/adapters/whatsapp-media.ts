@@ -1,4 +1,5 @@
-import type { LecteurMedia, MediaEntrant } from "../domain/bot/media.ts";
+import type { LecteurMedia, MediaEntrant, PhotoCdnChiffree } from "../domain/bot/media.ts";
+import { dechiffrerMediaCdn } from "./media-cdn.ts";
 import { entetesAuth, type TransportWhatsapp } from "./whatsapp-transport.ts";
 
 /**
@@ -72,6 +73,33 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
     this.nom = cfg.transport;
     this.#cfg = cfg;
     this.#fetch = cfg.fetchImpl ?? fetch;
+  }
+
+  /**
+   * La forme CDN chiffree des Flows — tache #72. Le fichier se telecharge
+   * SANS en-tete d'authentification (l'URL CDN est porteuse), se borne a la
+   * meme taille que les medias classiques, puis passe par le dechiffrement
+   * verifie (`dechiffrerMediaCdn`) : toute etape qui echoue rend `null`,
+   * jamais une levee, et rien du corps ne part dans une trace.
+   */
+  async lireCdn(photo: PhotoCdnChiffree): Promise<MediaEntrant | null> {
+    if (!/^https:\/\//.test(photo.url)) return null;
+    try {
+      const r = await this.#fetch(photo.url);
+      if (!r.ok) return null;
+      const tailleMax = this.#cfg.tailleMax ?? TAILLE_MAX_DEFAUT;
+      const annonce = Number(r.headers.get("content-length") ?? "0");
+      if (annonce > tailleMax) return null;
+      const brut = new Uint8Array(await r.arrayBuffer());
+      if (brut.length > tailleMax) return null;
+      const clair = dechiffrerMediaCdn(brut, photo);
+      if (!clair) return null;
+      /* Le type n'est pas annonce par le CDN : le pipeline revalide de toute
+         facon la signature binaire — meme regle que `lire`. */
+      return { octets: clair, typeAnnonce: "application/octet-stream" };
+    } catch {
+      return null;
+    }
   }
 
   async lire(mediaId: string): Promise<MediaEntrant | null> {
