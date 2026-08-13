@@ -12,7 +12,7 @@ on:
         description: "Quelle operation"
         required: true
         type: choice
-        options: [reinitialiser-boutiques-bot, poser-flux-ids]
+        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai]
       mode:
         description: "Reinitialisation seulement : --voir (lecture seule) ou --vraiment"
         required: true
@@ -56,5 +56,18 @@ jobs:
           WABOT_FLUX_ARTICLE_ID=27695141573488361
           WABOT_FLUX_AVIS_ID=1377188850409808
           --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Le banc d'essai HORS Cameroun (ADR 0058) : les numeros nommes ici
+      # peuvent ouvrir une session malgre la regle « hors Cameroun, pas de
+      # compte ». Mesure du 13/08 : la connexion WhatsApp du porteur du
+      # produit (+32…) etait ignoree en silence — la regle faisait son
+      # travail, la liste etait simplement vide. Ce numero est celui du banc
+      # de test du porteur, deja public dans le fil de preproduction ; il se
+      # retire en re-executant l'operation avec une liste vide le jour ou le
+      # test bascule sur des numeros camerounais.
+      - name: Poser les numeros du banc d'essai
+        if: inputs.quoi == 'poser-banc-essai'
+        run: flyctl secrets set BANC_ESSAI_NUMEROS_HORS_CM="+32466457281" --app catalog-api-preprod
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
