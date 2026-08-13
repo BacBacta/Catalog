@@ -20,6 +20,7 @@ import type { PrismaClient } from "@catalog/db";
 import { rendreCarte, rendreCarteAvis } from "./adapters/carte-vitrine.ts";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
 import type { DeclencheurReconstruction } from "./adapters/reconstruction-boutique.ts";
+import type { ChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { emailTechnique } from "./auth.ts";
 import {
   livrerNotificationsEnAttente,
@@ -46,6 +47,7 @@ import {
   etatApresInactivite,
   extraireSlugBoutique,
   type LignePanier,
+  messageVerdict,
   normaliserEtat,
   RAFALE_MAX,
   reagirAcheteuse,
@@ -110,6 +112,8 @@ import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeRelance } from "./jobs/relance-acompte.ts";
 import { mesurerEtatPreuve, mesurerTransitionBot } from "./observabilite/mesures.ts";
+import { avecSpan, PARCOURS, poser } from "./observabilite/traces.ts";
+import { soumettrePreuve } from "./preuve-service.ts";
 import { basculerConges, slugifier, slugLibre } from "./routes/seller.ts";
 
 /**
@@ -165,6 +169,17 @@ export interface BotDeps {
    * Absente : le bloc part sans ligne de code, il reste vrai.
    */
   rampe?: RampeConfig;
+  /**
+   * Le verdict de preuve DANS le fil — ADR 0083. Absent : le fil reconnait
+   * le SMS et aiguille vers l'app (comportement V1), rien ne casse. Present,
+   * ET quand UNE SEULE commande a un solde ouvert, le SMS colle passe les
+   * sept controles par LE MEME service que la route (`soumettrePreuve`) et
+   * le verdict se dit ici. `apresPreuve` previent l'acheteuse apres commit.
+   */
+  preuve?: {
+    chiffreur: ChiffreurSms;
+    apresPreuve?: (orderId: string) => Promise<void>;
+  };
   /**
    * L'identifiant du Flow de livraison — ADR 0055. **Absent par defaut**, et
    * c'est le cas normal : sans lui, le fil est celui d'avant, question par
@@ -2238,6 +2253,7 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
         slug: true,
         congesDepuis: true,
         chaineUrl: true,
+        payoutPhone: true,
         _count: { select: { products: { where: { archivedAt: null } } } },
       },
     }),
@@ -2345,14 +2361,30 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
   }
 
   if (reaction.effet?.type === "verifier_sms") {
-    /* V1 : reconnaissance et aiguillage — pas de verdict dans le fil (voir
-       l'en-tete du fichier). Le SMS n'est ni persiste ni retranscrit : seuls
-       l'operateur et le montant, deja connus de la vendeuse, reapparaissent. */
     const analyse = analyserSms(reaction.effet.texte);
     if (analyse.reconnu) {
-      const montant = analyse.sms.amountXaf;
       const cible = commandesOuvertes.length === 1 ? commandesOuvertes[0] : null;
       const lien = (chemin: string) => (deps.baseApp ? `${deps.baseApp}${chemin}` : chemin);
+
+      /**
+       * Le verdict DANS le fil — ADR 0083. Le geste central du produit
+       * exigeait un changement de surface au moment le plus charge : lien,
+       * connexion, ecran, re-collage. Quand UNE SEULE commande a un solde
+       * ouvert, il n'y a rien a choisir : LE MEME service que la route rend
+       * les sept controles ici — meme transaction, meme journal, meme
+       * contrainte d'unicite. Plusieurs commandes ouvertes : on aiguille
+       * encore, choisir dans une liste WhatsApp le paiement qu'on rattache
+       * serait le vrai risque d'erreur.
+       */
+      if (cible && deps.preuve) {
+        await verdictDansLeFil(deps, entree.de, sellerIdent, cible, reaction.effet.texte, lien);
+        await envoyerSequence(deps, messages);
+        return;
+      }
+
+      /* Repli V1 : reconnaissance et aiguillage. Le SMS n'est ni persiste ni
+         retranscrit : seuls l'operateur et le montant, deja connus de la
+         vendeuse, reapparaissent. */
       const corps = cible
         ? `SMS ${analyse.pattern.operateur} reconnu. Pour vérifier les sept contrôles et émettre le reçu de ${cible.reference}, collez-le ici : ${lien(`/commandes/${cible.id}/preuve`)}`
         : commandesOuvertes.length === 0
@@ -2363,12 +2395,108 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
               .join(
                 ", ",
               )}) : ouvrez la bonne dans l'app pour y coller ce message : ${lien("/commandes")}`;
-      void montant; /* le montant n'est pas reecrit dans le fil : il y est deja. */
       messages.push(texte(entree.de, corps));
     }
   }
 
   await envoyerSequence(deps, messages);
+}
+
+/**
+ * Le verdict de preuve DANS le fil — ADR 0083.
+ *
+ * LE MEME service que la route (`soumettrePreuve`) : sept controles, INSERT
+ * qui tranche le n° 5, transition, versement, journal. Cette fonction ne
+ * decide rien — elle traduit le resultat en messages de fil, et previent
+ * l'acheteuse apres commit quand la commande a avance.
+ *
+ * Le SMS n'est jamais retranscrit. Sur un refus, l'EXPLICATION du controle
+ * echoue se dit (elle est redigee pour la vendeuse et ne contient rien du
+ * texte) ; l'ecran de l'app reste le detail, controle par controle.
+ */
+async function verdictDansLeFil(
+  deps: BotDeps,
+  vers: string,
+  sellerIdent: string,
+  cible: { id: string; reference: string },
+  texteSms: string,
+  lien: (chemin: string) => string,
+): Promise<void> {
+  const porte = deps.preuve;
+  if (!porte) return;
+  const [commande, vendeuse] = await Promise.all([
+    deps.prisma.order.findFirst({
+      where: { id: cible.id, sellerId: sellerIdent },
+      select: {
+        id: true,
+        totalXaf: true,
+        amountPaidXaf: true,
+        balanceXaf: true,
+        payMode: true,
+        createdAt: true,
+        buyerPhone: true,
+        proofState: true,
+      },
+    }),
+    deps.prisma.seller.findUnique({
+      where: { id: sellerIdent },
+      select: { payoutPhone: true },
+    }),
+  ]);
+  if (!commande) return;
+
+  const resultat = await avecSpan(PARCOURS.preuveSoumise, {}, async (span) => {
+    poser(span, { "catalog.commande.id": commande.id, "catalog.vendeuse.id": sellerIdent });
+    return soumettrePreuve(
+      {
+        prisma: deps.prisma,
+        chiffreur: porte.chiffreur,
+        ...(deps.maintenant ? { maintenant: deps.maintenant } : {}),
+      },
+      {
+        vendeuse: { id: sellerIdent, payoutPhone: vendeuse?.payoutPhone ?? null },
+        commande,
+        texteSms,
+        span,
+      },
+    );
+  });
+
+  /* Defensif : `smsReconnu` a deja tranche, une re-analyse divergente serait
+     un bug d'analyseur — on retombe alors sur le silence plutot que de
+     contredire l'accuse ✅ deja pose. */
+  if (resultat.issue === "non_reconnue") return;
+
+  if (resultat.issue === "acceptee" || resultat.issue === "acceptee_sous_reserve") {
+    await envoyerSequence(deps, [
+      messageVerdict(vers, {
+        verdict: resultat.issue === "acceptee" ? "accepte" : "accepte_sous_reserve",
+        reference: cible.reference,
+      }),
+    ]);
+    /* La notification de l'acheteuse — apres l'envoi du verdict, jamais avant
+       le commit (le service a deja commite). Une notification ratee ne defait
+       jamais une preuve. */
+    if (resultat.transitionOk && porte.apresPreuve) {
+      await porte.apresPreuve(commande.id).catch(() => {});
+    }
+    return;
+  }
+
+  /* Refus — celui des six controles purs, ou l'identifiant deja reclame
+     (contrainte d'unicite). L'explication du controle echoue est redigee pour
+     la vendeuse et ne cite jamais le texte du SMS. */
+  const echoue = resultat.checks.find((x) => x.state === "fail");
+  await envoyerSequence(deps, [
+    texte(
+      vers,
+      [
+        "⛔ Ce SMS n'a pas passé les contrôles.",
+        ...(echoue ? [echoue.explanation] : []),
+        `Le détail, contrôle par contrôle : ${lien(`/commandes/${cible.id}/preuve`)}`,
+      ].join("\n"),
+    ),
+  ]);
 }
 
 /**
