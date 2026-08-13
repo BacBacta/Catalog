@@ -76,6 +76,16 @@ jobs:
       # masques, statuts seuls).
       - name: Sonde de la connexion WhatsApp
         if: inputs.quoi == 'sonde-connexion'
-        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/diagnostic-connexion.mjs"
+        # Deux lectures : l'etat des defis en base, puis les SEULS
+        # avertissements du webhook dans les journaux recents — la route
+        # avale les erreurs de traitement avec un `console.warn` resume
+        # (`resumerErreur`, sans contenu) : c'est la qu'une panne silencieuse
+        # dit son nom.
+        run: |
+          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/diagnostic-connexion.mjs"
+          echo "── avertissements recents du webhook ──"
+          flyctl logs --no-tail --app catalog-api-preprod 2>/dev/null \
+            | grep -E "non traite|livraison entrante refusee" | tail -8 \
+            || echo "(aucun avertissement dans la fenetre de journaux)"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
