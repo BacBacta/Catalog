@@ -293,6 +293,81 @@ describe("la lecture d'un article — tache #62", () => {
     }
   });
 
+  it("la forme CDN chiffree rend ses cles — tache #72, la forme du banc du 12/08", () => {
+    /* Le banc publiait des articles SANS photo : le PhotoPicker livrait cette
+       forme-ci (fichier chiffre sur le CDN, cles dans la reponse), et seul le
+       `media_id` etait lu. Les cles restent en base64 tel que recu — c'est
+       l'adaptateur qui decode et VERIFIE. */
+    const meta = {
+      encryption_key: "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq0E=",
+      hmac_key: "3q2+7xI0VniavN7xI0VniavN7xI0VniavN7xI0Vnia0=",
+      iv: "ASNFZ4mrze8BI0VniavN7w==",
+      plaintext_hash: "RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=",
+      encrypted_hash: "sBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=",
+    };
+    expect(
+      lireArticleFlux(
+        reponse({
+          nom: "Sac",
+          prix: "1000",
+          photo: [
+            {
+              file_name: "sac.jpg",
+              cdn_url: "https://mmg.whatsapp.net/v/t62.7118-24/abc",
+              encryption_metadata: meta,
+            },
+          ],
+        }),
+      ),
+    ).toEqual({
+      nom: "Sac",
+      prixXaf: 1000,
+      photoCdn: {
+        url: "https://mmg.whatsapp.net/v/t62.7118-24/abc",
+        encryptionKey: meta.encryption_key,
+        hmacKey: meta.hmac_key,
+        iv: meta.iv,
+        plaintextHash: meta.plaintext_hash,
+        encryptedHash: meta.encrypted_hash,
+      },
+    });
+  });
+
+  it("une forme CDN incomplete ou louche vaut ABSENTE — echec ferme, jamais une levee", () => {
+    const meta = {
+      encryption_key: "q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq0E=",
+      hmac_key: "3q2+7xI0VniavN7xI0VniavN7xI0VniavN7xI0Vnia0=",
+      iv: "ASNFZ4mrze8BI0VniavN7w==",
+      plaintext_hash: "RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=",
+      encrypted_hash: "sBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=",
+    };
+    for (const photo of [
+      /* http nu : le fichier chiffre ne voyage pas en clair. */
+      [{ cdn_url: "http://mmg.whatsapp.net/abc", encryption_metadata: meta }],
+      /* une cle manquante */
+      [
+        {
+          cdn_url: "https://mmg.whatsapp.net/abc",
+          encryption_metadata: { ...meta, iv: undefined },
+        },
+      ],
+      /* du non-base64 */
+      [
+        {
+          cdn_url: "https://mmg.whatsapp.net/abc",
+          encryption_metadata: { ...meta, hmac_key: "%%%pas b64%%%" },
+        },
+      ],
+      /* pas de metadonnees du tout */
+      [{ cdn_url: "https://mmg.whatsapp.net/abc" }],
+    ]) {
+      expect(lireArticleFlux(reponse({ nom: "Sac", prix: "1000", photo }))).toEqual({
+        nom: "Sac",
+        prixXaf: 1000,
+      });
+    }
+  });
+
   it("son jeton se reconnait, et ne se confond avec aucun autre", () => {
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("article") }))).toBe("article");
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("avis") }))).not.toBe("article");

@@ -77,7 +77,7 @@ import {
   rappelConges,
   reagirInscription,
 } from "./domain/bot/inscription.ts";
-import type { LecteurMedia } from "./domain/bot/media.ts";
+import type { LecteurMedia, PhotoCdnChiffree } from "./domain/bot/media.ts";
 import {
   accuseLecture,
   boutons as boutonsMessage,
@@ -1014,7 +1014,13 @@ async function publierArticleDepuisFil(
   deps: BotDeps,
   sellerId: string,
   vers: string,
-  demande: { nom: string; prixXaf: number; mediaId?: string; stock?: number },
+  demande: {
+    nom: string;
+    prixXaf: number;
+    mediaId?: string;
+    photoCdn?: PhotoCdnChiffree;
+    stock?: number;
+  },
 ): Promise<MessageSortant[]> {
   const messages: MessageSortant[] = [];
   const article = await creerArticleDepuisFil(deps, sellerId, demande);
@@ -1098,7 +1104,13 @@ async function publierArticleDepuisFil(
 async function creerArticleDepuisFil(
   deps: BotDeps,
   sellerId: string,
-  demande: { nom: string; prixXaf: number; mediaId?: string; stock?: number },
+  demande: {
+    nom: string;
+    prixXaf: number;
+    mediaId?: string;
+    photoCdn?: PhotoCdnChiffree;
+    stock?: number;
+  },
 ): Promise<{
   id: string;
   nom: string;
@@ -1115,8 +1127,16 @@ async function creerArticleDepuisFil(
     octets: number;
   } | null = null;
 
-  if (demande.mediaId && deps.media && deps.storage) {
-    const media = await deps.media.lire(demande.mediaId);
+  if ((demande.mediaId || demande.photoCdn) && deps.media && deps.storage) {
+    /* Les deux formes documentees du media d'un Flow (tache #72) : le
+       `media_id` classique, ou le fichier chiffre sur le CDN dont les cles
+       voyagent dans la reponse. Meme pipeline ensuite — le re-encodage
+       revalide la signature binaire quoi qu'annonce le transport. */
+    const media = demande.mediaId
+      ? await deps.media.lire(demande.mediaId)
+      : demande.photoCdn && deps.media.lireCdn
+        ? await deps.media.lireCdn(demande.photoCdn)
+        : null;
     if (media) {
       const resultat = await reencoderImage(media.octets);
       if (resultat.ok) {

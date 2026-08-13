@@ -1,6 +1,7 @@
 import { normalizePhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { lirePrix, NOM_MAX, NOM_MIN } from "./inscription.ts";
+import type { PhotoCdnChiffree } from "./media.ts";
 import type { MessageFlux } from "./messages.ts";
 import type { Langue } from "./textes.ts";
 
@@ -185,6 +186,8 @@ export interface ArticleLu {
       par le chemin deja en place (`creerArticleDepuisFil`). Absent quand la
       vendeuse n'a rien joint, ou que la forme recue n'est pas celle attendue. */
   mediaId?: string;
+  /** La forme CDN chiffree (tache #72) — l'autre maniere documentee de livrer la photo. */
+  photoCdn?: PhotoCdnChiffree;
 }
 
 /** La borne du contrat produit (`productSchema.stock`) — pas une invention locale. */
@@ -219,14 +222,49 @@ const STOCK_MAX = 1_000_000;
  * exactement le comportement d'avant ce champ. Aucune regression possible.
  */
 const MEDIA_ID_FORME = /^[\w.-]{1,128}$/;
+/* Du base64 plausible, bornes larges : le DECODAGE et les verifications
+   cryptographiques appartiennent a l'adaptateur — ici on ecarte seulement ce
+   qui n'a aucune chance d'en etre. */
+const B64_FORME = /^[A-Za-z0-9+/_-]{16,128}={0,2}$/;
 
-function mediaIdDe(valeur: unknown): string | undefined {
+function photoCdnDe(brut: Record<string, unknown>): PhotoCdnChiffree | undefined {
+  const url = brut.cdn_url;
+  const meta = brut.encryption_metadata;
+  if (typeof url !== "string" || !url.startsWith("https://")) return undefined;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return undefined;
+  const m = meta as Record<string, unknown>;
+  const champs = {
+    encryptionKey: m.encryption_key,
+    hmacKey: m.hmac_key,
+    iv: m.iv,
+    plaintextHash: m.plaintext_hash,
+    encryptedHash: m.encrypted_hash,
+  };
+  for (const v of Object.values(champs)) {
+    if (typeof v !== "string" || !B64_FORME.test(v)) return undefined;
+  }
+  return { url, ...(champs as Record<keyof typeof champs, string>) };
+}
+
+/**
+ * Les DEUX formes documentees du media d'un Flow sans endpoint — tache #72 :
+ * un `media_id` classique, ou `cdn_url` + `encryption_metadata` (fichier
+ * chiffre sur le CDN, cles dans la reponse). Le banc du 12/08/2026 publiait
+ * des articles sans photo : la seconde forme arrivait, personne ne la lisait.
+ * Toujours TOLERANT : une forme inattendue est une photo absente, jamais un
+ * formulaire refuse.
+ */
+function photoDe(
+  valeur: unknown,
+): { mediaId: string } | { photoCdn: PhotoCdnChiffree } | undefined {
   if (!Array.isArray(valeur) || valeur.length === 0) return undefined;
   const premier = valeur[0];
   if (!premier || typeof premier !== "object" || Array.isArray(premier)) return undefined;
   const brut = premier as Record<string, unknown>;
   const id = brut.id ?? brut.media_id;
-  return typeof id === "string" && MEDIA_ID_FORME.test(id) ? id : undefined;
+  if (typeof id === "string" && MEDIA_ID_FORME.test(id)) return { mediaId: id };
+  const cdn = photoCdnDe(brut);
+  return cdn ? { photoCdn: cdn } : undefined;
 }
 
 export function lireArticleFlux(brut: string): ArticleLu | null {
@@ -239,10 +277,10 @@ export function lireArticleFlux(brut: string): ArticleLu | null {
   const brutStock = champ(d, "stock");
   const stock =
     /^\d+$/.test(brutStock) && Number(brutStock) <= STOCK_MAX ? Number(brutStock) : undefined;
-  const mediaId = mediaIdDe(d.photo);
+  const photo = photoDe(d.photo);
   /* 0 vaut ABSENT : c'est deja la convention de la base (`stock Int @default(0)`
      = « non annonce »), et « il en annonce zero » ne veut rien dire. */
-  return { nom, prixXaf, ...(stock ? { stock } : {}), ...(mediaId ? { mediaId } : {}) };
+  return { nom, prixXaf, ...(stock ? { stock } : {}), ...(photo ?? {}) };
 }
 
 /** Ce que le formulaire d'avis rend. Le mot est facultatif — il l'est partout. */
