@@ -168,12 +168,15 @@ app.route(
 // Aucun identifiant de boutique ne circule dans l'URL — ce serait un numero a
 // essayer, et les chiffres d'une vendeuse ne regardent qu'elle.
 app.route("/api/statistiques", statsRoutes({ prisma, session }));
+/* Un seul chiffreur pour les DEUX portes de preuve — la route et le fil
+   (ADR 0083) : meme secret, meme format au repos. */
+const chiffreurSms = resolveChiffreurSms();
 app.route(
   "/api/commandes",
   preuveRoutes({
     prisma,
     session,
-    chiffreur: resolveChiffreurSms(),
+    chiffreur: chiffreurSms,
     /* Paiement prouve → l'acheteuse le sait dans son fil (ADR 0035). */
     ...(bot
       ? {
@@ -341,7 +344,22 @@ if (secretEntrant && secretAppMeta) {
       },
       ...(bot
         ? {
-            surLivraison: (corps: unknown) => traiterLivraisonBot({ prisma, ...bot }, corps),
+            surLivraison: (corps: unknown) =>
+              traiterLivraisonBot(
+                {
+                  prisma,
+                  ...bot,
+                  /* Le verdict DANS le fil — ADR 0083 : meme service, meme
+                     chiffreur que la route, et la meme notification
+                     acheteuse apres commit. */
+                  preuve: {
+                    chiffreur: chiffreurSms,
+                    apresPreuve: (orderId: string) =>
+                      notifierPaiementProuve({ prisma, envoyeur: bot.envoyeur }, orderId),
+                  },
+                },
+                corps,
+              ),
           }
         : {}),
     }),
