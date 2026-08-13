@@ -2012,11 +2012,34 @@ async function statutDerniereCommande(
   );
   const droit = droitAuDepot(cycle);
 
+  /**
+   * Le chemin complet et le sort de la preuve — la reponse a « suivi » les
+   * dessine desormais (banc du 12/08/2026) au lieu de renvoyer « plus haut
+   * dans ce fil ». Une commande annulee garde son libelle seul.
+   */
+  const etapes = o.cancelledAt
+    ? undefined
+    : etapesDuSuivi(cycle).map((e) => ({
+        libelle: e.libelle,
+        faite: e.faite,
+        courante: e.courante,
+      }));
+  const preuve =
+    o.proofState === "prouve" || o.proofState === "contresigne"
+      ? ("prouve" as const)
+      : o.proofState === "conteste"
+        ? ("conteste" as const)
+        : o.proofState === "declare_non_trace"
+          ? ("non_trace" as const)
+          : null;
+
   return {
     reference: o.ref,
     boutique: o.seller.businessName,
     libelle,
     resteXaf: soldeAEncaisser(cycle),
+    ...(etapes ? { etapes } : {}),
+    preuve,
     contresignable: contresignature.ok,
     avisPossible: droit.possible,
     avisVerifie: droit.verifie,

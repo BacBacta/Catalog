@@ -165,6 +165,10 @@ export interface TextesAcheteuse {
   statutAucune: string;
   statutResteAPayer: (resteXaf: number) => string;
   statutRegle: string;
+  /** Le sort de la preuve, quand il merite une ligne (reponse a « suivi »). */
+  statutPreuveProuvee: string;
+  statutPreuveContestee: string;
+  statutPreuveNonTracee: string;
   statutOuEstLeLien: string;
 
   faqPrix: string;
@@ -376,6 +380,10 @@ const fr: TextesAcheteuse = {
     "Aucune commande enregistrée sur ce numéro. Ouvrez le lien d'une boutique pour commander.",
   statutResteAPayer: (reste) => `Reste à payer : ${formatXaf(reste)}`,
   statutRegle: "Tout est réglé.",
+  statutPreuveProuvee: "Paiement prouvé — votre reçu vérifiable est émis.",
+  statutPreuveContestee: "Paiement contesté — la commande est gelée le temps d'éclaircir.",
+  statutPreuveNonTracee:
+    "Paiement déclaré par la vendeuse, non tracé — il ne donne pas de reçu vérifiable.",
   statutOuEstLeLien:
     "Votre lien de suivi est dans le message de confirmation, plus haut dans ce fil.",
 
@@ -587,6 +595,10 @@ const en: TextesAcheteuse = {
   statutAucune: "No order recorded for this number. Open a shop link to order.",
   statutResteAPayer: (reste) => `Left to pay: ${formatXaf(reste)}`,
   statutRegle: "All settled.",
+  statutPreuveProuvee: "Payment proved — your verifiable receipt is issued.",
+  statutPreuveContestee: "Payment disputed — the order is on hold while this is cleared up.",
+  statutPreuveNonTracee:
+    "Payment declared by the seller, untraced — it does not give a verifiable receipt.",
   statutOuEstLeLien: "Your tracking link is in the confirmation message, earlier in this thread.",
 
   faqPrix: "Prices are shown in the item list and on each item — open “See the items”.",
@@ -792,6 +804,10 @@ const wes: TextesAcheteuse = {
   statutAucune: "No order dey for dis nomba. Open some shop yi link for order.",
   statutResteAPayer: (reste) => `Weti remain for pay: ${formatXaf(reste)}`,
   statutRegle: "Everytin don pay finish.",
+  statutPreuveProuvee: "Di pay don prove — yua receipt weh person fit check don comot.",
+  statutPreuveContestee: "Person don talk say di pay no correct — di order di wait small.",
+  statutPreuveNonTracee:
+    "Di seller don talk say yu pay, but e no get trace — e no di give receipt weh person fit check.",
   statutOuEstLeLien: "Yua link for follow di order dey for di confam message, for up for dis tok.",
 
   faqPrix: "Di price dem dey for di lis an for each ting \u2014 open \u00ab Si di ting dem \u00bb.",

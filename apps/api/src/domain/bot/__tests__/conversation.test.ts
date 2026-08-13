@@ -1100,17 +1100,24 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
       },
       waVendeuse: "https://wa.me/237677123456",
     });
-    expect(messages).toHaveLength(4);
-    const bloc = corpsTexte(messages[1]);
-    expect(bloc).toContain(formatXaf(8000));
-    expect(bloc).toContain("6 56 74 62 15");
-    expect(bloc).toContain("Orange Money");
-    expect(bloc).toContain("#150*50#");
-    expect(bloc).toMatch(/code secret/i);
-    expect(bloc).toContain("/payer?");
+    /**
+     * DEUX messages, jamais quatre — banc du 12/08/2026. Le premier est le
+     * document (commande + comment payer), le second le carnet d'adresses
+     * (suivi + vendeuse). La salve de quatre noyait le geste attendu.
+     */
+    expect(messages).toHaveLength(2);
+    const document = corpsTexte(messages[0]);
+    expect(document).toContain("CT-1050");
+    expect(document).toContain(formatXaf(8000));
+    expect(document).toContain("6 56 74 62 15");
+    expect(document).toContain("Orange Money");
+    expect(document).toContain("#150*50#");
+    expect(document).toMatch(/code secret/i);
+    expect(document).toContain("/payer?");
     /* Le lien de suivi redevient ce qu'il est : le suivi et le recu. */
-    expect(corpsTexte(messages[2])).toContain("suivi?j=abc");
-    expect(corpsTexte(messages[3])).toContain("https://wa.me/237677123456");
+    const carnet = corpsTexte(messages[1]);
+    expect(carnet).toContain("suivi?j=abc");
+    expect(carnet).toContain("https://wa.me/237677123456");
   });
 
   it("sans reversement, pas de bloc paiement — la copie historique reprend", () => {
@@ -1128,6 +1135,64 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
     });
     expect(messages).toHaveLength(2);
     expect(corpsTexte(messages[1])).toMatch(/réception/);
+  });
+
+  it("« suivi » redit l'ETAT — chemin complet, reste, preuve — sans jamais le jeton", () => {
+    /**
+     * Banc du 12/08/2026 : la reponse se limitait a l'etape courante et a
+     * « votre lien est plus haut dans ce fil » — une fouille archeologique.
+     * L'etat n'est pas un secret ; le jeton, si. On dit tout l'un, jamais
+     * l'autre.
+     */
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "suivi" },
+      ctx({
+        derniereCommande: {
+          reference: "CT-522801",
+          boutique: "Chez Amina",
+          libelle: "Préparée.",
+          resteXaf: 16800,
+          etapes: [
+            { libelle: "Commande reçue", faite: true, courante: false },
+            { libelle: "Préparée", faite: true, courante: true },
+            { libelle: "Chez le livreur", faite: false, courante: false },
+            { libelle: "Livrée", faite: false, courante: false },
+          ],
+          preuve: "prouve",
+        },
+      }),
+    );
+    const corps = corpsTexte(r.messages[0]);
+    expect(corps).toContain("✓ Commande reçue");
+    expect(corps).toContain("➔ Préparée");
+    expect(corps).toContain("○ Livrée");
+    expect(corps).toContain(formatXaf(16800));
+    expect(corps).toMatch(/reçu vérifiable est émis/);
+    expect(corps).not.toMatch(/https?:\/\//);
+  });
+
+  it("une preuve contestee ou non tracee se dit ; une preuve attendue se tait", () => {
+    const statut = (preuve: "conteste" | "non_trace" | null) =>
+      corpsTexte(
+        reagirAcheteuse(
+          ETAT_INITIAL,
+          { genre: "texte", texte: "suivi" },
+          ctx({
+            derniereCommande: {
+              reference: "CT-1",
+              boutique: "B",
+              libelle: "Commande reçue.",
+              resteXaf: 0,
+              preuve,
+            },
+          }),
+        ).messages[0],
+      );
+    expect(statut("conteste")).toMatch(/gelée/);
+    expect(statut("non_trace")).toMatch(/non tracé/);
+    /* attendu (null) : le reste a payer dit deja tout — pas de ligne en plus. */
+    expect(statut(null)).not.toMatch(/prouvé|gelée|non tracé/);
   });
 
   it("« livrée CT-522801 » sort l'effet marquer_livree — accents et prefixe tolerants", () => {

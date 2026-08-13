@@ -112,6 +112,15 @@ export interface StatutDerniereCommande {
   libelle: string;
   resteXaf: number;
   /**
+   * Le chemin complet, comme sur la page de suivi : fait / en cours / a
+   * venir. Rempli par le service depuis `etapesDuSuivi` (lot 11) — la
+   * conversation ne redit aucune regle de cycle, elle dessine ce qu'on lui
+   * donne. Absent (commande annulee, service ancien) : le libelle seul.
+   */
+  etapes?: ReadonlyArray<{ libelle: string; faite: boolean; courante: boolean }>;
+  /** L'etat de la preuve, quand il merite une ligne. `null` : rien a dire. */
+  preuve?: "prouve" | "conteste" | "non_trace" | null;
+  /**
    * Ce que l'identite du fil autorise MAINTENANT sur cette commande
    * (ADR 0036). Calcule par le service avec les machines du domaine
    * (`appliquerEvenement`, `droitAuDepot`) : la conversation ne redit aucune
@@ -1715,10 +1724,31 @@ function messageStatut(
   t: TextesAcheteuse,
 ): MessageSortant {
   if (!s) return texte(vers, t.statutAucune);
+  /**
+   * « Suivi » REDIT L'ETAT — banc du 12/08/2026. La reponse se limitait a
+   * l'etape courante et a « votre lien est plus haut dans ce fil » : une
+   * fouille archeologique dans une conversation qui s'allonge. Le jeton,
+   * lui, ne se re-projette toujours pas (garde du lot 10) — mais l'ETAT
+   * n'est pas un secret : le chemin complet, le reste a payer et le sort de
+   * la preuve se disent ici, et le renvoi au lien devient une ligne de
+   * confort au lieu d'etre toute la reponse.
+   */
+  const chemin = s.etapes?.length
+    ? s.etapes.map((e) =>
+        e.courante ? `➔ ${e.libelle}` : e.faite ? `✓ ${e.libelle}` : `○ ${e.libelle}`,
+      )
+    : [s.libelle];
   const lignes = [
     `*${s.reference} — ${s.boutique}*`,
-    s.libelle,
+    ...chemin,
     s.resteXaf > 0 ? t.statutResteAPayer(s.resteXaf) : t.statutRegle,
+    ...(s.preuve === "prouve"
+      ? [t.statutPreuveProuvee]
+      : s.preuve === "conteste"
+        ? [t.statutPreuveContestee]
+        : s.preuve === "non_trace"
+          ? [t.statutPreuveNonTracee]
+          : []),
     t.statutOuEstLeLien,
   ];
   return texte(vers, lignes.join("\n"));
@@ -1783,20 +1813,41 @@ export function confirmationCommande(
     t.ligneTelephone(formatPhone(c.livraison.phone)),
     t.ligneCode(c.codeVerification),
   ];
-  const messages: MessageSortant[] = [texte(vers, lignes.join("\n"))];
-
+  /**
+   * DEUX messages, jamais quatre — banc du 12/08/2026. La salve de
+   * confirmation (commande, paiement, suivi, vendeuse) noyait le seul geste
+   * attendu : payer. WhatsApp n'a ni epinglage ni hierarchie — quatre
+   * messages consecutifs ont le meme poids visuel, et le porteur du produit
+   * l'a vecu comme un « deluge de liens ».
+   *
+   * Le decoupage suit l'usage, pas la technique :
+   * - le PREMIER message est le document — la commande ET, en dessous, comment
+   *   la payer. C'est celui que l'acheteuse garde et fait defiler ;
+   * - le SECOND est le carnet d'adresses — ou suivre, qui contacter. C'est
+   *   celui qu'elle rouvre plus tard.
+   * Le bloc paiement au sein du document a un bonus : quand elle cherchera
+   * « combien, a quel numero », tout est au meme endroit.
+   */
+  const document = [lignes.join("\n")];
   if (c.duAvantXaf > 0 && c.paiement) {
     /* Le paiement se dit ICI, en texte brut autosuffisant ; le lien de suivi
        redevient ce qu'il est — le suivi et le recu. */
-    messages.push(texte(vers, t.blocPaiement(c.paiement)));
-    if (c.lienSuivi) messages.push(texte(vers, t.suiteSuivi(c.lienSuivi)));
-  } else if (c.lienSuivi) {
-    messages.push(
-      texte(vers, c.duAvantXaf > 0 ? t.suiteAcompte(c.lienSuivi) : t.suiteSansAcompte(c.lienSuivi)),
+    document.push(t.blocPaiement(c.paiement));
+  }
+  const messages: MessageSortant[] = [texte(vers, document.join("\n\n"))];
+
+  const carnet: string[] = [];
+  if (c.lienSuivi) {
+    carnet.push(
+      c.duAvantXaf > 0 && c.paiement
+        ? t.suiteSuivi(c.lienSuivi)
+        : c.duAvantXaf > 0
+          ? t.suiteAcompte(c.lienSuivi)
+          : t.suiteSansAcompte(c.lienSuivi),
     );
   }
-
-  if (c.waVendeuse) messages.push(texte(vers, t.apresConfirmation(c.boutique, c.waVendeuse)));
+  if (c.waVendeuse) carnet.push(t.apresConfirmation(c.boutique, c.waVendeuse));
+  if (carnet.length > 0) messages.push(texte(vers, carnet.join("\n\n")));
   return messages;
 }
 
