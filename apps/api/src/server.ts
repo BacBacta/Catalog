@@ -235,7 +235,10 @@ app.route("/api/rampe", rampeRoutes(rampe));
 
 // Le recu et le suivi : publics, sans session. C'est une ACHETEUSE qui les lit,
 // et c'est le principe meme du recu — n'importe qui doit pouvoir controler.
-app.route("/api/recu", recuRoutes({ prisma, rampe, session }));
+app.route(
+  "/api/recu",
+  recuRoutes({ prisma, rampe, session, reconstruction: declencheurDepuisEnv() }),
+);
 app.route(
   "/api/suivi",
   suiviRoutes({
