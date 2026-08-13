@@ -1,11 +1,11 @@
 import { Badge, Button, Card, CardNote, CardTitle, Separator } from "@catalog/ui";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link } from "react-router";
 import { useConges } from "../components/conges.tsx";
 import { Ecran } from "../components/Ecran.tsx";
 import { IconeAppareil, IconeBoutique, IconeChevron, IconeRecu } from "../components/icones.tsx";
 import { Protege } from "../components/Protege.tsx";
-import type { Vendeuse } from "../lib/api.ts";
+import { api, type Vendeuse } from "../lib/api.ts";
 import { useSession } from "../lib/session.tsx";
 
 /**
@@ -112,6 +112,103 @@ function CarteConges({ depuis }: { depuis: string | null }) {
   );
 }
 
+/**
+ * Renommer la boutique — ADR 0092, constat C-002 de l'audit du 13/08/2026.
+ *
+ * Le harnais a montre qu'un nom pose au deuxieme message du fil etait
+ * DEFINITIF : aucun chemin de renommage n'existait dans tout le produit. Or ce
+ * nom est aussi l'adresse publique de la boutique.
+ *
+ * **L'adresse ne change pas, et l'ecran le dit en toutes lettres.** Elle a
+ * peut-etre deja ete partagee — en Statut, dans une chaine, dans le QR d'une
+ * carte imprimee — et la casser en silence produirait le defaut de l'ADR 0073 :
+ * un lien qui mene a un 404 se voit chez l'acheteuse, une fois.
+ */
+function CarteNom({ seller }: { seller: NonNullable<Vendeuse["seller"]> }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [nom, setNom] = useState(seller.businessName);
+  const [ville, setVille] = useState(seller.city);
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState("");
+  const [fait, setFait] = useState(false);
+
+  async function enregistrer() {
+    setErreur("");
+    setFait(false);
+    if (nom.trim().length < 2 || ville.trim().length < 2) {
+      setErreur("Le nom et la ville sont necessaires.");
+      return;
+    }
+    setEnCours(true);
+    try {
+      await api.renommer(nom.trim(), ville.trim());
+      setFait(true);
+      setOuvert(false);
+    } catch {
+      setErreur("Le changement n'a pas pu etre enregistre. Reessayez.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardTitle>Nom de la boutique</CardTitle>
+      <CardNote>
+        <strong className="text-ink">{seller.businessName}</strong> · {seller.city}
+      </CardNote>
+      {ouvert ? (
+        <div className="flex flex-col gap-3">
+          <label className="flex flex-col gap-1 text-caption">
+            Nom de la boutique
+            <input
+              className="min-h-11 rounded-lg border border-line bg-surface px-3 text-body text-ink"
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              autoComplete="organization"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-caption">
+            Ville
+            <input
+              className="min-h-11 rounded-lg border border-line bg-surface px-3 text-body text-ink"
+              value={ville}
+              onChange={(e) => setVille(e.target.value)}
+              autoComplete="address-level2"
+            />
+          </label>
+          <CardNote>
+            Votre adresse en ligne ne change pas : elle reste{" "}
+            <strong className="text-ink">/{seller.slug}</strong>. C'est voulu — vous l'avez
+            peut-etre deja partagee en Statut ou sur une affiche, et un lien casse mene vos clientes
+            sur une page vide.
+          </CardNote>
+          <p role="status" aria-live="polite" className="text-caption text-danger">
+            {erreur}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="lg" loading={enCours} onClick={() => void enregistrer()}>
+              Enregistrer
+            </Button>
+            <Button tone="outline" size="lg" onClick={() => setOuvert(false)}>
+              Annuler
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p role="status" aria-live="polite" className="text-caption text-ink-3">
+            {fait ? "C'est enregistre." : ""}
+          </p>
+          <Button tone="outline" size="lg" onClick={() => setOuvert(true)}>
+            Corriger le nom
+          </Button>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function Contenu({ vendeuse }: { vendeuse: Vendeuse }) {
   const { deconnecter } = useSession();
   const seller = vendeuse.seller;
@@ -163,6 +260,8 @@ function Contenu({ vendeuse }: { vendeuse: Vendeuse }) {
           />
         </Card>
       ) : null}
+
+      {seller ? <CarteNom seller={seller} /> : null}
 
       {seller ? <CarteConges depuis={seller.congesDepuis} /> : null}
 

@@ -234,6 +234,18 @@ export const api = {
       corps: { businessName, city, ...(contactPhone ? { contactPhone } : {}) },
     }),
 
+  /**
+   * Renommer la boutique — ADR 0092, constat C-002 de l'audit du 13/08.
+   *
+   * Le SLUG ne bouge pas : l'adresse a peut-etre deja ete partagee, en Statut
+   * ou dans le QR d'une carte imprimee, et la casser en silence se verrait chez
+   * l'acheteuse, une fois. L'ecran le dit ; on ne le devine pas pour elle.
+   */
+  renommer: (businessName: string, city: string) =>
+    appeler<{ businessName: string; city: string; slug: string }>("/api/vendeuse/renommer", {
+      corps: { businessName, city },
+    }),
+
   /** Mode conges — ADR 0039. Aucun OTP : rien ne bouge d'argent, et ça se défait. */
   basculerConges: (fermer: boolean) =>
     appeler<{ congesDepuis: string | null }>("/api/vendeuse/conges", { corps: { fermer } }),

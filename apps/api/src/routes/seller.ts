@@ -224,6 +224,62 @@ export function sellerRoutes(deps: SessionDeps) {
        * d'un geste. Le champ qui exige une verification est le numero de
        * reversement, et lui seul (AGENTS.md).
        */
+      /**
+       * Le RENOMMAGE — ADR 0092, constat C-002 de l'audit du 13/08.
+       *
+       * Il n'existait aucun chemin de renommage dans tout le produit : ni dans
+       * le bot, ni ici. Un nom pose au deuxieme message du fil etait definitif,
+       * et il est aussi l'adresse publique de la boutique.
+       *
+       * **Le slug ne bouge PAS**, et c'est le point delicat de cette route.
+       * L'adresse a peut-etre deja ete partagee — en Statut WhatsApp, dans une
+       * chaine, dans le QR d'une carte-vitrine imprimee. La casser en silence
+       * produirait exactement le defaut que l'ADR 0073 decrit : « un lien de
+       * Statut qui mene a une page 404 ne se voit ni en CI, ni chez la vendeuse.
+       * Il se voit chez l'acheteuse, une fois, et elle ne revient pas. »
+       * L'interface le dit en toutes lettres ; elle ne le devine pas pour elle.
+       *
+       * La ville se corrige par la meme porte : elle est du meme regime — saisie
+       * une fois, jamais modifiable, et elle sert a la livraison.
+       */
+      .post("/renommer", async (c) => {
+        const v = await vendeuseCourante(deps, c.req.raw);
+        if (!v) return c.json({ erreur: "non_authentifiee" }, 401);
+        if (!v.seller) return c.json({ erreur: "profil_absent" }, 404);
+
+        const corps = await c.req.json().catch(() => null);
+        const nom = String(corps?.businessName ?? "").trim();
+        const ville = String(corps?.city ?? v.seller.city).trim();
+        /* Les MEMES bornes qu'a la creation : deux portes qui ecrivent le meme
+           champ ne peuvent pas diverger sur ce qu'elles acceptent. */
+        if (nom.length < 2 || nom.length > 80 || !villeAcceptable(ville)) {
+          return c.json(
+            {
+              erreur: "champs_requis",
+              message: "Le nom de la boutique et la ville sont necessaires.",
+            },
+            422,
+          );
+        }
+        if (nom === v.seller.businessName && ville === v.seller.city) {
+          /* Rien n'a change : aucune ecriture, aucune ligne au journal. Meme
+             regle que la bascule des conges. */
+          return c.json({ businessName: nom, city: ville, slug: v.seller.slug });
+        }
+
+        const sellerId = v.seller.id;
+        await deps.prisma.$transaction(async (tx) => {
+          await tx.seller.update({
+            where: { id: sellerId },
+            data: { businessName: nom, city: ville },
+          });
+          await tx.sellerAuditEvent.create({
+            data: { sellerId, kind: "boutique_renommee", actor: "vendeuse_app", at: new Date() },
+          });
+        });
+        return c.json({ businessName: nom, city: ville, slug: v.seller.slug });
+      })
+
       .post("/conges", async (c) => {
         const v = await vendeuseCourante(deps, c.req.raw);
         if (!v) return c.json({ erreur: "non_authentifiee" }, 401);

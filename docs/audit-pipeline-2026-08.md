@@ -284,7 +284,7 @@ Un lot par session (AGENTS.md §7.1).
 |---|---|---|
 | **A** *(fait)* | le harnais, le balayage, les instantanés, l'ADR 0089 | — |
 | **B** | finir la cartographie des onze couches restantes | la phase 1 rende |
-| **C** | corriger C-001 et C-002 — **bloqué sur un arbitrage produit**, voir ci-dessous | tranché par le porteur |
+| **C** *(fait)* | C-001 et C-002 corrigés — ADR 0090, 0091, 0092 | arbitré par le porteur |
 | **D** | étendre le harnais à la preuve (couche 07) — sept contrôles, SMS collé, contre-signature | lot A |
 | **E** | instruire les pistes du transport entrant : rejeu d'un corps signé, livraisons concurrentes | lot B |
 
@@ -294,12 +294,17 @@ cartographiée.
 
 ---
 
-## L'arbitrage que je n'ai pas pris — et pourquoi
+## L'arbitrage — posé, puis rendu
 
-Les deux constats sont confirmés. Aucun n'a été corrigé, et c'est délibéré :
-**leurs deux remèdes évidents rouvrent chacun une décision documentée**, et
-AGENTS.md §7.7 nomme la dérive silencieuse comme le vrai risque de ce dépôt,
-bien avant la qualité du code.
+Les deux constats sont confirmés, et **leurs deux remèdes évidents rouvraient
+chacun une décision documentée**. AGENTS.md §7.7 nomme la dérive silencieuse
+comme le vrai risque de ce dépôt, bien avant la qualité du code : la décision a
+donc été posée au porteur du produit, avec la mesure en main, au lieu d'être
+prise ici.
+
+**Il a tranché : confirmation ET renommage pour C-002 ; confirmation sur la
+forme pour C-001.** Les deux sont implémentés (ADR 0090, 0091, 0092), avec neuf
+tests de non-retour. Ce qui suit est le raisonnement tel qu'il a été présenté.
 
 **Pour C-002 — confirmer le nom de boutique avant de l'ouvrir.** Le geste
 naturel est un récapitulatif, exactement comme la photo légendée en a déjà un
@@ -320,9 +325,23 @@ le vocabulaire : l'ADR 0050 a explicitement refusé toute liste de villes, et
 l'ADR 0051 a explicitement fermé la détection de question à l'intérieur du
 tunnel. Un correctif ici rouvre l'un ou l'autre.
 
-Ce que je peux dire sans arbitrage : **les deux défauts sont réels, reproduits,
-et sortent du système** — l'un jusque dans un gabarit Meta, l'autre jusque dans
-une URL publique.
+### Ce que l'arbitrage a produit
+
+- **ADR 0090** — un état `inscription_confirme` relit le nom et la ville avant
+  d'ouvrir. Une bulle de plus à l'ouverture, assumée, vingt-quatre heures après
+  que l'ADR 0088 l'a ramenée à une.
+- **ADR 0091** — `villeDouteuse` regarde **quatre formes** (point
+  d'interrogation, aucune lettre, adresse web, plus de cinq mots) et **jamais un
+  mot**. Aucune liste de villes : l'ADR 0050 tient, et un test le garde en
+  vérifiant que Foumbot, Kribi et Ngaoundéré passent sans question. « Oui »
+  garde la saisie telle quelle — on demande, on ne refuse jamais.
+- **ADR 0092** — une route de renommage et une carte dans les réglages. **Le
+  slug ne bouge pas** : l'adresse a peut-être déjà été partagée, et un lien
+  cassé « se voit chez l'acheteuse, une fois, et elle ne revient pas »
+  (ADR 0073). L'écran le dit en toutes lettres.
+
+Le catalogue de couverture du harnais passe de 484 à **528 cases**, les deux
+nouveaux états compris : le balayage échouerait s'ils n'y étaient pas.
 
 ---
 
