@@ -143,3 +143,75 @@ describeDb("parcours acheteuse — le harnais joue, on regarde", () => {
     expect(dernier?.etapeApres).toBe("catalogue");
   });
 });
+
+/**
+ * Le test de NON-RETOUR du constat C-001 — audit du 13/08/2026, ADR 0091.
+ *
+ * Il aurait echoue avant le correctif : la question devenait
+ * `order.delivery.city`, la commande etait creee, et la valeur partait dans le
+ * gabarit Meta envoye a la vendeuse.
+ */
+describeDb("C-001 — une ville qui n'a pas la forme d'un lieu se fait confirmer", () => {
+  it("la question posée à l'étape ville n'entre PAS en base sans un mot", async () => {
+    const scene = await creerScene(prisma, ids, { articles: 2 });
+    const a = pilote(scene, scene.acheteuseWaId, { compteur: compte });
+    const premier = scene.articles[0]?.id ?? "a1";
+
+    const tours = await a.jouerTous([
+      g.texteJuste(`boutique ${scene.slug}`, "comprendre"),
+      g.bouton(`cmd:${premier}`),
+      g.ligneListe("qte:1"),
+      g.bouton("commander"),
+      g.bouton("mode:livraison"),
+      g.horsSujet("est-ce que vous vendez des chaussures pour bébé ?"),
+    ]);
+
+    await expect(transcrire("ville douteuse", tours, scene)).toMatchFileSnapshot(
+      "./harnais/instantanes/acheteuse-ville-douteuse.txt",
+    );
+
+    /* Le tunnel n'avance pas : on attend un mot. */
+    const dernier = tours[tours.length - 1];
+    expect(dernier?.etapeApres).toBe("ville_doute");
+    /* Et la saisie est REPETEE, pas seulement mise en doute — l'acheteuse doit
+       voir ce que le bot a compris. */
+    expect(JSON.stringify(dernier?.messages)).toContain("chaussures pour b");
+
+    /* Corriger ramene au tunnel avec la BONNE ville, et rien n'a ete perdu. */
+    const suite = await a.jouerTous([
+      g.texteJuste("Bafoussam"),
+      g.texteJuste("Bonapriso, en face de la pharmacie Bleue, 690112233"),
+      g.bouton("confirmer"),
+    ]);
+    expect(suite.filter((t) => t.muet)).toEqual([]);
+
+    const commande = await prisma.order.findFirst({ where: { sellerId: scene.sellerId } });
+    const livraison = commande?.delivery as { city?: string };
+    expect(livraison.city).toBe("Bafoussam");
+    expect(livraison.city).not.toContain("chaussures");
+  });
+
+  it("confirmer garde la saisie telle quelle — on demande, on ne refuse jamais", async () => {
+    /* La contrepartie de l'ADR 0050 : aucun vocabulaire n'est ferme. Un lieu
+       reellement nomme d'une facon inattendue s'ecrit, en un appui de plus. */
+    const scene = await creerScene(prisma, ids, { articles: 2 });
+    const a = pilote(scene, scene.acheteuseWaId, { compteur: compte });
+    const premier = scene.articles[0]?.id ?? "a1";
+
+    await a.jouerTous([
+      g.texteJuste(`boutique ${scene.slug}`, "comprendre"),
+      g.bouton(`cmd:${premier}`),
+      g.ligneListe("qte:1"),
+      g.bouton("commander"),
+      g.bouton("mode:livraison"),
+      g.texteJuste("Chez Tantine au carrefour des trois manguiers"),
+      g.bouton("ville:oui"),
+      g.texteJuste("Bonapriso, en face de la pharmacie Bleue, 690112233"),
+      g.bouton("confirmer"),
+    ]);
+
+    const commande = await prisma.order.findFirst({ where: { sellerId: scene.sellerId } });
+    const livraison = commande?.delivery as { city?: string };
+    expect(livraison.city).toBe("Chez Tantine au carrefour des trois manguiers");
+  });
+});

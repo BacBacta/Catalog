@@ -1,4 +1,4 @@
-# reprise après 25 h
+# ville douteuse
 
 ## 1. texte « boutique ‹slug› »
    intention : comprendre
@@ -38,10 +38,10 @@
       *Livraison dans quelle ville ?*
       Appuyez sur *Douala*, ou écrivez la vôtre.
 
-## 6. reprise après 25 h « bonjour »
-   intention : recommencer
-   étape : catalogue (inchangée)
-   temps écoulé : 1500 min
-    ← boutons[catalogue · vendeuse]
-      *‹boutique›* — Douala
-      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+## 6. hors-sujet « est-ce que vous vendez des chaussures pour bébé ? »
+   intention : comprendre
+   étape : ville → ville_doute
+    ← boutons[ville:oui · ville:non]
+      Je note *est-ce que vous vendez des chaussures pour bébé ?* comme ville de livraison — c'est bien ça ?
+      
+      Si c'était une question, écrivez plutôt la ville, et posez-la ensuite à la vendeuse.

@@ -61,6 +61,24 @@ export type EtatVendeuse =
   /** Inscription : le nom de la boutique. `parrain` vient du lien d'entree. */
   | { nom: "inscription_nom"; parrain?: string; enPause?: GesteEnPause }
   | { nom: "inscription_ville"; nomBoutique: string; parrain?: string; enPause?: GesteEnPause }
+  /**
+   * Le nom et la ville, RELUS avant d'ouvrir — ADR 0090, constat C-002.
+   *
+   * Jusqu'ici la boutique naissait du second message, sans que la vendeuse ait
+   * jamais vu ce que le bot avait retenu. Mesure du 13/08/2026 : une question
+   * tapee a l'etape du nom devenait le nom ET le slug PUBLIC de la boutique,
+   * et aucun chemin de renommage n'existait nulle part.
+   *
+   * L'article legende a deja cette relecture (`article_confirme`) ; la
+   * boutique, qui est plus difficile a defaire, ne l'avait pas.
+   */
+  | {
+      nom: "inscription_confirme";
+      nomBoutique: string;
+      ville: string;
+      parrain?: string;
+      enPause?: GesteEnPause;
+    }
   /** Ajout d'article — disponible a vie, pas seulement a l'inscription. */
   | { nom: "article_nom"; enPause?: GesteEnPause }
   | { nom: "article_prix"; nomArticle: string; enPause?: GesteEnPause }
@@ -152,6 +170,16 @@ export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
         ...(typeof e.parrain === "string" ? { parrain: e.parrain } : {}),
         ...enPause,
       };
+    case "inscription_confirme":
+      return typeof e.nomBoutique === "string" && typeof e.ville === "string"
+        ? {
+            nom: "inscription_confirme",
+            nomBoutique: e.nomBoutique,
+            ville: e.ville,
+            ...(typeof e.parrain === "string" ? { parrain: e.parrain } : {}),
+            ...enPause,
+          }
+        : null;
     case "article_nom":
       return { nom: "article_nom", ...enPause };
     case "article_prix":
@@ -564,6 +592,7 @@ function travailEnCours(etat: EtatVendeuse): string {
     case "inscription_nom":
       return "d'ouvrir votre boutique";
     case "inscription_ville":
+    case "inscription_confirme":
       return `d'ouvrir *${etat.nomBoutique}*`;
     case "comptoir":
       return "de déclarer une vente";
@@ -605,6 +634,8 @@ export function questionDeLEtat(etat: EtatVendeuse, vers: string): MessageSortan
       return texte(vers, `${PREMIERE_QUESTION}${SORTIE_DE_SECOURS}`);
     case "inscription_ville":
       return texte(vers, `*Dans quelle ville vendez-vous ?*\nExemple : Douala${SORTIE_DE_SECOURS}`);
+    case "inscription_confirme":
+      return messageConfirmationBoutique(vers, etat.nomBoutique, etat.ville);
     case "article_nom":
       return texte(vers, `${QUESTION_NOM_ARTICLE}${SORTIE_DE_SECOURS}`);
     case "article_prix":
@@ -645,6 +676,29 @@ function boutonsRecapComptoir(
  * `etat: null` en sortie veut dire « ce fil est termine » : le service repose
  * l'etat neutre et la conversation repart au fil vendeuse ordinaire.
  */
+/**
+ * La relecture avant ouverture — ADR 0090.
+ *
+ * Le nom est REPETE tel quel : la vendeuse doit voir ce que le bot a retenu, et
+ * pas seulement s'entendre demander de confirmer. La phrase dit aussi que le
+ * nom sera l'adresse publique — c'est ce qui rend la relecture utile plutot que
+ * ceremonieuse.
+ */
+export function messageConfirmationBoutique(
+  vers: string,
+  nomBoutique: string,
+  ville: string,
+): MessageSortant {
+  return boutons(
+    vers,
+    `J'ai lu : *${nomBoutique}*, à *${ville}*.\n\nCe nom sera aussi l'adresse de votre boutique en ligne, celle que vous partagerez. On ouvre ?`,
+    [
+      { id: "ouvrir", titre: "Ouvrir ✓" },
+      { id: "corriger", titre: "Corriger" },
+    ],
+  );
+}
+
 export function reagirInscription(
   etat: EtatVendeuse,
   entree: Entree,
@@ -805,18 +859,55 @@ export function reagirInscription(
           messages: [texte(vers, "Dites-moi la ville où vous vendez.\nExemple : Douala")],
         };
       }
-      /* La boutique se cree ICI ; le message de bienvenue part apres, avec le
-         vrai lien — un slug ne s'invente pas (meme regle que la reference de
-         commande, AGENTS.md). */
+      /* La boutique ne se cree PLUS ici — ADR 0090. Elle se relit d'abord :
+         le nom devient une adresse publique, et rien ne permettait de le
+         corriger apres coup. Une bulle de plus a l'ouverture, assumee et
+         arbitree par le porteur du produit (elle revise l'ADR 0088). */
       return {
-        etat: null,
-        messages: [],
-        effet: {
-          type: "creer_boutique",
+        etat: {
+          nom: "inscription_confirme",
           nomBoutique: etat.nomBoutique,
           ville,
           ...(etat.parrain ? { parrain: etat.parrain } : {}),
         },
+        messages: [messageConfirmationBoutique(vers, etat.nomBoutique, ville)],
+      };
+    }
+
+    /**
+     * La relecture — ADR 0090. « Ouvrir » cree, « Corriger » retourne au nom, et
+     * tout le reste RE-POSE la question : on ne choisit pas a la place de la
+     * vendeuse, exactement comme l'arbitrage de l'ADR 0052.
+     */
+    case "inscription_confirme": {
+      const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : "";
+      if (id === "ouvrir") {
+        /* La boutique se cree ICI ; le message de bienvenue part apres, avec le
+           vrai lien — un slug ne s'invente pas (meme regle que la reference de
+           commande, AGENTS.md). */
+        return {
+          etat: null,
+          messages: [],
+          effet: {
+            type: "creer_boutique",
+            nomBoutique: etat.nomBoutique,
+            ville: etat.ville,
+            ...(etat.parrain ? { parrain: etat.parrain } : {}),
+          },
+        };
+      }
+      if (id === "corriger") {
+        return {
+          etat: {
+            nom: "inscription_nom",
+            ...(etat.parrain ? { parrain: etat.parrain } : {}),
+          },
+          messages: [texte(vers, `${PREMIERE_QUESTION}${SORTIE_DE_SECOURS}`)],
+        };
+      }
+      return {
+        etat,
+        messages: [messageConfirmationBoutique(vers, etat.nomBoutique, etat.ville)],
       };
     }
 

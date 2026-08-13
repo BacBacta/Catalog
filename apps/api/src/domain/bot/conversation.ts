@@ -1,6 +1,6 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
-import { villeAcceptable } from "@catalog/contracts/villes";
+import { villeAcceptable, villeDouteuse } from "@catalog/contracts/villes";
 import { planDePaiement } from "../order/paiement.ts";
 import { demandeChaine, demandeRetraitChaine, lireLienChaine } from "./chaine.ts";
 import type { VerdictConfiance } from "./confiance.ts";
@@ -164,6 +164,12 @@ export type EtatConv =
    * ou va le COLIS. Le retrait n'en a pas — le point de rendez-vous suffit.
    */
   | { nom: "ville"; slug: string; panier: LignePanier[] }
+  /**
+   * La ville saisie n'a pas la FORME d'un lieu, et on attend un mot — ADR 0091.
+   * `propose` est la saisie TELLE QUELLE : on ne la corrige pas, on la fait
+   * confirmer. Aucun vocabulaire n'est ferme (l'ADR 0050 tient).
+   */
+  | { nom: "ville_doute"; slug: string; panier: LignePanier[]; propose: string }
   | {
       nom: "details";
       slug: string;
@@ -237,6 +243,16 @@ export function normaliserEtat(brut: unknown): EtatConv {
       const lignes = panier.length > 0 ? panier : ancienne;
       if (!slug || !lignes) return ETAT_INITIAL;
       return { nom: "ville", slug, panier: lignes };
+    }
+    case "ville_doute": {
+      const lignes = panier.length > 0 ? panier : ancienne;
+      /* Sans la saisie a confirmer, il n'y a rien a confirmer : on retourne
+         poser la question plutot que de perdre le panier. */
+      if (!slug || !lignes) return ETAT_INITIAL;
+      if (typeof e.propose !== "string" || e.propose.trim() === "") {
+        return { nom: "ville", slug, panier: lignes };
+      }
+      return { nom: "ville_doute", slug, panier: lignes, propose: e.propose };
     }
     case "details": {
       const lignes = panier.length > 0 ? panier : ancienne;
@@ -529,6 +545,7 @@ function dansLeTunnel(etat: EtatConv): boolean {
     etat.nom === "ajout" ||
     etat.nom === "mode" ||
     etat.nom === "ville" ||
+    etat.nom === "ville_doute" ||
     etat.nom === "details" ||
     etat.nom === "recap"
   );
@@ -538,6 +555,7 @@ function texteEstDuContenu(etat: EtatConv): boolean {
   return (
     etat.nom === "details" ||
     etat.nom === "ville" ||
+    etat.nom === "ville_doute" ||
     etat.nom === "recap" ||
     etat.nom === "avis_mot"
   );
@@ -984,6 +1002,32 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
           messages: [questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse))],
         };
       }
+      /**
+       * La saisie n'a pas la FORME d'un lieu — ADR 0091, constat C-001.
+       *
+       * Mesure du 13/08/2026 : « est-ce que vous vendez des chaussures pour
+       * bébé ? » devenait `order.delivery.city`, puis partait dans le gabarit
+       * Meta envoye a la vendeuse. Le recapitulatif l'affichait bien — l'ADR
+       * 0050 le donne pour garde-fou — mais un echo n'est pas un signal :
+       * l'acheteuse n'avait pas mal orthographie une ville, elle avait pose une
+       * question, et se relire ne le lui apprend pas.
+       *
+       * On DEMANDE, on ne refuse jamais : le bouton « oui » garde la saisie
+       * telle quelle. Aucun vocabulaire n'est ferme (l'ADR 0050 tient), seule
+       * la forme est regardee. Une ville proposee au bouton ne passe pas ici —
+       * elle vient de la boutique, pas d'un clavier.
+       */
+      if (!proposee && villeDouteuse(ville)) {
+        return {
+          etat: { nom: "ville_doute", slug: etat.slug, panier: etat.panier, propose: ville },
+          messages: [
+            boutons(vers, t.villeDouteuse(ville), [
+              { id: "ville:oui", titre: t.btnVilleOui },
+              { id: "ville:non", titre: t.btnVilleNon },
+            ]),
+          ],
+        };
+      }
       return {
         etat: { nom: "details", slug: etat.slug, panier: etat.panier, mode: "livraison", ville },
         messages: messagesDetails(
@@ -993,6 +1037,62 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
           Boolean(boutique.whatsappVendeuse),
           "livraison",
         ),
+      };
+    }
+
+    /**
+     * La ville dont la forme detonne, en attente d'un mot — ADR 0091.
+     *
+     * Deux sorties, et une seule regle : tout ce qui n'est pas « oui » ramene a
+     * la question. On ne devine pas a la place de l'acheteuse, et on ne la
+     * bloque pas non plus — c'est la doctrine d'arbitrage de l'ADR 0052,
+     * appliquee a un champ au lieu d'un fil.
+     */
+    case "ville_doute": {
+      const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+      if (id === "ville:oui") {
+        return {
+          etat: {
+            nom: "details",
+            slug: etat.slug,
+            panier: etat.panier,
+            mode: "livraison",
+            ville: etat.propose,
+          },
+          messages: messagesDetails(
+            vers,
+            t.questionDetailsLivraison,
+            t,
+            Boolean(boutique.whatsappVendeuse),
+            "livraison",
+          ),
+        };
+      }
+      /* Un texte libre est une NOUVELLE ville — elle repasse par la meme porte,
+         donc par le meme controle de forme. Retaper sa reponse est le geste le
+         plus naturel de quelqu'un a qui on demande « c'est bien ca ? ». */
+      const retapee = entree.genre === "texte" ? entree.texte.trim() : "";
+      if (retapee && villeAcceptable(retapee) && !villeDouteuse(retapee)) {
+        return {
+          etat: {
+            nom: "details",
+            slug: etat.slug,
+            panier: etat.panier,
+            mode: "livraison",
+            ville: retapee,
+          },
+          messages: messagesDetails(
+            vers,
+            t.questionDetailsLivraison,
+            t,
+            Boolean(boutique.whatsappVendeuse),
+            "livraison",
+          ),
+        };
+      }
+      return {
+        etat: { nom: "ville", slug: etat.slug, panier: etat.panier },
+        messages: [questionVille(vers, boutique.ville, t, Boolean(boutique.whatsappVendeuse))],
       };
     }
 

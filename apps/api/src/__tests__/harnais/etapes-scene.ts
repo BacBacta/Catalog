@@ -123,6 +123,25 @@ export const RECETTES: readonly RecetteEtape[] = [
   },
   {
     ...DEFAUTS,
+    cle: "inscription_confirme",
+    qui: "acheteuse",
+    etat: () => ({
+      nom: "inscription_confirme",
+      nomBoutique: "Chez Mireille",
+      ville: "Douala",
+    }),
+    juste: "oui",
+    faute: "wi",
+    sansAccents: "oui c est bon",
+    anglais: "yes",
+    pidgin: "yes na so",
+    boutonAttendu: "ouvrir",
+    fluxGenre: "ouverture",
+    fluxCharge: () => ({ boutique: "Chez Mireille", ville: "Douala" }),
+    retour: "corriger",
+  },
+  {
+    ...DEFAUTS,
     cle: "aucun_vendeuse",
     qui: "vendeuse",
     etat: () => null,
@@ -367,6 +386,27 @@ export const RECETTES: readonly RecetteEtape[] = [
     anglais: "Bafoussam",
     pidgin: "Bafoussam side",
     retour: "catalogue",
+  },
+  {
+    ...DEFAUTS,
+    cle: "ville_doute",
+    qui: "acheteuse",
+    etat: (s) => ({
+      nom: "ville_doute",
+      slug: s.slug,
+      panier: PANIER(s),
+      propose: "est-ce que vous vendez des chaussures pour bébé ?",
+    }),
+    juste: "Bafoussam",
+    faute: "Bafousam",
+    sansAccents: "bafoussam",
+    anglais: "Bafoussam",
+    pidgin: "Bafoussam side",
+    boutonAttendu: "ville:oui",
+    /* Revenir en arriere ICI, c'est retaper la bonne ville : la correction est
+       un bouton, et `retourArriere` envoie du texte. Y mettre « ville:non »
+       ferait taper l'identifiant du bouton, qui deviendrait la ville. */
+    retour: "Douala",
   },
   {
     ...DEFAUTS,

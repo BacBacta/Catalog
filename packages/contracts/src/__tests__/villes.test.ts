@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { deliverySchema } from "../delivery.ts";
 import { formatPhone, normalizePhone } from "../phone.ts";
-import { VILLE_MAX, VILLE_MIN, villeAcceptable } from "../villes.ts";
+import { VILLE_MAX, VILLE_MIN, villeAcceptable, villeDouteuse } from "../villes.ts";
 
 /**
  * La ville d'une boutique — ADR 0050.
@@ -135,5 +135,59 @@ describe("normalizePhone accepte toutes les ecritures qui circulent", () => {
     for (const faux of ["+33612345678", "0612345678", "12345", ""]) {
       expect(normalizePhone(faux), faux).toBeNull();
     }
+  });
+});
+
+describe("villeDouteuse — la FORME, jamais le vocabulaire (ADR 0091)", () => {
+  it("laisse passer tout ce qui ressemble a un lieu, connu ou non", () => {
+    /* Le point entier du predicat : il ne connait aucune ville, et n'en exclut
+       aucune. Foumbot, Kribi, Ngaoundere passent — comme n'importe quel
+       toponyme que personne ici n'a jamais entendu. C'est ce qui le distingue
+       de la liste que l'ADR 0050 a refusee. */
+    for (const v of [
+      "Douala",
+      "Yaoundé",
+      "Bafoussam",
+      "Foumbot",
+      "Kribi",
+      "Ngaoundéré",
+      "Douala 5e",
+      "Bonaberi",
+      "Douala Bonaberi carrefour Total Ndokoti",
+      "Buea",
+      "Garoua-Boulaï",
+    ]) {
+      expect(villeDouteuse(v), v).toBe(false);
+    }
+  });
+
+  it("attrape la question posee au bot — le constat C-001", () => {
+    expect(villeDouteuse("est-ce que vous vendez des chaussures pour bébé ?")).toBe(true);
+    expect(villeDouteuse("vous avez du 38 ?")).toBe(true);
+  });
+
+  it("attrape une saisie sans une seule lettre", () => {
+    for (const v of ["12345", "?? ...", "...", "690112233"]) {
+      expect(villeDouteuse(v), v).toBe(true);
+    }
+  });
+
+  it("attrape un lien colle", () => {
+    expect(villeDouteuse("https://exemple.test/bonjour")).toBe(true);
+    expect(villeDouteuse("www.exemple.test")).toBe(true);
+  });
+
+  it("attrape une phrase, au-dela de cinq mots", () => {
+    expect(villeDouteuse("c'est trop cher pour moi merci")).toBe(true);
+    /* Cinq mots exactement : on ne demande PAS. Le seuil est genereux a dessein. */
+    expect(villeDouteuse("Douala Bonaberi carrefour Total Ndokoti")).toBe(false);
+  });
+
+  it("une saisie vide n'est pas douteuse — elle est deja refusee ailleurs", () => {
+    /* Deux predicats, deux roles : `villeAcceptable` refuse, `villeDouteuse`
+       fait demander. Les confondre ferait poser une question sur du vide. */
+    expect(villeDouteuse("")).toBe(false);
+    expect(villeDouteuse("   ")).toBe(false);
+    expect(villeAcceptable("")).toBe(false);
   });
 });

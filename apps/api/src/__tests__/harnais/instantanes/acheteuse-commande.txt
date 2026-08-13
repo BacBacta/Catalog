@@ -1,21 +1,21 @@
 # commande complète
 
-## 1. texte « boutique harnais-2683101 »
+## 1. texte « boutique ‹slug› »
    intention : comprendre
    étape : aucun_prospect → catalogue
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
       Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
 
-## 2. ligne de liste « art:019ffceb-6a99-723c-92f6-7d4e8515aaca »
+## 2. ligne de liste « art:‹article› »
    intention : avancer
    étape : catalogue (inchangée)
-    ← boutons[cmd:019ffceb-6a99-723c-92f6-7d4e8515aaca · cat:0]
+    ← boutons[cmd:‹article› · cat:0]
       *Article 1*
       15 000 FCFA
       5 disponibles
 
-## 3. bouton « cmd:019ffceb-6a99-723c-92f6-7d4e8515aaca »
+## 3. bouton « cmd:‹article› »
    intention : avancer
    étape : catalogue → quantite
     ← liste[qte:1 · qte:2 · qte:3 · qte:4 · qte:5 · vendeuse]

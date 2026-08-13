@@ -46,6 +46,9 @@ describeDb("parcours vendeuse — le harnais joue, on regarde", () => {
       g.bouton("vendre"),
       g.texteJuste("Chez Solange"),
       g.texteJuste("Douala"),
+      /* La relecture avant ouverture — ADR 0090. La boutique ne nait plus du
+         second message : la vendeuse voit d'abord ce que le bot a retenu. */
+      g.bouton("ouvrir"),
       g.ligneListe("article"),
       g.texteJuste("Pagne wax 6 yards"),
       g.texteJuste("15000"),
@@ -84,5 +87,56 @@ describeDb("parcours vendeuse — le harnais joue, on regarde", () => {
     await expect(transcrire("photo légendée", tours, scene)).toMatchFileSnapshot(
       "./harnais/instantanes/vendeuse-photo-legendee.txt",
     );
+  });
+});
+
+/**
+ * Le test de NON-RETOUR du constat C-002 — audit du 13/08/2026, ADR 0090.
+ *
+ * Il aurait echoue avant le correctif : la boutique naissait du second message,
+ * nom et slug PUBLIC figes, sans que la vendeuse ait rien relu.
+ */
+describeDb("C-002 — la boutique se relit avant de s'ouvrir", () => {
+  it("rien n'est créé tant que la vendeuse n'a pas confirmé", async () => {
+    const scene = await creerScene(prisma, ids, { articles: 0 });
+    const p = pilote(scene, scene.acheteuseWaId, { compteur: compte });
+
+    const tours = await p.jouerTous([
+      g.bouton("vendre"),
+      g.horsSujet("est-ce que vous vendez des chaussures pour bébé ?"),
+      g.texteJuste("Douala"),
+    ]);
+
+    await expect(transcrire("relecture avant ouverture", tours, scene)).toMatchFileSnapshot(
+      "./harnais/instantanes/vendeuse-relecture.txt",
+    );
+
+    /* AUCUNE boutique : c'est tout le constat C-002. */
+    expect(await prisma.seller.count({ where: { phone: `+${scene.acheteuseWaId}` } })).toBe(0);
+    const dernier = tours[tours.length - 1];
+    expect(dernier?.etapeApres).toBe("inscription_confirme");
+    /* Le nom est REPETE, et la phrase dit qu'il deviendra l'adresse publique. */
+    const dit = JSON.stringify(dernier?.messages);
+    expect(dit).toContain("chaussures pour b");
+    expect(dit).toContain("adresse");
+  });
+
+  it("« Corriger » repose la question, et le nom repris est celui qui s'ouvre", async () => {
+    const scene = await creerScene(prisma, ids, { articles: 0 });
+    const p = pilote(scene, scene.acheteuseWaId, { compteur: compte });
+
+    await p.jouerTous([
+      g.bouton("vendre"),
+      g.horsSujet("est-ce que vous vendez des chaussures pour bébé ?"),
+      g.texteJuste("Douala"),
+      g.bouton("corriger"),
+      g.texteJuste("Chez Solange"),
+      g.texteJuste("Douala"),
+      g.bouton("ouvrir"),
+    ]);
+
+    const v = await prisma.seller.findFirst({ where: { phone: `+${scene.acheteuseWaId}` } });
+    expect(v?.businessName).toBe("Chez Solange");
+    expect(v?.slug).not.toContain("chaussures");
   });
 });

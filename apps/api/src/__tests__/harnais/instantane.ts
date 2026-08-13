@@ -140,7 +140,11 @@ export function neutraliser(texte: string, scene: Scene): string {
 
 function rendreMessage(m: MessageSortant, scene: Scene): string {
   const corps = neutraliser(corpsDe(m), scene).split("\n").join("\n      ");
-  return `    ← ${formeDe(m)}\n      ${corps}`;
+  /* La FORME aussi passe par la neutralisation : les identifiants de boutons
+     portent l'uuid de l'article (`cmd:019ffd07-…`), qui change a chaque
+     execution. Ne neutraliser que le corps laissait l'instantane rouge un
+     passage sur deux — et un instantane qui crie sans raison cesse d'etre lu. */
+  return `    ← ${neutraliser(formeDe(m), scene)}\n      ${corps}`;
 }
 
 /**
@@ -153,7 +157,11 @@ function rendreMessage(m: MessageSortant, scene: Scene): string {
 export function transcrire(titre: string, tours: readonly Tour[], scene: Scene): string {
   const lignes: string[] = [`# ${titre}`, ""];
   for (const t of tours) {
-    lignes.push(`## ${t.rang}. ${t.geste.libelle}`);
+    /* Le libelle porte ce que la personne a TAPE — donc parfois le slug de la
+       scene, qui change a chaque execution. Sans cette neutralisation,
+       l'instantane rougit a chaque passage et cesse d'etre lu : le sort de tous
+       les tests qui crient trop. */
+    lignes.push(`## ${t.rang}. ${neutraliser(t.geste.libelle, scene)}`);
     lignes.push(`   intention : ${t.geste.intention}`);
     lignes.push(
       `   étape : ${t.etapeAvant}${t.etapeApres === t.etapeAvant ? " (inchangée)" : ` → ${t.etapeApres}`}`,

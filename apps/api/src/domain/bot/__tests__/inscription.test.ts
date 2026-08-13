@@ -85,15 +85,33 @@ describe("l'inscription, etat par etat", () => {
       { genre: "texte", texte: "Douala" },
       VERS,
     );
-    expect(ville.effet).toEqual({
+    /* La ville ne cree PLUS la boutique — ADR 0090. Elle amene la relecture :
+       le nom devient l'adresse publique, et rien ne permettait de le corriger
+       apres coup (constat C-002 de l'audit du 13/08). */
+    expect(ville.effet).toBeUndefined();
+    expect(ville.etat).toEqual({
+      nom: "inscription_confirme",
+      nomBoutique: "Chez Bea",
+      ville: "Douala",
+      parrain: "chez-amina",
+    });
+    expect(corps(ville.messages[0])).toContain("Chez Bea");
+
+    const ouvre = reagirInscription(
+      ville.etat as EtatVendeuse,
+      { genre: "bouton", id: "ouvrir" },
+      VERS,
+    );
+    expect(ouvre.effet).toEqual({
       type: "creer_boutique",
       nomBoutique: "Chez Bea",
       ville: "Douala",
       parrain: "chez-amina",
     });
     // Rien n'est dit ici : le slug n'existe pas encore, et il ne s'invente pas.
-    expect(ville.messages).toEqual([]);
-    expect(ville.etat).toBeNull();
+    expect(ouvre.messages).toEqual([]);
+    // `null` veut dire « ce fil est termine » : le service repose l'etat neutre.
+    expect(ouvre.etat).toBeNull();
   });
 
   it("un nom ou une ville vides redemandent, sans avancer", () => {

@@ -1,13 +1,13 @@
 # boutique en congés
 
-## 1. texte « boutique harnais-2683105 »
+## 1. texte « boutique ‹slug› »
    intention : comprendre
    étape : aucun_prospect → catalogue
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
       🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — elle vous dira quand elle reprend.
 
-## 2. bouton « cmd:019ffceb-6c32-779f-ba08-163ca6368897 »
+## 2. bouton « cmd:‹article› »
    intention : avancer
    étape : catalogue (inchangée)
     ← boutons[vendeuse · catalogue]

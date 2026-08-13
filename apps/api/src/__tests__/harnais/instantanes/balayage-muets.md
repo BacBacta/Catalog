@@ -9,7 +9,8 @@ La question qu'il pose — une relance existe-t-elle ? — est ailleurs.
 |---|---|---|---|
 | aucun_prospect | double_envoi | relivraison du même message | inscription_nom |
 | inscription_nom | double_envoi | relivraison du même message | inscription_ville |
-| inscription_ville | double_envoi | relivraison du même message | aucun_vendeuse |
+| inscription_ville | double_envoi | relivraison du même message | inscription_confirme |
+| inscription_confirme | double_envoi | relivraison du même message | inscription_confirme |
 | aucun_vendeuse | double_envoi | relivraison du même message | aucun_vendeuse |
 | article_nom | double_envoi | relivraison du même message | article_prix |
 | article_prix | double_envoi | relivraison du même message | article_photo |
@@ -26,6 +27,7 @@ La question qu'il pose — une relance existe-t-elle ? — est ailleurs.
 | ajout | double_envoi | relivraison du même message | ajout |
 | mode | double_envoi | relivraison du même message | ville |
 | ville | double_envoi | relivraison du même message | details |
+| ville_doute | double_envoi | relivraison du même message | details |
 | details | double_envoi | relivraison du même message | recap |
 | recap | double_envoi | relivraison du même message | catalogue |
 | avis_mot | double_envoi | relivraison du même message | accueil |

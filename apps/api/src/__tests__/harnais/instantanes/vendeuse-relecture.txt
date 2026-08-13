@@ -1,0 +1,27 @@
+# relecture avant ouverture
+
+## 1. bouton « vendre »
+   intention : avancer
+   étape : aucun_prospect → inscription_nom
+    ← texte
+      Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même.
+      
+      *Comment s'appelle votre boutique ?*
+      Exemple : Chez Amina
+
+## 2. hors-sujet « est-ce que vous vendez des chaussures pour bébé ? »
+   intention : comprendre
+   étape : inscription_nom → inscription_ville
+    ← texte
+      *est-ce que vous vendez des chaussures pour bébé ?* — c'est noté.
+      
+      *Dans quelle ville vendez-vous ?*
+      Exemple : Douala
+
+## 3. texte « Douala »
+   intention : avancer
+   étape : inscription_ville → inscription_confirme
+    ← boutons[ouvrir · corriger]
+      J'ai lu : *est-ce que vous vendez des chaussures pour bébé ?*, à *Douala*.
+      
+      Ce nom sera aussi l'adresse de votre boutique en ligne, celle que vous partagerez. On ouvre ?

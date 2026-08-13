@@ -120,6 +120,14 @@ export interface TextesAcheteuse {
   btnLivraison: string;
   btnRetrait: string;
   modeParBoutons: string;
+  /**
+   * La ville dont la FORME detonne — ADR 0091. Le texte REPETE la saisie :
+   * l'acheteuse doit voir ce que le bot a compris, pas seulement s'entendre
+   * demander de confirmer. Aucun vocabulaire n'est ferme (l'ADR 0050 tient).
+   */
+  villeDouteuse: (saisie: string) => string;
+  btnVilleOui: string;
+  btnVilleNon: string;
   questionDetailsLivraison: string;
   questionDetailsRetrait: string;
   detailsParTexte: string;
@@ -341,6 +349,10 @@ const fr: TextesAcheteuse = {
   btnLivraison: "Livraison",
   btnRetrait: "Point de retrait",
   modeParBoutons: "Choisissez avec les boutons ci-dessous.",
+  villeDouteuse: (saisie) =>
+    `Je note *${saisie}* comme ville de livraison — c'est bien ça ?\n\nSi c'était une question, écrivez plutôt la ville, et posez-la ensuite à la vendeuse.`,
+  btnVilleOui: "Oui, c'est la ville",
+  btnVilleNon: "Non, corriger",
   questionDetailsLivraison:
     "Votre quartier, un repère, puis le numéro à appeler — en un seul message.\nExemple : Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33",
   questionDetailsRetrait:
@@ -560,6 +572,10 @@ const en: TextesAcheteuse = {
   btnLivraison: "Delivery",
   btnRetrait: "Pickup point",
   modeParBoutons: "Choose with the buttons below.",
+  villeDouteuse: (saisie) =>
+    `I am noting *${saisie}* as the delivery city — is that right?\n\nIf that was a question, write the city instead, then ask the seller.`,
+  btnVilleOui: "Yes, that's the city",
+  btnVilleNon: "No, correct it",
   questionDetailsLivraison:
     "Your neighbourhood, a landmark, then the phone number to call — in one message.\nExample: Bonapriso, opposite the Rond-Point pharmacy, 690 11 22 33",
   questionDetailsRetrait:
@@ -777,6 +793,10 @@ const wes: TextesAcheteuse = {
   btnLivraison: "Dem bring-am",
   btnRetrait: "A go come take-am",
   modeParBoutons: "Choose wit di button dem for down.",
+  villeDouteuse: (saisie) =>
+    `A di put *${saisie}* as di town weh dem go bring di thing — na so?\n\nIf na question yu bin di ask, write di town first, den ask di seller.`,
+  btnVilleOui: "Yes, na di town",
+  btnVilleNon: "No, correct-am",
   questionDetailsLivraison:
     "Yua kwata, some place weh people sabi, den di nomba for call \u2014 for one message only.\nExample: Bonapriso, for front of di Rond-Point farmasi, 690 11 22 33",
   questionDetailsRetrait:

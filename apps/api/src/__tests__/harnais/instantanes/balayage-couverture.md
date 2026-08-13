@@ -10,6 +10,7 @@ Une case non exercée est `non mesuré`, jamais `guidé`.
 | nom de la boutique | vendeuse | 22 | 22 | 100 % | — |
 | ville de la vendeuse | vendeuse | 22 | 22 | 100 % | — |
 | fil vendeuse au repos | vendeuse | 22 | 22 | 100 % | — |
+| relecture avant ouverture | vendeuse | 22 | 22 | 100 % | — |
 | nom de l'article | vendeuse | 22 | 22 | 100 % | — |
 | prix de l'article | vendeuse | 22 | 22 | 100 % | — |
 | photo de l'article | vendeuse | 22 | 22 | 100 % | — |
@@ -25,10 +26,11 @@ Une case non exercée est `non mesuré`, jamais `guidé`.
 | panier — autre chose ? | acheteuse | 22 | 22 | 100 % | — |
 | livraison ou retrait | acheteuse | 22 | 22 | 100 % | — |
 | ville de livraison | acheteuse | 22 | 22 | 100 % | — |
+| ville dont la forme détonne | acheteuse | 22 | 22 | 100 % | — |
 | quartier, repère, téléphone | acheteuse | 22 | 22 | 100 % | — |
 | récapitulatif avant commande | acheteuse | 22 | 22 | 100 % | — |
 | mot de l'avis | acheteuse | 22 | 22 | 100 % | — |
-| **Total** | — | **484** | **484** | **100 %** | — |
+| **Total** | — | **528** | **528** | **100 %** | — |
 
 Seuil du §7 : 80 % sur les étapes principales.
 Aucune étape principale sous le seuil.

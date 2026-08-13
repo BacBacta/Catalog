@@ -48,11 +48,11 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_nom | retour_arriere | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | inscription_nom | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | inscription_nom | reprise_25h | accueil | Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes. |
-| inscription_ville | texte_juste | aucun_vendeuse | ✅ *Chez Mireille* est ouverte. |
-| inscription_ville | texte_faute | aucun_vendeuse | ✅ *Chez Mireille* est ouverte. |
-| inscription_ville | texte_sans_accents | aucun_vendeuse | ✅ *Chez Mireille* est ouverte. |
-| inscription_ville | anglais | aucun_vendeuse | ✅ *Chez Mireille* est ouverte. |
-| inscription_ville | pidgin | aucun_vendeuse | ✅ *Chez Mireille* est ouverte. |
+| inscription_ville | texte_juste | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_ville | texte_faute | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_ville | texte_sans_accents | inscription_confirme | J'ai lu : *Chez Mireille*, à *douala*. |
+| inscription_ville | anglais | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_ville | pidgin | inscription_confirme | J'ai lu : *Chez Mireille*, à *na Douala*. |
 | inscription_ville | bouton_attendu | inscription_ville | Dites-moi la ville où vous vendez. |
 | inscription_ville | bouton_ancien | inscription_ville | Dites-moi la ville où vous vendez. |
 | inscription_ville | ligne_liste | inscription_ville | Dites-moi la ville où vous vendez. |
@@ -64,12 +64,34 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_ville | sticker | inscription_ville | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | inscription_ville | document | inscription_ville | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
 | inscription_ville | localisation | inscription_ville | Merci — je ne sais pas encore me servir d'une position partagée. Écrivez-moi votre quartier et un repère (« en |
-| inscription_ville | hors_sujet | aucun_vendeuse | ✅ *Chez Mireille* est ouverte. |
+| inscription_ville | hors_sujet | inscription_confirme | J'ai lu : *Chez Mireille*, à *est-ce que vous vendez des chaussures pour bébé ?*. |
 | inscription_ville | silence | inscription_ville | **— MUET —** |
-| inscription_ville | double_envoi | aucun_vendeuse | **— MUET —** |
+| inscription_ville | double_envoi | inscription_confirme | **— MUET —** |
 | inscription_ville | retour_arriere | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | inscription_ville | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | inscription_ville | reprise_25h | accueil | Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes. |
+| inscription_confirme | texte_juste | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | texte_faute | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | texte_sans_accents | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | anglais | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | pidgin | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | bouton_attendu | aucun_vendeuse | ✅ *Chez Mireille* est ouverte. |
+| inscription_confirme | bouton_ancien | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | ligne_liste | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | flux_valide | inscription_confirme | Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton. |
+| inscription_confirme | flux_tronque | inscription_confirme | Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton. |
+| inscription_confirme | photo | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | photo_legendee | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | vocal | inscription_confirme | Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « no |
+| inscription_confirme | sticker | inscription_confirme | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
+| inscription_confirme | document | inscription_confirme | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
+| inscription_confirme | localisation | inscription_confirme | Merci — je ne sais pas encore me servir d'une position partagée. Écrivez-moi votre quartier et un repère (« en |
+| inscription_confirme | hors_sujet | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | silence | inscription_confirme | **— MUET —** |
+| inscription_confirme | double_envoi | inscription_confirme | **— MUET —** |
+| inscription_confirme | retour_arriere | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
+| inscription_confirme | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| inscription_confirme | reprise_25h | accueil | Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes. |
 | aucun_vendeuse | texte_juste | aucun_vendeuse | *‹boutique›* |
 | aucun_vendeuse | texte_faute | aucun_vendeuse | *‹boutique›* |
 | aucun_vendeuse | texte_sans_accents | aucun_vendeuse | *‹boutique›* |
@@ -416,12 +438,34 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | ville | sticker | ville | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | ville | document | ville | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
 | ville | localisation | ville | *Livraison dans quelle ville ?* |
-| ville | hors_sujet | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville | hors_sujet | ville_doute | Je note *est-ce que vous vendez des chaussures pour bébé ?* comme ville de livraison — c'est bien ça ? |
 | ville | silence | ville | **— MUET —** |
 | ville | double_envoi | details | **— MUET —** |
 | ville | retour_arriere | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
 | ville | abandon | catalogue | C'est annulé — le panier est vide, rien n'a été commandé. |
 | ville | reprise_25h | catalogue | *‹boutique›* — Douala |
+| ville_doute | texte_juste | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville_doute | texte_faute | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville_doute | texte_sans_accents | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville_doute | anglais | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville_doute | pidgin | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville_doute | bouton_attendu | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville_doute | bouton_ancien | ville | *Livraison dans quelle ville ?* |
+| ville_doute | ligne_liste | catalogue | *‹boutique›* — 2 articles |
+| ville_doute | flux_valide | ville | *Livraison dans quelle ville ?* |
+| ville_doute | flux_tronque | ville | *Livraison dans quelle ville ?* |
+| ville_doute | photo | ville | *Livraison dans quelle ville ?* |
+| ville_doute | photo_legendee | ville | *Livraison dans quelle ville ?* |
+| ville_doute | vocal | ville_doute | Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « no |
+| ville_doute | sticker | ville_doute | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
+| ville_doute | document | ville_doute | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
+| ville_doute | localisation | ville | *Livraison dans quelle ville ?* |
+| ville_doute | hors_sujet | ville | *Livraison dans quelle ville ?* |
+| ville_doute | silence | ville_doute | **— MUET —** |
+| ville_doute | double_envoi | details | **— MUET —** |
+| ville_doute | retour_arriere | details | Votre quartier, un repère, puis le numéro à appeler — en un seul message. |
+| ville_doute | abandon | catalogue | C'est annulé — le panier est vide, rien n'a été commandé. |
+| ville_doute | reprise_25h | catalogue | *‹boutique›* — Douala |
 | details | texte_juste | recap | *Récapitulatif — ‹boutique›* |
 | details | texte_faute | recap | *Récapitulatif — ‹boutique›* |
 | details | texte_sans_accents | recap | *Récapitulatif — ‹boutique›* |

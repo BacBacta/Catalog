@@ -26,14 +26,22 @@
 
 ## 4. texte « Douala »
    intention : avancer
-   étape : inscription_ville → aucun_vendeuse
+   étape : inscription_ville → inscription_confirme
+    ← boutons[ouvrir · corriger]
+      J'ai lu : *Chez Solange*, à *Douala*.
+      
+      Ce nom sera aussi l'adresse de votre boutique en ligne, celle que vous partagerez. On ouvre ?
+
+## 5. bouton « ouvrir »
+   intention : avancer
+   étape : inscription_confirme → aucun_vendeuse
     ← liste[article · carte · ma_boutique]
       ✅ *Chez Solange* est ouverte.
       
       Votre lien à partager — mettez-le en statut WhatsApp :
       https://wa.me/‹tel›?text=boutique%20‹slug›
 
-## 5. ligne de liste « article »
+## 6. ligne de liste « article »
    intention : avancer
    étape : aucun_vendeuse → article_nom
     ← texte
@@ -42,14 +50,14 @@
       
       Plus rapide : envoyez directement la photo, avec « nom prix » en légende.
 
-## 6. texte « Pagne wax 6 yards »
+## 7. texte « Pagne wax 6 yards »
    intention : avancer
    étape : article_nom → article_prix
     ← texte
       *Pagne wax 6 yards* — son prix, en francs ?
       Exemple : 15000
 
-## 7. texte « 15000 »
+## 8. texte « 15000 »
    intention : avancer
    étape : article_prix → article_photo
     ← boutons[sans_photo]
@@ -57,7 +65,7 @@
       
       *Envoyez maintenant la photo de l'article.* Prenez-la ici, elle sera allégée automatiquement.
 
-## 8. bouton « sans_photo »
+## 9. bouton « sans_photo »
    intention : avancer
    étape : article_photo → aucun_vendeuse
     ← boutons[article · carte]

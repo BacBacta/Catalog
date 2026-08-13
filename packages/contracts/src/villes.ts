@@ -44,3 +44,50 @@ export function villeAcceptable(brut: string): boolean {
   const net = brut.trim();
   return net.length >= VILLE_MIN && net.length <= VILLE_MAX;
 }
+
+/**
+ * La saisie a-t-elle la FORME d'autre chose qu'un nom de lieu ? — ADR 0091.
+ *
+ * ── Ce que ce predicat n'est pas ──────────────────────────────────────────
+ *
+ * Ce n'est **pas** une liste de villes deguisee, et la distinction est tout le
+ * sujet. L'ADR 0050 a refuse la liste pour une raison qui tient toujours : elle
+ * deplace le mur a la soixantieme ville et exclut en silence une vendeuse de
+ * Foumbot. Ici, **aucun mot n'est jugé** — seule la forme l'est. « Foumbot »,
+ * « Douala 5e », « Kribi » et n'importe quel toponyme jamais entendu passent
+ * tous, parce que rien dans leur forme ne detonne.
+ *
+ * Ce n'est pas non plus un REFUS. Le predicat est vrai, l'appelant **pose une
+ * question** et la personne peut confirmer. Un lieu reellement nomme « Chez
+ * Tantine ? » — improbable, mais ce n'est pas a nous de le decider — s'ecrit
+ * quand meme, en un appui de plus.
+ *
+ * ── Ce que le harnais a mesure, et qui a motive ce predicat ───────────────
+ *
+ * A l'etape « ville de livraison », `villeAcceptable` seul laissait passer
+ * « est-ce que vous vendez des chaussures pour bebe ? », `12345`, `?? ...` et
+ * une URL. La question atterrissait dans `order.delivery.city`, puis dans le
+ * gabarit Meta envoye a la vendeuse. Voir `docs/audit-pipeline-2026-08.md`,
+ * constat C-001.
+ *
+ * Les quatre formes retenues, et le defaut que chacune attrape :
+ *
+ * | forme | ce qu'elle attrape |
+ * |---|---|
+ * | un point d'interrogation | la question posee au bot, avalee comme reponse |
+ * | aucune lettre | `12345`, `?? ...` — une saisie qui a derape |
+ * | une adresse web | un lien colle par erreur |
+ * | plus de cinq mots | une phrase, jamais un toponyme |
+ *
+ * Le seuil de cinq mots est genereux a dessein : « Douala Bonaberi carrefour
+ * Total Ndokoti » en fait cinq et passe. Au-dela, on demande — on ne refuse pas.
+ */
+export function villeDouteuse(brut: string): boolean {
+  const net = brut.trim();
+  if (net === "") return false;
+  if (net.includes("?") || net.includes("¿")) return true;
+  /* Aucune lettre : ni latine, ni accentuee. `\p{L}` couvre les deux. */
+  if (!/\p{L}/u.test(net)) return true;
+  if (/https?:\/\/|www\./i.test(net)) return true;
+  return net.split(/\s+/).length > 5;
+}
