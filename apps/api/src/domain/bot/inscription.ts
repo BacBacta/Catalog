@@ -11,7 +11,7 @@ import {
 } from "./comptoir-vendeuse.ts";
 import { extraireSlugBoutique, INACTIVITE_MAX_MS, motCleGlobal } from "./conversation.ts";
 import type { FormeNonLue } from "./entrees.ts";
-import { boutons, type MessageSortant, reaction, texte } from "./messages.ts";
+import { boutons, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { TEXTES } from "./textes.ts";
 
 /**
@@ -328,36 +328,83 @@ export function messageBoutiqueCreee(
      */
     lienEspace: string | null;
   },
+  /**
+   * Le premier article, quand l'ouverture l'a rendu du meme geste — ADR 0088.
+   * Present, il FUSIONNE : une seule confirmation pour un seul formulaire.
+   */
+  premierArticle?: { nom: string; prixXaf: number; avecPhoto: boolean },
 ): MessageSortant[] {
   /**
-   * UN SEUL message — banc du 13/08/2026.
+   * UN SEUL message, et c'est une LISTE — banc du 19/28 du 13/08/2026.
    *
-   * L'ouverture en produisait CINQ d'affilee : le lien, le reversement et le
-   * parrainage, la question « premier article ? », le formulaire, puis la
-   * question du nom. Le porteur du produit l'a dit dans ces mots : « une
-   * serie de liens, de messages apparaissent, ce qui noie l'essentiel ».
+   * ── Ce qu'on a mesure ────────────────────────────────────────────────────
    *
-   * Ce qui reste ici est ce dont la vendeuse a besoin DANS LA MINUTE : son
-   * lien, et le geste suivant. Le reste n'est pas perdu — il est SERVI PLUS
-   * TARD, la ou il sert :
+   * La reduction de l'ADR 0086 avait ramene l'ouverture de cinq messages a
+   * deux. Le banc en a compte QUATRE, parce que le formulaire d'article de
+   * l'ecran 2 en ajoutait deux de plus : la confirmation de l'article, et le
+   * mode d'emploi. Cinq liens bruts dans un fil ou le pouce cherche un seul
+   * geste. Le porteur du produit : « une multiplication de messages et de
+   * liens rendant touffu le chat, c'est confondant ».
    *
-   * - le **reversement** a deja sa relance a ~20 h (ADR 0035), il reparait
-   *   dans la notification de premiere commande — au moment ou il coute —
-   *   et il vit dans le menu « ma boutique » ;
-   * - le **parrainage** vit dans le menu « ma boutique ». Personne ne
-   *   parraine une consœur dans les dix secondes qui suivent l'ouverture.
+   * ── Pourquoi une liste, et pas des boutons ───────────────────────────────
    *
-   * Servir une information hors de son moment n'est pas de la generosite,
-   * c'est du bruit — et le bruit cache le lien qu'elle est venue chercher.
+   * WhatsApp ne hierarchise pas : le quatrieme message pese autant que le
+   * premier, et les boutons du premier ont deja defile. Trois boutons ne
+   * tiennent pas tout ce qu'une vendeuse neuve peut vouloir faire, donc le
+   * reste retombait en texte — c'est exactement ce qui produisait le mur.
+   *
+   * Le message LISTE porte jusqu'a dix lignes, chacune avec sa description :
+   * un menu natif, ferme par defaut, qui range tout sans rien pousser. Une
+   * seule bulle, et chaque geste possible y est nomme ET explique.
+   *
+   * ── Le lien reste du TEXTE, et c'est delibere ────────────────────────────
+   *
+   * `cta_url` est accepte depuis la mesure du 13/08 (ADR 0087) : on POURRAIT
+   * en faire un bouton. On ne le fait pas ici. Ce lien-la, elle doit le
+   * COPIER pour le coller dans son Statut — un bouton l'OUVRE, il ne le
+   * donne pas. `cta_url` sert « va voir cette page » (recu, suivi, espace),
+   * jamais « prends ceci et colle-le ailleurs ».
+   *
+   * ── Trois lignes, et pas une de plus ─────────────────────────────────────
+   *
+   * Chaque ligne promet un geste dont le routage est VERIFIE (`article`,
+   * `carte`, `ma_boutique` — voir `aiguillage.ts`). Le reversement n'y est
+   * pas : il vit dans « ma boutique », il a sa relance a ~20 h, et il
+   * reparait a la premiere commande, la ou il coute. Une ligne de menu qui
+   * ouvre sur rien est pire que pas de menu.
    */
+  const article = premierArticle
+    ? `\n*${premierArticle.nom}* — ${formatXaf(premierArticle.prixXaf)} est en ligne.${
+        premierArticle.avecPhoto
+          ? ""
+          : "\nSans photo pour l'instant — envoyez-la quand vous voulez."
+      }`
+    : "";
   return [
-    boutons(
+    liste(
       vers,
-      `✅ *${b.nom}* est ouverte.\n\nVotre lien à partager — mettez-le en statut WhatsApp :\n${b.lienBoutique}\n\nVos clientes commandent ici, et chaque paiement prouvé donne un reçu vérifiable.`,
+      `✅ *${b.nom}* est ouverte.${article}\n\nVotre lien à partager — mettez-le en statut WhatsApp :\n${b.lienBoutique}`,
+      "Que faire ?",
       [
-        { id: "article", titre: "Ajouter un article" },
-        { id: "plus_tard", titre: "Plus tard" },
+        {
+          id: "article",
+          titre: "Ajouter un article",
+          description: "Nom, prix, photo — en un seul formulaire",
+        },
+        {
+          id: "carte",
+          titre: "Ma carte à poster",
+          description: "L'affiche de votre boutique, pour votre Statut",
+        },
+        {
+          id: "ma_boutique",
+          titre: "Ma boutique",
+          description: "Vos articles, vos commandes, vos chiffres",
+        },
       ],
+      /* La seule legon qui ne tient dans aucune ligne de menu : ce qui se
+         passe quand une commande arrive. Soixante caracteres au plus. */
+      "Commandes ici. Remise faite ? « livrée » + la référence.",
     ),
   ];
 }

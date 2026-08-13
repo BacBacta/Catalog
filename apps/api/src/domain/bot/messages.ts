@@ -31,6 +31,8 @@ const BOUTONS_MAX = 3;
 const LISTE_LIGNES_MAX = 10;
 const LIGNE_TITRE_MAX = 24;
 const LIGNE_DESCRIPTION_MAX = 72;
+/** Le pied d'un message interactif — 60 caracteres, reference Meta. */
+const PIED_MAX = 60;
 const LEGENDE_MAX = 1024;
 
 export interface MessageTexte {
@@ -96,6 +98,11 @@ export interface MessageListe {
   interactive: {
     type: "list";
     body: { text: string };
+    /**
+     * Le pied — plus petit, plus pale que le corps. C'est la ou va ce qui
+     * doit RESTER sous les yeux sans peser : une legon, jamais une action.
+     */
+    footer?: { text: string };
     action: { button: string; sections: Array<{ rows: LigneListe[] }> };
   };
 }
@@ -375,6 +382,7 @@ export function liste(
   corps: string,
   libelleBouton: string,
   lignes: ReadonlyArray<{ id: string; titre: string; description?: string }>,
+  pied?: string,
 ): MessageListe {
   if (lignes.length === 0) throw new Error("une liste exige au moins une ligne");
   if (lignes.length > LISTE_LIGNES_MAX)
@@ -389,6 +397,7 @@ export function liste(
     interactive: {
       type: "list",
       body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
+      ...(pied ? { footer: { text: tronquer(pied, PIED_MAX) } } : {}),
       action: {
         button: tronquer(libelleBouton, BOUTON_TITRE_MAX),
         sections: [

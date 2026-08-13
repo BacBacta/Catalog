@@ -674,8 +674,26 @@ async function filInscription(
       ville: lue.ville,
       ...(parrain ? { parrain } : {}),
     });
+    /**
+     * La confirmation FUSIONNE l'article de l'ecran 2 — ADR 0088. Un seul
+     * formulaire rempli doit rendre un seul accuse : c'est la meme minute,
+     * le meme geste, et deux bulles pour un geste unique sont deja du bruit.
+     * L'article est cree PLUS BAS ; ce message n'en parle que s'il existe.
+     */
     const suite: MessageSortant[] = cree.ok
-      ? messageBoutiqueCreee(entree.de, cree.messagerie)
+      ? messageBoutiqueCreee(
+          entree.de,
+          cree.messagerie,
+          ...(ouverture?.article
+            ? ([
+                {
+                  nom: ouverture.article.nom,
+                  prixXaf: ouverture.article.prixXaf,
+                  avecPhoto: Boolean(ouverture.article.mediaId ?? ouverture.article.photoCdn),
+                },
+              ] as const)
+            : []),
+        )
       : [texte(entree.de, cree.message)];
     if (cree.ok) {
       if (deps.planifierRelanceReversement) {
@@ -689,9 +707,17 @@ async function filInscription(
     }
     await poserEtat(deps, phone, cree.ok ? { nom: "article_nom" } : etat);
     if (cree.ok) {
-      /* Celle qui vient de remplir UN formulaire est exactement celle qui en
-         remplira un second : il s'ajoute a la question, comme partout. */
-      if (deps.fluxArticleId) {
+      /**
+       * Le formulaire ne se REPROPOSE pas quand l'ecran 2 vient de le rendre
+       * — banc du 13/08/2026, et c'est le defaut le plus visible de la
+       * capture : « Ou tout d'un coup, dans un formulaire » servi a une
+       * vendeuse qui venait de remplir ce formulaire meme. L'offre etait
+       * empilee AVANT qu'on regarde si l'article etait deja la.
+       *
+       * Sans article, elle garde tout son sens : c'est le chemin rapide vers
+       * le premier article, et le menu d'ouverture offre le chemin lent.
+       */
+      if (deps.fluxArticleId && !ouverture?.article) {
         suite.push(
           messageFlux(
             entree.de,
@@ -712,7 +738,7 @@ async function filInscription(
         await envoyerSequence(deps, suite);
         await envoyerSequence(
           deps,
-          await publierArticleDepuisFil(deps, cree.id, entree.de, ouverture.article),
+          await publierArticleDepuisFil(deps, cree.id, entree.de, ouverture.article, "deja_dite"),
         );
         await poserEtat(deps, phone, ETAT_INITIAL);
         return;
@@ -1075,6 +1101,15 @@ async function publierArticleDepuisFil(
     photoCdn?: PhotoCdnChiffree;
     stock?: number;
   },
+  /**
+   * Qui dit que l'article est en ligne — ADR 0088.
+   *
+   * `"ici"` : le cas normal, cette fonction envoie sa confirmation.
+   * `"deja_dite"` : l'ouverture l'a annoncee dans SA bulle, parce que
+   * boutique et article venaient du meme formulaire. Redire l'aurait
+   * dedouble — le defaut que ce lot corrige.
+   */
+  annonce: "ici" | "deja_dite" = "ici",
 ): Promise<MessageSortant[]> {
   const messages: MessageSortant[] = [];
   const article = await creerArticleDepuisFil(deps, sellerId, demande);
@@ -1116,14 +1151,16 @@ async function publierArticleDepuisFil(
    * d'emploi sont de la decoration : ils suivent, et leur echec — ou leur
    * lenteur — ne peut plus emporter la seule phrase qui compte.
    */
-  await envoyerSequence(deps, [
-    article
-      ? messageArticlePublie(vers, article, enConges, pageWebDansMinutes)
-      : texte(
-          vers,
-          "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
-        ),
-  ]);
+  if (annonce === "ici" || !article) {
+    await envoyerSequence(deps, [
+      article
+        ? messageArticlePublie(vers, article, enConges, pageWebDansMinutes)
+        : texte(
+            vers,
+            "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
+          ),
+    ]);
+  }
   /**
    * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
    * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
@@ -1161,7 +1198,13 @@ async function publierArticleDepuisFil(
      * pour la meme raison — c'est l'instant ou la boutique devient reelle,
      * donc l'instant ou « que se passe-t-il maintenant ? » se pose.
      */
-    if (nb === 1) {
+    /**
+     * Le mode d'emploi ne part PAS quand l'ouverture a rendu son menu —
+     * ADR 0088. Ses cinq points et ses trois liens redisaient ce que les
+     * lignes du menu portent deja, chacune avec sa description ; c'etait le
+     * quatrieme message de la capture du 13/08, et le plus lourd.
+     */
+    if (nb === 1 && annonce === "ici") {
       const profil = await deps.prisma.seller.findUnique({
         where: { id: sellerId },
         select: { slug: true },
