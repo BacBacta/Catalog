@@ -4,7 +4,6 @@ import type { BetterAuthPlugin } from "better-auth";
 import { createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import { z } from "zod";
-import { numeroDuBanc } from "./banc-essai.ts";
 import {
   composerCodeDefi,
   construireLienWa,
@@ -12,6 +11,7 @@ import {
   decisionEchange,
   type EtatDefi,
   extraireCodeDefi,
+  numeroInternational,
 } from "./domain/connexion-whatsapp.ts";
 
 /**
@@ -103,9 +103,14 @@ export async function appliquerMessageEntrant(
   const code = extraireCodeDefi(m.texte);
   if (!code) return "ignore";
 
-  /* Hors Cameroun : pas un compte possible — sauf les numeros NOMMES du
-     banc d'essai (ADR 0058), liste vide par defaut. */
-  const numero = normalizePhone(m.de) ?? numeroDuBanc(m.de);
+  /* Hors Cameroun : la porte est OUVERTE — ADR 0080, decide le 13/08 par le
+     porteur du produit. La diaspora vend au Cameroun, et c'est Meta qui
+     atteste le numero (`wa_id`), la meme garantie que pour un +237. Un +237
+     malforme reste refuse (il passe par `normalizePhone`, jamais par le
+     guichet etranger), et le reversement, lui, demeure camerounais — les
+     rails Mobile Money ne changent pas de pays. Le banc d'essai (ADR 0058)
+     n'est plus necessaire ICI ; il reste pour le reversement de test. */
+  const numero = normalizePhone(m.de) ?? numeroInternational(m.de);
   if (!numero) return "ignore";
 
   const porteur = await magasin.consumeVerificationValue(CLE_CODE(code));

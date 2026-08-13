@@ -59,6 +59,27 @@ export function texteMessageDefi(code: string): string {
   );
 }
 
+/**
+ * Un numero HORS Cameroun, sous forme canonique `+chiffres` — ADR 0080.
+ *
+ * La diaspora vend au Cameroun : une commercante a Bruxelles ou a Paris tient
+ * une boutique livree a Douala, et son WhatsApp est belge ou francais. La
+ * porte de connexion par WhatsApp l'accepte donc — c'est Meta qui atteste le
+ * numero (`wa_id`), la meme garantie que pour un +237.
+ *
+ * Deux refus demeurent, et ils sont voulus :
+ * - un numero qui COMMENCE par 237 sans etre un camerounais valide reste
+ *   refuse — la porte camerounaise est `normalizePhone`, et un +237 malforme
+ *   ne doit pas entrer par le guichet etranger ;
+ * - la forme doit rester plausible (6 a 15 chiffres, la borne E.164).
+ */
+export function numeroInternational(brut: string): string | null {
+  const chiffres = String(brut).replace(/\D/g, "");
+  if (!/^\d{6,15}$/.test(chiffres)) return null;
+  if (chiffres.startsWith("237")) return null;
+  return `+${chiffres}`;
+}
+
 /** `https://wa.me/<numero>?text=…` — le numero WABA, chiffres seuls. */
 export function construireLienWa(numeroWaba: string, code: string): string {
   const chiffres = numeroWaba.replace(/\D/g, "");

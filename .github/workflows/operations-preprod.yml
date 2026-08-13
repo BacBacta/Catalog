@@ -12,7 +12,7 @@ on:
         description: "Quelle operation"
         required: true
         type: choice
-        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai]
+        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai, sonde-connexion]
       mode:
         description: "Reinitialisation seulement : --voir (lecture seule) ou --vraiment"
         required: true
@@ -69,5 +69,13 @@ jobs:
       - name: Poser les numeros du banc d'essai
         if: inputs.quoi == 'poser-banc-essai'
         run: flyctl secrets set BANC_ESSAI_NUMEROS_HORS_CM="+32466457281" --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Lecture seule : ou en est la chaine de connexion WhatsApp — defis
+      # crees, consommes, verifies. Aucun secret n'est imprime (identifiants
+      # masques, statuts seuls).
+      - name: Sonde de la connexion WhatsApp
+        if: inputs.quoi == 'sonde-connexion'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/diagnostic-connexion.mjs"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

@@ -129,14 +129,48 @@ describe("le cycle de vie d'un defi", () => {
     expect(r).toBe("ignore");
   });
 
-  it("un expediteur hors Cameroun est ignore", async () => {
+  it("un expediteur hors Cameroun se connecte — la diaspora vend au Cameroun (ADR 0080)", async () => {
+    /* Decide le 13/08 par le porteur du produit, apres que sa propre
+       connexion (numero belge) a ete ignoree en silence : une commercante a
+       Bruxelles tient une boutique livree a Douala. C'est Meta qui atteste
+       le numero — la meme garantie que pour un +237. */
     const { magasin } = await defiFrais();
     const r = await appliquerMessageEntrant(magasin, {
-      de: "33612345678",
+      de: "32466457281",
+      texte: DEFI.code,
+      maintenant: T_2MIN,
+    });
+    expect(r).toBe("verifie");
+    expect(await consulterSuivi(magasin, DEFI.suivi, T_2MIN)).toBe("verifie");
+    const echange = await echangerDefi(magasin, DEFI.jeton, T_2MIN);
+    expect(echange).toEqual({ decision: "verifie", numero: "+32466457281" });
+  });
+
+  it("un +237 MALFORME reste refuse — il ne passe pas par le guichet etranger", async () => {
+    /* La porte camerounaise est `normalizePhone`, et elle valide la forme
+       entiere. Un numero qui commence par 237 sans etre valide ne doit pas
+       entrer par la porte internationale — sinon le guichet etranger
+       deviendrait le trou de la porte camerounaise. */
+    const { magasin } = await defiFrais();
+    const r = await appliquerMessageEntrant(magasin, {
+      de: "237123",
       texte: DEFI.code,
       maintenant: T_2MIN,
     });
     expect(r).toBe("ignore");
+    expect(await consulterSuivi(magasin, DEFI.suivi, T_2MIN)).toBe("en_attente");
+  });
+
+  it("une forme invraisemblable reste refusee — la borne E.164", async () => {
+    const { magasin } = await defiFrais();
+    for (const de of ["12345", "1234567890123456"]) {
+      const r = await appliquerMessageEntrant(magasin, {
+        de,
+        texte: DEFI.code,
+        maintenant: T_2MIN,
+      });
+      expect(r, de).toBe("ignore");
+    }
     expect(await consulterSuivi(magasin, DEFI.suivi, T_2MIN)).toBe("en_attente");
   });
 
