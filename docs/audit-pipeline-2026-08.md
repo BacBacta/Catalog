@@ -16,9 +16,10 @@ la question.
 
 - un harnais pilote le service réel (`traiterLivraisonBot`) contre une vraie
   base, et il tourne dans `pnpm test` ;
-- **484 cases** — 22 étapes des deux parcours × 22 familles de geste — ont été
+- **528 cases** — 24 étapes des deux parcours × 22 familles de geste — ont été
   jouées, et ce qu'elles rendent est enregistré ;
-- six scénarios de parcours produisent des transcriptions lisibles en diff.
+- dix scénarios de parcours produisent des transcriptions lisibles en diff, dont
+  neuf tests de non-retour sur les deux constats corrigés.
 
 **Ce qui n'est PAS établi, et ne doit être lu nulle part comme sain :**
 
@@ -54,29 +55,35 @@ Le tableau ci-dessous est **produit par exécution**
 s'écrit pas à la main.
 
 | Étape | Parcours | Cases possibles | Cases exercées | % |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | premier contact (prospect) | vendeuse | 22 | 22 | 100 % |
 | nom de la boutique | vendeuse | 22 | 22 | 100 % |
 | ville de la vendeuse | vendeuse | 22 | 22 | 100 % |
 | fil vendeuse au repos | vendeuse | 22 | 22 | 100 % |
+| relecture avant ouverture | vendeuse | 22 | 22 | 100 % |
 | nom de l'article | vendeuse | 22 | 22 | 100 % |
 | prix de l'article | vendeuse | 22 | 22 | 100 % |
 | photo de l'article | vendeuse | 22 | 22 | 100 % |
 | confirmation de la légende | vendeuse | 22 | 22 | 100 % |
-| comptoir — les cinq pas | vendeuse | 110 | 110 | 100 % |
-| arrivée (aucune boutique) | acheteuse | 22 | 22 | 100 % |
-| catalogue | acheteuse | 22 | 22 | 100 % |
+| comptoir — quel article | vendeuse | 22 | 22 | 100 % |
+| comptoir — prix convenu | vendeuse | 22 | 22 | 100 % |
+| comptoir — la cliente | vendeuse | 22 | 22 | 100 % |
+| comptoir — point de remise | vendeuse | 22 | 22 | 100 % |
+| comptoir — récapitulatif | vendeuse | 22 | 22 | 100 % |
+| arrivée (aucune boutique ouverte) | acheteuse | 22 | 22 | 100 % |
+| catalogue de la boutique | acheteuse | 22 | 22 | 100 % |
 | quantité | acheteuse | 22 | 22 | 100 % |
 | panier — autre chose ? | acheteuse | 22 | 22 | 100 % |
 | livraison ou retrait | acheteuse | 22 | 22 | 100 % |
 | ville de livraison | acheteuse | 22 | 22 | 100 % |
+| ville dont la forme détonne | acheteuse | 22 | 22 | 100 % |
 | quartier, repère, téléphone | acheteuse | 22 | 22 | 100 % |
-| récapitulatif | acheteuse | 22 | 22 | 100 % |
+| récapitulatif avant commande | acheteuse | 22 | 22 | 100 % |
 | mot de l'avis | acheteuse | 22 | 22 | 100 % |
-| **Total** | — | **484** | **484** | **100 %** |
+| **Total** | — | **528** | **528** | **100 %** |
 
 **Ce que ce 100 % veut dire, et surtout ce qu'il ne veut pas dire.** Il dit que
-chacune des 484 cases a été **jouée** et que sa réponse est enregistrée. Il ne
+chacune des 528 cases a été **jouée** et que sa réponse est enregistrée. Il ne
 dit pas que la réponse est bonne. Une case exercée qui rend une réponse absurde
 reste une case exercée — et l'audit v1 est tombé exactement là.
 
@@ -91,8 +98,8 @@ l'ajouter au catalogue fait **échouer** le balayage.
 C'est la mesure qui contredit le plus nettement l'audit v1, lequel avait fait du
 « silence » son motif unique.
 
-Sur 484 cases jouées, **les seules cases où la personne n'a rien reçu sont les
-22 relivraisons** — et c'est le comportement voulu : une livraison déjà traitée
+Sur 528 cases jouées, **les seules cases où la personne n'a rien reçu sont les
+24 relivraisons** — et c'est le comportement voulu : une livraison déjà traitée
 est ignorée (ADR 0040). Toutes les autres cases produisent au moins un message,
 y compris le vocal, le sticker, le document, la position hors contexte, le
 formulaire tronqué et le bouton d'un message ancien.
