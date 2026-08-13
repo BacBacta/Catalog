@@ -32,10 +32,7 @@
  * Ce qui n'y est PAS, et pourquoi :
  * - une commande creee, payee, livree — la boutique n'affiche pas les
  *   commandes ;
- * - le numero de reversement — il n'a rien a faire sur une page en cache CDN ;
- * - un avis depose — il compte dans la reputation affichee, mais il arrive
- *   trop souvent pour justifier un deploiement a lui seul ; il voyagera avec
- *   la prochaine reconstruction.
+ * - le numero de reversement — il n'a rien a faire sur une page en cache CDN.
  */
 export const MOTIFS_RECONSTRUCTION = [
   /** Une boutique vient de naitre : elle n'a encore AUCUNE page. */
@@ -46,6 +43,17 @@ export const MOTIFS_RECONSTRUCTION = [
   "boutique_modifiee",
   /** Le mode conges — la page doit dire que la boutique est fermee (ADR 0039). */
   "conges_bascules",
+  /**
+   * Un avis VERIFIE depose — revision du 13/08/2026. La premiere version
+   * l'excluait (« il arrive trop souvent pour justifier un deploiement a lui
+   * seul ») ; l'analyse des surfaces a montre le cout reel de l'exclusion :
+   * sans autre evenement, le PREMIER avis verifie d'une jeune boutique — son
+   * evenement de credibilite — restait invisible sans limite de temps. Le
+   * regroupement absorbe la frequence ; l'exclusion n'absorbait rien, elle
+   * reportait sine die. L'avis NON verifie, lui, ne parait pas sur la page —
+   * il ne reconstruit rien.
+   */
+  "avis_verifie",
 ] as const;
 
 export type MotifReconstruction = (typeof MOTIFS_RECONSTRUCTION)[number];

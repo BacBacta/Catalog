@@ -1120,6 +1120,29 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
     expect(carnet).toContain("https://wa.me/237677123456");
   });
 
+  it("le carnet distribue la page de verification — /v/?c=, la forme sans reecriture", () => {
+    const avec = (lienVerification: string | null, duAvantXaf: number) =>
+      confirmationCommande(VERS, {
+        reference: "CT-1052",
+        codeVerification: "ACDE-4679",
+        boutique: "Chez Amina",
+        lignes: [{ nom: "Sac", quantite: 1, prixUnitaireXaf: 8000 }],
+        totalXaf: 8000,
+        duAvantXaf,
+        livraison: LIVRAISON,
+        lienSuivi: "https://exemple.test/suivi?j=abc",
+        lienVerification,
+      });
+    /* Avec acompte : la ligne part, sous la forme portable. */
+    const carnet = corpsTexte(avec("https://exemple.test/v/?c=ACDE-4679", 4000)[1]);
+    expect(carnet).toContain("/v/?c=ACDE-4679");
+    expect(carnet).toMatch(/n'importe qui peut contrôler/i);
+    /* Sans prepaiement : pas de recu a promettre, pas de ligne. */
+    expect(corpsTexte(avec("https://exemple.test/v/?c=ACDE-4679", 0)[1])).not.toContain("/v/?c=");
+    /* Sans base publique : rien, jamais une URL fausse. */
+    expect(corpsTexte(avec(null, 4000)[1])).not.toContain("/v/");
+  });
+
   it("sans reversement, pas de bloc paiement — la copie historique reprend", () => {
     const messages = confirmationCommande(VERS, {
       reference: "CT-1051",

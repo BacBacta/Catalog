@@ -1802,6 +1802,13 @@ export function confirmationCommande(
      */
     lienSuivi: string | null;
     /**
+     * La page publique de verification (`/v/?c=<code>`) — analyse du 13/08 :
+     * la proposition de valeur n° 1 avait une page que rien ne distribuait.
+     * Le code est PUBLIC des qu'un recu est montre (lot 10) : ce lien peut
+     * voyager, contrairement au jeton.
+     */
+    lienVerification?: string | null;
+    /**
      * Le bloc paiement DANS le fil (ADR 0035) : monte par le service depuis le
      * reversement de la vendeuse et la CONFIGURATION de la rampe — le code
      * d'entree n'est jamais une constante (AGENTS.md). Absent : la copie
@@ -1870,6 +1877,11 @@ export function confirmationCommande(
           ? t.suiteAcompte(c.lienSuivi)
           : t.suiteSansAcompte(c.lienSuivi),
     );
+  }
+  if (c.lienVerification && c.duAvantXaf > 0) {
+    /* Seulement quand un paiement est attendu : sans prepaiement, il n'y aura
+       pas de recu a controler — une ligne qui promet a vide serait du bruit. */
+    carnet.push(t.suiteVerification(c.lienVerification));
   }
   if (c.waVendeuse) carnet.push(t.apresConfirmation(c.boutique, c.waVendeuse));
   if (carnet.length > 0) messages.push(texte(vers, carnet.join("\n\n")));

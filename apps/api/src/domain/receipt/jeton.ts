@@ -84,3 +84,13 @@ export function lienDeSuivi(base: string, jeton: string): string {
 export function lienDeVerification(base: string, code: string): string {
   return `${base.replace(/\/$/, "")}/v/${encodeURIComponent(code)}`;
 }
+
+/**
+ * La MEME page, sous la forme dont le produit DEPEND (lot 10, ADR 0021) :
+ * `/v/?c=<code>` marche sans la reecriture de `public/_redirects` — en dev,
+ * en previsualisation, derriere n'importe quel CDN. C'est CELLE-CI qui part
+ * dans un message : la jolie URL est un decor, celle-la est un contrat.
+ */
+export function lienDeVerificationPortable(base: string, code: string): string {
+  return `${base.replace(/\/$/, "")}/v/?c=${encodeURIComponent(code)}`;
+}

@@ -9,6 +9,7 @@ import { operateurParId } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
 import type { Span } from "@opentelemetry/api";
 import { type Context, Hono } from "hono";
+import type { DeclencheurReconstruction } from "../adapters/reconstruction-boutique.ts";
 import { etapesDuSuivi } from "../domain/order/cycle.ts";
 import { appliquerEvenement, type EvenementPreuve } from "../domain/proof/machine.ts";
 import { jetonBienForme } from "../domain/receipt/jeton.ts";
@@ -40,6 +41,12 @@ export interface RecuDeps {
   rampe: RampeConfig;
   session?: SessionDeps;
   maintenant?: () => Date;
+  /**
+   * Un avis VERIFIE parait sur la page publique : elle se reconstruit —
+   * motif regroupe (revision du 13/08). Absent : rien ne casse, l'avis
+   * voyagera avec la prochaine reconstruction.
+   */
+  reconstruction?: DeclencheurReconstruction | null;
   /**
    * Une contestation ACCEPTEE — la vendeuse doit l'apprendre tout de suite.
    *
@@ -431,6 +438,9 @@ export function suiviRoutes(deps: RecuDeps) {
           },
         });
       });
+      /* Un avis VERIFIE parait sur la page publique — reconstruction
+         regroupee (revision du 13/08), apres commit, jamais dedans. */
+      if (droit.verifie) await deps.reconstruction?.demander("avis_verifie");
     } catch (e) {
       // `Review.orderId` est UNIQUE : un second avis sur la meme commande est
       // refuse par la base, pas par un `if` que deux requetes simultanees

@@ -105,7 +105,11 @@ import { echeance } from "./domain/order/expiration.ts";
 import { planDePaiement } from "./domain/order/paiement.ts";
 import { appliquerEvenement, type EvenementPreuve } from "./domain/proof/machine.ts";
 import { analyserSms } from "./domain/proof/motifs.ts";
-import { genererJetonSuivi, lienDeSuivi } from "./domain/receipt/jeton.ts";
+import {
+  genererJetonSuivi,
+  lienDeSuivi,
+  lienDeVerificationPortable,
+} from "./domain/receipt/jeton.ts";
 import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
 import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
@@ -1345,6 +1349,10 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
               deps.baseBoutique && commande.buyerToken
                 ? lienDeSuivi(deps.baseBoutique, commande.buyerToken)
                 : null,
+            /* La forme /v/?c= — celle qui marche sans reecriture (lot 10). */
+            lienVerification: deps.baseBoutique
+              ? lienDeVerificationPortable(deps.baseBoutique, commande.verificationCode)
+              : null,
             paiement,
             waVendeuse: chiffresVendeuse ? `https://wa.me/${chiffresVendeuse}` : null,
           },
@@ -1760,7 +1768,7 @@ async function deposerAvis(
   const productId = articles.size === 1 ? [...articles][0] : null;
   const maintenant = deps.maintenant?.() ?? new Date();
 
-  await deps.prisma
+  const depose = await deps.prisma
     .$transaction(async (tx) => {
       await tx.review.create({
         data: {
@@ -1790,6 +1798,11 @@ async function deposerAvis(
       return "refuse" as const;
     })
     .then((r) => r !== "refuse");
+
+  /* Un avis VERIFIE parait sur la page publique : elle se reconstruit —
+     motif regroupe (revision du 13/08). Silencieux pour l'acheteuse : le
+     delai de mise en ligne ne la concerne pas. */
+  if (depose && droit.verifie) await deps.reconstruction?.demander("avis_verifie");
 
   /**
    * ── La carte d'avis VERIFIE part chez la vendeuse — ADR 0061, rang 3c ──

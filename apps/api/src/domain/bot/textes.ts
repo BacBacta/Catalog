@@ -159,6 +159,12 @@ export interface TextesAcheteuse {
   suiteSansAcompte: (lien: string) => string;
   /** Le lien de suivi seul, quand le bloc paiement a deja tout dit du paiement. */
   suiteSuivi: (lien: string) => string;
+  /**
+   * Ou N'IMPORTE QUI controle le recu, une fois emis — analyse du 13/08 : la
+   * page /v n'etait distribuee nulle part, alors que le recu verifiable est
+   * la proposition de valeur n° 1. Le code est public, le lien peut voyager.
+   */
+  suiteVerification: (lien: string) => string;
   commandeRatee: string;
   stockInsuffisant: (nomArticle: string) => string;
 
@@ -371,6 +377,8 @@ const fr: TextesAcheteuse = {
     `Rien à payer d'avance — vous payez à la réception.\nSuivez votre commande ici : ${lien}`,
   suiteSuivi: (lien) =>
     `Votre suivi et votre reçu vérifiable vivent ici — gardez ce lien : ${lien}`,
+  suiteVerification: (lien) =>
+    `Une fois le paiement prouvé, n'importe qui peut contrôler le reçu avec le code de vérification, ici : ${lien}`,
   commandeRatee:
     "Cette commande n'a pas pu être enregistrée. Reprenez au catalogue — rien n'a été perdu.",
   stockInsuffisant: (nom) =>
@@ -588,6 +596,8 @@ const en: TextesAcheteuse = {
     `Nothing to pay upfront — you pay on delivery.\nFollow your order here: ${lien}`,
   suiteSuivi: (lien) =>
     `Your tracking and your verifiable receipt live here — keep this link: ${lien}`,
+  suiteVerification: (lien) =>
+    `Once the payment is proved, anyone can check the receipt with the verification code, here: ${lien}`,
   commandeRatee: "This order could not be saved. Start again from the list — nothing was lost.",
   stockInsuffisant: (nom) =>
     `The stock of “${nom}” changed in the meantime and is no longer enough. Start again from the list — nothing was ordered.`,
@@ -797,6 +807,8 @@ const wes: TextesAcheteuse = {
     `For pay di moni weh go confam di order, open: ${lien}\nAfta you pay, yua resit weh you fit check go dey for di same place.\nYua secret code na for yua operator yi screen ONLY you go type-am \u2014 never for hia.`,
   suiteSansAcompte: (lien) =>
     `Notin for pay before \u2014 you go pay wen dem bring-am.\nFollow yua order for hia: ${lien}`,
+  suiteVerification: (lien) =>
+    `Wen di pay don prove, any person fit check di receipt wit di verification code, for hia: ${lien}`,
   commandeRatee: "Dis order no fit enter. Start again for di lis \u2014 notin loss.",
   stockInsuffisant: (nom) =>
     `Di stock for \u00ab ${nom} \u00bb don change an i no reach again. Start again for di lis \u2014 notin order.`,

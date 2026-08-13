@@ -4,6 +4,7 @@ import PhotoArticle from "../../components/PhotoArticle.astro";
 import Prix from "../../components/Prix.astro";
 import Base from "../../layouts/Base.astro";
 import { type BoutiquePublique, chargerBoutiques } from "../../lib/catalogue.ts";
+import { botDisponible, lienCommanderAuBot } from "../../lib/entree-bot.ts";
 
 /**
  * La page d'une boutique.
@@ -23,6 +24,17 @@ interface Props {
 }
 const { boutique } = Astro.props;
 const lieu = [boutique.quartier, boutique.ville].filter(Boolean).join(", ");
+/**
+ * Le geste principal, au niveau BOUTIQUE — analyse du 13/08. La page n'avait
+ * aucun bouton d'action : le seul geste etait de toucher un article, et une
+ * visiteuse arrivee par la ligne de confiance du bloc paiement se retrouvait
+ * dans un cul-de-sac. Meme aiguillage que la fiche : le bot quand il est la,
+ * la vendeuse pendant les conges — et rien quand il n'y a rien a ouvrir.
+ */
+const lienVendeuse = boutique.whatsapp
+  ? `https://wa.me/${boutique.whatsapp.replace(/\D/g, "")}`
+  : null;
+const lienBot = botDisponible() ? lienCommanderAuBot(boutique.whatsapp, boutique.slug) : null;
 ---
 <Base
   title={`${boutique.nom} — Catalog`}
@@ -84,6 +96,27 @@ const lieu = [boutique.quartier, boutique.ville].filter(Boolean).join(", ");
             🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Le catalogue reste
             consultable, et vous pouvez lui écrire.
           </p>
+        ) : null
+      }
+      {
+        boutique.enConges && lienVendeuse ? (
+          <a
+            href={lienVendeuse}
+            rel="noopener"
+            data-testid="ecrire-vendeuse"
+            class="inline-flex min-h-[var(--size-touch)] items-center justify-center self-start rounded-field border border-control-line bg-surface px-5 py-3 text-body font-semibold text-ink no-underline"
+          >
+            Écrire à la vendeuse
+          </a>
+        ) : lienBot && boutique.articles.length > 0 ? (
+          <a
+            href={lienBot}
+            rel="noopener"
+            data-testid="commander-boutique"
+            class="inline-flex min-h-[var(--size-touch)] items-center justify-center self-start rounded-field bg-brand-500 px-5 py-3 text-body font-semibold text-on-brand no-underline"
+          >
+            Commander sur WhatsApp
+          </a>
         ) : null
       }
     </header>
