@@ -76,3 +76,38 @@ Tant que la mesure n'a pas eu lieu, **aucun code ne dépend de `cta_url`** :
 les liens restent en texte, et la réduction de l'ADR 0086 n'en dépendait
 pas. C'est la même méthode que pour `PhotoPicker` le 12/08 — mesurer, puis
 décider, jamais l'inverse.
+
+## Mesures du 13/08/2026 — les trois dépôts
+
+Les trois opérations ont été exécutées dans l'ordre, en préproduction.
+
+**Les cinq identifiants de Flow sont posés.** `catalog_ouverture` vaut
+`1032068266296594` ; le formulaire d'ouverture en deux écrans est donc servi
+à la place du formulaire d'inscription à un écran.
+
+**L'accueil du fil était vide.** `--accueil-etat` a rendu « Amorces posées :
+0 / Commandes posées : 0 » — le fil s'ouvrait sans rien proposer, l'acheteuse
+devait deviner quoi écrire. `--accueil-poser` a déposé les quatre amorces et
+les quatre commandes. Elles s'affichent au premier ouvrage du fil, avant tout
+message.
+
+**`cta_url` est ACCEPTÉ.** Le message d'essai est parti et l'API a rendu un
+identifiant (`wamid.HBgLMzI0NjY0NTcyODEV…`). Les deux sources de Meta se
+contredisaient ; c'est le guide qui dit vrai, et la référence des messages
+qui est incomplète. Conséquence : **les liens bruts du fil peuvent devenir
+des boutons**, et cela devient un travail à faire, pas une hypothèse à
+vérifier.
+
+Une réserve à garder en tête : l'API a **accepté** le message, ce qui règle
+la question du type. Que le bouton s'affiche comme un bouton chez
+l'acheteuse — et non comme un pavé de texte — se voit dans le fil, pas dans
+une réponse HTTP. La conversion des liens attend ce coup d'œil.
+
+### Un défaut de la marche, corrigé au passage
+
+La marche « Mesurer cta_url » lisait `inputs.numero` alors que l'entrée
+n'avait jamais été déclarée : GitHub refusait le déclenchement. Le champ est
+désormais déclaré, et — parce qu'il est le seul champ libre de ce workflow et
+qu'il finit dans une ligne de commande distante — il passe par
+l'environnement plutôt que par interpolation, borné à `+` suivi de 8 à 15
+chiffres avant que `flyctl` ne soit appelé.

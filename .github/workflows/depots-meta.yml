@@ -25,6 +25,12 @@ on:
         type: choice
         options: ["--etat", "--deposer"]
         default: "--etat"
+      # Exige par `mesurer-cta` SEUL. Il n'a pas de defaut : une mesure qui
+      # part vers un numero devine serait un vrai message chez un inconnu.
+      numero:
+        description: "mesurer-cta seulement : le numero destinataire, en E.164 (+237…)"
+        required: false
+        type: string
 
 # Jamais deux depots en meme temps, et on n'annule pas un depot en cours :
 # un Flow cree mais non publie s'envoie sans erreur et ne s'ouvre jamais.
@@ -83,11 +89,20 @@ jobs:
       # le seul moyen de savoir, et c'est pourquoi le numero est exige.
       - name: Mesurer cta_url (envoi reel)
         if: inputs.quoi == 'mesurer-cta'
+        # NUMERO passe par l'environnement et non par interpolation : c'est le
+        # seul champ libre de ce workflow, et il finit dans une ligne de
+        # commande distante. Le filtre ne garde que `+` et des chiffres, donc
+        # rien d'autre ne peut atteindre la console.
         run: |
-          if [ -z "${{ inputs.numero }}" ]; then
+          if [ -z "$NUMERO" ]; then
             echo "Le champ « numero » est exige pour cette mesure — elle envoie un vrai message."
             exit 1
           fi
-          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --mesurer-cta ${{ inputs.numero }}"
+          if printf '%s' "$NUMERO" | grep -qv '^+[0-9]\{8,15\}$'; then
+            echo "Le numero doit etre en E.164 : « + » puis 8 a 15 chiffres."
+            exit 1
+          fi
+          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --mesurer-cta $NUMERO"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          NUMERO: ${{ inputs.numero }}
