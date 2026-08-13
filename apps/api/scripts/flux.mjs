@@ -1,5 +1,5 @@
 /**
- * Les quatre formulaires (Flows) a deposer chez Meta.
+ * Les cinq formulaires (Flows) a deposer chez Meta.
  *
  *   node apps/api/scripts/flux.mjs             → les affiche et les valide
  *   node apps/api/scripts/flux.mjs --etat      → dit lesquels existent deja
@@ -30,7 +30,7 @@ const BASE = (process.env.WABOT_GRAPH_URL ?? "https://graph.facebook.com/v26.0")
 const mode = process.argv[2] ?? "--voir";
 
 /**
- * Les quatre formulaires. `variable` est le nom a poser dans l'environnement
+ * Les cinq formulaires. `variable` est le nom a poser dans l'environnement
  * avec l'identifiant rendu : sans elle, le code reste dormant — c'est voulu.
  */
 const FLUX = [
@@ -54,6 +54,22 @@ const FLUX = [
     variable: "WABOT_FLUX_INSCRIPTION_ID",
     categories: ["SIGN_UP"],
     champs: ["boutique", "ville", "langue"],
+  },
+  {
+    /**
+     * L'OUVERTURE en deux ecrans — ADR 0087. Il remplace `inscription` quand
+     * il est pose : boutique et ville sur le premier ecran, premier article
+     * sur le second, et TOUT revient ensemble au `complete`. Meta le permet
+     * sans point de terminaison (`navigate` puis `complete`, verifie dans la
+     * documentation le 13/08/2026) — c'est ce qui fait tomber l'ouverture de
+     * cinq messages a un formulaire.
+     */
+    cle: "ouverture",
+    nom: "catalog_ouverture",
+    fichier: "docs/flux-ouverture.json",
+    variable: "WABOT_FLUX_OUVERTURE_ID",
+    categories: ["SIGN_UP"],
+    champs: ["boutique", "ville", "langue", "nom", "prix", "stock", "photo"],
   },
   {
     cle: "article",
@@ -196,7 +212,7 @@ async function exigerConfiguration() {
 }
 
 if (mode === "--voir") {
-  console.log("\nLes quatre formulaires :\n");
+  console.log("\nLes cinq formulaires :\n");
   for (const f of FLUX) {
     const manquants = verifier(f);
     const ecrans = definition(f)

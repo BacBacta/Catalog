@@ -5,6 +5,7 @@ import {
   lireArticleFlux,
   lireAvisFlux,
   lireInscriptionFlux,
+  lireOuvertureFlux,
   lireReponseFlux,
 } from "../flux.ts";
 
@@ -366,6 +367,48 @@ describe("la lecture d'un article — tache #62", () => {
         prixXaf: 1000,
       });
     }
+  });
+
+  it("l'ouverture rend la boutique ET l'article, d'une seule reponse — ADR 0087", () => {
+    /* Deux ecrans, une reponse : `navigate` accumule, `complete` rend tout.
+       C'est ce qui fait tomber l'ouverture de cinq messages a un formulaire. */
+    expect(
+      lireOuvertureFlux(
+        reponse({
+          boutique: "Chez Amina",
+          ville: "Douala",
+          langue: "fr",
+          nom: "Pagne wax 6 yards",
+          prix: "15 000",
+          stock: "3",
+        }),
+      ),
+    ).toEqual({
+      boutique: { nomBoutique: "Chez Amina", ville: "Douala", langue: "fr" },
+      article: { nom: "Pagne wax 6 yards", prixXaf: 15_000, stock: 3 },
+    });
+  });
+
+  it("le second ecran laisse vide ouvre QUAND MEME la boutique", () => {
+    /* Une vendeuse qui n'a pas sa photo sous la main ne doit pas rester
+       dehors : l'article est facultatif au sens strict. */
+    expect(lireOuvertureFlux(reponse({ boutique: "Chez Bea", ville: "Douala" }))).toEqual({
+      boutique: { nomBoutique: "Chez Bea", ville: "Douala", langue: "fr" },
+    });
+  });
+
+  it("un article a moitie rempli vaut ABSENT, il ne casse pas l'ouverture", () => {
+    /* Un nom sans prix ne fait pas un article — et surtout pas un echec. */
+    expect(
+      lireOuvertureFlux(reponse({ boutique: "Chez Bea", ville: "Douala", nom: "Sac" })),
+    ).toEqual({ boutique: { nomBoutique: "Chez Bea", ville: "Douala", langue: "fr" } });
+  });
+
+  it("sans boutique lisible, RIEN ne se lit — on ne range pas un article nulle part", () => {
+    expect(lireOuvertureFlux(reponse({ ville: "Douala", nom: "Sac", prix: "1000" }))).toBeNull();
+    expect(
+      lireOuvertureFlux(reponse({ boutique: "Chez Bea", ville: "", nom: "Sac", prix: "1000" })),
+    ).toBeNull();
   });
 
   it("son jeton se reconnait, et ne se confond avec aucun autre", () => {

@@ -62,6 +62,7 @@ import {
   jetonFlux,
   lireArticleFlux,
   lireInscriptionFlux,
+  lireOuvertureFlux,
   messageFlux,
 } from "./domain/bot/flux.ts";
 import {
@@ -195,6 +196,12 @@ export interface BotDeps {
   fluxAvisId?: string;
   /** Le formulaire d'inscription vendeuse — tache #60. Absent : rien n'est monte. */
   fluxInscriptionId?: string;
+  /**
+   * Le formulaire d'OUVERTURE en deux ecrans — ADR 0087. Pose, il REMPLACE
+   * `fluxInscriptionId` : boutique et ville, puis le premier article, et
+   * tout revient ensemble. Absent, le fil est exactement celui d'avant.
+   */
+  fluxOuvertureId?: string;
   /** Le formulaire de creation d'article — tache #62. Meme regime : un raccourci
       qui s'AJOUTE aux questions, jamais un passage oblige. */
   fluxArticleId?: string;
@@ -541,17 +548,29 @@ async function filInscription(
      */
     await envoyerSequence(deps, [
       texte(entree.de, PREMIERE_QUESTION),
-      ...(deps.fluxInscriptionId
+      /* L'ouverture en deux ecrans PRIME quand elle est posee : elle fait le
+         travail des deux formulaires — ADR 0087. */
+      ...(deps.fluxOuvertureId
         ? [
             messageFlux(
               entree.de,
-              deps.fluxInscriptionId,
-              "Remplir le formulaire",
-              jetonFlux("inscription"),
-              "Plus rapide : tout d'un coup, dans un formulaire.",
+              deps.fluxOuvertureId,
+              "Ouvrir ma boutique",
+              jetonFlux("ouverture"),
+              "Plus rapide : votre boutique et votre premier article, d'un coup.",
             ),
           ]
-        : []),
+        : deps.fluxInscriptionId
+          ? [
+              messageFlux(
+                entree.de,
+                deps.fluxInscriptionId,
+                "Remplir le formulaire",
+                jetonFlux("inscription"),
+                "Plus rapide : tout d'un coup, dans un formulaire.",
+              ),
+            ]
+          : []),
     ]);
     return;
   }
@@ -633,10 +652,15 @@ async function filInscription(
   if (
     !sellerId &&
     entree.genre === "flux" &&
-    genreDuJeton(entree.reponse) === "inscription" &&
+    (genreDuJeton(entree.reponse) === "inscription" ||
+      genreDuJeton(entree.reponse) === "ouverture") &&
     (etat.nom === "inscription_nom" || etat.nom === "inscription_ville")
   ) {
-    const lue = lireInscriptionFlux(entree.reponse);
+    /* Les DEUX formulaires entrent par la meme porte : l'ouverture rend en
+       plus un premier article, et `lireOuvertureFlux` le lit — la boutique
+       commande, l'article est facultatif (ADR 0087). */
+    const ouverture = lireOuvertureFlux(entree.reponse);
+    const lue = ouverture?.boutique ?? null;
     if (!lue) {
       await deps.envoyeur.envoyer(
         texte(entree.de, "Le formulaire n'a pas pu être lu. Reprenons ici, c'est aussi rapide."),
@@ -677,6 +701,21 @@ async function filInscription(
             "Ou tout d'un coup, dans un formulaire : nom, prix, stock.",
           ),
         );
+      }
+      /**
+       * L'article du SECOND ecran, quand elle l'a rempli — ADR 0087. Il
+       * emprunte le meme chemin que partout (`publierArticleDepuisFil`) :
+       * une seule fonction decide de ce qui accompagne une publication, et
+       * la confirmation y part d'abord (ADR 0085).
+       */
+      if (ouverture?.article) {
+        await envoyerSequence(deps, suite);
+        await envoyerSequence(
+          deps,
+          await publierArticleDepuisFil(deps, cree.id, entree.de, ouverture.article),
+        );
+        await poserEtat(deps, phone, ETAT_INITIAL);
+        return;
       }
       /**
        * La question du nom ne part PLUS ici — banc du 13/08. Le formulaire

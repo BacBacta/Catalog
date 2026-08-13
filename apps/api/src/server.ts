@@ -151,6 +151,11 @@ const bot =
         ...(process.env.WABOT_FLUX_INSCRIPTION_ID?.trim()
           ? { fluxInscriptionId: process.env.WABOT_FLUX_INSCRIPTION_ID.trim() }
           : {}),
+        /* L'ouverture en DEUX ecrans (ADR 0087). Posee, elle remplace le
+           formulaire d'inscription : boutique, ville, puis premier article. */
+        ...(process.env.WABOT_FLUX_OUVERTURE_ID?.trim()
+          ? { fluxOuvertureId: process.env.WABOT_FLUX_OUVERTURE_ID.trim() }
+          : {}),
         ...(process.env.WABOT_FLUX_ARTICLE_ID?.trim()
           ? { fluxArticleId: process.env.WABOT_FLUX_ARTICLE_ID.trim() }
           : {}),
