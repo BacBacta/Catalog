@@ -678,12 +678,23 @@ async function filInscription(
           ),
         );
       }
-      suite.push(
-        texte(
-          entree.de,
-          "*Quel est le nom de votre premier article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
-        ),
-      );
+      /**
+       * La question du nom ne part PLUS ici — banc du 13/08. Le formulaire
+       * dit deja ce qu'il attend, et les boutons du message d'ouverture
+       * offrent le chemin lent. Poser la question par-dessus, c'etait un
+       * cinquieme message pour un geste deja propose deux fois.
+       *
+       * Sans formulaire configure, en revanche, elle reste le SEUL chemin :
+       * l'omettre laisserait la vendeuse devant un bouton et rien d'autre.
+       */
+      if (!deps.fluxArticleId) {
+        suite.push(
+          texte(
+            entree.de,
+            "*Quel est le nom de votre premier article ?*\nExemple : Pagne wax 6 yards\n\nPlus rapide : envoyez directement la photo, avec « nom prix » en légende.",
+          ),
+        );
+      }
     }
     await envoyerSequence(deps, suite);
     return;
@@ -1053,14 +1064,27 @@ async function publierArticleDepuisFil(
     article && (await deps.reconstruction?.demander("article_publie"))
       ? ATTENTE_ANNONCEE_MIN
       : null;
-  messages.push(
+  /**
+   * ── L'ESSENTIEL PART D'ABORD — banc du 13/08/2026 ─────────────────────
+   *
+   * Le deuxieme article d'une vendeuse est entre en base, et le fil est
+   * reste MUET : la composition de la decoration (rendu de carte,
+   * re-encodage, trois televersements, verification d'URL) precedait le
+   * premier envoi, et un appel reseau sans delai d'attente l'a suspendue
+   * pour toujours. La confirmation, deja ecrite, n'est jamais partie.
+   *
+   * Elle part donc SEULE et TOUT DE SUITE. La carte, le pack et le mode
+   * d'emploi sont de la decoration : ils suivent, et leur echec — ou leur
+   * lenteur — ne peut plus emporter la seule phrase qui compte.
+   */
+  await envoyerSequence(deps, [
     article
       ? messageArticlePublie(vers, article, enConges, pageWebDansMinutes)
       : texte(
           vers,
           "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
         ),
-  );
+  ]);
   /**
    * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
    * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
@@ -1071,18 +1095,27 @@ async function publierArticleDepuisFil(
     const nb = await deps.prisma.product.count({
       where: { sellerId, archivedAt: null },
     });
-    if (nb === 1) {
-      messages.push(...(await carteVitrine(deps, sellerId).catch(() => [])));
-    }
     /**
-     * Le pack statut part a CHAQUE publication — ADR 0061, rang 3a.
-     *
-     * La carte-vitrine, elle, ne part qu'au premier article : elle dit « la
-     * boutique existe », une fois. Le pack dit « poste CELUI-CI aujourd'hui »,
-     * et c'est vrai a chaque fois. Sur la premiere publication les deux
-     * partent, et c'est voulu : ils ne disent pas la meme chose.
+     * La carte-vitrine ne part plus toute seule non plus — meme banc, meme
+     * raison. Avec UN article, elle disait presque la meme chose que le pack
+     * statut ; les deux ensemble faisaient quatre images au moment ou la
+     * vendeuse cherche simplement a savoir si son article est en ligne.
+     * Le mode d'emploi lui apprend « ma carte », et le bouton la donne.
      */
-    messages.push(...(await packStatutArticle(deps, sellerId, article).catch(() => [])));
+    /**
+     * Le pack statut ne part plus TOUT SEUL — banc du 13/08/2026.
+     *
+     * Il partait a CHAQUE publication (ADR 0061, rang 3a) : trois messages
+     * — l'image, la consigne, la legende — qui s'ajoutaient a la carte et au
+     * mode d'emploi. Sept messages pour un article ajoute, et le porteur du
+     * produit l'a dit : « le vendeur ne sait plus quoi faire, certains
+     * onglets sont noyes dans la tonne de messages ».
+     *
+     * Il n'est pas retire, il est mis A PORTEE : le bouton « Ma carte » du
+     * message de publication le donne, et le mot « ma carte » aussi. Poster
+     * en Statut est un geste qu'on fait quand on a decide de le faire, pas
+     * dans la seconde ou l'on ajoute un article.
+     */
     /**
      * Le mode d'emploi — tache #62, et il part EN DERNIER : c'est lui qui
      * reste sous le pouce. Au premier article seulement, comme la carte, et
@@ -2324,7 +2357,31 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
   }
 
   if (reaction.effet?.type === "envoyer_carte") {
-    messages.push(...(await carteVitrine(deps, sellerIdent)));
+    /**
+     * Le pack statut a cesse de partir tout seul (banc du 13/08) : il vit
+     * DESORMAIS ici, et c'est sa bonne place. Avec UN SEUL article, il dit
+     * mieux que la vitrine ce qu'il y a a poster — l'image de l'article, et
+     * la legende prete a coller sous elle. Des deux articles, la vitrine
+     * reprend la main : elle montre la boutique, pas un objet.
+     */
+    const seul = await deps.prisma.product
+      .findMany({
+        where: { sellerId: sellerIdent, archivedAt: null },
+        orderBy: { position: "asc" },
+        take: 2,
+        select: { id: true, name: true, priceXaf: true, imageKey: true },
+      })
+      .catch(() => []);
+    const pack =
+      seul.length === 1 && seul[0]
+        ? await packStatutArticle(deps, sellerIdent, {
+            id: seul[0].id,
+            nom: seul[0].name,
+            prixXaf: seul[0].priceXaf,
+            imageKey: seul[0].imageKey,
+          }).catch(() => [])
+        : [];
+    messages.push(...(pack.length > 0 ? pack : await carteVitrine(deps, sellerIdent)));
     /**
      * Une carte partagee pendant les conges attire des acheteuses qui seront
      * refusees au dernier verrou — ADR 0057. Le rappel part APRES la carte :

@@ -1,4 +1,5 @@
 import type { LecteurMedia, MediaEntrant, PhotoCdnChiffree } from "../domain/bot/media.ts";
+import { fetchBorne } from "./fetch-borne.ts";
 import { dechiffrerMediaCdn } from "./media-cdn.ts";
 import { entetesAuth, type TransportWhatsapp } from "./whatsapp-transport.ts";
 
@@ -72,7 +73,8 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
     }
     this.nom = cfg.transport;
     this.#cfg = cfg;
-    this.#fetch = cfg.fetchImpl ?? fetch;
+    /* Borne : un appel du bot echoue ou finit, jamais « il attend ». */
+    this.#fetch = fetchBorne(cfg.fetchImpl ?? fetch);
   }
 
   /**

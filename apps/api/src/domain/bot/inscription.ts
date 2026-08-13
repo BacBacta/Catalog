@@ -329,19 +329,36 @@ export function messageBoutiqueCreee(
     lienEspace: string | null;
   },
 ): MessageSortant[] {
+  /**
+   * UN SEUL message — banc du 13/08/2026.
+   *
+   * L'ouverture en produisait CINQ d'affilee : le lien, le reversement et le
+   * parrainage, la question « premier article ? », le formulaire, puis la
+   * question du nom. Le porteur du produit l'a dit dans ces mots : « une
+   * serie de liens, de messages apparaissent, ce qui noie l'essentiel ».
+   *
+   * Ce qui reste ici est ce dont la vendeuse a besoin DANS LA MINUTE : son
+   * lien, et le geste suivant. Le reste n'est pas perdu — il est SERVI PLUS
+   * TARD, la ou il sert :
+   *
+   * - le **reversement** a deja sa relance a ~20 h (ADR 0035), il reparait
+   *   dans la notification de premiere commande — au moment ou il coute —
+   *   et il vit dans le menu « ma boutique » ;
+   * - le **parrainage** vit dans le menu « ma boutique ». Personne ne
+   *   parraine une consœur dans les dix secondes qui suivent l'ouverture.
+   *
+   * Servir une information hors de son moment n'est pas de la generosite,
+   * c'est du bruit — et le bruit cache le lien qu'elle est venue chercher.
+   */
   return [
-    texte(
+    boutons(
       vers,
-      `✅ *${b.nom}* est ouverte.\n\nVoici votre lien de boutique — partagez-le, mettez-le en statut WhatsApp :\n${b.lienBoutique}\n\nVos clientes commandent ici, et vous recevez un reçu vérifiable à chaque paiement prouvé.`,
+      `✅ *${b.nom}* est ouverte.\n\nVotre lien à partager — mettez-le en statut WhatsApp :\n${b.lienBoutique}\n\nVos clientes commandent ici, et chaque paiement prouvé donne un reçu vérifiable.`,
+      [
+        { id: "article", titre: "Ajouter un article" },
+        { id: "plus_tard", titre: "Plus tard" },
+      ],
     ),
-    texte(
-      vers,
-      `Pour être payée d'avance, ajoutez votre numéro Mobile Money dans votre espace vendeuse — il demande sa propre vérification, c'est le numéro qui reçoit votre argent.${b.lienEspace ? `\nVotre espace vendeuse : ${b.lienEspace}` : ""}\n\nVotre lien de parrainage, si une consœur veut ouvrir la sienne :\n${b.lienParrainage}`,
-    ),
-    boutons(vers, "Ajoutons votre premier article ?", [
-      { id: "article", titre: "Premier article" },
-      { id: "plus_tard", titre: "Plus tard" },
-    ]),
   ];
 }
 
@@ -379,7 +396,7 @@ export function messageOnboarding(
     : "3. Pour être payée d'AVANCE, posez votre numéro Mobile Money dans votre espace vendeuse.";
   return texte(
     vers,
-    `📖 *Votre boutique, mode d'emploi :*\n\n1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.\n2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-482910\n${reversement}\n${boutique}\n\nÀ tout moment : « ma boutique » pour le menu, « ajouter » pour un article, « vendu » pour déclarer une vente déjà négociée.`,
+    `📖 *Votre boutique, mode d'emploi :*\n\n1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.\n2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-482910\n${reversement}\n${boutique}\n5. Votre affiche à poster en Statut : écrivez « ma carte » — ou touchez le bouton après chaque article.\n\nÀ tout moment : « ma boutique » pour le menu, « ajouter » pour un article, « vendu » pour déclarer une vente déjà négociée.`,
   );
 }
 
@@ -419,10 +436,16 @@ export function messageArticlePublie(
   return boutons(
     vers,
     `✅ *${a.nom}* — ${formatXaf(a.prixXaf)} est dans votre catalogue.${photo}${pageWeb}${conges}`,
+    /**
+     * Trois boutons au plus (borne de l'API), et « Ma carte » y entre depuis
+     * le banc du 13/08 : le pack statut ne part plus TOUT SEUL a chaque
+     * publication — trois messages d'affilee qui noyaient les boutons — il
+     * s'obtient d'un appui, quand elle veut poster.
+     */
     [
       ...(enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
       { id: "article", titre: "Autre article" },
-      { id: "ma_boutique", titre: "Ma boutique" },
+      ...(enConges ? [] : [{ id: "carte", titre: "Ma carte" }]),
     ],
   );
 }
