@@ -81,11 +81,19 @@ jobs:
         # avale les erreurs de traitement avec un `console.warn` resume
         # (`resumerErreur`, sans contenu) : c'est la qu'une panne silencieuse
         # dit son nom.
+        # Chaque lecture est BORNEE DANS LE TEMPS et ne peut pas faire echouer
+        # la sonde. Mesure du 13/08 : `flyctl logs --no-tail | grep | tail` a
+        # tenu le job onze minutes sans rien rendre — `tail` attend une fin de
+        # flux qui ne vient pas, et une sonde qui pend est pire qu'une sonde
+        # absente, parce qu'on l'attend.
         run: |
-          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/diagnostic-connexion.mjs"
-          echo "── avertissements recents du webhook ──"
-          flyctl logs --no-tail --app catalog-api-preprod 2>/dev/null \
-            | grep -E "non traite|livraison entrante refusee" | tail -8 \
-            || echo "(aucun avertissement dans la fenetre de journaux)"
+          echo "── etat des defis en base ──"
+          timeout 120 flyctl ssh console --app catalog-api-preprod \
+            -C "node apps/api/scripts/diagnostic-connexion.mjs" || echo "(sonde en base injoignable)"
+          echo "── journaux recents de la route entrante ──"
+          timeout 90 flyctl logs --no-tail --app catalog-api-preprod > /tmp/journaux.txt 2>/dev/null || true
+          echo "  lignes lues : $(wc -l < /tmp/journaux.txt)"
+          grep -E "connexion whatsapp|non traite|livraison entrante refusee|entrant" /tmp/journaux.txt \
+            | tail -20 || echo "  (aucune ligne de la route entrante dans la fenetre)"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
