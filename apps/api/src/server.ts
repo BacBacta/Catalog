@@ -15,8 +15,9 @@ import { resoudreTransport } from "./adapters/whatsapp-transport.ts";
 import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
 import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
-import { traiterLivraisonBot } from "./bot.ts";
+import { resumerErreur, traiterLivraisonBot } from "./bot.ts";
 import { notifierConteste, notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
+import { accuserConnexionDansLeFil } from "./connexion-fil.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
 import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
@@ -319,10 +320,24 @@ if (secretEntrant && secretAppMeta) {
       authEnTete: process.env.WABOT_WEBHOOK_AUTH?.trim() || undefined,
       surMessage: async (message) => {
         const contexte = await auth.$context;
-        await appliquerMessageEntrant(contexte.internalAdapter as unknown as MagasinDefis, {
+        const magasin = contexte.internalAdapter as unknown as MagasinDefis;
+        const verdict = await appliquerMessageEntrant(magasin, {
           ...message,
           maintenant: new Date(),
         });
+        /* Le fil accuse la connexion — sans cela, envoyer son code ne produit
+           RIEN cote WhatsApp, et rien ne distingue « ça a marché » de « le
+           service est mort ». Banc du 13/08/2026. De confort : un envoi qui
+           echoue ne defait aucune session, donc il n'interrompt pas le flux. */
+        if (bot) {
+          await accuserConnexionDansLeFil(
+            { magasin, envoyeur: bot.envoyeur, prisma },
+            message,
+            verdict,
+          ).catch((e: unknown) => {
+            console.warn(`bot : accuse de connexion non envoye (${resumerErreur(e)})`);
+          });
+        }
       },
       ...(bot
         ? {

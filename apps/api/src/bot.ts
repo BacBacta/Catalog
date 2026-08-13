@@ -313,7 +313,7 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
  * (comptes vendeuses, numero de rappel de livraison) ; la cle de conversation,
  * elle, accepte tout wa_id plausible.
  */
-function cleConversation(waId: string): string | null {
+export function cleConversation(waId: string): string | null {
   const camerounais = normalizePhone(waId);
   if (camerounais) return camerounais;
   const chiffres = waId.replace(/^\+/, "");
