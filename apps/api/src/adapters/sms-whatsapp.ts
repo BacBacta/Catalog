@@ -1,4 +1,5 @@
 import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
+import { fetchBorne } from "./fetch-borne.ts";
 
 /**
  * WhatsApp Cloud API — les modeles d'**authentification**.
@@ -145,7 +146,7 @@ export class WhatsAppSender implements SmsSender {
       );
     }
     this.#cfg = cfg;
-    this.#fetch = cfg.fetchImpl ?? globalThis.fetch;
+    this.#fetch = fetchBorne(cfg.fetchImpl ?? globalThis.fetch);
     const base = (cfg.baseUrl ?? BASE_DEFAUT).replace(/\/$/, "");
     this.#url = `${base}/${cfg.version ?? VERSION_DEFAUT}/${cfg.phoneNumberId}/messages`;
   }

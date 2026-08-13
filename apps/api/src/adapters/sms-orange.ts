@@ -1,4 +1,5 @@
 import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
+import { fetchBorne } from "./fetch-borne.ts";
 
 /**
  * Orange **SMS Cameroon** — l'API `sms-cm` du portail Orange Developer.
@@ -203,7 +204,7 @@ export class OrangeSmsSender implements SmsSender {
       );
     }
     this.#cfg = cfg;
-    this.#fetch = cfg.fetchImpl ?? globalThis.fetch;
+    this.#fetch = fetchBorne(cfg.fetchImpl ?? globalThis.fetch);
     this.#maintenant = cfg.maintenant ?? (() => Date.now());
     this.#baseUrl = (cfg.baseUrl ?? BASE_DEFAUT).replace(/\/$/, "");
   }

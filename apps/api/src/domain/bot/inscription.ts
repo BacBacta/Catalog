@@ -449,7 +449,20 @@ export function messageOnboarding(
 
 export function messageArticlePublie(
   vers: string,
-  a: { nom: string; prixXaf: number; avecPhoto: boolean },
+  a: {
+    nom: string;
+    prixXaf: number;
+    avecPhoto: boolean;
+    /**
+     * La photo a ete ENVOYEE mais n'a pas pu etre lue — ADR 0089.
+     *
+     * Sans cette distinction, « Sans photo pour l'instant » se disait aussi
+     * bien a qui n'avait rien envoye qu'a qui venait d'envoyer une photo
+     * perdue en route. Deux situations opposees, une seule phrase : la
+     * vendeuse ne pouvait pas savoir qu'il fallait recommencer.
+     */
+    photoPerdue?: boolean;
+  },
   enConges = false,
   /**
    * Minutes avant que la PAGE WEB de la boutique porte cet article — ADR 0065.
@@ -464,7 +477,16 @@ export function messageArticlePublie(
    */
   pageWebDansMinutes: number | null = null,
 ): MessageSortant {
-  const photo = a.avecPhoto ? "" : "\nSans photo pour l'instant — envoyez-la quand vous voulez.";
+  /**
+   * Trois etats, pas deux — ADR 0089. L'echec se DIT, et il dit quoi faire :
+   * une phrase qui constate sans donner le geste suivant laisse la vendeuse
+   * exactement aussi bloquee que le silence.
+   */
+  const photo = a.avecPhoto
+    ? ""
+    : a.photoPerdue
+      ? "\n\n⚠️ Votre photo ne m'est pas parvenue — l'article est bien créé, mais sans elle. Renvoyez-la simplement ici, en réponse à ce message."
+      : "\nSans photo pour l'instant — envoyez-la quand vous voulez.";
   /**
    * « En ligne » ne peut pas rester seul sur une boutique fermée — ADR 0057.
    *

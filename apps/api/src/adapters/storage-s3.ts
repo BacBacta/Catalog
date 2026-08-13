@@ -7,6 +7,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { ObjectStorage, ObjetAStocker } from "../domain/storage.ts";
+import { DELAI_CONNEXION_MS, DELAI_RESEAU_MS } from "./fetch-borne.ts";
 
 /**
  * Stockage S3 — compatible R2 et MinIO.
@@ -37,6 +38,29 @@ export class S3Storage implements ObjectStorage {
       region: cfg.region ?? "auto",
       forcePathStyle: true,
       credentials: { accessKeyId: cfg.accessKey, secretAccessKey: cfg.secretKey },
+      /**
+       * ── Un appel de stockage finit TOUJOURS — ADR 0089 ──────────────────
+       *
+       * Le SDK v3 n'impose AUCUN delai par defaut : `requestTimeout` vaut
+       * zero, c'est-a-dire l'infini. Un `put` vers un stockage qui accepte la
+       * connexion puis se tait pend pour toujours.
+       *
+       * Ce n'est pas theorique. La carte-vitrine fait TROIS `put` d'affilee,
+       * et elle est composee avant qu'un seul message parte : le fil de la
+       * vendeuse se taisait apres la carte, sans erreur ni trace — banc du
+       * 13/08/2026. C'est le meme defaut que l'ADR 0085, dans l'autre
+       * bibliotheque.
+       *
+       * Les valeurs sont celles de `fetch-borne.ts`, pour que le produit
+       * n'ait qu'une seule idee de ce que « trop long » veut dire.
+       */
+      requestHandler: {
+        requestTimeout: DELAI_RESEAU_MS,
+        connectionTimeout: DELAI_CONNEXION_MS,
+      },
+      /* Trois tentatives au plus : au-dela, on ne rate plus un incident, on
+         le prolonge — et chacune porte son propre delai. */
+      maxAttempts: 3,
     });
   }
 

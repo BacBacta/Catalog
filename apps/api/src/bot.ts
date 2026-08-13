@@ -1235,6 +1235,8 @@ async function creerArticleDepuisFil(
   nom: string;
   prixXaf: number;
   avecPhoto: boolean;
+  /** Une photo a ete envoyee et n'a pas pu etre lue — ADR 0089. */
+  photoPerdue: boolean;
   imageKey: string | null;
 } | null> {
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
@@ -1310,6 +1312,10 @@ async function creerArticleDepuisFil(
         nom: cree.name,
         prixXaf: cree.priceXaf,
         avecPhoto: image !== null,
+        /* Demandee ET absente : l'echec s'est produit quelque part entre le
+           CDN, le dechiffrement et le re-encodage. Aucune de ces portes ne
+           le disait — c'est ce que ce champ repare (ADR 0089). */
+        photoPerdue: Boolean(demande.mediaId || demande.photoCdn) && image === null,
         /* La cle sert au pack statut (rang 3a) : la photo se recompose sur la
            carte, elle ne se re-telecharge pas depuis WhatsApp. */
         imageKey: image?.cle ?? null,
@@ -2463,7 +2469,39 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
             imageKey: seul[0].imageKey,
           }).catch(() => [])
         : [];
-    messages.push(...(pack.length > 0 ? pack : await carteVitrine(deps, sellerIdent)));
+    /**
+     * ── La carte ne peut plus emporter le fil — ADR 0089 ──────────────────
+     *
+     * `carteVitrine` rend une image : elle lit des photos dans le stockage,
+     * les recompose, re-encode et TELEVERSE trois declinaisons. Elle etait
+     * appelee sans filet, et tout ce qui precede n'etait envoye qu'apres.
+     * Un stockage qui accepte la connexion puis se tait suspendait donc la
+     * reponse entiere — le fil se taisait apres la carte, sans erreur ni
+     * trace. Banc du 13/08/2026, et c'est la lecon de l'ADR 0085 appliquee
+     * ici avec un cran de retard.
+     *
+     * Deux verrous, et il en faut deux : le delai (`storage-s3.ts`) empeche
+     * l'attente infinie, ce filet-ci empeche l'echec d'emporter le reste.
+     * Un echec DIT quelque chose — une carte muette laisserait la vendeuse
+     * devant un bouton qui ne fait rien.
+     */
+    const carte =
+      pack.length > 0
+        ? pack
+        : await carteVitrine(deps, sellerIdent).catch(() => {
+            console.warn("bot : carte-vitrine indisponible (details retenus)");
+            return [] as MessageSortant[];
+          });
+    messages.push(
+      ...(carte.length > 0
+        ? carte
+        : [
+            texte(
+              entree.de,
+              "Votre carte n'a pas pu être fabriquée à l'instant — réessayez dans un moment en écrivant « ma carte ». Votre boutique, elle, est bien en ligne.",
+            ),
+          ]),
+    );
     /**
      * Une carte partagee pendant les conges attire des acheteuses qui seront
      * refusees au dernier verrou — ADR 0057. Le rappel part APRES la carte :
