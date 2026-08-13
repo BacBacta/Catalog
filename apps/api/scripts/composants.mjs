@@ -27,7 +27,10 @@
  */
 
 const JETON = process.env.WABOT_API_KEY?.trim();
-const NUMERO_ID = process.env.WABOT_PHONE_NUMBER_ID?.trim();
+/* Le MEME nom que partout ailleurs (`server.ts`, `auth.ts`, `banc-essai.ts`) :
+   inventer une seconde variable pour la meme chose est exactement ce qui a
+   fait echouer la premiere execution, le 13/08/2026. */
+const NUMERO_ID = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
 const BASE = (process.env.WABOT_GRAPH_URL ?? "https://graph.facebook.com/v26.0").replace(/\/$/, "");
 const mode = process.argv[2] ?? "--accueil-etat";
 
@@ -56,7 +59,7 @@ function exigerJeton() {
 function exigerNumero() {
   if (!NUMERO_ID) {
     console.error(
-      "WABOT_PHONE_NUMBER_ID est exigee pour ce mode : les composants se posent sur le NUMERO.",
+      "WHATSAPP_PHONE_NUMBER_ID est exigee pour ce mode : les composants se posent sur le NUMERO.",
     );
     process.exit(1);
   }
