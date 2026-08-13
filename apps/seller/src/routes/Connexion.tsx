@@ -86,7 +86,12 @@ export function Connexion() {
         setErreur(messageDErreur(r, "La connexion WhatsApp n'a pas abouti. Reessayez."));
         return;
       }
-      naviguer("/connexion/whatsapp", { state: r.donnees });
+      /* On DATE le defi a sa creation. L'ecran d'attente calcule son restant a
+         partir de cet INSTANT, jamais d'une duree qui repartirait a chaque
+         montage — c'est ce qui faisait afficher 5:00 sur un code mort apres un
+         rechargement (13/08/2026). Les deux mesures viennent de l'horloge de ce
+         telephone : une horloge fausse ne fausse pas l'ecart. */
+      naviguer("/connexion/whatsapp", { state: { ...r.donnees, creeA: Date.now() } });
     } catch (cause) {
       if (cause instanceof PanneReseau) setHorsLigne(true);
       else setErreur("La connexion WhatsApp n'a pas abouti. Reessayez.");
