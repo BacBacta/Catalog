@@ -93,15 +93,36 @@ jobs:
           # et le runner attend une fin de flux qui ne vient pas. `</dev/null`
           # ferme au passage la porte d'une invite interactive, qui bloquerait
           # de la meme facon et sans rien dire.
+          echo "── machines ──"
+          timeout -k 10 -s KILL 60 flyctl machines list --app catalog-api-preprod </dev/null || true
+
+          # `ssh console` monte un tunnel WireGuard depuis le runner, et il a
+          # pendu 120 s sur « Connecting to fdaa:… » le 13/08. `machine exec`
+          # passe par l'API des Machines, sans tunnel : c'est le repli, et
+          # c'est souvent lui qui repond.
           echo "── etat des defis en base ──"
-          timeout -k 10 -s KILL 120 flyctl ssh console --app catalog-api-preprod \
-            -C "node apps/api/scripts/diagnostic-connexion.mjs" </dev/null \
-            || echo "(sonde en base injoignable ou trop lente)"
-          echo "── journaux recents de la route entrante ──"
+          machine=$(timeout -k 5 -s KILL 30 flyctl machines list --app catalog-api-preprod --json </dev/null 2>/dev/null \
+            | python3 -c "import sys,json;m=json.load(sys.stdin);print(m[0]['id'] if m else '')" 2>/dev/null || true)
+          echo "  machine : ${machine:-inconnue}"
+          sonde="node apps/api/scripts/diagnostic-connexion.mjs"
+          timeout -k 10 -s KILL 90 flyctl ssh console --app catalog-api-preprod -C "$sonde" </dev/null \
+            || { [ -n "$machine" ] && timeout -k 10 -s KILL 90 flyctl machine exec "$machine" "$sonde" \
+                   --app catalog-api-preprod </dev/null ; } \
+            || echo "  (sonde en base injoignable — ni ssh, ni machine exec)"
+
+          # Les journaux sont REDACTES avant impression : l'URL du webhook
+          # entrant porte `WHATSAPP_ENTRANT_SECRET` dans son CHEMIN, et un
+          # journal de CI se lit par plus de monde qu'une machine Fly. On ne
+          # troque pas un diagnostic contre la fuite du secret qu'on diagnostique.
+          echo "── journaux recents ──"
           timeout -k 10 -s KILL 90 flyctl logs --no-tail --app catalog-api-preprod \
-            </dev/null >/tmp/journaux.txt 2>/dev/null || true
+            </dev/null >/tmp/bruts.txt 2>/dev/null || true
+          sed -E 's#(/api/whatsapp/entrant/)[^ "?]+#\1<secret>#g' /tmp/bruts.txt > /tmp/journaux.txt
           echo "  lignes lues : $(wc -l < /tmp/journaux.txt)"
-          grep -E "connexion whatsapp|non traite|livraison entrante refusee|entrant" /tmp/journaux.txt \
-            | tail -20 || echo "  (aucune ligne de la route entrante dans la fenetre)"
+          echo "  ·· lignes de la route entrante ··"
+          interessantes=$(grep -E "connexion whatsapp|non traite|entrant|whatsapp" /tmp/journaux.txt | tail -20 || true)
+          echo "${interessantes:-  (aucune)}"
+          echo "  ·· fin de fenetre, pour voir ce que le service dit ··"
+          tail -25 /tmp/journaux.txt
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
