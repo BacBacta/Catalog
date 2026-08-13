@@ -140,6 +140,12 @@ comprise. Une liste blanche de villes est exclue d'avance : il n'existe pas
 d'adresse au Cameroun (ADR 0005) et les localités sont innombrables — une liste
 ferait plus de dégâts que le défaut.
 
+**Ce que la vérification adverse a ajouté** — la valeur ne dort pas en base.
+Elle **sort** : dans le gabarit Meta `catalog_nouvelle_commande_v2` envoyé à la
+vendeuse (« Livraison : est-ce que vous vendez des chaussures pour bébé ?,
+Bonapriso, … ») et dans le message de commande de l'acheteuse. Et la question
+posée n'a jamais reçu de réponse.
+
 **Sévérité** : impact 3 (la vendeuse doit rattraper hors système) × fréquence 2
 × détectabilité 4 (rien ne le signale, ni à l'acheteuse ni dans une trace)
 = **24**.
@@ -148,9 +154,35 @@ ferait plus de dégâts que le défaut.
 `order.delivery.city` ne soit pas la question, ou qu'un message ait signalé
 l'incompréhension.
 
-**Vérification adverse** : lancée sur trois angles (reproduction, lecture de
-code, intention produit). *Verdicts non rendus au moment d'écrire.* Tant qu'ils
-ne le sont pas, ce constat est `PLAUSIBLE`, pas `CONFIRMÉ`.
+**Vérification adverse : `CONFIRMÉ` — 1 réfutation sur 3.**
+
+- *reproduction* — confirme, certitude forte. Rejoué contre la base ; identique
+  avec le Flow de livraison branché (le formulaire s'ajoute à la question, il ne
+  ferme jamais la saisie libre). `12345`, `?? ...`, une URL passent aussi.
+- *lecture de code* — confirme, certitude forte. Le seul prédicat est
+  `villeAcceptable` (`packages/contracts/src/villes.ts:43`), qui ne teste **que**
+  la longueur (2–80). `deliverySchema` appelle le même ; `delivery` est un
+  `jsonb` sans `CHECK`. Rejoué aussi sur la machine pure, sans harnais.
+- *intention produit* — **réfute**, certitude forte, et sa réfutation borne le
+  remède. L'ADR 0050 pose deux décisions qui répondent au constat : il n'y a pas
+  de liste de villes **et c'est délibéré** (une liste « déplace le mur à la
+  soixantième ville » et exclurait en silence une acheteuse de Foumbot) ; et
+  « le récap est le seul garde-fou du produit ; une valeur absurde y est vue
+  avant l'appui sur *Confirmer* ».
+
+**Ce que j'en retiens.** Le constat survit à la majorité, et pour une raison que
+la réfutation ne couvre pas : **un écho n'est pas un signal**. Le récapitulatif
+affiche bien la valeur, mais l'acheteuse n'a pas mal orthographié une ville —
+elle a posé une question, et se relire ne lui apprend pas que le bot l'a rangée
+comme destination.
+
+**Mais le remède évident est interdit**, et il faut le dire avant d'en proposer
+un : fermer le vocabulaire rouvrirait l'ADR 0050, et détecter une question dans
+le tunnel rouvrirait l'ADR 0051 (`questionFrequente` existe dans le dépôt et est
+**explicitement fermée** hors `accueil`/`catalogue` — dans le tunnel, un texte
+libre est du contenu par décision). Tout correctif porte donc sur la **forme**,
+jamais sur le mot, et **demande** au lieu de refuser. C'est un arbitrage produit,
+pas une correction : voir la fin de ce document.
 
 ---
 
@@ -182,15 +214,36 @@ Le bot a répondu « *est-ce que vous vendez des chaussures pour bébé ?* — c
 noté. » puis a ouvert la boutique. **Le slug est l'URL publique partageable** de
 la vendeuse, et le fil ne propose aucun moyen de la corriger.
 
-**Sévérité** : impact 4 (la vendeuse ne peut pas réparer depuis le fil, et
-l'objet est public) × fréquence 2 × détectabilité 4 = **32**.
+**Ce que la vérification adverse a ajouté, et qui aggrave le constat** :
+« pas rattrapable depuis le fil » était trop doux. **Aucun chemin de renommage
+n'existe nulle part** — ni dans le bot (le menu vendeuse n'offre que article /
+carte / ma boutique / soldes / congés), ni dans l'app vendeuse
+(`apps/seller/src/lib/api.ts` ne connaît que `creerProfil`, jamais une mise à
+jour). Le nom et le slug sont posés par **un seul message libre**, sans
+récapitulatif, et figés.
+
+**Sévérité** : impact 4 (aucun recours, et l'objet est public) × fréquence 2 ×
+détectabilité 4 = **32**.
 
 **Test qui échouerait aujourd'hui** : après ce scénario, exiger que la boutique
-n'ait pas été créée sans confirmation, ou que le slug ne dérive pas d'une forme
-interrogative.
+n'ait pas été créée sans confirmation — ou qu'un chemin de renommage existe.
 
-**Vérification adverse** : lancée. *Verdicts non rendus au moment d'écrire.*
-Statut : `PLAUSIBLE`.
+**Vérification adverse : `CONFIRMÉ` — 0 réfutation sur 3, unanime.**
+
+- *reproduction* — rejoué trois fois, même ligne `seller`. Le chemin
+  question-par-question **est** celui de production (`WABOT_FLUX_INSCRIPTION_ID`
+  est vide dans `.env.example`), et le chemin Flow applique la même borne.
+- *lecture de code* — le seul contrôle est une borne de **longueur** (2–80).
+  Aucun schéma Zod ne couvre `businessName` : `packages/contracts/src` ne le
+  connaît pas, alors qu'AGENTS.md §6 en fait la source de vérité des types. En
+  base, `business_name` est un `TEXT NOT NULL` **sans `CHECK`**.
+- *intention produit* — **aucun des 88 ADR ne traite du nom de boutique ni de
+  son slug.** L'ADR 0052, le plus proche, va dans le sens du constat : sa
+  doctrine est « quand c'est ambigu, on pose la question ».
+
+Le slug lui-même n'est pas en cause : `slugifier` borne déjà à 48 caractères
+(`apps/api/src/routes/seller.ts:119`). Ce qui est en cause est qu'un nom soit
+posé sans confirmation et sans recours.
 
 ---
 
@@ -231,13 +284,45 @@ Un lot par session (AGENTS.md §7.1).
 |---|---|---|
 | **A** *(fait)* | le harnais, le balayage, les instantanés, l'ADR 0089 | — |
 | **B** | finir la cartographie des onze couches restantes | la phase 1 rende |
-| **C** | trancher C-001 et C-002 sur la vérification adverse, puis corriger ce qui survit | phase 4 rendue |
+| **C** | corriger C-001 et C-002 — **bloqué sur un arbitrage produit**, voir ci-dessous | tranché par le porteur |
 | **D** | étendre le harnais à la preuve (couche 07) — sept contrôles, SMS collé, contre-signature | lot A |
 | **E** | instruire les pistes du transport entrant : rejeu d'un corps signé, livraisons concurrentes | lot B |
 
-L'ordre n'est pas négociable sur un point : **C avant D**. Deux constats à
-sévérité 24 et 32 qui attendent leur verdict pèsent plus qu'une couche
-supplémentaire cartographiée.
+L'ordre n'est pas négociable sur un point : **C avant D**. Deux constats
+confirmés à sévérité 24 et 32 pèsent plus qu'une couche supplémentaire
+cartographiée.
+
+---
+
+## L'arbitrage que je n'ai pas pris — et pourquoi
+
+Les deux constats sont confirmés. Aucun n'a été corrigé, et c'est délibéré :
+**leurs deux remèdes évidents rouvrent chacun une décision documentée**, et
+AGENTS.md §7.7 nomme la dérive silencieuse comme le vrai risque de ce dépôt,
+bien avant la qualité du code.
+
+**Pour C-002 — confirmer le nom de boutique avant de l'ouvrir.** Le geste
+naturel est un récapitulatif, exactement comme la photo légendée en a déjà un
+(« J'ai lu : *X* — *Y*. C'est bon ? »). Mais cela **ajoute une bulle à
+l'ouverture**, et l'ADR 0088 — daté du même jour que cet audit — vient de la
+ramener à une seule, sur la parole du porteur du produit : « une multiplication
+de messages et de liens rendant touffu le chat, c'est confondant ». Choisir à sa
+place vingt-quatre heures après serait précisément la faute que ce protocole
+existe pour empêcher.
+
+L'alternative — ouvrir un chemin de **renommage** plutôt qu'une confirmation —
+n'ajoute aucune bulle et ne contredit aucun ADR. Mais elle crée une route et un
+écran : c'est une décision produit, pas une correction.
+
+**Pour C-001 — signaler une ville qui n'en a pas l'air.** Le remède ne peut
+porter que sur la forme (une question, une URL, des chiffres seuls), jamais sur
+le vocabulaire : l'ADR 0050 a explicitement refusé toute liste de villes, et
+l'ADR 0051 a explicitement fermé la détection de question à l'intérieur du
+tunnel. Un correctif ici rouvre l'un ou l'autre.
+
+Ce que je peux dire sans arbitrage : **les deux défauts sont réels, reproduits,
+et sortent du système** — l'un jusque dans un gabarit Meta, l'autre jusque dans
+une URL publique.
 
 ---
 
