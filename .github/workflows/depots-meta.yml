@@ -18,7 +18,7 @@ on:
         description: "Quel script executer"
         required: true
         type: choice
-        options: [flux, gabarits, les-deux, mesurer-photopicker]
+        options: [flux, gabarits, les-deux, mesurer-photopicker, accueil-etat, accueil-poser, mesurer-cta]
       mode:
         description: "Mode (--etat est en lecture seule)"
         required: true
@@ -63,5 +63,31 @@ jobs:
       - name: Mesure PhotoPicker (formulaire jetable)
         if: inputs.quoi == 'mesurer-photopicker'
         run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/flux.mjs --mesurer-photopicker"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Les amorces du fil (« ice breakers ») — ADR 0087. Elles s'affichent au
+      # PREMIER ouvrage de la conversation, avant tout message : c'est la
+      # reponse a « le bot doit interagir meme sans que l'utilisateur ecrive ».
+      - name: Accueil du fil — etat (lecture seule)
+        if: inputs.quoi == 'accueil-etat'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --accueil-etat"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Accueil du fil — poser les amorces
+        if: inputs.quoi == 'accueil-poser'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --accueil-poser"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # `cta_url` est annonce dans les guides de Meta et ABSENT de la reference
+      # des messages. La mesure ENVOIE un vrai message au numero donne : c'est
+      # le seul moyen de savoir, et c'est pourquoi le numero est exige.
+      - name: Mesurer cta_url (envoi reel)
+        if: inputs.quoi == 'mesurer-cta'
+        run: |
+          if [ -z "${{ inputs.numero }}" ]; then
+            echo "Le champ « numero » est exige pour cette mesure — elle envoie un vrai message."
+            exit 1
+          fi
+          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --mesurer-cta ${{ inputs.numero }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

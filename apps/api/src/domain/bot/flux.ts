@@ -106,9 +106,9 @@ export function lireReponseFlux(brut: string): LivraisonLue | null {
  * livraison.
  */
 
-export type GenreFlux = "livraison" | "inscription" | "avis" | "article";
+export type GenreFlux = "livraison" | "inscription" | "ouverture" | "avis" | "article";
 
-const GENRES: readonly GenreFlux[] = ["livraison", "inscription", "avis", "article"];
+const GENRES: readonly GenreFlux[] = ["livraison", "inscription", "ouverture", "avis", "article"];
 
 /**
  * Le jeton d'un envoi : le genre, puis une reference facultative.
@@ -156,6 +156,17 @@ export interface InscriptionLue {
 }
 
 /**
+ * L'OUVERTURE en deux ecrans — ADR 0087. La boutique, et le premier article
+ * s'il a ete rempli. Meta rend les deux ecrans dans UNE reponse (`navigate`
+ * puis `complete`), donc une seule lecture suffit.
+ */
+export interface OuvertureLue {
+  boutique: InscriptionLue;
+  /** Absent quand le second ecran a ete laisse vide — il est FACULTATIF. */
+  article?: ArticleLu;
+}
+
+/**
  * Lit une inscription. Les MEMES bornes que la saisie libre : un formulaire ne
  * doit pas faire entrer ce que la question refuse.
  *
@@ -172,6 +183,23 @@ export function lireInscriptionFlux(brut: string): InscriptionLue | null {
   if (!villeAcceptable(ville)) return null;
   const langueLue = champ(d, "langue");
   return { nomBoutique, ville, langue: langueLue === "en" ? "en" : "fr" };
+}
+
+/**
+ * L'ouverture : la boutique, et l'article s'il tient debout.
+ *
+ * **La boutique commande.** Si elle ne se lit pas, rien ne se lit : on ne
+ * fabrique pas un article sans boutique ou le ranger. L'article, lui, est
+ * FACULTATIF au sens strict — un second ecran laisse vide ouvre quand meme
+ * la boutique, et c'est le cas d'une vendeuse qui n'a pas sa photo sous la
+ * main. Un article a moitie rempli (un nom sans prix) vaut ABSENT : la
+ * meme tolerance que partout, et elle se dit dans le message qui suit.
+ */
+export function lireOuvertureFlux(brut: string): OuvertureLue | null {
+  const boutique = lireInscriptionFlux(brut);
+  if (!boutique) return null;
+  const article = lireArticleFlux(brut);
+  return { boutique, ...(article ? { article } : {}) };
 }
 
 /** Ce que le formulaire d'article rend — la meme forme que les questions. */
