@@ -104,7 +104,14 @@ jobs:
           machine=$(timeout -k 5 -s KILL 30 flyctl machines list --app catalog-api-preprod --json </dev/null 2>/dev/null \
             | python3 -c "import sys,json;m=json.load(sys.stdin);print(m[0]['id'] if m else '')" 2>/dev/null || true)
           echo "  machine : ${machine:-inconnue}"
-          sonde="node apps/api/scripts/diagnostic-connexion.mjs"
+          # Le plafond de tas et le `timeout` DISTANT ne sont pas decoratifs.
+          # Mesure du 13/08, payee comptant : `timeout` cote runner ne tue que
+          # le flyctl LOCAL — la commande distante, elle, continue. Trois sondes
+          # enchainees ont donc laisse trois Node+Prisma vivants dans une
+          # machine de 512 Mo, sante en echec a 09:08 puis OOM et redemarrage a
+          # 09:19:32. Une sonde de diagnostic qui tue le service qu'elle
+          # diagnostique n'est pas une sonde.
+          sonde="timeout 60 node --max-old-space-size=96 apps/api/scripts/diagnostic-connexion.mjs"
           timeout -k 10 -s KILL 90 flyctl ssh console --app catalog-api-preprod -C "$sonde" </dev/null \
             || { [ -n "$machine" ] && timeout -k 10 -s KILL 90 flyctl machine exec "$machine" "$sonde" \
                    --app catalog-api-preprod </dev/null ; } \
