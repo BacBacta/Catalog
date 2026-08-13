@@ -25,26 +25,33 @@ la question.
 
 | Couche | État |
 |---|---|
-| 01 acquisition | cartographiée, **non exercée** |
-| 02 transport entrant | cartographiée, **non exercée** |
-| 03 aiguillage | cartographiée, exercée indirectement par le balayage |
-| 04 machines de domaine | **exercée** — c'est le cœur de ce lot |
-| 05 données et migrations | `non mesuré` |
-| 06 argent | partiellement exercé (une commande, ses entiers, son invariant) |
-| 07 preuve | `non mesuré` |
-| 08 rampe de paiement | `non mesuré` |
-| 09 médias | `non mesuré` |
-| 10 sortie | exercée jusqu'à l'envoyeur en mémoire, **pas au-delà** |
-| 11 web public | `non mesuré` |
-| 12 app vendeuse | `non mesuré` |
-| 13 jobs | `non mesuré` |
-| 14 observabilité | `non mesuré` |
-| 15 exploitation | `non mesuré` |
+| Couche | Invariants (dont tenus par **rien**) | Échecs (dont **ni dits ni journalisés**) | Exercée ? |
+|---|---|---|---|
+| 01 acquisition | 36 (**11**) | 34 (**18**) | non |
+| 02 transport entrant | 33 (**8**) | 26 (**17**) | non |
+| 03 aiguillage | 26 (3) | 27 (**17**) | indirectement, par le balayage |
+| 04 machines de domaine | 27 (2) | 23 (6) | **oui — le cœur de ce lot** |
+| 05 données et migrations | 40 (9) | 20 (7) | non |
+| 06 argent | 42 (9) | 36 (9) | partiellement (une commande, ses entiers, son invariant) |
+| 07 preuve | 40 (2) | 23 (10) | non |
+| 08 rampe de paiement | 22 (2) | 20 (**11**) | non |
+| 09 médias | 28 (6) | 41 (**24**) | non |
+| 10 sortie | 41 (7) | 40 (**28**) | jusqu'à l'envoyeur en mémoire, pas au-delà |
+| 11 web public | 43 (4) | 35 (4) | non |
+| 12 app vendeuse | 27 (5) | 28 (12) | non |
+| 13 jobs | 24 (**12 sur 24**) | 20 (10) | non |
+| 14 observabilité | 23 (4) | 22 (14) | non |
+| 15 exploitation | 34 (7) | 25 (6) | non |
+| **Total** | **486 (91)** | **420 (193)** | |
 
-La cartographie des quinze couches était lancée en parallèle et **n'était pas
-terminée** au moment d'écrire : quatre couches rendues sur quinze. Ce document
-ne prétend donc pas remplacer le §2 du protocole. Il pose l'outil, il mesure ce
-que l'outil atteint, et il nomme le reste.
+Deux colonnes suffisent à dire où regarder ensuite. **La couche 13 a la moitié
+de ses invariants tenus par rien** — c'est elle qui porte le constat C-003
+ci-dessous. Les couches 09 et 10 concentrent les échecs muets : 52 à elles deux.
+
+La cartographie des quinze couches est **terminée** : 486 invariants relevés,
+420 chemins d'échec. Elle vient de la LECTURE, et le §0 du protocole interdit de
+la traiter autrement — ses relevés sont des pistes, pas des constats. Seule la
+couche 04 a été exercée.
 
 ---
 
@@ -254,6 +261,51 @@ posé sans confirmation et sans recours.
 
 ---
 
+### C-003 — l'expiration des commandes et les rappels de solde n'existent qu'en théorie
+
+| | |
+|---|---|
+| **Couche** | 13 jobs |
+| **Persona** | les deux |
+| **Famille** | silence |
+| **Verdict** | `muet` |
+| **Statut** | `PLAUSIBLE` — établi par lecture exhaustive, **pas encore par exécution** |
+
+C'est le constat que l'audit v1 ne pouvait pas trouver : il ne se voit dans
+aucun parcours, et il compte autant (§2 du protocole).
+
+**Ce qui existe.** `apps/api/src/domain/order/expiration.ts` est complet et
+testé : `FENETRE_EXPIRATION_MS` vaut 48 h, `RAPPELS_HEURES` vaut `[2, 24]`,
+`doitExpirer` et `etatExpiration` décident proprement. `Order.expiresAt` est
+**écrite** à chaque création de commande (`bot.ts:2271`).
+
+**Ce qui manque.** Rien ne l'appelle :
+
+```
+$ grep -rn "doitExpirer|etatExpiration|RAPPELS_HEURES" apps packages \
+    --include=*.ts | grep -v __tests__ | grep -v domain/order/expiration.ts
+(aucun résultat)
+```
+
+`Order.expiresAt` est écrite et **jamais relue** — les seuls lecteurs
+d'`expiresAt` dans le dépôt sont l'OTP de reversement et la connexion WhatsApp,
+sur d'autres tables. Et pg-boss ne monte que **deux** files, toutes deux de
+relance : `bot-relance-acompte` et `bot-relance-reversement`.
+
+**Conséquence.** Une commande non payée reste ouverte indéfiniment. Les rappels
+de solde à 2 h et 24 h ne partent jamais. `CLAUDE.md` et `AGENTS.md` §3
+affirment pourtant que pg-boss sert aux « relances d'expiration de commande » et
+aux « rappels de solde » : **la documentation décrit un comportement que le code
+n'a pas**, et c'est ce décalage qui rend le défaut durable.
+
+**Sévérité** : impact 3 × fréquence 5 (chaque commande non payée) ×
+détectabilité 5 (rien ne le signale, aucune trace, aucun écran) = **75**.
+
+**Pourquoi il n'est pas corrigé ici.** Le brancher demande de décider ce que
+« expirée » veut dire pour une commande dont l'acompte est partiellement payé,
+et si la vendeuse doit en être prévenue — deux décisions produit. Et il doit
+passer par la vérification adverse comme les autres. C'est le lot suivant.
+
 ### Ce que la cartographie a relevé et que le harnais n'a PAS vérifié
 
 Quatre couches sur quinze ont été cartographiées. Leurs relevés sont des
@@ -276,7 +328,15 @@ Les plus structurants, à instruire dans un lot suivant :
   avec une route statique de la boutique publique (`/payer`, `/v`, `/suivi`) ;
 - **acquisition** — plusieurs chemins de la carte-vitrine échouent en silence
   (QR non rendu, photo illisible, objet illisible) : la carte part dégradée sans
-  qu'aucune trace n'en garde mémoire.
+  qu'aucune trace n'en garde mémoire ;
+- **jobs** — aucune file morte (*dead letter*) sur les deux files existantes, et
+  aucun job n'est instrumenté : un échec répété en production ne se voit nulle
+  part ;
+- **données** — le vocabulaire de `order_event.actor` et de
+  `ledger_entry.direction` n'est tenu par aucun `CHECK` ; `ledger_entry.order_id`
+  et `proof_id` n'ont pas de clé étrangère ;
+- **argent** — le montant du lien `/payer` n'est rapproché d'aucune commande
+  côté serveur, et aucun montant n'entre dans `order_event`.
 
 Chacune de ces pistes demande son propre scénario de harnais. Aucune ne doit
 entrer dans un rapport comme un défaut avant.
@@ -290,12 +350,15 @@ Un lot par session (AGENTS.md §7.1).
 | Lot | Contenu | Prérequis |
 |---|---|---|
 | **A** *(fait)* | le harnais, le balayage, les instantanés, l'ADR 0089 | — |
-| **B** | finir la cartographie des onze couches restantes | la phase 1 rende |
+| **B** *(fait)* | cartographie des quinze couches — 486 invariants, 420 chemins d'échec | — |
 | **C** *(fait)* | C-001 et C-002 corrigés — ADR 0090, 0091, 0092 | arbitré par le porteur |
 | **D** | étendre le harnais à la preuve (couche 07) — sept contrôles, SMS collé, contre-signature | lot A |
-| **E** | instruire les pistes du transport entrant : rejeu d'un corps signé, livraisons concurrentes | lot B |
+| **E** | **C-003** — brancher l'expiration et les rappels, ou dire qu'ils n'existent pas | arbitrage produit |
+| **F** | instruire les pistes du transport entrant : rejeu d'un corps signé, livraisons concurrentes | lot B |
 
-L'ordre n'est pas négociable sur un point : **C avant D**. Deux constats
+L'ordre a changé après la cartographie : **E remonte juste après D**. C-003 est à sévérité 75, contre 32 et 24 pour les deux premiers.
+
+L'ordre n'était pas négociable sur un point : **C avant D**. Deux constats
 confirmés à sévérité 24 et 32 pèsent plus qu'une couche supplémentaire
 cartographiée.
 
