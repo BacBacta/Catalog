@@ -108,8 +108,22 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     /* La reponse du formulaire d'article — un geste vendeuse s'il en est :
        elle ne peut venir QUE d'un message que le fil inscription a envoye. */
     if (entree.genre === "flux" && ctx.formulaireArticle) return "inscription";
-    if (entree.genre === "bouton" && (entree.id === "article" || entree.id === "ma_boutique")) {
+    /**
+     * Le menu d'ouverture est une LISTE — ADR 0088. Une reponse de liste
+     * arrive en `genre === "liste"`, pas `"bouton"` : ne router que les
+     * boutons rendait chaque ligne du menu MUETTE, sans erreur ni trace.
+     * Les deux formes portent le meme identifiant et valent le meme geste.
+     */
+    if (
+      (entree.genre === "bouton" || entree.genre === "liste") &&
+      (entree.id === "article" || entree.id === "ma_boutique")
+    ) {
       return entree.id === "article" ? "inscription" : "vendeuse";
+    }
+    /* « Ma carte » vient du meme menu, et part au fil vendeuse qui la sait
+       fabriquer (`conversation.ts`, id « carte »). */
+    if ((entree.genre === "bouton" || entree.genre === "liste") && entree.id === "carte") {
+      return "vendeuse";
     }
     if (entree.genre === "texte" && demandeAjoutArticle(t)) return "inscription";
     /* « vendu » : le comptoir (rang 1, ADR 0061). Il vit dans la machine

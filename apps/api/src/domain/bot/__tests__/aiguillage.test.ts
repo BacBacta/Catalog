@@ -196,3 +196,27 @@ describe("le comptoir vendeuse — rang 1, ADR 0061", () => {
     ).toBe("vendeuse");
   });
 });
+
+/**
+ * Le menu d'ouverture est une LISTE — ADR 0088.
+ *
+ * Une reponse de liste arrive en `genre: "liste"`, jamais `"bouton"`. Router
+ * les seuls boutons rendait chaque ligne du menu MUETTE : pas d'erreur, pas
+ * de trace, un menu qui ne fait rien. C'est le meme genre de silence que le
+ * defaut de l'ADR 0085, et il se tient par un test, pas par la memoire.
+ */
+describe("les lignes du menu d'ouverture", () => {
+  const ligne = (id: string) => ({ genre: "liste" as const, id, texte: undefined });
+
+  it("valent le meme geste qu'un bouton du meme identifiant", () => {
+    expect(aiguiller(ligne("article"), VENDEUSE)).toBe("inscription");
+    expect(aiguiller(ligne("ma_boutique"), VENDEUSE)).toBe("vendeuse");
+    expect(aiguiller(ligne("carte"), VENDEUSE)).toBe("vendeuse");
+  });
+
+  it("et les boutons de meme identifiant n'ont pas change de destination", () => {
+    const bouton = (id: string) => ({ genre: "bouton" as const, id, texte: undefined });
+    expect(aiguiller(bouton("article"), VENDEUSE)).toBe("inscription");
+    expect(aiguiller(bouton("ma_boutique"), VENDEUSE)).toBe("vendeuse");
+  });
+});

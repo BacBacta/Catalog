@@ -14,7 +14,7 @@ import {
   normaliserEtatVendeuse,
   reagirInscription,
 } from "../inscription.ts";
-import type { MessageBoutons, MessageTexte } from "../messages.ts";
+import type { MessageBoutons, MessageListe, MessageTexte } from "../messages.ts";
 
 /**
  * L'inscription dans le fil — ADR 0034. Chaque test est un echange, comme
@@ -27,6 +27,8 @@ const corps = (m: unknown) =>
   (m as MessageTexte).text?.body ?? (m as MessageBoutons).interactive.body.text;
 const idsBoutons = (m: unknown) =>
   (m as MessageBoutons).interactive.action.buttons.map((b) => b.reply.id);
+const idsListe = (m: unknown) =>
+  ((m as MessageListe).interactive.action.sections[0]?.rows ?? []).map((r) => r.id);
 
 describe("les mots d'entree", () => {
   it("« vendre » sous ses formes, parrainage compris", () => {
@@ -174,13 +176,15 @@ describe("l'ajout d'article, photo comprise", () => {
 });
 
 describe("les messages de publication", () => {
+  const MESSAGERIE = {
+    nom: "Chez Bea",
+    lienBoutique: "https://wa.me/237600?text=boutique%20chez-bea",
+    lienParrainage: "https://wa.me/237600?text=vendre%20avec%20chez-bea",
+    lienEspace: null,
+  };
+
   it("la boutique creee porte SES deux liens et enchaine sur l'article", () => {
-    const messages = messageBoutiqueCreee(VERS, {
-      nom: "Chez Bea",
-      lienBoutique: "https://wa.me/237600?text=boutique%20chez-bea",
-      lienParrainage: "https://wa.me/237600?text=vendre%20avec%20chez-bea",
-      lienEspace: null,
-    });
+    const messages = messageBoutiqueCreee(VERS, MESSAGERIE);
     /**
      * UN SEUL message — banc du 13/08/2026. L'ouverture en produisait cinq
      * d'affilee : « une serie de liens, de messages apparaissent, ce qui
@@ -190,12 +194,43 @@ describe("les messages de publication", () => {
     expect(messages).toHaveLength(1);
     expect(corps(messages[0])).toContain("Chez Bea");
     expect(corps(messages[0])).toContain("boutique%20chez-bea");
-    expect(idsBoutons(messages[0])).toEqual(["article", "plus_tard"]);
+    /* Le menu est une LISTE, pas des boutons — ADR 0088. Trois boutons ne
+       tenaient pas tout ce qu'une vendeuse neuve peut vouloir faire, et le
+       reste retombait en texte : c'est ce qui produisait le mur. */
+    expect(idsListe(messages[0])).toEqual(["article", "carte", "ma_boutique"]);
     /* Le reversement et le parrainage sont SERVIS AILLEURS — relance a
        ~20 h, notification de premiere commande, menu « ma boutique » —, et
        surtout pas dans la salve d'ouverture. */
     expect(corps(messages[0])).not.toContain("vendre%20avec%20chez-bea");
     expect(corps(messages[0])).not.toMatch(/vérification/);
+  });
+
+  /**
+   * Le formulaire d'ouverture rend la boutique ET l'article — ADR 0088. Deux
+   * bulles pour un seul formulaire rempli, c'etait deja du bruit : la
+   * capture du 13/08 en montrait quatre.
+   */
+  it("l'ouverture fusionne l'article du second ecran dans SA bulle", () => {
+    const messages = messageBoutiqueCreee(VERS, MESSAGERIE, {
+      nom: "Chaussures",
+      prixXaf: 1000,
+      avecPhoto: false,
+    });
+    expect(messages).toHaveLength(1);
+    expect(corps(messages[0])).toContain("Chez Bea");
+    expect(corps(messages[0])).toContain("Chaussures");
+    expect(corps(messages[0])).toContain(formatXaf(1000));
+    expect(corps(messages[0])).toMatch(/sans photo/i);
+  });
+
+  /**
+   * Le lien de boutique reste du TEXTE, meme si `cta_url` est accepte depuis
+   * la mesure du 13/08 (ADR 0087). Elle doit le COPIER pour son Statut : un
+   * bouton l'ouvrirait au lieu de le donner.
+   */
+  it("le lien a partager est dans le corps, copiable, jamais derriere un bouton", () => {
+    const messages = messageBoutiqueCreee(VERS, MESSAGERIE);
+    expect(corps(messages[0])).toContain(MESSAGERIE.lienBoutique);
   });
 
   it("l'article publie dit le prix, et le manque de photo sans le reprocher", () => {
