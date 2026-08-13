@@ -1,0 +1,257 @@
+# Audit du pipeline Catalog — août 2026
+
+Date : 13/08/2026 · Remplace `docs/analyses/2026-08-07-audit-integral-du-bot.md`
+Outil : `apps/api/src/__tests__/harnais/` (ADR 0089)
+
+---
+
+## Ce qu'il faut lire d'abord
+
+Cet audit est **partiel, et il le dit**. La consigne qui gouverne tout ce
+document est celle du §13 du protocole : « Je n'ai pas mesuré » est un résultat
+acceptable et utile ; « c'est bon » sans preuve ne l'est pas, parce que ça ferme
+la question.
+
+**Ce qui est établi par exécution :**
+
+- un harnais pilote le service réel (`traiterLivraisonBot`) contre une vraie
+  base, et il tourne dans `pnpm test` ;
+- **484 cases** — 22 étapes des deux parcours × 22 familles de geste — ont été
+  jouées, et ce qu'elles rendent est enregistré ;
+- six scénarios de parcours produisent des transcriptions lisibles en diff.
+
+**Ce qui n'est PAS établi, et ne doit être lu nulle part comme sain :**
+
+| Couche | État |
+|---|---|
+| 01 acquisition | cartographiée, **non exercée** |
+| 02 transport entrant | cartographiée, **non exercée** |
+| 03 aiguillage | cartographiée, exercée indirectement par le balayage |
+| 04 machines de domaine | **exercée** — c'est le cœur de ce lot |
+| 05 données et migrations | `non mesuré` |
+| 06 argent | partiellement exercé (une commande, ses entiers, son invariant) |
+| 07 preuve | `non mesuré` |
+| 08 rampe de paiement | `non mesuré` |
+| 09 médias | `non mesuré` |
+| 10 sortie | exercée jusqu'à l'envoyeur en mémoire, **pas au-delà** |
+| 11 web public | `non mesuré` |
+| 12 app vendeuse | `non mesuré` |
+| 13 jobs | `non mesuré` |
+| 14 observabilité | `non mesuré` |
+| 15 exploitation | `non mesuré` |
+
+La cartographie des quinze couches était lancée en parallèle et **n'était pas
+terminée** au moment d'écrire : quatre couches rendues sur quinze. Ce document
+ne prétend donc pas remplacer le §2 du protocole. Il pose l'outil, il mesure ce
+que l'outil atteint, et il nomme le reste.
+
+---
+
+## §7 — la couverture, mesurée
+
+Le tableau ci-dessous est **produit par exécution**
+(`apps/api/src/__tests__/harnais/instantanes/balayage-couverture.md`). Il ne
+s'écrit pas à la main.
+
+| Étape | Parcours | Cases possibles | Cases exercées | % |
+|---|---|---|---|---|
+| premier contact (prospect) | vendeuse | 22 | 22 | 100 % |
+| nom de la boutique | vendeuse | 22 | 22 | 100 % |
+| ville de la vendeuse | vendeuse | 22 | 22 | 100 % |
+| fil vendeuse au repos | vendeuse | 22 | 22 | 100 % |
+| nom de l'article | vendeuse | 22 | 22 | 100 % |
+| prix de l'article | vendeuse | 22 | 22 | 100 % |
+| photo de l'article | vendeuse | 22 | 22 | 100 % |
+| confirmation de la légende | vendeuse | 22 | 22 | 100 % |
+| comptoir — les cinq pas | vendeuse | 110 | 110 | 100 % |
+| arrivée (aucune boutique) | acheteuse | 22 | 22 | 100 % |
+| catalogue | acheteuse | 22 | 22 | 100 % |
+| quantité | acheteuse | 22 | 22 | 100 % |
+| panier — autre chose ? | acheteuse | 22 | 22 | 100 % |
+| livraison ou retrait | acheteuse | 22 | 22 | 100 % |
+| ville de livraison | acheteuse | 22 | 22 | 100 % |
+| quartier, repère, téléphone | acheteuse | 22 | 22 | 100 % |
+| récapitulatif | acheteuse | 22 | 22 | 100 % |
+| mot de l'avis | acheteuse | 22 | 22 | 100 % |
+| **Total** | — | **484** | **484** | **100 %** |
+
+**Ce que ce 100 % veut dire, et surtout ce qu'il ne veut pas dire.** Il dit que
+chacune des 484 cases a été **jouée** et que sa réponse est enregistrée. Il ne
+dit pas que la réponse est bonne. Une case exercée qui rend une réponse absurde
+reste une case exercée — et l'audit v1 est tombé exactement là.
+
+Le dénominateur est posé d'avance dans `couverture.ts` : on ne peut pas faire
+monter le chiffre en retirant des cases. Ajouter une étape au produit sans
+l'ajouter au catalogue fait **échouer** le balayage.
+
+---
+
+## Le résultat le plus solide : le produit n'est pas muet
+
+C'est la mesure qui contredit le plus nettement l'audit v1, lequel avait fait du
+« silence » son motif unique.
+
+Sur 484 cases jouées, **les seules cases où la personne n'a rien reçu sont les
+22 relivraisons** — et c'est le comportement voulu : une livraison déjà traitée
+est ignorée (ADR 0040). Toutes les autres cases produisent au moins un message,
+y compris le vocal, le sticker, le document, la position hors contexte, le
+formulaire tronqué et le bouton d'un message ancien.
+
+Le fichier `balayage-muets.md` est produit à chaque exécution. Le jour où une
+case devient muette, la CI rougit.
+
+---
+
+## Constats
+
+Format du §5. **Aucun constat n'est publié ici sans être reproductible par une
+commande.**
+
+### C-001 — la ville de livraison accepte n'importe quel texte
+
+| | |
+|---|---|
+| **Couche** | 04 machines de domaine |
+| **Persona** | acheteuse |
+| **Étape** | ville de livraison |
+| **Famille** | faux |
+| **Verdict** | `faux` — le système enregistre comme ville ce qui n'en est pas une |
+
+**Reproduction** — jouée par le harnais, lue en base :
+
+```
+boutique <slug> → cmd:<article> → qte:1 → commander → mode:livraison
+→ texte « est-ce que vous vendez des chaussures pour bébé ? »
+→ texte « Bonapriso, en face de la pharmacie Bleue, 690112233 » → confirmer
+```
+
+**Observé**, colonne `order.delivery` :
+
+```json
+{"city":"est-ce que vous vendez des chaussures pour bébé ?","mode":"livraison",
+ "phone":"+237690112233","landmark":"en face de la pharmacie Bleue",
+ "quartier":"Bonapriso"}
+```
+
+La commande **est créée**. La vendeuse lira cette ligne comme destination.
+
+**Attendu** — au minimum, que quelque chose signale que la ville n'a pas été
+comprise. Une liste blanche de villes est exclue d'avance : il n'existe pas
+d'adresse au Cameroun (ADR 0005) et les localités sont innombrables — une liste
+ferait plus de dégâts que le défaut.
+
+**Sévérité** : impact 3 (la vendeuse doit rattraper hors système) × fréquence 2
+× détectabilité 4 (rien ne le signale, ni à l'acheteuse ni dans une trace)
+= **24**.
+
+**Test qui échouerait aujourd'hui** : jouer le scénario ci-dessus et exiger que
+`order.delivery.city` ne soit pas la question, ou qu'un message ait signalé
+l'incompréhension.
+
+**Vérification adverse** : lancée sur trois angles (reproduction, lecture de
+code, intention produit). *Verdicts non rendus au moment d'écrire.* Tant qu'ils
+ne le sont pas, ce constat est `PLAUSIBLE`, pas `CONFIRMÉ`.
+
+---
+
+### C-002 — le nom de boutique accepte n'importe quel texte, et il devient un slug public
+
+| | |
+|---|---|
+| **Couche** | 04 machines de domaine |
+| **Persona** | vendeuse |
+| **Étape** | nom de la boutique |
+| **Famille** | faux |
+| **Verdict** | `faux` |
+
+**Reproduction** :
+
+```
+bouton « vendre » → texte « est-ce que vous vendez des chaussures pour bébé ? »
+→ texte « Douala »
+```
+
+**Observé**, table `seller` :
+
+```
+businessName = "est-ce que vous vendez des chaussures pour bébé ?"
+slug         = "est-ce-que-vous-vendez-des-chaussures-pour-bebe-2"
+```
+
+Le bot a répondu « *est-ce que vous vendez des chaussures pour bébé ?* — c'est
+noté. » puis a ouvert la boutique. **Le slug est l'URL publique partageable** de
+la vendeuse, et le fil ne propose aucun moyen de la corriger.
+
+**Sévérité** : impact 4 (la vendeuse ne peut pas réparer depuis le fil, et
+l'objet est public) × fréquence 2 × détectabilité 4 = **32**.
+
+**Test qui échouerait aujourd'hui** : après ce scénario, exiger que la boutique
+n'ait pas été créée sans confirmation, ou que le slug ne dérive pas d'une forme
+interrogative.
+
+**Vérification adverse** : lancée. *Verdicts non rendus au moment d'écrire.*
+Statut : `PLAUSIBLE`.
+
+---
+
+### Ce que la cartographie a relevé et que le harnais n'a PAS vérifié
+
+Quatre couches sur quinze ont été cartographiées. Leurs relevés sont des
+**pistes**, pas des constats : ils viennent de la lecture, et le §0 du protocole
+interdit de les traiter autrement tant qu'une exécution ne les a pas éprouvés.
+
+Les plus structurants, à instruire dans un lot suivant :
+
+- **transport entrant** — aucune fraîcheur n'est exigée d'une livraison signée
+  (ni horodatage, ni nonce, ni fenêtre) : un corps signé capturé reste rejouable
+  (`routes/whatsapp-entrant.ts:78`) ;
+- **transport entrant** — sans `wamid`, aucune idempotence n'est appliquée
+  (`bot.ts:289`), et l'échec de la réclamation fait traiter quand même
+  (`.catch(() => true)`, `bot.ts:290`) ;
+- **aiguillage** — écrire l'état d'un fil **détruit** l'état de l'autre, et rien
+  ne le retient ni ne le dit (`bot.ts:961`) ;
+- **aiguillage** — deux livraisons concurrentes du même numéro ne sont pas
+  sérialisées : l'état est lu puis réécrit sans verrou ;
+- **acquisition** — un slug de boutique n'est pas empêché d'entrer en collision
+  avec une route statique de la boutique publique (`/payer`, `/v`, `/suivi`) ;
+- **acquisition** — plusieurs chemins de la carte-vitrine échouent en silence
+  (QR non rendu, photo illisible, objet illisible) : la carte part dégradée sans
+  qu'aucune trace n'en garde mémoire.
+
+Chacune de ces pistes demande son propre scénario de harnais. Aucune ne doit
+entrer dans un rapport comme un défaut avant.
+
+---
+
+## Plan de lots
+
+Un lot par session (AGENTS.md §7.1).
+
+| Lot | Contenu | Prérequis |
+|---|---|---|
+| **A** *(fait)* | le harnais, le balayage, les instantanés, l'ADR 0089 | — |
+| **B** | finir la cartographie des onze couches restantes | la phase 1 rende |
+| **C** | trancher C-001 et C-002 sur la vérification adverse, puis corriger ce qui survit | phase 4 rendue |
+| **D** | étendre le harnais à la preuve (couche 07) — sept contrôles, SMS collé, contre-signature | lot A |
+| **E** | instruire les pistes du transport entrant : rejeu d'un corps signé, livraisons concurrentes | lot B |
+
+L'ordre n'est pas négociable sur un point : **C avant D**. Deux constats à
+sévérité 24 et 32 qui attendent leur verdict pèsent plus qu'une couche
+supplémentaire cartographiée.
+
+---
+
+## Ce que cet audit n'a pas fait, et qu'il faut savoir
+
+- **Les onze couches marquées `non mesuré` le sont réellement.** Aucune n'a été
+  déclarée saine.
+- **La base locale est PostgreSQL 16**, la pile épingle 18 (AGENTS.md §3). La CI
+  tourne bien sur `postgres:18-alpine` ; un écart entre majeures ne serait pas vu
+  en local.
+- **Rien n'a été envoyé à Meta.** L'envoyeur est en mémoire : un refus HTTP, un
+  gabarit hors fenêtre ou un média introuvable ne sont pas exercés.
+- **Les trois points volontairement non faits n'ont pas été rouverts** :
+  `product.variants` reste une colonne morte, `PIDGIN_RELU` reste `false`, et
+  rien de ce qui exige un gabarit utilitaire n'a été construit. Le harnais
+  *envoie* du pidgin — l'entrée n'est pas fermée, seule la sortie l'est — et
+  mesure que la réponse reste en français, ce qui est le comportement décidé.
