@@ -1053,14 +1053,27 @@ async function publierArticleDepuisFil(
     article && (await deps.reconstruction?.demander("article_publie"))
       ? ATTENTE_ANNONCEE_MIN
       : null;
-  messages.push(
+  /**
+   * ── L'ESSENTIEL PART D'ABORD — banc du 13/08/2026 ─────────────────────
+   *
+   * Le deuxieme article d'une vendeuse est entre en base, et le fil est
+   * reste MUET : la composition de la decoration (rendu de carte,
+   * re-encodage, trois televersements, verification d'URL) precedait le
+   * premier envoi, et un appel reseau sans delai d'attente l'a suspendue
+   * pour toujours. La confirmation, deja ecrite, n'est jamais partie.
+   *
+   * Elle part donc SEULE et TOUT DE SUITE. La carte, le pack et le mode
+   * d'emploi sont de la decoration : ils suivent, et leur echec — ou leur
+   * lenteur — ne peut plus emporter la seule phrase qui compte.
+   */
+  await envoyerSequence(deps, [
     article
       ? messageArticlePublie(vers, article, enConges, pageWebDansMinutes)
       : texte(
           vers,
           "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
         ),
-  );
+  ]);
   /**
    * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
    * publication du PREMIER article (ADR 0037). Pas a la creation — une carte

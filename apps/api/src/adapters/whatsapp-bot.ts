@@ -1,5 +1,6 @@
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { AccuseLecture, MessageSortant } from "../domain/bot/messages.ts";
+import { fetchBorne } from "./fetch-borne.ts";
 import { entetesAuth, type TransportWhatsapp } from "./whatsapp-transport.ts";
 
 /**
@@ -67,7 +68,8 @@ export class EnvoyeurWhatsappBot implements EnvoyeurBot {
     }
     this.nom = cfg.transport;
     this.#cfg = cfg;
-    this.#fetch = cfg.fetchImpl ?? fetch;
+    /* Borne : un appel du bot echoue ou finit, jamais « il attend ». */
+    this.#fetch = fetchBorne(cfg.fetchImpl ?? fetch);
   }
 
   /**

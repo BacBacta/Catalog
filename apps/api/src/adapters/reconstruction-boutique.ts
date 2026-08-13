@@ -2,6 +2,7 @@ import {
   decisionReconstruction,
   type MotifReconstruction,
 } from "../domain/deploiement/reconstruction-boutique.ts";
+import { fetchBorne } from "./fetch-borne.ts";
 
 /**
  * Le declencheur de reconstruction de la boutique publique — ADR 0065, revise
@@ -122,7 +123,8 @@ export class DeclencheurCrochet implements DeclencheurReconstruction {
       );
     }
     this.#hookUrl = cfg.hookUrl;
-    this.#fetch = cfg.fetchImpl ?? fetch;
+    /* Borne : un appel du bot echoue ou finit, jamais « il attend ». */
+    this.#fetch = fetchBorne(cfg.fetchImpl ?? fetch);
     this.#regroupement = new Regroupement(cfg.maintenant);
   }
 
@@ -184,7 +186,8 @@ export class DeclencheurDispatch implements DeclencheurReconstruction {
     this.#depot = cfg.depot;
     this.#jeton = cfg.jeton;
     this.#environnement = cfg.environnement?.trim() || "preproduction";
-    this.#fetch = cfg.fetchImpl ?? fetch;
+    /* Borne : un appel du bot echoue ou finit, jamais « il attend ». */
+    this.#fetch = fetchBorne(cfg.fetchImpl ?? fetch);
     this.#regroupement = new Regroupement(cfg.maintenant);
   }
 

@@ -111,6 +111,60 @@ async function scene(options: { fluxArticleId?: string } = {}): Promise<Scene> {
   };
 }
 
+describeDb("la confirmation part AVANT la decoration (banc du 13/08)", () => {
+  beforeAll(() => {
+    prisma = createPrismaClient();
+  });
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  /**
+   * LA panne du 13/08/2026 : le deuxieme article entre en base, et le fil
+   * reste muet. La decoration — carte, pack statut — se composait AVANT le
+   * premier envoi, et un appel reseau sans delai d'attente la suspendait
+   * pour toujours ; la confirmation, deja ecrite, ne partait jamais.
+   *
+   * On rejoue exactement cela : un stockage qui ne repond JAMAIS. La
+   * confirmation doit sortir quand meme.
+   */
+  it("un stockage qui ne repond jamais ne fait plus taire la confirmation", async () => {
+    const s = await scene({ fluxArticleId: FLUX_ID });
+    const jamais = new Promise<never>(() => {});
+    const deps: BotDeps = {
+      ...s.deps,
+      /* Toute lecture ou ecriture d'objet PEND — le pack statut en depend. */
+      storage: {
+        nom: "gele",
+        put: () => jamais,
+        lire: () => jamais,
+        taille: () => jamais,
+        urlSignee: () => jamais,
+        supprimer: () => jamais,
+      } as unknown as NonNullable<BotDeps["storage"]>,
+      numeroCatalog: "+237690000000",
+    };
+
+    await traiterLivraisonBot(deps, texteEntrant(s.waId, "ajouter"));
+    const attente = traiterLivraisonBot(
+      deps,
+      reponseFlux(s.waId, {
+        flow_token: jetonFlux("article"),
+        nom: "Sac en raphia",
+        prix: "8000",
+      }),
+    );
+    /* Deux secondes suffisent largement : la confirmation ne demande qu'une
+       ecriture et un envoi. Sans le correctif, RIEN ne part — la composition
+       attend l'infini avant le premier envoi. */
+    await Promise.race([attente, new Promise((r) => setTimeout(r, 2000))]);
+
+    const dits = s.envoyeur.envoyes.map(corps).join("\n");
+    expect(dits).toContain("Sac en raphia");
+    expect(dits).toMatch(/catalogue/i);
+  }, 20_000);
+});
+
 describeDb("le formulaire de creation d'article (tache #62)", () => {
   beforeAll(() => {
     prisma = createPrismaClient();
