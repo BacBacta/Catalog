@@ -519,3 +519,48 @@ describe("l'article publie dit quand la page web arrive", () => {
     expect(corps(m)).toMatch(/15 minutes/);
   });
 });
+
+/**
+ * L'echec de photo se DIT — ADR 0089.
+ *
+ * Banc du 13/08/2026 : une vendeuse remplit le formulaire d'article AVEC une
+ * photo, et le bot repond « Sans photo pour l'instant ». La meme phrase
+ * servait a qui n'avait rien envoye. Deux situations opposees, une seule
+ * phrase : impossible de savoir qu'il fallait recommencer.
+ *
+ * La chaine qui perd la photo est faite de portes qui rendent `null` sans
+ * rien journaliser (`media-cdn.ts`, `whatsapp-media.ts`). On ne peut pas
+ * garantir qu'elle n'echouera jamais ; on peut garantir qu'elle le DIRA.
+ */
+describe("la photo perdue", () => {
+  it("se distingue de la photo jamais envoyee, et donne le geste suivant", () => {
+    const jamais = messageArticlePublie(VERS, {
+      nom: "Pagne",
+      prixXaf: 15000,
+      avecPhoto: false,
+    });
+    const perdue = messageArticlePublie(VERS, {
+      nom: "Pagne",
+      prixXaf: 15000,
+      avecPhoto: false,
+      photoPerdue: true,
+    });
+
+    /* Le cas « jamais envoyee » ne doit pas alarmer : c'est un etat normal. */
+    expect(corps(jamais)).toMatch(/sans photo/i);
+    expect(corps(jamais)).not.toMatch(/pas parvenue/i);
+
+    /* Le cas « perdue » doit alarmer, ET dire quoi faire — une phrase qui
+       constate sans donner le geste suivant laisse aussi bloquee. */
+    expect(corps(perdue)).toMatch(/pas parvenue/i);
+    expect(corps(perdue)).toMatch(/renvoyez/i);
+    /* L'article EXISTE : ne pas laisser croire que tout est a refaire. */
+    expect(corps(perdue)).toMatch(/bien créé/i);
+  });
+
+  it("ne dit rien de la photo quand elle est bien la", () => {
+    const avec = messageArticlePublie(VERS, { nom: "Pagne", prixXaf: 15000, avecPhoto: true });
+    expect(corps(avec)).not.toMatch(/sans photo/i);
+    expect(corps(avec)).not.toMatch(/pas parvenue/i);
+  });
+});

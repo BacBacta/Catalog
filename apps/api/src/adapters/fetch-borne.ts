@@ -32,6 +32,16 @@
 export const DELAI_RESEAU_MS = 15_000;
 
 /**
+ * L'etablissement de la connexion, plus court que l'echange lui-meme.
+ *
+ * Un hote injoignable doit se dire vite : cinq secondes suffisent a savoir
+ * qu'on ne parlera pas. Passe cette porte, l'echange a droit aux quinze
+ * secondes ci-dessus. `fetch` ne distingue pas les deux — le SDK de stockage,
+ * si, et c'est lui qui s'en sert (ADR 0089).
+ */
+export const DELAI_CONNEXION_MS = 5_000;
+
+/**
  * Enveloppe un `fetch` d'un delai d'attente.
  *
  * Le signal de l'appelant est PRESERVE quand il y en a un : les deux

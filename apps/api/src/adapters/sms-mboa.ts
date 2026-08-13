@@ -1,4 +1,5 @@
 import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
+import { fetchBorne } from "./fetch-borne.ts";
 
 /**
  * MboaSMS — passerelle camerounaise, agregateur des trois reseaux.
@@ -80,7 +81,7 @@ export class MboaSmsSender implements SmsSender {
     }
     this.#cfg = cfg;
     this.#baseUrl = cfg.baseUrl || BASE_PAR_DEFAUT;
-    this.#fetch = cfg.fetchImpl ?? fetch;
+    this.#fetch = fetchBorne(cfg.fetchImpl ?? fetch);
   }
 
   async send(message: SmsMessage): Promise<void> {
