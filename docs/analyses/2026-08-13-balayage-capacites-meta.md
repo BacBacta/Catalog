@@ -273,6 +273,20 @@ pour un nouveau Flow — c'est-à-dire si elle est déjà *Frozen*. La même com
 en 7.3 dit où aller. La date d'expiration, elle, se lira dans la console Meta
 ou dans le journal quand il redeviendra accessible.
 
+**Vérification du 13/08, au soir.** Les cinq définitions de `docs/flux-*.json`
+déclarent **toutes 7.0** — y compris `flux-ouverture.json`, écrit **ce jour-là**
+et déjà sur une version qui n'est pas la courante. La version était recopiée
+dans **six** endroits (les cinq définitions et le brouillon de mesure de
+`flux.mjs`) sans qu'aucune constante ni aucun test ne les tienne ensemble : une
+version se recopiait sans qu'on la choisisse. `flux-version.test.ts` ferme ce
+côté-là — il ne dit pas que la version est à jour (il ne le peut pas), il rend
+la montée **indivisible** : cinq définitions ou aucune.
+
+Deux repères pour situer le risque, tous deux de sources secondaires : Meta
+annonce **90 jours** avant chaque palier, et la version 5.0 est gelée depuis le
+10/09/2025. Un fournisseur tiers exige déjà « 7.2 ou plus » pour ses dépôts —
+signe que 7.0 est en queue de peloton, pas qu'elle est morte.
+
 ### La version courante est un chantier en soi
 
 La version courante est **7.3** ; les cinq formulaires de Catalog sont en
