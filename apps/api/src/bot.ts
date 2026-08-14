@@ -963,6 +963,15 @@ function entreePourAcheteuse(entree: EntreeBot): EntreeMachine {
   if (entree.genre === "localisation") {
     return { genre: "localisation", lat: entree.lat, lng: entree.lng, ...id };
   }
+  /**
+   * L'ouverture de fil TRAVERSE — ADR 0106. Sans cette ligne, la delegation
+   * a `entreePourMachine` la fondait en texte vide AVANT la machine : la
+   * branche d'accueil du domaine etait du code mort, verte dans ses tests
+   * (qui appellent la machine en direct) et jamais atteinte en production.
+   * Le meme defaut que `formulaireVendeuse` (ADR 0102) : la jonction, pas
+   * les deux bouts.
+   */
+  if (entree.genre === "ouverture_fil") return { genre: "ouverture_fil", ...id };
   return entreePourMachine(entree);
 }
 

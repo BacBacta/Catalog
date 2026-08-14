@@ -100,6 +100,8 @@ export const BLOCS = {
   /* Le recapitulatif d'absence (ADR 0105) : quelques numeros de file, rien
      de plus. */
   "recap-absence-remise": 27,
+  /* L'ouverture de fil (ADR 0106) : deux numeros d'inconnues. */
+  "bot-ouverture-fil": 28,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

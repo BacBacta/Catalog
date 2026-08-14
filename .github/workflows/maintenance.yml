@@ -24,7 +24,7 @@ on:
       operation:
         description: "Ce qu'on fait"
         type: choice
-        options: [inventaire, etat-flux, poser-waba, poser-flux, remise-a-zero]
+        options: [inventaire, etat-flux, poser-waba, poser-flux, remise-a-zero, journaux]
         default: inventaire
       waba:
         description: "Pour « poser-waba » UNIQUEMENT : l'identifiant du compte WhatsApp Business (chiffres)"
@@ -76,6 +76,23 @@ jobs:
       - name: Inventaire
         if: inputs.operation == 'inventaire'
         run: flyctl ssh console --app catalog-api-preprod -C "node /app/packages/db/scripts/inventaire.mjs"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── Les journaux de la machine — lecture seule ──────────────────────
+      #
+      # Le manque s'est vu le 14/08/2026 : l'evenement d'ouverture de fil ne
+      # produisait rien chez l'utilisateur, et RIEN ici ne permettait de dire
+      # si Meta n'avait pas envoye l'evenement, ou si l'envoi de la reponse
+      # avait ete refuse. Sans journaux, chaque hypothese valait l'autre.
+      #
+      # `--no-tail` rend le tampon recent et se termine ; le tampon de Fly est
+      # court (minutes, pas heures) : lancer CE pas juste apres avoir rejoue le
+      # geste qu'on veut observer. Les journaux du bot sont rediges a la
+      # source (ADR 0023) — aucun SMS brut, aucun secret n'y transite.
+      - name: Journaux recents de la machine
+        if: inputs.operation == 'journaux'
+        run: timeout 30 flyctl logs --app catalog-api-preprod --no-tail || true
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
