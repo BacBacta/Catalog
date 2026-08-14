@@ -18,7 +18,7 @@ on:
         description: "Quel script executer"
         required: true
         type: choice
-        options: [flux, gabarits, les-deux, mesurer-photopicker, mesurer-composants, accueil-etat, accueil-poser, mesurer-cta, apercu-carnet]
+        options: [flux, gabarits, les-deux, mesurer-photopicker, mesurer-composants, accueil-etat, accueil-poser, mesurer-cta, apercu-carnet, apercu-comptoir]
       mode:
         description: "Mode (--etat et --verifier sont en lecture seule)"
         required: true
@@ -31,7 +31,16 @@ on:
       # Exige par `mesurer-cta` SEUL. Il n'a pas de defaut : une mesure qui
       # part vers un numero devine serait un vrai message chez un inconnu.
       numero:
-        description: "mesurer-cta et apercu-carnet : le numero destinataire, en E.164 (+237…)"
+        description: "mesurer-cta, apercu-carnet, apercu-comptoir : le destinataire en E.164 (+237…)"
+        required: false
+        type: string
+      # `apercu-comptoir` seulement. Il existe une fenetre entre le depot du
+      # Flow chez Meta et la pose de `WABOT_FLUX_COMPTOIR_ID` dans la machine :
+      # l'identifiant est connu, la variable ne l'est pas encore. Ce champ sert
+      # a voir le formulaire PENDANT cette fenetre. Vide, le script retombe sur
+      # la variable d'environnement.
+      flux_id:
+        description: "apercu-comptoir : identifiant du Flow (vide = WABOT_FLUX_COMPTOIR_ID)"
         required: false
         type: string
       # `mesurer-composants` seulement : la version Flow JSON visee. Vide, le
@@ -152,3 +161,28 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           NUMERO: ${{ inputs.numero }}
+      # L'apercu du comptoir en UN ecran — ADR 0102. Il n'invente aucune
+      # chaine non plus : `messageComptoirFlux` est la fonction que le bot
+      # appelle quand une vendeuse tape « vendu ». Deux champs libres ici, donc
+      # deux filtres : le numero comme ci-dessus, et l'identifiant du Flow,
+      # qui est un nombre chez Meta et rien d'autre.
+      - name: Apercu du comptoir (envoi reel)
+        if: inputs.quoi == 'apercu-comptoir'
+        run: |
+          if [ -z "$NUMERO" ]; then
+            echo "Le champ « numero » est exige : cet apercu envoie un vrai message."
+            exit 1
+          fi
+          if printf '%s' "$NUMERO" | grep -qv '^+[0-9]\{8,15\}$'; then
+            echo "Le numero doit etre en E.164 : « + » puis 8 a 15 chiffres."
+            exit 1
+          fi
+          if [ -n "$FLUX_ID" ] && printf '%s' "$FLUX_ID" | grep -qv '^[0-9]\{5,25\}$'; then
+            echo "L'identifiant de Flow est un nombre (5 a 25 chiffres)."
+            exit 1
+          fi
+          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --apercu-comptoir $NUMERO $FLUX_ID"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          NUMERO: ${{ inputs.numero }}
+          FLUX_ID: ${{ inputs.flux_id }}

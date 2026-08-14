@@ -6,6 +6,8 @@
  *   node apps/api/scripts/composants.mjs --mesurer-cta +237… → mesure cta_url
  *   node apps/api/scripts/composants.mjs --apercu-carnet +237… → envoie le
  *       carnet REEL (celui que le domaine construit), pour le voir dans un fil
+ *   node apps/api/scripts/composants.mjs --apercu-comptoir +237… [fluxId] →
+ *       envoie le message qui propose le comptoir en un ecran (ADR 0102)
  *
  * ── Pourquoi ce script ────────────────────────────────────────────────────
  *
@@ -240,9 +242,66 @@ if (mode === "--accueil-etat") {
     console.log(`⛔ Refuse : HTTP ${r.statut} — ${r.corps?.error?.message ?? "raison non dite"}`);
     process.exit(1);
   }
+} else if (mode === "--apercu-comptoir") {
+  exigerJeton();
+  exigerNumero();
+  const vers = (process.argv[3] ?? "").replace(/\D/g, "");
+  if (!vers) {
+    console.error(
+      "Un numero destinataire est exige : node apps/api/scripts/composants.mjs --apercu-comptoir +237… [fluxId]",
+    );
+    process.exit(1);
+  }
+
+  /**
+   * ── L'APERCU du comptoir en UN ecran — ADR 0102 ─────────────────────────
+   *
+   * Il envoie le message qui PROPOSE le formulaire, construit par le domaine
+   * (`messageComptoirFlux`) : meme copie, meme libelle de bouton, meme jeton
+   * que ce que la vendeuse recevra en tapant « vendu ». Aucune chaine n'est
+   * recopiee ici — un apercu qui recopie la copie montre ce qu'on croit
+   * ecrire (ADR 0089, 0098).
+   *
+   * L'identifiant du Flow se prend en ARGUMENT avant l'environnement : entre
+   * le depot chez Meta et la pose de `WABOT_FLUX_COMPTOIR_ID` dans la machine,
+   * il existe une fenetre ou l'identifiant est connu et la variable absente.
+   * C'est exactement la fenetre ou l'on veut voir le formulaire.
+   */
+  const fluxId =
+    (process.argv[4] ?? "").trim() || (process.env.WABOT_FLUX_COMPTOIR_ID ?? "").trim();
+  if (!fluxId) {
+    console.error(
+      "Aucun identifiant de Flow : passez-le en argument, ou posez WABOT_FLUX_COMPTOIR_ID.",
+    );
+    console.error("Il se lit dans la sortie de `flux.mjs --deposer`, ligne `catalog_comptoir`.");
+    process.exit(1);
+  }
+
+  const { messageComptoirFlux } = await import("../src/domain/bot/flux.ts");
+  const message = messageComptoirFlux(vers, fluxId);
+  console.log(
+    `forme rendue par le domaine : ${message.type}/${message.interactive.type} — flux ${fluxId}`,
+  );
+
+  const r = await appel(`/${NUMERO_ID}/messages`, {
+    method: "POST",
+    body: JSON.stringify(message),
+  });
+  if (r.ok) {
+    console.log("✅ Comptoir envoye — ouvrez le bouton « Déclarer la vente ».");
+    console.log(`   Identifiant du message : ${r.corps?.messages?.[0]?.id ?? "non rendu"}`);
+    console.log("   Le formulaire ne CREE rien : il debouche sur le recapitulatif du fil.");
+  } else {
+    console.log(`⛔ Refuse : HTTP ${r.statut} — ${r.corps?.error?.message ?? "raison non dite"}`);
+    console.log(
+      `   Code : ${r.corps?.error?.code ?? "?"} / ${r.corps?.error?.error_subcode ?? "?"}`,
+    );
+    process.exit(1);
+  }
 } else {
   console.error(
-    `mode inconnu : ${mode}. Utilisez --accueil-etat, --accueil-poser, --mesurer-cta <numero> ou --apercu-carnet <numero>.`,
+    `mode inconnu : ${mode}. Utilisez --accueil-etat, --accueil-poser, --mesurer-cta <numero>, ` +
+      "--apercu-carnet <numero> ou --apercu-comptoir <numero> [fluxId].",
   );
   process.exit(1);
 }

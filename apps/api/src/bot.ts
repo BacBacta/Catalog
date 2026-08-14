@@ -66,6 +66,7 @@ import {
   lireComptoirFlux,
   lireInscriptionFlux,
   lireOuvertureFlux,
+  messageComptoirFlux,
   messageFlux,
 } from "./domain/bot/flux.ts";
 import {
@@ -554,17 +555,7 @@ async function filInscription(
        formulaire n'affiche rien. Sans `WABOT_FLUX_COMPTOIR_ID`, le fil est
        exactement celui d'hier (AGENTS.md §5). */
     await envoyerSequence(deps, [
-      ...(deps.fluxComptoirId
-        ? [
-            messageFlux(
-              entree.de,
-              deps.fluxComptoirId,
-              "Déclarer la vente",
-              jetonFlux("comptoir"),
-              "Plus rapide : les quatre réponses d'un coup, dans un formulaire.",
-            ),
-          ]
-        : []),
+      ...(deps.fluxComptoirId ? [messageComptoirFlux(entree.de, deps.fluxComptoirId)] : []),
       questionDeLEtat(etat, entree.de),
     ]);
     return;

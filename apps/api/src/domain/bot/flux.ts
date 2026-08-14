@@ -396,6 +396,25 @@ export function veutPositionFlux(brut: string): boolean {
 }
 
 /**
+ * Le message qui propose le comptoir en UN ecran — ADR 0102.
+ *
+ * Sa copie vit ICI et non en clair chez l'appelant, pour une raison pratique :
+ * l'apercu envoye a un vrai telephone (`composants.mjs --apercu-comptoir`)
+ * appelle cette fonction. Un apercu qui recopierait la copie montrerait ce
+ * qu'on CROIT ecrire, jamais ce qu'on ecrit — c'est la discipline du harnais
+ * d'audit (ADR 0089) et celle de l'apercu du carnet (ADR 0098).
+ */
+export function messageComptoirFlux(vers: string, fluxId: string): MessageFlux {
+  return messageFlux(
+    vers,
+    fluxId,
+    "Déclarer la vente",
+    jetonFlux("comptoir"),
+    "Plus rapide : les quatre réponses d'un coup, dans un formulaire.",
+  );
+}
+
+/**
  * Le message qui ouvre le Flow. `flow_token` est jetable et propre a cet
  * envoi : le jeton acheteuse (`buyerToken`, ADR 0021) autorise la
  * contre-signature et ne voyage jamais dans un message que WhatsApp renverra.
