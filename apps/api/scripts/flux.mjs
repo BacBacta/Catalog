@@ -1,5 +1,6 @@
 /**
- * Les cinq formulaires (Flows) a deposer chez Meta.
+ * Les formulaires (Flows) a deposer chez Meta. Leur NOMBRE n'est ecrit
+ * nulle part : `FLUX` le porte, et tout affichage le compte.
  *
  *   node apps/api/scripts/flux.mjs             → les affiche et les valide
  *   node apps/api/scripts/flux.mjs --etat      → dit lesquels existent deja
@@ -40,7 +41,7 @@
  * 7.3 ». `--verifier` relit la definition chez Meta et repond a la seconde.
  *
  * Temoin refuse : rejouer `--mesurer-composants 7.2`, puis `7.1`, et
- * redescendre les CINQ definitions a la version la plus haute acceptee —
+ * redescendre TOUTES les definitions a la version la plus haute acceptee —
  * `flux-version.test.ts` rend l'operation indivisible.
  */
 import { readFileSync } from "node:fs";
@@ -51,7 +52,7 @@ const BASE = (process.env.WABOT_GRAPH_URL ?? "https://graph.facebook.com/v26.0")
 const mode = process.argv[2] ?? "--voir";
 
 /**
- * Les cinq formulaires. `variable` est le nom a poser dans l'environnement
+ * Les formulaires. `variable` est le nom a poser dans l'environnement
  * avec l'identifiant rendu : sans elle, le code reste dormant — c'est voulu.
  */
 const FLUX = [
@@ -248,7 +249,7 @@ async function exigerConfiguration() {
 }
 
 if (mode === "--voir") {
-  console.log("\nLes cinq formulaires :\n");
+  console.log(`\nLes ${FLUX.length} formulaires :\n`);
   for (const f of FLUX) {
     const manquants = verifier(f);
     const ecrans = definition(f)
@@ -479,7 +480,7 @@ if (mode === "--voir") {
     );
     process.exit(1);
   }
-  console.log("\nLes cinq definitions servies par Meta declarent la version attendue.");
+  console.log(`\nLes ${FLUX.length} definitions servies par Meta declarent la version attendue.`);
 } else if (mode === "--mesurer-photopicker") {
   await exigerConfiguration();
 
@@ -610,7 +611,7 @@ if (mode === "--voir") {
    *
    * ── Pourquoi la version se mesure D'ABORD ───────────────────────────────
    *
-   * Nos cinq formulaires sont en Flow JSON 7.3 depuis l'ADR 0093 — migration
+   * Nos formulaires sont en Flow JSON 7.3 depuis l'ADR 0093 — migration
    * DECIDEE et non encore MESUREE : c'est cette sonde qui la valide. Les
    * schemas releves (sources SECONDAIRES — les pages Meta de ces composants
    * etaient inaccessibles le 13/08, HTTP 500) annoncent : NavigationList 6.2+,
@@ -692,7 +693,7 @@ if (mode === "--voir") {
   const CANDIDATS = [
     {
       cle: "temoin",
-      question: `la version ${VERSION_ESSAI} elle-meme — celle que nos cinq formulaires declarent`,
+      question: `la version ${VERSION_ESSAI} elle-meme — celle que nos formulaires declarent`,
       horsFormulaire: [],
       dansFormulaire: [],
     },

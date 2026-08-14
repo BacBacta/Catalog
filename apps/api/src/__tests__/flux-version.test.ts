@@ -4,13 +4,17 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * Les cinq formulaires declarent LA MEME version de Flow JSON, et le brouillon
+ * TOUS les formulaires declarent LA MEME version de Flow JSON, et le brouillon
  * de mesure declare celle-la aussi.
+ *
+ * Le nombre n'est ecrit qu'a UN endroit — la liste attendue du premier test.
+ * Ailleurs il se compte : un compte fige devient faux le jour ou un formulaire
+ * s'ajoute, et ce jour-la est arrive le 14/08 avec `catalog_comptoir`.
  *
  * ── Pourquoi ce fichier existe ────────────────────────────────────────────
  *
- * La version est recopiee dans SIX endroits — les cinq definitions de `docs/`
- * et le brouillon jetable de `flux.mjs` — et rien ne les tenait ensemble.
+ * La version est recopiee dans chaque definition de `docs/` et dans le
+ * brouillon jetable de `flux.mjs` — et rien ne les tenait ensemble.
  * Releve le 13/08/2026 : `flux-ouverture.json`, ecrit ce jour-la, declarait
  * deja 7.0 alors que la version courante annoncee est 7.3. Une version se
  * recopie sans qu'on la choisisse.
@@ -30,8 +34,8 @@ import { describe, expect, it } from "vitest";
  * CESSENT DE FONCTIONNER**. Meta annonce 90 jours avant chaque palier.
  *
  * Le jour ou il faut monter de version, la parite fait que c'est UNE decision
- * et six edits qui echouent tant qu'ils ne sont pas tous faits — au lieu de
- * cinq formulaires qui derivent chacun de leur cote, dont un seul casse, et
+ * et autant d'edits qui echouent tant qu'ils ne sont pas tous faits — au lieu
+ * de formulaires qui derivent chacun de leur cote, dont un seul casse, et
  * dont la casse est SILENCIEUSE : un Flow qui ne s'ouvre pas laisse la question
  * en place (ADR 0063). Personne ne le verrait dans une erreur.
  */
@@ -43,7 +47,7 @@ const definitions = readdirSync(DOCS)
   .filter((f) => /^flux-.*\.json$/.test(f))
   .map((f) => ({ nom: f, version: JSON.parse(readFileSync(join(DOCS, f), "utf8")).version }));
 
-describe("la version de Flow JSON est UNE decision, pas cinq recopies", () => {
+describe("la version de Flow JSON est UNE decision, pas une recopie par formulaire", () => {
   it("trouve bien les six definitions", () => {
     /* Sans ce garde, un chemin casse ferait passer les tests suivants sur une
        liste vide — et le test le plus dangereux est celui qui ne teste rien. */
@@ -65,12 +69,12 @@ describe("la version de Flow JSON est UNE decision, pas cinq recopies", () => {
     }
   });
 
-  it("les six declarent la MEME version", () => {
+  it("toutes declarent la MEME version", () => {
     const versions = [...new Set(definitions.map((d) => d.version))];
     expect(
       versions,
       `versions divergentes : ${definitions.map((d) => `${d.nom}=${d.version}`).join(", ")} — ` +
-        "monter de version est une decision, elle se prend pour les cinq ou pour aucun",
+        "monter de version est une decision, elle se prend pour toutes ou pour aucune",
     ).toHaveLength(1);
   });
 
