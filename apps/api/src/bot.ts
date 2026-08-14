@@ -1459,32 +1459,66 @@ async function creerArticleDepuisFil(
     octets: number;
   } | null = null;
 
-  if ((demande.mediaId || demande.photoCdn) && deps.media && deps.storage) {
-    /* Les deux formes documentees du media d'un Flow (tache #72) : le
-       `media_id` classique, ou le fichier chiffre sur le CDN dont les cles
-       voyagent dans la reponse. Meme pipeline ensuite — le re-encodage
-       revalide la signature binaire quoi qu'annonce le transport. */
-    const media = demande.mediaId
-      ? await deps.media.lire(demande.mediaId)
-      : demande.photoCdn && deps.media.lireCdn
-        ? await deps.media.lireCdn(demande.photoCdn)
-        : null;
-    if (media) {
-      const resultat = await reencoderImage(media.octets);
-      if (resultat.ok) {
-        const base = cleOpaque(alea);
-        const d = declinaisons(base);
-        await Promise.all([
-          deps.storage.put({ cle: d.avif, corps: resultat.image.avif, contentType: "image/avif" }),
-          deps.storage.put({ cle: d.webp, corps: resultat.image.webp, contentType: "image/webp" }),
-          deps.storage.put({ cle: d.jpg, corps: resultat.image.jpeg, contentType: "image/jpeg" }),
-        ]);
-        image = {
-          cle: base,
-          largeur: resultat.image.largeur,
-          hauteur: resultat.image.hauteur,
-          octets: resultat.image.avif.length,
-        };
+  /**
+   * ── Chaque photo perdue se NOMME — corrige le 14/08/2026 ────────────────
+   *
+   * Le miroir exact du defaut de `urlJpegVerifiee`, cote ECRITURE cette fois :
+   * une photo envoyee pouvait se perdre a trois etapes sans rapport —
+   * adaptateurs absents, media illisible (expire chez Meta, trop lourd,
+   * dechiffrement CDN rate), re-encodage refuse — et les trois produisaient
+   * le meme article muet, « Sans photo pour l'instant ». La vendeuse relit sa
+   * confirmation, voit que la photo n'a pas pris, la renvoie, la reperd, et
+   * personne ne peut dire ou elle tombe.
+   *
+   * Ni le media, ni la cle, ni le numero ne se journalisent : l'ETAPE seule
+   * (ADR 0023).
+   */
+  if (demande.mediaId || demande.photoCdn) {
+    if (!deps.media || !deps.storage) {
+      console.warn("bot : photo entrante — adaptateurs media/stockage absents, article sans photo");
+    } else {
+      /* Les deux formes documentees du media d'un Flow (tache #72) : le
+         `media_id` classique, ou le fichier chiffre sur le CDN dont les cles
+         voyagent dans la reponse. Meme pipeline ensuite — le re-encodage
+         revalide la signature binaire quoi qu'annonce le transport. */
+      const media = demande.mediaId
+        ? await deps.media.lire(demande.mediaId)
+        : demande.photoCdn && deps.media.lireCdn
+          ? await deps.media.lireCdn(demande.photoCdn)
+          : null;
+      if (!media) {
+        console.warn(
+          `bot : photo entrante — media illisible (forme=${demande.mediaId ? "media_id" : "cdn"}), article sans photo`,
+        );
+      } else {
+        const resultat = await reencoderImage(media.octets);
+        if (!resultat.ok) {
+          console.warn(
+            `bot : photo entrante — re-encodage refuse (${resultat.verdict.raison}), article sans photo`,
+          );
+        } else {
+          const base = cleOpaque(alea);
+          const d = declinaisons(base);
+          await Promise.all([
+            deps.storage.put({
+              cle: d.avif,
+              corps: resultat.image.avif,
+              contentType: "image/avif",
+            }),
+            deps.storage.put({
+              cle: d.webp,
+              corps: resultat.image.webp,
+              contentType: "image/webp",
+            }),
+            deps.storage.put({ cle: d.jpg, corps: resultat.image.jpeg, contentType: "image/jpeg" }),
+          ]);
+          image = {
+            cle: base,
+            largeur: resultat.image.largeur,
+            hauteur: resultat.image.hauteur,
+            octets: resultat.image.avif.length,
+          };
+        }
       }
     }
   }
