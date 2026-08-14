@@ -21,6 +21,20 @@
  * bascule en direct chez Meta (ADR 0046), le chemin existe.
  *
  * `--deposer` est un acte SORTANT et durable. Il ne part jamais tout seul.
+ *
+ * ── L'ORDRE, depuis l'ADR 0093 ────────────────────────────────────────────
+ *
+ * Les definitions declarent Flow JSON **7.3**, et cette version n'a pas encore
+ * ete mesuree sur notre WABA. Les notes de 7.2 et 7.3 parlent de « validations
+ * renforcees » : une definition que 7.0 tolerait peut y etre refusee.
+ *
+ *   1. `--mesurer-composants`  → son premier brouillon est un temoin nu ;
+ *                                s'il passe, 7.3 est acceptee ici ;
+ *   2. `--deposer`             → seulement ensuite.
+ *
+ * Temoin refuse : rejouer `--mesurer-composants 7.2`, puis `7.1`, et
+ * redescendre les CINQ definitions a la version la plus haute acceptee —
+ * `flux-version.test.ts` rend l'operation indivisible.
  */
 import { readFileSync } from "node:fs";
 
@@ -351,7 +365,9 @@ if (mode === "--voir") {
      rien sans mesure). */
   const NOM_ESSAI = "catalog_essai_photopicker";
   const essai = {
-    version: "7.0",
+    /* La version DEPLOYEE — `flux-version.test.ts` le tient. Une sonde qui
+       mesure une autre version que celle qu'on expedie ne dit rien de nous. */
+    version: "7.3",
     screens: [
       {
         id: "ESSAI",
@@ -430,7 +446,7 @@ if (mode === "--voir") {
   } else {
     console.log(
       "AUCUNE erreur de validation : PhotoPicker est ACCEPTE dans un formulaire\n" +
-        "`complete` sans point de terminaison, sur ce WABA, en Flow JSON 7.0.",
+        `\`complete\` sans point de terminaison, sur ce WABA, en Flow JSON ${essai.version}.`,
     );
   }
 
@@ -458,13 +474,14 @@ if (mode === "--voir") {
    *
    * ── Pourquoi la version se mesure D'ABORD ───────────────────────────────
    *
-   * Nos cinq formulaires sont en Flow JSON 7.0. Les schemas releves (sources
-   * SECONDAIRES — les pages Meta de ces composants etaient inaccessibles le
-   * 13/08, HTTP 500) annoncent : NavigationList 6.2+, ChipsSelector 6.3+,
-   * ImageCarousel 7.1+, version courante 7.3. Le premier brouillon ne porte
-   * donc QUE le temoin, dans la version visee : s'il est refuse, tous les
-   * verdicts suivants diraient « version » et non « composant », et il faut
-   * le savoir avant de les lire.
+   * Nos cinq formulaires sont en Flow JSON 7.3 depuis l'ADR 0093 — migration
+   * DECIDEE et non encore MESUREE : c'est cette sonde qui la valide. Les
+   * schemas releves (sources SECONDAIRES — les pages Meta de ces composants
+   * etaient inaccessibles le 13/08, HTTP 500) annoncent : NavigationList 6.2+,
+   * ChipsSelector 6.3+, ImageCarousel 7.1+. Le premier brouillon ne porte donc
+   * QUE le temoin, dans la version visee : s'il est refuse, tous les verdicts
+   * suivants diraient « version » et non « composant » — et, depuis la
+   * migration, il dit aussi si nos formulaires eux-memes passeraient.
    *
    * La version se passe en argument (defaut : 7.3) :
    *
@@ -506,7 +523,7 @@ if (mode === "--voir") {
   const CANDIDATS = [
     {
       cle: "temoin",
-      question: `la version ${VERSION_ESSAI} elle-meme — nos formulaires sont en 7.0`,
+      question: `la version ${VERSION_ESSAI} elle-meme — celle que nos cinq formulaires declarent`,
       horsFormulaire: [],
       dansFormulaire: [],
     },

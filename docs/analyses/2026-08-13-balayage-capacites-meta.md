@@ -273,8 +273,15 @@ pour un nouveau Flow — c'est-à-dire si elle est déjà *Frozen*. La même com
 en 7.3 dit où aller. La date d'expiration, elle, se lira dans la console Meta
 ou dans le journal quand il redeviendra accessible.
 
-**Vérification du 13/08, au soir.** Les cinq définitions de `docs/flux-*.json`
-déclarent **toutes 7.0** — y compris `flux-ouverture.json`, écrit **ce jour-là**
+**Migré le 13/08 au soir — ADR 0093.** Les cinq définitions déclarent désormais
+**7.3**. La migration a coûté un champ par fichier : l'inventaire préalable a
+montré qu'elles n'emploient que des composants **1.0 et 4.0** (`PhotoPicker`,
+déjà mesuré) et les seules actions `navigate`/`complete`. **7.3 reste non
+mesurée sur notre WABA** — la mesure passe avant le dépôt, l'ordre est écrit
+dans l'en-tête de `flux.mjs`.
+
+*Ce qui suit décrit l'état d'avant, conservé parce qu'il explique le défaut.*
+Les cinq définitions de `docs/flux-*.json` déclaraient **toutes 7.0** — y compris `flux-ouverture.json`, écrit **ce jour-là**
 et déjà sur une version qui n'est pas la courante. La version était recopiée
 dans **six** endroits (les cinq définitions et le brouillon de mesure de
 `flux.mjs`) sans qu'aucune constante ni aucun test ne les tienne ensemble : une
