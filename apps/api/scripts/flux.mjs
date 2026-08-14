@@ -468,6 +468,11 @@ if (mode === "--voir") {
    * c'est la definition (ou la version) qui est cassee, pas le composant.
    * Verdict lu dans `validation_errors`, brouillon supprime, ecran suivant.
    *
+   * UNE exception, et elle vient d'une mesure : `RichText` refuse toute
+   * compagnie autre qu'un `Footer`, donc le temoin le faisait echouer. Ces
+   * candidats-la portent `ecranSeul` — voir la note de `piedNu` pour ce qui
+   * remplace la garantie du temoin.
+   *
    * UN brouillon PAR composant, et non un brouillon a six ecrans : une erreur
    * de parse globale masquerait les cinq autres verdicts, et la mesure ne
    * vaudrait plus rien.
@@ -517,8 +522,41 @@ if (mode === "--voir") {
   });
 
   /**
+   * ── L'ecran SANS temoin, et pourquoi il reste une mesure valable ────────
+   *
+   * Mesure du 14/08 : `RichText` a rendu des erreurs, et il ne s'agissait PAS
+   * d'un refus du composant. Meta repond :
+   *
+   *   « RichText can either be the only component on the screen or it can be
+   *     paired exclusively with the Footer component. »
+   *
+   * Autrement dit, le `TextInput` temoin — ce qui rend la methode fiable pour
+   * tous les autres candidats — est exactement ce qui faisait echouer
+   * celui-la. La sonde mesurait sa propre mise en page, pas le composant.
+   *
+   * `ecranSeul` retire donc le formulaire ET le temoin : il ne reste que le
+   * composant et un pied. La garantie que le temoin apportait ne disparait pas
+   * pour autant, elle CHANGE DE PLACE : le premier brouillon de la serie ne
+   * porte QUE le temoin, dans la version visee, et il tourne avant tous les
+   * autres. Tant qu'il est accepte, un ecran isole qui echoue ne peut plus
+   * accuser la version — il ne reste que le composant.
+   *
+   * C'est pour cette raison que l'ordre des candidats n'est pas cosmetique, et
+   * que le resume s'interrompt si le temoin tombe.
+   */
+  const piedNu = {
+    type: "Footer",
+    label: "Envoyer",
+    /* Pas de `${form.…}` ici : il n'y a aucun formulaire sur cet ecran, et une
+       reference a un champ absent serait une erreur de validation de PLUS,
+       c'est-a-dire le defaut qu'on vient de corriger, sous un autre nom. */
+    "on-click-action": { name: "complete", payload: {} },
+  };
+
+  /**
    * Les candidats, chacun avec la QUESTION qu'il pose. `horsFormulaire` porte
    * les composants d'affichage (ils vivent a cote du formulaire, pas dedans).
+   * `ecranSeul` marque ceux que Meta refuse de voir accompagnes.
    */
   const CANDIDATS = [
     {
@@ -529,7 +567,9 @@ if (mode === "--voir") {
     },
     {
       cle: "richtext",
-      question: "RichText (5.1+ annonce) : un recapitulatif lisible DANS un formulaire",
+      question:
+        "RichText (5.1+ annonce) : un recapitulatif lisible — SEUL sur son ecran, Meta l'exige (mesure du 14/08)",
+      ecranSeul: true,
       horsFormulaire: [
         { type: "RichText", text: ["# Recapitulatif", "Article 1 × 2 : **15 000 FCFA**"] },
       ],
@@ -645,7 +685,9 @@ if (mode === "--voir") {
           data: c.donnees ?? {},
           layout: {
             type: "SingleColumnLayout",
-            children: [...c.horsFormulaire, formulaire(c.dansFormulaire, c.charge ?? {})],
+            children: c.ecranSeul
+              ? [...c.horsFormulaire, piedNu]
+              : [...c.horsFormulaire, formulaire(c.dansFormulaire, c.charge ?? {})],
           },
         },
       ],
@@ -686,7 +728,11 @@ if (mode === "--voir") {
           verdict: "ERREURS",
           detail: reponse.validation_errors.map((e) => e?.message ?? JSON.stringify(e)).join(" | "),
         });
-        console.log("erreurs de validation (le temoin distingue la definition du composant) :");
+        console.log(
+          c.ecranSeul
+            ? "erreurs de validation (ecran isole : le temoin est le PREMIER brouillon, pas celui-ci) :"
+            : "erreurs de validation (le temoin distingue la definition du composant) :",
+        );
         for (const e of reponse.validation_errors) console.log(`  ${JSON.stringify(e)}`);
       } else {
         verdicts.push({
