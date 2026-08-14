@@ -4,6 +4,8 @@
  *   node apps/api/scripts/composants.mjs --accueil-etat   → ce qui est pose
  *   node apps/api/scripts/composants.mjs --accueil-poser  → pose les amorces
  *   node apps/api/scripts/composants.mjs --mesurer-cta +237… → mesure cta_url
+ *   node apps/api/scripts/composants.mjs --apercu-carnet +237… → envoie le
+ *       carnet REEL (celui que le domaine construit), pour le voir dans un fil
  *
  * ── Pourquoi ce script ────────────────────────────────────────────────────
  *
@@ -170,9 +172,72 @@ if (mode === "--accueil-etat") {
     );
     console.log("   Conclusion : on garde les URL en texte, et on l'ecrit dans l'ADR.");
   }
+} else if (mode === "--apercu-carnet") {
+  exigerJeton();
+  const vers = exigerNumero();
+  if (!vers) {
+    console.error(
+      "Un numero destinataire est exige : node apps/api/scripts/composants.mjs --apercu-carnet +237…",
+    );
+    process.exit(1);
+  }
+
+  /**
+   * ── L'APERCU du carnet, construit par le DOMAINE ────────────────────────
+   *
+   * Ce mode envoie le second message de confirmation — le carnet d'adresses,
+   * celui dont le lien de suivi est devenu un bouton (ADR 0098).
+   *
+   * Il ne recopie AUCUNE chaine : il appelle `confirmationCommande`, la
+   * fonction que le bot appelle en production, et n'envoie que ce qu'elle
+   * rend. C'est la meme discipline que le harnais d'audit (ADR 0089) — un
+   * apercu qui recopierait la copie montrerait ce qu'on croit ecrire, jamais
+   * ce qu'on ecrit.
+   *
+   * Les donnees sont plausibles et FAUSSES, et le premier message — le
+   * document de commande — n'est deliberement PAS envoye : une fausse
+   * reference et un faux code de verification chez quelqu'un ressembleraient a
+   * une vraie commande. On ne montre que ce qui a change.
+   */
+  const { confirmationCommande } = await import("../src/domain/bot/conversation.ts");
+  const messages = confirmationCommande(vers.replace(/^\+/, ""), {
+    reference: "CT-APERCU",
+    codeVerification: "ACDE-4679",
+    boutique: "Chez Bea",
+    lignes: [{ nom: "Robe wax", quantite: 1, prixUnitaireXaf: 15000 }],
+    totalXaf: 15000,
+    /* Un acompte, pour que l'apercu montre le CONTRASTE : le suivi devient un
+       bouton, la page de verification reste en texte juste en dessous. Sans
+       acompte, cette seconde ligne n'existe pas et l'apercu ne dirait que la
+       moitie de la regle (ADR 0098). */
+    duAvantXaf: 7500,
+    livraison: { mode: "retrait", pickupPoint: "Marché central", phone: "+237690112233" },
+    lienSuivi: "https://catalog.cm/suivi/apercu",
+    lienVerification: "https://catalog.cm/v/?c=ACDE-4679",
+    waVendeuse: "https://wa.me/237677123456",
+  });
+
+  const carnet = messages[1];
+  if (!carnet) {
+    console.error("Le domaine n'a rendu aucun carnet — rien a montrer.");
+    process.exit(1);
+  }
+  console.log(`forme rendue par le domaine : ${carnet.type}/${carnet.interactive?.type ?? "—"}`);
+
+  const r = await appel(`/${NUMERO_ID}/messages`, {
+    method: "POST",
+    body: JSON.stringify(carnet),
+  });
+  if (r.ok) {
+    console.log("✅ Carnet envoye — regardez le fil.");
+    console.log(`   Identifiant du message : ${r.corps?.messages?.[0]?.id ?? "non rendu"}`);
+  } else {
+    console.log(`⛔ Refuse : HTTP ${r.statut} — ${r.corps?.error?.message ?? "raison non dite"}`);
+    process.exit(1);
+  }
 } else {
   console.error(
-    `mode inconnu : ${mode}. Utilisez --accueil-etat, --accueil-poser ou --mesurer-cta <numero>.`,
+    `mode inconnu : ${mode}. Utilisez --accueil-etat, --accueil-poser, --mesurer-cta <numero> ou --apercu-carnet <numero>.`,
   );
   process.exit(1);
 }

@@ -18,7 +18,7 @@ on:
         description: "Quel script executer"
         required: true
         type: choice
-        options: [flux, gabarits, les-deux, mesurer-photopicker, mesurer-composants, accueil-etat, accueil-poser, mesurer-cta]
+        options: [flux, gabarits, les-deux, mesurer-photopicker, mesurer-composants, accueil-etat, accueil-poser, mesurer-cta, apercu-carnet]
       mode:
         description: "Mode (--etat et --verifier sont en lecture seule)"
         required: true
@@ -31,7 +31,7 @@ on:
       # Exige par `mesurer-cta` SEUL. Il n'a pas de defaut : une mesure qui
       # part vers un numero devine serait un vrai message chez un inconnu.
       numero:
-        description: "mesurer-cta seulement : le numero destinataire, en E.164 (+237…)"
+        description: "mesurer-cta et apercu-carnet : le numero destinataire, en E.164 (+237…)"
         required: false
         type: string
       # `mesurer-composants` seulement : la version Flow JSON visee. Vide, le
@@ -130,6 +130,25 @@ jobs:
             exit 1
           fi
           flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --mesurer-cta $NUMERO"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          NUMERO: ${{ inputs.numero }}
+      # L'apercu du carnet — ADR 0098. Il n'invente aucune chaine : il appelle
+      # `confirmationCommande`, la fonction que le bot appelle en production, et
+      # n'envoie que ce qu'elle rend. Meme filtre que ci-dessus sur le numero,
+      # meme raison : c'est un vrai message chez une vraie personne.
+      - name: Apercu du carnet (envoi reel)
+        if: inputs.quoi == 'apercu-carnet'
+        run: |
+          if [ -z "$NUMERO" ]; then
+            echo "Le champ « numero » est exige : cet apercu envoie un vrai message."
+            exit 1
+          fi
+          if printf '%s' "$NUMERO" | grep -qv '^+[0-9]\{8,15\}$'; then
+            echo "Le numero doit etre en E.164 : « + » puis 8 a 15 chiffres."
+            exit 1
+          fi
+          flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/composants.mjs --apercu-carnet $NUMERO"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           NUMERO: ${{ inputs.numero }}
