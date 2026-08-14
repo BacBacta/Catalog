@@ -10,6 +10,7 @@ import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
 import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { suiviRoutes } from "../routes/recu.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants } from "./_identifiants.ts";
 
 /**
@@ -42,7 +43,6 @@ import { identifiants } from "./_identifiants.ts";
  */
 
 const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 const ids = identifiants("gabarits-jamais-appeles");

@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { ChiffreurInerte } from "../adapters/sms-chiffre.ts";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants } from "./_identifiants.ts";
 import { MTN_RECEPTION } from "./fixtures-sms.ts";
 
@@ -20,7 +21,6 @@ import { MTN_RECEPTION } from "./fixtures-sms.ts";
  */
 
 const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /** L'horloge est figee : la fixture MTN porte le 23/06/2026 a 09:50. */

@@ -1,6 +1,7 @@
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { sellerRoutes } from "../routes/seller.ts";
+import { describeDb } from "./_base.ts";
 import { selExecution } from "./_identifiants.ts";
 
 /**
@@ -15,7 +16,6 @@ import { selExecution } from "./_identifiants.ts";
  */
 
 const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Meme schema que `payout-route.test.ts` : un bloc par fichier, plus le sel

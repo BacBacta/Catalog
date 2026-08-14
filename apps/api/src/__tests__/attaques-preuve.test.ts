@@ -6,6 +6,7 @@ import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { LONGUEUR_JETON } from "../domain/receipt/jeton.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
 import { recuRoutes, suiviRoutes } from "../routes/recu.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants, selExecution } from "./_identifiants.ts";
 import {
   MTN_PAIEMENT_SORTANT,
@@ -40,9 +41,6 @@ import {
  * « une preuve fabriquee n'atteint jamais la contre-signature toute seule »
  * ci-dessous est donc la piece maitresse de cette suite, pas un complement.
  */
-
-const URL_BASE = process.env.DATABASE_URL;
-const describeDb = URL_BASE ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { RAMPE_DEFAUT } from "../domain/ramp/config.ts";
 import { genererJetonSuivi } from "../domain/receipt/jeton.ts";
 import { normaliserCode, recuRoutes, suiviRoutes } from "../routes/recu.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
@@ -19,9 +20,6 @@ import { identifiants, selExecution } from "./_identifiants.ts";
  * 4. la reference et le code de verification n'ouvrent **pas** la
  *    contre-signature — seul le jeton du lien de suivi l'ouvre.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

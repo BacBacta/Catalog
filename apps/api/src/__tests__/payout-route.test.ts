@@ -1,6 +1,7 @@
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { changerNumeroDeReversement } from "../routes/payout.ts";
+import { describeDb } from "./_base.ts";
 import { selExecution } from "./_identifiants.ts";
 
 /**
@@ -14,7 +15,6 @@ import { selExecution } from "./_identifiants.ts";
  */
 
 const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

@@ -1,10 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
 import { basculerConges } from "../routes/seller.ts";
+import { describeDb } from "./_base.ts";
 import { selExecution } from "./_identifiants.ts";
 
 /**
@@ -19,9 +20,6 @@ import { selExecution } from "./_identifiants.ts";
  * `traiterEntree` avale ses exceptions pour ne jamais bloquer une livraison —
  * un defaut de service y serait donc parfaitement silencieux sans ce fichier.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

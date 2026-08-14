@@ -1,9 +1,10 @@
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { livrerNotificationsEnAttente } from "../bot-notifications.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
 import { executerRelanceAcompte, executerRelanceReversement } from "../jobs/relance-acompte.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
@@ -20,8 +21,6 @@ import { identifiants, selExecution } from "./_identifiants.ts";
  * celui qui avait le plus de chances de s'evaporer. Et son gabarit,
  * `reversement_absent`, etait depose, approuve, et jamais appele.
  */
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

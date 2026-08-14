@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
@@ -17,9 +18,6 @@ import { identifiants, selExecution } from "./_identifiants.ts";
  * livraison : sans ce test, une erreur de service serait parfaitement
  * silencieuse. C'est exactement ce qui s'est produit au premier essai.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

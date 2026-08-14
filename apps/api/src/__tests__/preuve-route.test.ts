@@ -2,6 +2,7 @@ import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ChiffreurAesGcm, ChiffreurInerte } from "../adapters/sms-chiffre.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants, selExecution } from "./_identifiants.ts";
 import { MTN_RECEPTION, ORANGE_RECEPTION_RECONSTITUE, TEXTE_LIBRE } from "./fixtures-sms.ts";
 
@@ -20,7 +21,6 @@ import { MTN_RECEPTION, ORANGE_RECEPTION_RECONSTITUE, TEXTE_LIBRE } from "./fixt
  */
 
 const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

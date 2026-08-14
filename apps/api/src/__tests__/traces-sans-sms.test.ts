@@ -9,6 +9,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { ProcesseurDeRedaction, ressembleAUnSmsOperateur } from "../observabilite/redaction.ts";
 import { avecSpan } from "../observabilite/traces.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants, selExecution } from "./_identifiants.ts";
 import {
   MTN_PAIEMENT_SORTANT,
@@ -46,9 +47,6 @@ import {
  * Les fragments comptent autant que le texte entier : « 12020 » suffit a
  * publier un solde.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 /** Graine partagee par les identifiants d'operateur de cette execution. */
 const RUN_TX = selExecution();

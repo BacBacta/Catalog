@@ -6,6 +6,7 @@ import { DUREE_OTP_MS, ESSAIS_MAX } from "../domain/payout-otp.ts";
 import type { OtpAttempt } from "../domain/rate-limit.ts";
 import type { SmsMessage, SmsSender } from "../domain/sms-sender.ts";
 import { payoutRoutes } from "../routes/payout.ts";
+import { describeDb } from "./_base.ts";
 import { selExecution } from "./_identifiants.ts";
 
 /**
@@ -20,7 +21,6 @@ import { selExecution } from "./_identifiants.ts";
  */
 
 const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 let otp: PayoutOtpStore;

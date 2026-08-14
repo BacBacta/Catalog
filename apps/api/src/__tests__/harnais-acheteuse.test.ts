@@ -1,5 +1,6 @@
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
+import { describeDb } from "./_base.ts";
 import { identifiants } from "./_identifiants.ts";
 import { compteur } from "./harnais/couverture.ts";
 import * as g from "./harnais/gestes.ts";
@@ -16,9 +17,6 @@ import { creerScene, pilote } from "./harnais/pilote.ts";
  *
  * Les instantanes sont le livrable : une regression de copie s'y voit en diff.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 const ids = identifiants("harnais-acheteuse");

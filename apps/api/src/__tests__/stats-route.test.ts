@@ -2,6 +2,7 @@ import { statsVendeuseSchema } from "@catalog/contracts";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { fenetreDemandee, statsRoutes } from "../routes/stats.ts";
+import { describeDb } from "./_base.ts";
 import { identifiants, selExecution } from "./_identifiants.ts";
 
 /**
@@ -20,9 +21,6 @@ import { identifiants, selExecution } from "./_identifiants.ts";
  *    rien a mesurer » et « personne ne colle ses SMS » ne sont pas la meme
  *    phrase.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

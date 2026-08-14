@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import type { MessageSortant } from "../domain/bot/messages.ts";
+import { describeDb } from "./_base.ts";
 import { selExecution } from "./_identifiants.ts";
 
 /**
@@ -22,9 +23,6 @@ import { selExecution } from "./_identifiants.ts";
  * Ce fichier exige une vraie base : c'est le service, pas le domaine, qui
  * envoie.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
 /* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.

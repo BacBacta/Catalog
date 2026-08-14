@@ -1,7 +1,8 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it } from "vitest";
+import { describeDb } from "./_base.ts";
 import { identifiants } from "./_identifiants.ts";
 import { compteur, SEUIL_PRINCIPAL, tableauMarkdown } from "./harnais/couverture.ts";
 import { gestesDeLEtape, RECETTES } from "./harnais/etapes-scene.ts";
@@ -37,9 +38,6 @@ import { poserInstantanes } from "./harnais/poser.ts";
  * ou la personne n'a RIEN recu. C'est la matiere premiere de la famille
  * « silence », et elle est produite par execution, jamais par lecture.
  */
-
-const URL = process.env.DATABASE_URL;
-const describeDb = URL ? describe : describe.skip;
 
 const ICI = dirname(fileURLToPath(import.meta.url));
 const SORTIE = join(ICI, "harnais", "instantanes");
