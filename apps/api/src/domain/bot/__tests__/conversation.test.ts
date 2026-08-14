@@ -41,6 +41,25 @@ const ctx = (surcharge: Partial<ContexteAcheteuse> = {}): ContexteAcheteuse => (
   ...surcharge,
 });
 const corpsTexte = (m: unknown) => (m as MessageTexte).text.body;
+/**
+ * Le corps d'un message, quelle que soit sa forme. Depuis l'ADR 0097, le
+ * carnet peut etre un `cta_url` : son texte vit alors sous `interactive`, et
+ * l'URL de suivi n'est PLUS dans le corps — elle est dans le bouton.
+ *
+ * Les assertions de contenu passent par ici ; celles qui portent sur le lien
+ * de suivi passent par `urlBouton`, pour qu'un bouton disparu se voie au lieu
+ * de faire passer un test qui ne verifie plus rien.
+ */
+const corpsQuelconque = (m: unknown) => {
+  const x = m as { text?: { body?: string }; interactive?: { body?: { text?: string } } };
+  return x.text?.body ?? x.interactive?.body?.text ?? "";
+};
+const urlBouton = (m: unknown) =>
+  (m as { interactive?: { action?: { parameters?: { url?: string } } } }).interactive?.action
+    ?.parameters?.url;
+const libelleBouton = (m: unknown) =>
+  (m as { interactive?: { action?: { parameters?: { display_text?: string } } } }).interactive
+    ?.action?.parameters?.display_text;
 const corpsBoutons = (m: unknown) => (m as MessageBoutons).interactive.body.text;
 /* La quantite est passee du bouton a la LISTE (ADR 0053) : meme corps, autre
    action. */
@@ -904,7 +923,7 @@ describe("confirmation et verdict", () => {
     ]) {
       expect(corps).toContain(attendu);
     }
-    const suite = corpsTexte(messages[1]);
+    const suite = corpsQuelconque(messages[1]);
     expect(suite).toMatch(/payer l'acompte/i);
     expect(suite).toMatch(/code secret/i);
   });
@@ -920,7 +939,7 @@ describe("confirmation et verdict", () => {
       livraison: { mode: "retrait", pickupPoint: "Marché central", phone: "+237690112233" },
       lienSuivi: "https://exemple.test/suivi?j=abc",
     });
-    const suite = corpsTexte(messages[1]);
+    const suite = corpsQuelconque(messages[1]);
     expect(suite).not.toMatch(/pour payer/i);
     expect(suite).toMatch(/payez à la réception/i);
   });
@@ -941,7 +960,7 @@ describe("confirmation et verdict", () => {
       "en",
     );
     expect(corpsTexte(messages[0])).toContain("Verification code");
-    expect(corpsTexte(messages[1])).toContain("deposit");
+    expect(corpsQuelconque(messages[1])).toContain("deposit");
   });
 
   it("le verdict se dit en langue simple, refus compris", () => {
@@ -1114,9 +1133,15 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
     expect(document).toContain("#150*50#");
     expect(document).toMatch(/code secret/i);
     expect(document).toContain("/payer?");
-    /* Le lien de suivi redevient ce qu'il est : le suivi et le recu. */
-    const carnet = corpsTexte(messages[1]);
-    expect(carnet).toContain("suivi?j=abc");
+    /* Le lien de suivi redevient ce qu'il est : le suivi et le recu — et
+       depuis l'ADR 0097 il voyage dans le BOUTON, plus dans le corps. */
+    const carnet = corpsQuelconque(messages[1]);
+    expect(urlBouton(messages[1]), "le suivi doit voyager dans le bouton").toBe(
+      "https://exemple.test/suivi?j=abc",
+    );
+    expect(carnet, "l'URL de suivi ne se repete pas dans le texte").not.toContain("suivi?j=abc");
+    /* Le wa.me, lui, RESTE du texte : il se garde et se rappelle, et un
+       message ne porte qu'un bouton. */
     expect(carnet).toContain("https://wa.me/237677123456");
   });
 
@@ -1134,13 +1159,15 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
         lienVerification,
       });
     /* Avec acompte : la ligne part, sous la forme portable. */
-    const carnet = corpsTexte(avec("https://exemple.test/v/?c=ACDE-4679", 4000)[1]);
+    const carnet = corpsQuelconque(avec("https://exemple.test/v/?c=ACDE-4679", 4000)[1]);
     expect(carnet).toContain("/v/?c=ACDE-4679");
     expect(carnet).toMatch(/n'importe qui peut contrôler/i);
     /* Sans prepaiement : pas de recu a promettre, pas de ligne. */
-    expect(corpsTexte(avec("https://exemple.test/v/?c=ACDE-4679", 0)[1])).not.toContain("/v/?c=");
+    expect(corpsQuelconque(avec("https://exemple.test/v/?c=ACDE-4679", 0)[1])).not.toContain(
+      "/v/?c=",
+    );
     /* Sans base publique : rien, jamais une URL fausse. */
-    expect(corpsTexte(avec(null, 4000)[1])).not.toContain("/v/");
+    expect(corpsQuelconque(avec(null, 4000)[1])).not.toContain("/v/");
   });
 
   it("sans reversement, pas de bloc paiement — la copie historique reprend", () => {
@@ -1157,7 +1184,7 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
       waVendeuse: null,
     });
     expect(messages).toHaveLength(2);
-    expect(corpsTexte(messages[1])).toMatch(/réception/);
+    expect(corpsQuelconque(messages[1])).toMatch(/réception/);
   });
 
   it("« suivi » redit l'ETAT — chemin complet, reste, preuve — sans jamais le jeton", () => {
@@ -1449,5 +1476,57 @@ describe("l'après-achat dans le fil (ADR 0036)", () => {
       avecCommande({ avisPossible: true }),
     );
     expect(r.effet).toBeUndefined();
+  });
+});
+
+/**
+ * Le carnet et son bouton — ADR 0097.
+ *
+ * La conversion ne se juge pas a « il y a un bouton » : elle se juge a ce qui
+ * NE devient pas un bouton, et a ce qui se passe quand elle ne peut pas avoir
+ * lieu.
+ */
+describe("le carnet, depuis que le suivi est un bouton", () => {
+  const commande = (lienSuivi: string) => ({
+    reference: "CT-2000",
+    codeVerification: "ACDE-4679",
+    boutique: "Chez Bea",
+    lignes: [{ nom: "Robe", quantite: 1, prixUnitaireXaf: 15000 }],
+    totalXaf: 15000,
+    duAvantXaf: 0,
+    livraison: {
+      mode: "retrait" as const,
+      pickupPoint: "Marché central",
+      phone: "+237690112233",
+    },
+    lienSuivi,
+    waVendeuse: "https://wa.me/237677123456",
+  });
+
+  it("le bouton porte l'URL de suivi et un libellé qui NAVIGUE", () => {
+    const m = confirmationCommande(VERS, commande("https://exemple.test/suivi?j=abc"))[1];
+    expect(urlBouton(m)).toBe("https://exemple.test/suivi?j=abc");
+    /* ADR 0088 : `cta_url` dit « va voir cette page », jamais « prends cette
+       decision ». Le libelle doit donc se lire comme un deplacement. */
+    expect(libelleBouton(m)).toBe("Suivre ma commande");
+  });
+
+  it("le contenu canonique reste dans le TEXTE, jamais dans le bouton", () => {
+    /* AGENTS.md : reference et code de verification voyagent en texte brut.
+       Un bouton qui ne s'ouvre pas ne doit rien emporter avec lui. */
+    const messages = confirmationCommande(VERS, commande("https://exemple.test/suivi?j=abc"));
+    const document = corpsQuelconque(messages[0]);
+    expect(document).toContain("CT-2000");
+    expect(document).toContain("ACDE-4679");
+    expect(document).toContain("Chez Bea");
+  });
+
+  it("une URL qui n'est pas https RETOMBE sur le texte, et le lien reste lisible", () => {
+    /* Un bouton exige `https://`. Une configuration de travers ne doit pas
+       faire echouer la confirmation d'une commande deja enregistree : la copie
+       d'origine reprend la main et l'acheteuse garde son lien. */
+    const m = confirmationCommande(VERS, commande("http://exemple.test/suivi?j=abc"))[1];
+    expect(urlBouton(m), "aucun bouton sur une URL non https").toBeUndefined();
+    expect(corpsQuelconque(m)).toContain("http://exemple.test/suivi?j=abc");
   });
 });

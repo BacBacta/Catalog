@@ -188,6 +188,48 @@ export interface MessageDemandeLocalisation {
   };
 }
 
+/**
+ * Le BOUTON-LIEN (`cta_url`) — mesure le 13/08 (accepte par l'API, ADR 0087)
+ * puis le 14/08 (s'affiche bien comme un bouton, ADR 0097).
+ *
+ * ── La regle qui decide ce qui devient un bouton ──────────────────────────
+ *
+ * Un lien devient un bouton quand le lecteur doit l'**ouvrir**. Il reste du
+ * texte quand le lecteur doit le **copier, le partager ou le transmettre** :
+ * un bouton ne se copie pas. Convertir le lien de boutique de la vendeuse
+ * — « partagez-le, mettez-le en Statut » — le rendrait inutilisable pour son
+ * seul usage.
+ *
+ * S'y ajoute la frontiere de l'ADR 0088 : `cta_url` sert « va voir cette
+ * page », jamais « prends cette decision ». Une confirmation, une annulation,
+ * un choix de livraison restent des boutons de reponse.
+ *
+ * ── UN bouton, et un seul ─────────────────────────────────────────────────
+ *
+ * `action.parameters` est un couple unique. Un message qui porte trois liens
+ * n'en promeut donc qu'UN, et les deux autres restent en texte — plutot que
+ * d'eclater le message en trois, ce que l'ADR 0086 interdit : quatre messages
+ * consecutifs ont le meme poids visuel, et le porteur du produit l'a vecu
+ * comme un « deluge de liens ».
+ *
+ * Un message `cta_url` ne peut pas non plus porter de boutons de reponse :
+ * les deux sont des formes `interactive` exclusives.
+ */
+export interface MessageLienBouton {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "interactive";
+  interactive: {
+    type: "cta_url";
+    body: { text: string };
+    action: {
+      name: "cta_url";
+      parameters: { display_text: string; url: string };
+    };
+  };
+}
+
 export type MessageSortant =
   | MessageTexte
   | MessageBoutons
@@ -196,7 +238,8 @@ export type MessageSortant =
   | MessageReaction
   | MessageGabarit
   | MessageFlux
-  | MessageDemandeLocalisation;
+  | MessageDemandeLocalisation
+  | MessageLienBouton;
 
 /**
  * L'accuse de lecture, et l'indicateur de frappe qui voyage avec — ADR 0049.
@@ -336,6 +379,58 @@ export function demandeLocalisation(vers: string, corps: string): MessageDemande
       type: "location_request_message",
       body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
       action: { name: "send_location" },
+    },
+  };
+}
+
+/**
+ * La borne du libelle. Elle est REPRISE de celle des boutons de reponse, et
+ * ce n'est pas une mesure : la limite propre a `display_text` n'a pas ete
+ * relevee — les pages de reference de Meta etaient inatteignables (HTTP 500,
+ * 13/08) et notre sonde ne teste pas les bornes, elle teste l'acceptation.
+ *
+ * Vingt caracteres est donc un plancher prudent, pas un plafond connu. Le seul
+ * libelle mesure accepte est « Ouvrir la boutique » — dix-huit.
+ */
+export const LIEN_LIBELLE_MAX = BOUTON_TITRE_MAX;
+
+/**
+ * Un message dont le lien devient un bouton. Voir `MessageLienBouton` pour la
+ * regle qui decide ce qui a le droit d'y passer.
+ */
+export function lienBouton(
+  vers: string,
+  corps: string,
+  libelle: string,
+  url: string,
+): MessageLienBouton {
+  /**
+   * ── `https://` et rien d'autre ────────────────────────────────────────
+   *
+   * La rampe de paiement est un lien `tel:` portant une chaine USSD (lot 9).
+   * En faire un bouton le rendrait INERTE, et la panne serait silencieuse :
+   * l'acheteuse verrait un bouton, le taperait, et rien ne s'ouvrirait. C'est
+   * le seul chemin par lequel cette conversion pourrait casser le geste n° 1
+   * du produit — il se ferme par une levee, pas par une convention.
+   */
+  if (!url.startsWith("https://")) {
+    throw new Error(`un bouton-lien exige une URL https:// (recu : ${url.slice(0, 12)}…)`);
+  }
+  if (!libelle.trim()) throw new Error("libelle de bouton-lien vide : il ne se taperait pas");
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: vers,
+    type: "interactive",
+    interactive: {
+      type: "cta_url",
+      /* `corpsOuLeve` refuse un corps vide : un message reduit a un bouton ne
+         dirait plus rien a qui ne peut pas l'ouvrir (AGENTS.md). */
+      body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
+      action: {
+        name: "cta_url",
+        parameters: { display_text: tronquer(libelle, LIEN_LIBELLE_MAX), url },
+      },
     },
   };
 }

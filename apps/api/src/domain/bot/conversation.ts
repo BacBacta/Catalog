@@ -19,6 +19,7 @@ import {
   boutons,
   demandeLocalisation,
   image,
+  lienBouton,
   liste,
   type MessageSortant,
   reaction,
@@ -1968,14 +1969,39 @@ export function confirmationCommande(
   }
   const messages: MessageSortant[] = [texte(vers, document.join("\n\n"))];
 
+  /**
+   * ── Le carnet, et LE lien qui devient un bouton — ADR 0097 ─────────────
+   *
+   * Le suivi est le seul des trois liens du carnet qui se tape pour l'OUVRIR.
+   * Les deux autres restent du texte, et ce n'est pas un demi-travail :
+   *
+   * - la page de verification se MONTRE a quelqu'un d'autre (« n'importe qui
+   *   peut controler le recu ») ; un bouton ne se transmet pas ;
+   * - le `wa.me` de la vendeuse se garde et se rappelle.
+   *
+   * Et de toute facon `action.parameters` est un couple UNIQUE : un message
+   * `cta_url` ne porte qu'un bouton. Eclater le carnet en trois pour en avoir
+   * trois referait le « deluge de liens » que l'ADR 0086 a supprime.
+   */
+  const boutonSuivi = c.lienSuivi?.startsWith("https://") ? c.lienSuivi : null;
   const carnet: string[] = [];
   if (c.lienSuivi) {
     carnet.push(
-      c.duAvantXaf > 0 && c.paiement
-        ? t.suiteSuivi(c.lienSuivi)
-        : c.duAvantXaf > 0
-          ? t.suiteAcompte(c.lienSuivi)
-          : t.suiteSansAcompte(c.lienSuivi),
+      boutonSuivi
+        ? c.duAvantXaf > 0 && c.paiement
+          ? t.suiteSuiviBouton
+          : c.duAvantXaf > 0
+            ? t.suiteAcompteBouton
+            : t.suiteSansAcompteBouton
+        : /* Repli : une URL qui n'est pas `https://` ne peut pas devenir un
+             bouton. La copie d'origine reprend la main, l'acheteuse garde son
+             lien, et une configuration de travers ne fait pas echouer la
+             confirmation d'une commande deja enregistree. */
+          c.duAvantXaf > 0 && c.paiement
+          ? t.suiteSuivi(c.lienSuivi)
+          : c.duAvantXaf > 0
+            ? t.suiteAcompte(c.lienSuivi)
+            : t.suiteSansAcompte(c.lienSuivi),
     );
   }
   if (c.lienVerification && c.duAvantXaf > 0) {
@@ -1984,7 +2010,13 @@ export function confirmationCommande(
     carnet.push(t.suiteVerification(c.lienVerification));
   }
   if (c.waVendeuse) carnet.push(t.apresConfirmation(c.boutique, c.waVendeuse));
-  if (carnet.length > 0) messages.push(texte(vers, carnet.join("\n\n")));
+  if (carnet.length > 0) {
+    messages.push(
+      boutonSuivi
+        ? lienBouton(vers, carnet.join("\n\n"), t.libelleSuivi, boutonSuivi)
+        : texte(vers, carnet.join("\n\n")),
+    );
+  }
   return messages;
 }
 

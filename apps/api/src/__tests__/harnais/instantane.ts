@@ -53,7 +53,7 @@ function formeDe(m: MessageSortant): string {
         buttons?: Array<{ reply: { id: string; title: string } }>;
         sections?: Array<{ rows: Array<{ id: string; title: string }> }>;
         name?: string;
-        parameters?: { flow_cta?: string };
+        parameters?: { flow_cta?: string; display_text?: string; url?: string };
       };
       footer?: { text?: string };
       header?: { type?: string };
@@ -78,6 +78,18 @@ function formeDe(m: MessageSortant): string {
   }
   if (i?.type === "flow") return `formulaire(${i.action?.parameters?.flow_cta ?? "?"})`;
   if (i?.type === "location_request_message") return "demande de position";
+  /**
+   * Le bouton-lien rend son LIBELLE et son URL — ADR 0097.
+   *
+   * Sans eux, la transcription montrerait `cta_url` et un corps de message
+   * d'ou l'URL vient justement de partir : l'instantane cesserait de voir la
+   * seule chose que la conversion a deplacee. Un livrable qui perd de vue ce
+   * qui vient de changer ne sert plus a rien.
+   */
+  if (i?.type === "cta_url") {
+    const p = i.action?.parameters;
+    return `bouton-lien[${p?.display_text ?? "?"} → ${p?.url ?? "?"}]`;
+  }
   return i?.type ?? "interactif";
 }
 

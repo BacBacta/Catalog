@@ -91,8 +91,8 @@
       Dès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici.
       
       🆕 Cette boutique débute sur Catalog : aucun paiement n'y est encore prouvé.
-    ← texte
-      Votre suivi et votre reçu vérifiable vivent ici — gardez ce lien : https://boutique.test/suivi/‹jeton›
+    ← bouton-lien[Suivre ma commande → https://boutique.test/suivi/‹jeton›]
+      Votre suivi et votre reçu vérifiable vivent ici — gardez ce message.
       
       Une fois le paiement prouvé, n'importe qui peut contrôler le reçu avec le code de vérification, ici : https://boutique.test/v/?c=‹code›
       

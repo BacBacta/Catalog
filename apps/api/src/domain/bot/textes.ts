@@ -168,6 +168,20 @@ export interface TextesAcheteuse {
   /** Le lien de suivi seul, quand le bloc paiement a deja tout dit du paiement. */
   suiteSuivi: (lien: string) => string;
   /**
+   * Les MEMES trois phrases, quand le lien voyage dans un bouton `cta_url`
+   * plutot que dans le texte (ADR 0097). L'URL en sort ; l'instruction reste.
+   *
+   * Les trois ci-dessus ne sont pas mortes pour autant : elles restent le
+   * repli quand l'URL n'est pas `https://` — un bouton exige ce schema, et
+   * une configuration de travers ne doit pas faire echouer la confirmation
+   * d'une commande qui, elle, est bien enregistree.
+   */
+  suiteAcompteBouton: string;
+  suiteSansAcompteBouton: string;
+  suiteSuiviBouton: string;
+  /** Le mot du bouton. Court : la borne n'est pas mesuree, voir `LIEN_LIBELLE_MAX`. */
+  libelleSuivi: string;
+  /**
    * Ou N'IMPORTE QUI controle le recu, une fois emis — analyse du 13/08 : la
    * page /v n'etait distribuee nulle part, alors que le recu verifiable est
    * la proposition de valeur n° 1. Le code est public, le lien peut voyager.
@@ -389,6 +403,14 @@ const fr: TextesAcheteuse = {
     `Rien à payer d'avance — vous payez à la réception.\nSuivez votre commande ici : ${lien}`,
   suiteSuivi: (lien) =>
     `Votre suivi et votre reçu vérifiable vivent ici — gardez ce lien : ${lien}`,
+  suiteAcompteBouton:
+    "Pour payer l'acompte, ouvrez le suivi avec le bouton ci-dessous.\nAprès le paiement, votre reçu vérifiable vous attend au même endroit.\nVotre code secret ne se tape QUE sur l'écran de votre opérateur — jamais ici.",
+  suiteSansAcompteBouton:
+    "Rien à payer d'avance — vous payez à la réception.\nSuivez votre commande avec le bouton ci-dessous.",
+  /* « gardez ce message » et non « gardez ce lien » : un bouton ne se copie
+     pas, c'est le message qui se retrouve dans le fil. */
+  suiteSuiviBouton: "Votre suivi et votre reçu vérifiable vivent ici — gardez ce message.",
+  libelleSuivi: "Suivre ma commande",
   suiteVerification: (lien) =>
     `Une fois le paiement prouvé, n'importe qui peut contrôler le reçu avec le code de vérification, ici : ${lien}`,
   commandeRatee:
@@ -612,6 +634,12 @@ const en: TextesAcheteuse = {
     `Nothing to pay upfront — you pay on delivery.\nFollow your order here: ${lien}`,
   suiteSuivi: (lien) =>
     `Your tracking and your verifiable receipt live here — keep this link: ${lien}`,
+  suiteAcompteBouton:
+    "To pay the deposit, open your tracking with the button below.\nAfter payment, your verifiable receipt is waiting at the same place.\nYour secret code is typed ONLY on your operator's screen — never here.",
+  suiteSansAcompteBouton:
+    "Nothing to pay upfront — you pay on delivery.\nFollow your order with the button below.",
+  suiteSuiviBouton: "Your tracking and your verifiable receipt live here — keep this message.",
+  libelleSuivi: "Track my order",
   suiteVerification: (lien) =>
     `Once the payment is proved, anyone can check the receipt with the verification code, here: ${lien}`,
   commandeRatee: "This order could not be saved. Start again from the list — nothing was lost.",
@@ -827,6 +855,13 @@ const wes: TextesAcheteuse = {
     `For pay di moni weh go confam di order, open: ${lien}\nAfta you pay, yua resit weh you fit check go dey for di same place.\nYua secret code na for yua operator yi screen ONLY you go type-am \u2014 never for hia.`,
   suiteSansAcompte: (lien) =>
     `Notin for pay before \u2014 you go pay wen dem bring-am.\nFollow yua order for hia: ${lien}`,
+  suiteAcompteBouton:
+    "For pay di moni weh go confam di order, open di tracking wit di button for down.\nAfta you pay, yua resit weh you fit check go dey for di same place.\nYua secret code na for yua operator yi screen ONLY you go type-am \u2014 never for hia.",
+  suiteSansAcompteBouton:
+    "Notin for pay before \u2014 you go pay wen dem bring-am.\nFollow yua order wit di button for down.",
+  suiteSuiviBouton:
+    "Yua tracking an yua resit weh you fit check dey for hia \u2014 keep dis message.",
+  libelleSuivi: "Follow ma order",
   suiteVerification: (lien) =>
     `Wen di pay don prove, any person fit check di receipt wit di verification code, for hia: ${lien}`,
   commandeRatee: "Dis order no fit enter. Start again for di lis \u2014 notin loss.",
