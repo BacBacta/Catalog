@@ -322,14 +322,14 @@ export interface TextesAcheteuse {
 const fr: TextesAcheteuse = {
   boutiqueIntrouvable: "Cette boutique est introuvable. Vérifiez le lien reçu.",
   aideAcheteuse:
-    "Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vérifie son reçu.\n\nQue puis-je faire pour vous ?",
+    "Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vérifie son reçu.\n\nQue puis-je faire pour vous ?",
   btnVendre: "Vendre avec Catalog",
   btnSuivre: "Suivre ma commande",
   btnComment: "Comment ça marche ?",
   commentCaMarche:
-    "Catalog aide une vendeuse qui vend déjà sur WhatsApp : un catalogue partageable, un paiement mobile money et un reçu vérifiable.\n\nL'argent va directement de vous à elle — Catalog n'encaisse rien et ne prend aucune commission. Quand elle colle le SMS de son opérateur, votre paiement devient un reçu que n'importe qui peut vérifier : c'est la différence avec une capture d'écran.\n\nPour commander, il vous faut le lien de sa boutique — elle vous l'envoie. Il n'y a pas d'annuaire ici.",
+    "*Vous vendez déjà sur WhatsApp. Catalog ne change pas ça.*\n\nVous gardez vos clients, vos discussions, votre façon de faire. Catalog ajoute trois choses par-dessus :\n\n📱 *Un lien de boutique à partager* — vos articles avec photos et prix. Vous l'envoyez, vous le mettez en Statut. Fini de tout réécrire à chaque personne.\n\n💰 *L'argent arrive droit chez vous* — sur VOTRE Mobile Money, celui que vous avez déjà. Catalog n'y touche jamais et ne prend aucune commission.\n\n🧾 *Un reçu que tout le monde peut vérifier* — vous collez le SMS de votre opérateur, et le paiement devient une preuve. C'est votre protection contre les fausses captures d'écran.\n\nPour commencer : le nom de votre boutique et votre ville. Deux minutes, ici même, rien à installer.\n\nVous attendez plutôt une commande ? Touchez « Suivre ma commande ».",
   aideGestes:
-    "Quatre mots marchent partout : « menu » (accueil de la boutique), « panier » (ce que vous avez choisi), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler à la vendeuse » est à l'accueil. Write « english » for English.",
+    "Quatre mots marchent partout : « menu » (accueil de la boutique), « panier » (ce que vous avez choisi), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler au vendeur/se » est à l'accueil. Write « english » for English.",
   annule: "C'est annulé — le panier est vide, rien n'a été commandé.",
   pannePassagere:
     "Quelque chose n'a pas marché de mon côté — ce n'est pas vous. Réessayez dans un instant, ou écrivez « menu ».",
@@ -353,9 +353,9 @@ const fr: TextesAcheteuse = {
   accueilReputation: (note, nb) =>
     `★ ${note != null ? `${note} · ` : ""}${nb} vente${nb > 1 ? "s" : ""} prouvée${nb > 1 ? "s" : ""} (avis vérifiés)`,
   accueilPitch:
-    "Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.",
+    "Commandez ici — chaque paiement prouvé donne un reçu vérifiable. Le/la vendeur/se vous répond sur WhatsApp.",
   btnVoirArticles: "Voir les articles",
-  btnParlerVendeuse: "Parler à la vendeuse",
+  btnParlerVendeuse: "Parler au vendeur/se",
   parlerVendeuse: (nom, lien) =>
     `Pour parler directement à ${nom}, écrivez-lui sur son WhatsApp :\n${lien}`,
 
@@ -376,7 +376,8 @@ const fr: TextesAcheteuse = {
   quantiteAutre: "Écrivez le nombre voulu, en chiffres (ex. : 3).",
   quantiteIncomprise:
     "Je n'ai pas compris le nombre. Écrivez-le en chiffres (ex. : 3) — ou « annuler » pour abandonner.",
-  quantiteTropHaute: (max) => `La vendeuse en annonce ${max}. Écrivez un nombre jusqu'à ${max}.`,
+  quantiteTropHaute: (max) =>
+    `Le/la vendeur/se en annonce ${max}. Écrivez un nombre jusqu'à ${max}.`,
   plusDeStock: (nom) =>
     `« ${nom} » n'a plus d'exemplaire disponible en plus de ce qui est déjà dans votre panier.`,
 
@@ -403,7 +404,7 @@ const fr: TextesAcheteuse = {
   btnRetrait: "Point de retrait",
   modeParBoutons: "Choisissez avec les boutons ci-dessous.",
   villeDouteuse: (saisie) =>
-    `Je note *${saisie}* comme ville de livraison — c'est bien ça ?\n\nSi c'était une question, écrivez plutôt la ville, et posez-la ensuite à la vendeuse.`,
+    `Je note *${saisie}* comme ville de livraison — c'est bien ça ?\n\nSi c'était une question, écrivez plutôt la ville, et posez-la ensuite au vendeur/se.`,
   btnVilleOui: "Oui, c'est la ville",
   btnVilleNon: "Non, corriger",
   questionDetailsLivraison:
@@ -465,16 +466,16 @@ const fr: TextesAcheteuse = {
   statutPreuveProuvee: "Paiement prouvé — votre reçu vérifiable est émis.",
   statutPreuveContestee: "Paiement contesté — la commande est gelée le temps d'éclaircir.",
   statutPreuveNonTracee:
-    "Paiement déclaré par la vendeuse, non tracé — il ne donne pas de reçu vérifiable.",
+    "Paiement déclaré par le/la vendeur/se, non tracé — il ne donne pas de reçu vérifiable.",
   statutOuEstLeLien:
     "Votre lien de suivi est dans le message de confirmation, plus haut dans ce fil.",
 
   faqPrix:
     "Les prix sont affichés dans la liste des articles et sur chaque fiche — ouvrez « Voir les articles ».",
   faqPhoto:
-    "Chaque fiche montre la photo de l'article quand la vendeuse en a mis une — ouvrez « Voir les articles ».",
+    "Chaque fiche montre la photo de l'article quand le/la vendeur/se en a mis une — ouvrez « Voir les articles ».",
   faqVariante:
-    "Tailles, couleurs et modèles se précisent directement avec la vendeuse — bouton « Parler à la vendeuse ».",
+    "Tailles, couleurs et modèles se précisent directement avec le/la vendeur/se — bouton « Parler au vendeur/se ».",
 
   relanceAcompte: (ref, acompte) =>
     `Votre commande ${ref} attend son acompte de *${formatXaf(acompte)}* pour être confirmée. Le lien de paiement est dans votre message de confirmation, juste au-dessus. Sans acompte, la commande expirera d'elle-même.`,
@@ -484,7 +485,7 @@ const fr: TextesAcheteuse = {
     "Cette boutique n'a pas encore mis de photos — les articles sont dans la liste.",
   panierAbandonneAilleurs:
     "Nouveau départ ici : le panier commencé dans l'autre boutique n'a pas été gardé.",
-  ligneHorsLivraison: "(hors livraison — le prix de la course se convient avec la vendeuse)",
+  ligneHorsLivraison: "(hors livraison — le prix de la course se convient avec le/la vendeur/se)",
   apresConfirmation: (nom, lien) =>
     `Pour la suite — livraison, questions, précisions — écrivez directement à ${nom} :\n${lien}`,
   blocPaiement: (b) =>
@@ -496,7 +497,7 @@ const fr: TextesAcheteuse = {
         : []),
       "Votre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.",
       ...(b.lienPayer ? [`En un tap, le clavier pré-rempli : ${b.lienPayer}`] : []),
-      "Dès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici.",
+      "Dès que le/la vendeur/se colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenu/e ici.",
       /* La confiance se dit ICI, en dernier : juste avant le geste (ADR 0061). */
       ...(b.confiance ? ["", fr.ligneConfiance(b.confiance, b.lienBoutique ?? null)] : []),
     ].join("\n"),
@@ -530,14 +531,14 @@ const fr: TextesAcheteuse = {
   btnPasMoi: "Ce n'est pas moi",
   btnDonnerAvis: "Donner mon avis",
   contresigneMerci: (ref) =>
-    `🖋️ *Merci — votre confirmation est enregistrée.*\n${ref} porte désormais deux voix : celle de la vendeuse et la vôtre. C'est la preuve la plus solide que Catalog sache produire.`,
+    `🖋️ *Merci — votre confirmation est enregistrée.*\n${ref} porte désormais deux voix : celle du vendeur/se et la vôtre. C'est la preuve la plus solide que Catalog sache produire.`,
   contresigneImpossible:
     "Cette confirmation n'a plus d'objet : ou le paiement n'est pas encore prouvé, ou vous l'avez déjà confirmé. Rien n'a changé.",
   contesterConfirmation: (ref) =>
-    `⚠️ Vous dites ne pas reconnaître ce paiement sur ${ref}.\nConfirmer *gèle la commande* jusqu'à ce qu'un humain tranche — la vendeuse ne pourra plus l'avancer. À n'utiliser que si c'est bien le cas.`,
+    `⚠️ Vous dites ne pas reconnaître ce paiement sur ${ref}.\nConfirmer *gèle la commande* jusqu'à ce qu'un humain tranche — le/la vendeur/se ne pourra plus l'avancer. À n'utiliser que si c'est bien le cas.`,
   btnContesterOui: "Oui, je conteste",
   contesteEnregistre: (ref) =>
-    `${ref} est signalée. Elle n'avance plus tant que le désaccord n'est pas réglé — parlez-en directement à la vendeuse, c'est le plus rapide.`,
+    `${ref} est signalée. Elle n'avance plus tant que le désaccord n'est pas réglé — parlez-en directement au vendeur/se, c'est le plus rapide.`,
   avisInvitation: (nom) =>
     `Comment s'est passée votre commande chez *${nom}* ?\nVotre avis aide les prochaines acheteuses.`,
   btnNoter: "Noter la boutique",
@@ -549,15 +550,15 @@ const fr: TextesAcheteuse = {
   btnSansMot: "Sans commentaire",
   avisMotMerci: "C'est ajouté. Merci d'avoir pris le temps.",
   avisImpossible:
-    "L'avis s'ouvre une fois la commande livrée — la vendeuse la marquera comme telle.",
+    "L'avis s'ouvre une fois la commande livrée — le/la vendeur/se la marquera comme telle.",
   avisDejaDepose: "Vous avez déjà donné votre avis sur cette commande. Merci encore !",
   apresAchatSansCommande:
     "Aucune commande enregistrée sur ce numéro. Ouvrez le lien d'une boutique pour commander.",
 
   boutiqueFermeeAccueil:
-    "🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — elle vous dira quand elle reprend.",
+    "🌴 Le/la vendeur/se ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — il/elle vous dira quand la boutique reprend.",
   boutiqueFermee: (nom) =>
-    `🌴 *${nom}* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez à la vendeuse : elle seule sait quand elle reprend.`,
+    `🌴 *${nom}* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez au vendeur/se : lui/elle seul/e sait quand la boutique reprend.`,
 };
 
 const en: TextesAcheteuse = {
@@ -568,7 +569,7 @@ const en: TextesAcheteuse = {
   btnSuivre: "Track my order",
   btnComment: "How does it work?",
   commentCaMarche:
-    "Catalog helps sellers who already sell on WhatsApp: a shareable catalogue, mobile money payment and a verifiable receipt.\n\nThe money goes straight from you to her — Catalog never holds it and takes no commission. When she pastes her operator's SMS, your payment becomes a receipt anyone can check: that is the difference with a screenshot.\n\nTo order, you need her shop link — she sends it to you. There is no directory here.",
+    "*You already sell on WhatsApp. Catalog does not change that.*\n\nYou keep your customers, your chats, your way of working. Catalog adds three things on top:\n\n📱 *A shop link to share* — your items with photos and prices. Send it, put it in your Status. No more retyping everything for each person.\n\n💰 *The money comes straight to you* — on YOUR Mobile Money, the one you already have. Catalog never touches it and takes no commission.\n\n🧾 *A receipt anyone can check* — you paste your operator's SMS, and the payment becomes proof. That is your protection against fake screenshots.\n\nTo start: your shop name and your city. Two minutes, right here, nothing to install.\n\nWaiting for an order instead? Tap \u00ab Suivre ma commande \u00bb.",
   aideGestes:
     "Four words work everywhere: “menu” (shop home), “cart” (what you picked), “cancel” (drop the current order), “status” (your last order). For a human, the “Talk to the seller” button is on the home screen. Écrivez « français » pour le français.",
   annule: "Cancelled — your cart is empty, nothing was ordered.",

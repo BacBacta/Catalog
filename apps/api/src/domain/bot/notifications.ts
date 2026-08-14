@@ -95,7 +95,7 @@ export function corpsNouvelleCommande(c: {
       : ["Sans prépaiement — vous encaissez à la remise."]),
     ...(c.duAvantXaf === 0 && c.lienReversement
       ? [
-          `⚠️ Cette vente est partie sans acompte : votre numéro Mobile Money n'est pas encore posé. Réglez-le une fois, et vos clientes paient d'avance : ${c.lienReversement}`,
+          `⚠️ Cette vente est partie sans acompte : votre numéro Mobile Money n'est pas encore posé. Réglez-le une fois, et vos client/es paient d'avance : ${c.lienReversement}`,
         ]
       : []),
     ...(c.destination ? [`📍 ${c.destination}`] : []),
@@ -115,7 +115,7 @@ export function corpsNouvelleCommande(c: {
 
 /** La remise marquee depuis le fil : ce que la vendeuse voit en retour. */
 export function corpsLivraisonMarquee(reference: string): string {
-  return `📦 *${reference} est marquée livrée.* L'acheteuse vient d'en être prévenue, avec l'invitation à laisser un avis.`;
+  return `📦 *${reference} est marquée livrée.* L'acheteur/se vient d'en être prévenu/e, avec l'invitation à laisser un avis.`;
 }
 
 export function corpsLivraisonRefusee(reference: string, raison: string): string {
@@ -125,7 +125,7 @@ export function corpsLivraisonRefusee(reference: string, raison: string): string
       : raison === "commande_introuvable"
         ? "aucune commande à ce numéro chez vous"
         : "cette étape n'est pas atteignable maintenant";
-  return `${reference} : rien n'a bougé — ${explication}. Le détail est dans votre espace vendeuse, écran Commandes.`;
+  return `${reference} : rien n'a bougé — ${explication}. Le détail est dans votre espace vendeur/se, écran Commandes.`;
 }
 
 /* ───────────────── le récapitulatif d'absence — ADR 0105 ────────────────── */

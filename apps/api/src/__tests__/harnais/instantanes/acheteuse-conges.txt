@@ -5,43 +5,43 @@
    étape : aucun_prospect → catalogue
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
-      🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — elle vous dira quand elle reprend.
+      🌴 Le/la vendeur/se ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — il/elle vous dira quand la boutique reprend.
 
 ## 2. bouton « cmd:‹article› »
    intention : avancer
    étape : catalogue (inchangée)
     ← boutons[vendeuse · catalogue]
-      🌴 *‹boutique›* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez à la vendeuse : elle seule sait quand elle reprend.
+      🌴 *‹boutique›* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez au vendeur/se : lui/elle seul/e sait quand la boutique reprend.
 
 ## 3. ligne de liste « qte:1 »
    intention : avancer
    étape : catalogue (inchangée)
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
-      🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — elle vous dira quand elle reprend.
+      🌴 Le/la vendeur/se ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — il/elle vous dira quand la boutique reprend.
 
 ## 4. bouton « commander »
    intention : avancer
    étape : catalogue (inchangée)
     ← boutons[vendeuse · catalogue]
-      🌴 *‹boutique›* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez à la vendeuse : elle seule sait quand elle reprend.
+      🌴 *‹boutique›* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez au vendeur/se : lui/elle seul/e sait quand la boutique reprend.
 
 ## 5. bouton « mode:retrait »
    intention : avancer
    étape : catalogue (inchangée)
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
-      🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — elle vous dira quand elle reprend.
+      🌴 Le/la vendeur/se ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — il/elle vous dira quand la boutique reprend.
 
 ## 6. texte « Carrefour Warda, 690112233 »
    intention : avancer
    étape : catalogue (inchangée)
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
-      🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — elle vous dira quand elle reprend.
+      🌴 Le/la vendeur/se ne prend pas de nouvelle commande en ce moment. Vous pouvez voir les articles et lui écrire — il/elle vous dira quand la boutique reprend.
 
 ## 7. bouton « confirmer »
    intention : avancer
    étape : catalogue (inchangée)
     ← boutons[vendeuse · catalogue]
-      🌴 *‹boutique›* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez à la vendeuse : elle seule sait quand elle reprend.
+      🌴 *‹boutique›* ne prend pas de nouvelle commande en ce moment. Rien n'a été commandé. Écrivez au vendeur/se : lui/elle seul/e sait quand la boutique reprend.

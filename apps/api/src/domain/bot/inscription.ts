@@ -477,8 +477,8 @@ export function messageOnboarding(
     ? `4. Votre boutique en ligne, à partager partout :\n${liens.lienBoutique}`
     : "4. Votre boutique en ligne se partage depuis « ma carte ».";
   const reversement = liens.lienEspace
-    ? `3. Pour être payée d'AVANCE, posez votre numéro Mobile Money :\n${liens.lienEspace}/reversement`
-    : "3. Pour être payée d'AVANCE, posez votre numéro Mobile Money dans votre espace vendeuse.";
+    ? `3. Pour être payé/e d'AVANCE, posez votre numéro Mobile Money :\n${liens.lienEspace}/reversement`
+    : "3. Pour être payé/e d'AVANCE, posez votre numéro Mobile Money dans votre espace vendeur/se.";
   return texte(
     vers,
     `📖 *Votre boutique, mode d'emploi :*\n\n1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.\n2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-482910\n${reversement}\n${boutique}\n5. Votre affiche à poster en Statut : écrivez « ma carte » — ou touchez le bouton après chaque article.\n\nÀ tout moment : « ma boutique » pour le menu, « ajouter » pour un article, « vendu » pour déclarer une vente déjà négociée.`,
@@ -512,7 +512,7 @@ export function messageArticlePublie(
    * ecran qu'elle ouvrira peut-etre.
    */
   const conges = enConges
-    ? "\n\n🌴 Rappel : votre boutique est en congés — elle ne prend aucune commande. Écrivez « je reprends » quand vous êtes prête."
+    ? "\n\n🌴 Rappel : votre boutique est en congés — elle ne prend aucune commande. Écrivez « je reprends » quand vous êtes prêt/e."
     : "";
   const pageWeb =
     pageWebDansMinutes === null
@@ -550,7 +550,7 @@ export function messageArticlePublie(
 export function rappelConges(vers: string): MessageSortant {
   return boutons(
     vers,
-    "🌴 Votre boutique est en congés : elle reste en ligne et vos clientes peuvent vous écrire, mais aucune nouvelle commande ne peut être créée.",
+    "🌴 Votre boutique est en congés : elle reste en ligne et vos client/es peuvent vous écrire, mais aucune nouvelle commande ne peut être créée.",
     [{ id: "rouvrir", titre: "Je reprends" }],
   );
 }
@@ -762,7 +762,7 @@ export function reagirInscription(
           texte(
             vers,
             (etat.nom === "comptoir"
-              ? "Vous êtes en train de déclarer une vente : je crée la commande et je vous rends le message de paiement à transférer à votre cliente."
+              ? "Vous êtes en train de déclarer une vente : je crée la commande et je vous rends le message de paiement à transférer à votre client/e."
               : "Vous êtes en train de créer votre boutique ou d'ajouter un article.") +
               SORTIE_DE_SECOURS,
           ),

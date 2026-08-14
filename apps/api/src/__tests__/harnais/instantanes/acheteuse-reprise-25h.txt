@@ -5,7 +5,7 @@
    étape : aucun_prospect → catalogue
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
-      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. Le/la vendeur/se vous répond sur WhatsApp.
 
 ## 2. bouton « cmd:‹article› »
    intention : avancer
@@ -44,4 +44,4 @@
    temps écoulé : 1500 min
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
-      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. Le/la vendeur/se vous répond sur WhatsApp.

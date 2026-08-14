@@ -4,7 +4,7 @@
    intention : comprendre
    étape : aucun_prospect → accueil
     ← boutons[vendre · suivi · comment]
-      Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vérifie son reçu.
+      Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vérifie son reçu.
       
       Que puis-je faire pour vous ?
 
@@ -78,7 +78,7 @@
       
       1. Les commandes arrivent ici, dans ce fil — un message vous prévient à chaque fois.
       2. Remise faite ? Écrivez « livrée » et la référence. Exemple : livrée CT-‹ref›
-      3. Pour être payée d'AVANCE, posez votre numéro Mobile Money :
+      3. Pour être payé/e d'AVANCE, posez votre numéro Mobile Money :
       https://app.test/reversement
       4. Votre boutique en ligne, à partager partout :
       https://boutique.test/‹slug›

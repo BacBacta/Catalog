@@ -368,9 +368,9 @@ export function questionComptoir(etat: EtatComptoir): string {
     case "article":
       return "*Qu'avez-vous vendu ?*\nExemple : Robe wax grande taille";
     case "prix":
-      return `*${etat.article}* — au prix convenu avec votre cliente, en francs ?\nExemple : 12500`;
+      return `*${etat.article}* — au prix convenu avec votre client/e, en francs ?\nExemple : 12500`;
     case "cliente":
-      return "*Le numéro WhatsApp de votre cliente ?*\nExemple : 677 00 11 22";
+      return "*Le numéro WhatsApp de votre client/e ?*\nExemple : 677 00 11 22";
     case "remise":
       return "*Où se fait la remise ?* Le lieu convenu, en quelques mots.\nExemple : Carrefour Warda, devant la pharmacie";
     case "recap":
@@ -383,7 +383,7 @@ export function recapComptoir(etat: Extract<EtatComptoir, { pas: "recap" }>): st
   return [
     "🧾 *Récapitulatif de la vente*",
     `${etat.article} — ${formatXaf(etat.prixXaf)}`,
-    `Cliente : ${etat.cliente}`,
+    `Client/e : ${etat.cliente}`,
     `Remise : ${etat.remise}`,
     "",
     "Je crée la commande et je vous rends le message de paiement à lui transférer.",
@@ -400,8 +400,8 @@ export function phraseRefusComptoir(motif: MotifRefus): string {
     case "prix_negatif":
       return "Un prix ne peut pas être négatif. En francs, en chiffres — exemple : 12500.";
     case "numero_illisible":
-      return "Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22.";
+      return "Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22.";
     case "remise_trop_courte":
-      return "Il me faut un lieu que votre cliente reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie.";
+      return "Il me faut un lieu que votre client/e reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie.";
   }
 }

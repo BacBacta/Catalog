@@ -186,7 +186,7 @@ export async function executerRelanceReversement(
   );
   if (!decision.relancer) return;
 
-  const lien = deps.baseApp ? `\nVotre espace vendeuse : ${deps.baseApp}/reversement` : "";
+  const lien = deps.baseApp ? `\nVotre espace vendeur/se : ${deps.baseApp}/reversement` : "";
   /**
    * Par la PORTE — ADR 0060, et c'est ici que ça comptait le plus.
    *
@@ -199,7 +199,7 @@ export async function executerRelanceReversement(
   await notifier(
     deps,
     charge.phone,
-    `Votre boutique est prête — il ne lui manque qu'une chose pour être payée d'AVANCE : votre numéro Mobile Money.\nIl a sa propre vérification (c'est le numéro qui reçoit votre argent), et chaque paiement prouvé donnera un reçu vérifiable.${lien}\nSans lui, vos clientes commandent sans acompte.`,
+    `Votre boutique est prête — il ne lui manque qu'une chose pour être payé/e d'AVANCE : votre numéro Mobile Money.\nIl a sa propre vérification (c'est le numéro qui reçoit votre argent), et chaque paiement prouvé donnera un reçu vérifiable.${lien}\nSans lui, vos client/es commandent sans acompte.`,
     undefined,
     { sujet: "reversement_absent", parametres: [seller.businessName], langue: "fr" },
   );

@@ -325,25 +325,45 @@ describe("les chemins defensifs de la machine", () => {
     expect(idsBoutons(r.messages[0])).toEqual(["vendre", "suivi"]);
   });
 
-  it("l'explication ne promet AUCUN annuaire de boutiques", () => {
-    /* Il n'en existe pas, et par construction : une boutique se decouvre par un
-       lien partage. Promettre une liste enverrait chercher un catalogue general
-       qui n'arrivera jamais — AGENTS.md §7.7, on dit ce qui manque. */
-    for (const t of [TEXTES.fr, TEXTES.en]) {
-      expect(t.commentCaMarche).toMatch(/lien|link/i);
-    }
-    expect(TEXTES.fr.commentCaMarche).toMatch(/pas d'annuaire/i);
-    expect(TEXTES.en.commentCaMarche).toMatch(/no directory/i);
+  it("l'explication s'adresse au VENDEUR — c'est lui qui écrit au numéro sans lien", () => {
+    /**
+     * ADR 0108. Qui touche « Comment ça marche ? » depuis l'accueil froid ?
+     * Quelqu'un qui a écrit au numéro SANS lien de boutique — donc une
+     * prospect vendeur/se (l'entonnoir de l'ADR 0034). Une acheteuse, elle,
+     * arrive par le lien d'une boutique et ne voit jamais cet accueil.
+     *
+     * La première version répondait depuis le siège de l'acheteuse
+     * (« l'argent va directement de vous à elle ») et se fermait sur un
+     * négatif — « il n'y a pas d'annuaire ici ». Pour un vendeur qui découvre
+     * le produit, c'était un cul-de-sac : du churn au premier message.
+     */
+    expect(TEXTES.fr.commentCaMarche).toMatch(/vous vendez déjà sur whatsapp/i);
+    expect(TEXTES.en.commentCaMarche).toMatch(/you already sell on whatsapp/i);
   });
 
-  it("l'explication ne promet ni commission ni encaissement par Catalog", () => {
+  it("elle lève les deux peurs qui font partir : le coût et le changement", () => {
     /* AGENTS.md §2 : les fonds ne transitent jamais par un compte a nous, et
-       aucune commission n'est prelevee. La copie qui s'adresse a une inconnue
-       est l'endroit ou cette promesse se tient ou se perd. */
-    expect(TEXTES.fr.commentCaMarche).toMatch(/n'encaisse rien/i);
+       aucune commission n'est prelevee. Dites a une inconnue, ces deux phrases
+       sont ce qui la fait rester — et la premiere ligne repond a l'autre peur :
+       elle ne change rien a sa facon de vendre. */
+    expect(TEXTES.fr.commentCaMarche).toMatch(/n'y touche jamais/i);
     expect(TEXTES.fr.commentCaMarche).toMatch(/aucune commission/i);
-    expect(TEXTES.en.commentCaMarche).toMatch(/never holds it/i);
+    expect(TEXTES.fr.commentCaMarche).toMatch(/VOTRE Mobile Money/);
+    expect(TEXTES.fr.commentCaMarche).toMatch(/ne change pas ça/i);
+    expect(TEXTES.en.commentCaMarche).toMatch(/never touches it/i);
     expect(TEXTES.en.commentCaMarche).toMatch(/no commission/i);
+  });
+
+  it("elle dit le premier pas, et ne promet AUCUN annuaire", () => {
+    /* Un onboarding qui explique sans dire quoi faire ensuite laisse devant un
+       fait, pas devant un geste. Et l'annuaire n'existe pas, par construction :
+       ne pas le promettre suffit — l'ancienne version le NIAIT, ce qui mettait
+       un negatif en derniere ligne. */
+    expect(TEXTES.fr.commentCaMarche).toMatch(/deux minutes/i);
+    expect(TEXTES.en.commentCaMarche).toMatch(/two minutes/i);
+    for (const t of [TEXTES.fr, TEXTES.en]) {
+      expect(t.commentCaMarche).not.toMatch(/annuaire|directory/i);
+    }
   });
 
   it("changer de langue sans boutique en contexte marche aussi", () => {

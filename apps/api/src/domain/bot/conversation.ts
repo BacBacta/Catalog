@@ -2316,7 +2316,7 @@ export function reagirVendeuse(
           vers,
           contexte.boutique?.lienEspace
             ? `Toutes vos commandes, avec leurs étapes : ${contexte.boutique.lienEspace}`
-            : "Toutes vos commandes vivent dans votre espace vendeuse, écran Commandes.",
+            : "Toutes vos commandes vivent dans votre espace vendeur/se, écran Commandes.",
         ),
       ],
     };
@@ -2346,7 +2346,7 @@ export function reagirVendeuse(
       messages: [
         texte(
           vers,
-          "Collez ici le SMS de votre opérateur pour prouver un paiement, ou écrivez « solde ». Le reste — articles, photos, chiffres — vit dans votre espace vendeuse.",
+          "Collez ici le SMS de votre opérateur pour prouver un paiement, ou écrivez « solde ». Le reste — articles, photos, chiffres — vit dans votre espace vendeur/se.",
         ),
       ],
     };

@@ -5,27 +5,27 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | Étape | Geste | Étape après | Première réponse |
 |---|---|---|---|
 | aucun_prospect | texte_juste | inscription_nom | Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même. |
-| aucun_prospect | texte_faute | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | texte_sans_accents | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| aucun_prospect | texte_faute | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | texte_sans_accents | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | aucun_prospect | anglais | accueil | I am Catalog. Here, a seller opens her shop in two minutes, and a buyer tracks her order and checks her receip |
-| aucun_prospect | pidgin | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| aucun_prospect | pidgin | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | aucun_prospect | bouton_attendu | inscription_nom | Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même. |
-| aucun_prospect | bouton_ancien | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | ligne_liste | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | flux_valide | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | flux_tronque | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | photo | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | photo_legendee | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| aucun_prospect | bouton_ancien | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | ligne_liste | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | flux_valide | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | flux_tronque | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | photo | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | photo_legendee | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | aucun_prospect | vocal | accueil | Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « no |
 | aucun_prospect | sticker | accueil | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | aucun_prospect | document | accueil | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
-| aucun_prospect | localisation | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | hors_sujet | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| aucun_prospect | localisation | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | hors_sujet | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | aucun_prospect | silence | aucun_prospect | **— MUET —** |
 | aucun_prospect | double_envoi | inscription_nom | **— MUET —** |
-| aucun_prospect | retour_arriere | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | abandon | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| aucun_prospect | reprise_25h | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| aucun_prospect | retour_arriere | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | abandon | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| aucun_prospect | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | inscription_nom | texte_juste | inscription_ville | *Chez Mireille* — c'est noté. |
 | inscription_nom | texte_faute | inscription_ville | *Chez Mireile* — c'est noté. |
 | inscription_nom | texte_sans_accents | inscription_ville | *Chez Mireille Douala* — c'est noté. |
@@ -47,7 +47,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_nom | double_envoi | inscription_ville | **— MUET —** |
 | inscription_nom | retour_arriere | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | inscription_nom | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| inscription_nom | reprise_25h | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| inscription_nom | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | inscription_ville | texte_juste | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
 | inscription_ville | texte_faute | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
 | inscription_ville | texte_sans_accents | inscription_confirme | J'ai lu : *Chez Mireille*, à *douala*. |
@@ -69,7 +69,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_ville | double_envoi | inscription_confirme | **— MUET —** |
 | inscription_ville | retour_arriere | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | inscription_ville | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| inscription_ville | reprise_25h | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| inscription_ville | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | inscription_confirme | texte_juste | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
 | inscription_confirme | texte_faute | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
 | inscription_confirme | texte_sans_accents | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
@@ -91,7 +91,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_confirme | double_envoi | inscription_confirme | **— MUET —** |
 | inscription_confirme | retour_arriere | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
 | inscription_confirme | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| inscription_confirme | reprise_25h | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| inscription_confirme | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | aucun_vendeuse | texte_juste | aucun_vendeuse | *‹boutique›* |
 | aucun_vendeuse | texte_faute | aucun_vendeuse | *‹boutique›* |
 | aucun_vendeuse | texte_sans_accents | aucun_vendeuse | *‹boutique›* |
@@ -202,11 +202,11 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | article_confirme | retour_arriere | article_confirme | J'ai lu : *Robe wax* — *12 500 FCFA*. C'est bon ? |
 | article_confirme | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | article_confirme | reprise_25h | aucun_vendeuse | *‹boutique›* |
-| comptoir:article | texte_juste | comptoir:prix | *Sac en cuir* — au prix convenu avec votre cliente, en francs ? |
-| comptoir:article | texte_faute | comptoir:prix | *Sak en kuir* — au prix convenu avec votre cliente, en francs ? |
-| comptoir:article | texte_sans_accents | comptoir:prix | *Sac en cuir marron* — au prix convenu avec votre cliente, en francs ? |
-| comptoir:article | anglais | comptoir:prix | *Leather bag* — au prix convenu avec votre cliente, en francs ? |
-| comptoir:article | pidgin | comptoir:prix | *Leather bag* — au prix convenu avec votre cliente, en francs ? |
+| comptoir:article | texte_juste | comptoir:prix | *Sac en cuir* — au prix convenu avec votre client/e, en francs ? |
+| comptoir:article | texte_faute | comptoir:prix | *Sak en kuir* — au prix convenu avec votre client/e, en francs ? |
+| comptoir:article | texte_sans_accents | comptoir:prix | *Sac en cuir marron* — au prix convenu avec votre client/e, en francs ? |
+| comptoir:article | anglais | comptoir:prix | *Leather bag* — au prix convenu avec votre client/e, en francs ? |
+| comptoir:article | pidgin | comptoir:prix | *Leather bag* — au prix convenu avec votre client/e, en francs ? |
 | comptoir:article | bouton_attendu | aucun_vendeuse | C'est annulé — rien n'a été créé. |
 | comptoir:article | bouton_ancien | comptoir:article | Je n'ai pas saisi l'article. En quelques mots — exemple : Robe wax grande taille. |
 | comptoir:article | ligne_liste | comptoir:article | Je n'ai pas saisi l'article. En quelques mots — exemple : Robe wax grande taille. |
@@ -218,17 +218,17 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:article | sticker | comptoir:article | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | comptoir:article | document | comptoir:article | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
 | comptoir:article | localisation | comptoir:article | Merci — je ne sais pas encore me servir d'une position partagée. Écrivez-moi votre quartier et un repère (« en |
-| comptoir:article | hors_sujet | comptoir:prix | *est-ce que vous vendez des chaussures pour bébé ?* — au prix convenu avec votre cliente, en francs ? |
+| comptoir:article | hors_sujet | comptoir:prix | *est-ce que vous vendez des chaussures pour bébé ?* — au prix convenu avec votre client/e, en francs ? |
 | comptoir:article | silence | comptoir:article | **— MUET —** |
 | comptoir:article | double_envoi | comptoir:prix | **— MUET —** |
-| comptoir:article | retour_arriere | comptoir:prix | *corriger* — au prix convenu avec votre cliente, en francs ? |
+| comptoir:article | retour_arriere | comptoir:prix | *corriger* — au prix convenu avec votre client/e, en francs ? |
 | comptoir:article | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | comptoir:article | reprise_25h | aucun_vendeuse | *‹boutique›* |
-| comptoir:prix | texte_juste | comptoir:cliente | *Le numéro WhatsApp de votre cliente ?* |
-| comptoir:prix | texte_faute | comptoir:cliente | *Le numéro WhatsApp de votre cliente ?* |
-| comptoir:prix | texte_sans_accents | comptoir:cliente | *Le numéro WhatsApp de votre cliente ?* |
-| comptoir:prix | anglais | comptoir:cliente | *Le numéro WhatsApp de votre cliente ?* |
-| comptoir:prix | pidgin | comptoir:cliente | *Le numéro WhatsApp de votre cliente ?* |
+| comptoir:prix | texte_juste | comptoir:cliente | *Le numéro WhatsApp de votre client/e ?* |
+| comptoir:prix | texte_faute | comptoir:cliente | *Le numéro WhatsApp de votre client/e ?* |
+| comptoir:prix | texte_sans_accents | comptoir:cliente | *Le numéro WhatsApp de votre client/e ?* |
+| comptoir:prix | anglais | comptoir:cliente | *Le numéro WhatsApp de votre client/e ?* |
+| comptoir:prix | pidgin | comptoir:cliente | *Le numéro WhatsApp de votre client/e ?* |
 | comptoir:prix | bouton_attendu | aucun_vendeuse | C'est annulé — rien n'a été créé. |
 | comptoir:prix | bouton_ancien | comptoir:prix | Je n'ai pas lu de prix. En francs, en chiffres — exemple : 12500. |
 | comptoir:prix | ligne_liste | comptoir:prix | Je n'ai pas lu de prix. En francs, en chiffres — exemple : 12500. |
@@ -252,20 +252,20 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:cliente | anglais | comptoir:remise | *Où se fait la remise ?* Le lieu convenu, en quelques mots. |
 | comptoir:cliente | pidgin | comptoir:remise | *Où se fait la remise ?* Le lieu convenu, en quelques mots. |
 | comptoir:cliente | bouton_attendu | aucun_vendeuse | C'est annulé — rien n'a été créé. |
-| comptoir:cliente | bouton_ancien | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22. |
-| comptoir:cliente | ligne_liste | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22. |
+| comptoir:cliente | bouton_ancien | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22. |
+| comptoir:cliente | ligne_liste | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22. |
 | comptoir:cliente | flux_valide | comptoir:cliente | Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton. |
 | comptoir:cliente | flux_tronque | comptoir:cliente | Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton. |
-| comptoir:cliente | photo | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22. |
-| comptoir:cliente | photo_legendee | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22. |
+| comptoir:cliente | photo | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22. |
+| comptoir:cliente | photo_legendee | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22. |
 | comptoir:cliente | vocal | comptoir:cliente | Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « no |
 | comptoir:cliente | sticker | comptoir:cliente | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | comptoir:cliente | document | comptoir:cliente | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
 | comptoir:cliente | localisation | comptoir:cliente | Merci — je ne sais pas encore me servir d'une position partagée. Écrivez-moi votre quartier et un repère (« en |
-| comptoir:cliente | hors_sujet | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22. |
+| comptoir:cliente | hors_sujet | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22. |
 | comptoir:cliente | silence | comptoir:cliente | **— MUET —** |
 | comptoir:cliente | double_envoi | comptoir:remise | **— MUET —** |
-| comptoir:cliente | retour_arriere | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre cliente, au format camerounais — exemple : 677 00 11 22. |
+| comptoir:cliente | retour_arriere | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22. |
 | comptoir:cliente | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | comptoir:cliente | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | comptoir:remise | texte_juste | comptoir:recap | 🧾 *Récapitulatif de la vente* |
@@ -274,12 +274,12 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:remise | anglais | comptoir:recap | 🧾 *Récapitulatif de la vente* |
 | comptoir:remise | pidgin | comptoir:recap | 🧾 *Récapitulatif de la vente* |
 | comptoir:remise | bouton_attendu | aucun_vendeuse | C'est annulé — rien n'a été créé. |
-| comptoir:remise | bouton_ancien | comptoir:remise | Il me faut un lieu que votre cliente reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
-| comptoir:remise | ligne_liste | comptoir:remise | Il me faut un lieu que votre cliente reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
+| comptoir:remise | bouton_ancien | comptoir:remise | Il me faut un lieu que votre client/e reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
+| comptoir:remise | ligne_liste | comptoir:remise | Il me faut un lieu que votre client/e reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
 | comptoir:remise | flux_valide | comptoir:remise | Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton. |
 | comptoir:remise | flux_tronque | comptoir:remise | Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton. |
-| comptoir:remise | photo | comptoir:remise | Il me faut un lieu que votre cliente reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
-| comptoir:remise | photo_legendee | comptoir:remise | Il me faut un lieu que votre cliente reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
+| comptoir:remise | photo | comptoir:remise | Il me faut un lieu que votre client/e reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
+| comptoir:remise | photo_legendee | comptoir:remise | Il me faut un lieu que votre client/e reconnaîtra. Exemple : Carrefour Warda, devant la pharmacie. |
 | comptoir:remise | vocal | comptoir:remise | Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « no |
 | comptoir:remise | sticker | comptoir:remise | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | comptoir:remise | document | comptoir:remise | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
@@ -312,28 +312,28 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:recap | retour_arriere | comptoir:article | *Qu'avez-vous vendu ?* |
 | comptoir:recap | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | comptoir:recap | reprise_25h | aucun_vendeuse | *‹boutique›* |
-| accueil | texte_juste | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | texte_faute | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | texte_sans_accents | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| accueil | texte_juste | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | texte_faute | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | texte_sans_accents | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | accueil | anglais | accueil | I am Catalog. Here, a seller opens her shop in two minutes, and a buyer tracks her order and checks her receip |
-| accueil | pidgin | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| accueil | pidgin | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | accueil | bouton_attendu | inscription_nom | Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même. |
-| accueil | bouton_ancien | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | ligne_liste | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | flux_valide | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | flux_tronque | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | photo | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | photo_legendee | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| accueil | bouton_ancien | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | ligne_liste | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | flux_valide | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | flux_tronque | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | photo | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | photo_legendee | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | accueil | vocal | accueil | Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « no |
 | accueil | sticker | accueil | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | accueil | document | accueil | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
-| accueil | localisation | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | hors_sujet | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| accueil | localisation | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | hors_sujet | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | accueil | silence | accueil | **— MUET —** |
 | accueil | double_envoi | accueil | **— MUET —** |
-| accueil | retour_arriere | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | abandon | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| accueil | reprise_25h | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| accueil | retour_arriere | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | abandon | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| accueil | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | catalogue | texte_juste | catalogue | *‹boutique›* — Douala |
 | catalogue | texte_faute | catalogue | *‹boutique›* — Douala |
 | catalogue | texte_sans_accents | catalogue | *‹boutique›* — Douala |
@@ -516,19 +516,19 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | avis_mot | anglais | accueil | C'est ajouté. Merci d'avoir pris le temps. |
 | avis_mot | pidgin | accueil | C'est ajouté. Merci d'avoir pris le temps. |
 | avis_mot | bouton_attendu | accueil | C'est ajouté. Merci d'avoir pris le temps. |
-| avis_mot | bouton_ancien | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| avis_mot | ligne_liste | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| avis_mot | flux_valide | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| avis_mot | flux_tronque | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| avis_mot | photo | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
-| avis_mot | photo_legendee | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| avis_mot | bouton_ancien | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| avis_mot | ligne_liste | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| avis_mot | flux_valide | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| avis_mot | flux_tronque | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| avis_mot | photo | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
+| avis_mot | photo_legendee | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | avis_mot | vocal | avis_mot | Je ne sais pas encore écouter les notes vocales. Écrivez-moi en quelques mots — ou envoyez la photo, avec « no |
 | avis_mot | sticker | avis_mot | Joli. Mais je ne sais lire que le texte, les photos et les boutons. |
 | avis_mot | document | avis_mot | Je ne sais pas encore ouvrir les documents. Écrivez-moi ce qu'il contient, en quelques mots. |
-| avis_mot | localisation | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| avis_mot | localisation | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | avis_mot | hors_sujet | accueil | C'est ajouté. Merci d'avoir pris le temps. |
 | avis_mot | silence | avis_mot | **— MUET —** |
 | avis_mot | double_envoi | accueil | **— MUET —** |
 | avis_mot | retour_arriere | accueil | C'est ajouté. Merci d'avoir pris le temps. |
 | avis_mot | abandon | accueil | C'est ajouté. Merci d'avoir pris le temps. |
-| avis_mot | reprise_25h | accueil | Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vér |
+| avis_mot | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |

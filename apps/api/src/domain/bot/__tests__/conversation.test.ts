@@ -14,6 +14,7 @@ import {
   reagirVendeuse,
 } from "../conversation.ts";
 import type { MessageBoutons, MessageListe, MessageTexte } from "../messages.ts";
+import { TEXTES } from "../textes.ts";
 
 /**
  * La machine de conversation — ADR 0031, revisee ADR 0032 et 0033. Chaque test
@@ -381,7 +382,7 @@ describe("le stock suivi borne la quantite", () => {
     expect(r.etat).toEqual(etat);
     /* Le plafond est ATTRIBUE a la vendeuse : c'est sa declaration, pas un
        inventaire que Catalog decompte (ADR 0038). */
-    expect(corpsTexte(r.messages[0])).toContain("La vendeuse en annonce 2");
+    expect(corpsTexte(r.messages[0])).toContain(TEXTES.fr.quantiteTropHaute(2));
   });
 
   it("le panier compte dans la borne : 2 en stock, 2 au panier, plus rien a commander", () => {
@@ -684,7 +685,7 @@ describe("questions en langage libre", () => {
       { genre: "texte", texte: "vous avez quelles tailles ?" },
       ctx(),
     );
-    expect(corpsBoutons(r.messages[0])).toContain("vendeuse");
+    expect(corpsBoutons(r.messages[0])).toContain(TEXTES.fr.btnParlerVendeuse);
   });
 
   it("en plein flux, le langage libre n'est PAS une FAQ", () => {

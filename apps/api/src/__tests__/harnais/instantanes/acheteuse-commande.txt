@@ -5,7 +5,7 @@
    étape : aucun_prospect → catalogue
     ← boutons[catalogue · vendeuse]
       *‹boutique›* — Douala
-      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+      Commandez ici — chaque paiement prouvé donne un reçu vérifiable. Le/la vendeur/se vous répond sur WhatsApp.
 
 ## 2. ligne de liste « art:‹article› »
    intention : avancer
@@ -62,7 +62,7 @@
       *Récapitulatif — ‹boutique›*
       Article 1 × 2 : 15 000 FCFA l'unité
       Total : *30 000 FCFA*
-      (hors livraison — le prix de la course se convient avec la vendeuse)
+      (hors livraison — le prix de la course se convient avec le/la vendeur/se)
       Acompte pour confirmer : *15 000 FCFA*
       Livraison à Bafoussam : Bonapriso, en face de la pharmacie Bleue
       Numéro à appeler : 690 11 22 33
@@ -78,7 +78,7 @@
       *Commande CT-‹ref› — ‹boutique›*
       Article 1 × 2 : 15 000 FCFA l'unité
       Total : *30 000 FCFA*
-      (hors livraison — le prix de la course se convient avec la vendeuse)
+      (hors livraison — le prix de la course se convient avec le/la vendeur/se)
       Acompte pour confirmer : *15 000 FCFA*
       Livraison à Bafoussam : Bonapriso, en face de la pharmacie Bleue
       Numéro à appeler : 690 11 22 33
@@ -88,7 +88,7 @@
       Mobile Money : 656 74 62 15
       Votre code secret se tape UNIQUEMENT sur l'écran de votre opérateur — jamais ici.
       En un tap, le clavier pré-rempli : https://boutique.test/payer?numero=%2B‹tel›&montant=15000
-      Dès que la vendeuse colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenue ici.
+      Dès que le/la vendeur/se colle son SMS de réception, votre reçu vérifiable est émis — vous serez prévenu/e ici.
       
       🆕 Cette boutique débute sur Catalog : aucun paiement n'y est encore prouvé.
     ← bouton-lien[Suivre ma commande → https://boutique.test/suivi/‹jeton›]

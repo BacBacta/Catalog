@@ -120,7 +120,7 @@ describeDb("le comptoir vendeuse, de bout en bout (ADR 0069)", () => {
     const dits = s.envoyeur.envoyes.map(corps).join("\n---\n");
     expect(dits).toMatch(/Qu'avez-vous vendu/);
     expect(dits).toMatch(/prix convenu/);
-    expect(dits).toMatch(/numéro WhatsApp de votre cliente/);
+    expect(dits).toMatch(/numéro WhatsApp de votre client\/e/);
     expect(dits).toMatch(/Où se fait la remise/);
     expect(dits).toMatch(/Récapitulatif de la vente/);
     /* Le recapitulatif n'a encore rien cree. */
@@ -291,7 +291,7 @@ describeDb("le comptoir en un écran (ADR 0102)", () => {
     const dits = s.envoyeur.envoyes.map((m) => corps(m)).join("\n---\n");
     expect(dits).toMatch(/numéro/i);
     /* La question posee est celle de LA cliente — pas la premiere. */
-    expect(corps(s.envoyeur.envoyes.at(-1) as MessageSortant)).toMatch(/cliente/i);
+    expect(corps(s.envoyeur.envoyes.at(-1) as MessageSortant)).toMatch(/client\/e/i);
 
     /* Elle repond dans le fil : l'etat du formulaire est bien le sien. */
     await traiterLivraisonBot(s.deps, texteEntrant(s.vendeuseWaId, "699 11 22 33"));
