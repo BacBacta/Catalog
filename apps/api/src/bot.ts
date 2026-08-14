@@ -433,8 +433,17 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
       /* Et surtout : la personne en face apprend qu'il s'est passe quelque
          chose. Un silence apres un message est indiscernable d'une panne, et
          c'est exactement ce qu'on vient de vivre le 07/08/2026. L'envoi est
-         lui-meme protege : si c'est LUI qui est casse, on ne boucle pas. */
-      deps.envoyeur.envoyer(texte(entree.de, TEXTES.fr.pannePassagere)).catch(() => {});
+         lui-meme protege : si c'est LUI qui est casse, on ne boucle pas.
+
+         Le bouton « Menu » est le seul identifiant sur qui tout le monde
+         retombe (ADR 0111) : accueil de la boutique dans un fil d'achat,
+         accueil froid sans boutique, et le repli de `reagirVendeuse` — le
+         menu vendeuse — pour une vendeuse installee. */
+      deps.envoyeur
+        .envoyer(
+          boutonsMessage(entree.de, TEXTES.fr.pannePassagere, [{ id: "menu", titre: "Menu" }]),
+        )
+        .catch(() => {});
     });
 
     /**
@@ -1657,11 +1666,27 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
      * la vendeuse a pu partir. La base fait foi, comme pour le stock.
      */
     if (boutique.enConges) {
-      messages.push(texte(entree.de, t.boutiqueFermee(boutique.nom)));
+      /* Le meme refus que celui de la machine (ADR 0056) porte les memes
+         gestes : la vendeuse reste joignable, la vitrine reste ouverte. */
+      messages.push(
+        boutonsMessage(entree.de, t.boutiqueFermee(boutique.nom), [
+          ...(boutique.whatsappVendeuse ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }] : []),
+          { id: "catalogue", titre: t.btnVoirArticles },
+        ]),
+      );
       etat = { nom: "catalogue", slug: boutique.slug, page: 0 };
     } else if (!livraison.success || !resolution.ok) {
+      /* Un refus a l'instant de creer ne laisse personne en suspens : retour
+         a la vitrine, ou a l'humaine (ADR 0111). */
       messages.push(
-        texte(entree.de, resolution.ok ? t.commandeRatee : t.stockInsuffisant(resolution.nom)),
+        boutonsMessage(
+          entree.de,
+          resolution.ok ? t.commandeRatee : t.stockInsuffisant(resolution.nom),
+          [
+            { id: "catalogue", titre: t.btnVoirArticles },
+            ...(boutique.whatsappVendeuse ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }] : []),
+          ],
+        ),
       );
       etat = { nom: "catalogue", slug: boutique.slug, page: 0 };
     } else {
@@ -2719,8 +2744,13 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
   const messages = [...reaction.messages];
 
   if (reaction.effet?.type === "marquer_livree") {
+    /* Reussite ou refus (reference introuvable), le geste suivant est le
+       meme : le registre, ou l'on retrouve ses commandes et leurs references
+       exactes (ADR 0107, 0111). */
     messages.push(
-      texte(entree.de, await marquerLivree(deps, sellerIdent, reaction.effet.reference)),
+      boutonsMessage(entree.de, await marquerLivree(deps, sellerIdent, reaction.effet.reference), [
+        { id: "registre", titre: "Mes commandes" },
+      ]),
     );
   }
 
@@ -2823,17 +2853,28 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     /* Ce que ça change ET ce que ça ne change pas : sans la seconde moitié, une
        vendeuse peut croire qu'elle vient d'annuler ses commandes en cours. */
     const n = commandesOuvertes.length;
+    /* La confirmation porte le geste d'apres (ADR 0111) : fermee, le retour
+       est A PORTEE DE POUCE — le mot « je reprends » reste reconnu, le bouton
+       s'y ajoute. Rouverte, le geste est d'annoncer son retour : la carte. */
     messages.push(
-      texte(
-        entree.de,
-        fermer
-          ? `🌴 C'est noté. Votre boutique reste en ligne — lien, articles, avis — mais n'accepte plus de nouvelle commande.${
+      fermer
+        ? boutonsMessage(
+            entree.de,
+            `🌴 C'est noté. Votre boutique reste en ligne — lien, articles, avis — mais n'accepte plus de nouvelle commande.${
               n > 0
                 ? ` Vos ${n} commande${n > 1 ? "s" : ""} en cours continue${n > 1 ? "nt" : ""} normalement : paiement, preuve, remise.`
                 : ""
-            }\nÉcrivez « je reprends » quand vous revenez.`
-          : "☀️ C'est reparti — votre boutique accepte de nouveau les commandes. Bon retour !",
-      ),
+            }\nÉcrivez « je reprends » quand vous revenez.`,
+            [{ id: "rouvrir", titre: "Je reprends" }],
+          )
+        : boutonsMessage(
+            entree.de,
+            "☀️ C'est reparti — votre boutique accepte de nouveau les commandes. Bon retour !",
+            [
+              { id: "carte", titre: "Ma carte à partager" },
+              { id: "ma_boutique", titre: "Ma boutique" },
+            ],
+          ),
     );
   }
 
@@ -2857,17 +2898,25 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     const dansMinutes = (await deps.reconstruction?.demander("boutique_modifiee"))
       ? ATTENTE_ANNONCEE_MIN
       : null;
+    /* La confirmation porte le geste qu'elle annonce (ADR 0111) : « partagez
+       votre boutique dans la chaine » — l'objet a partager est la carte, un
+       bouton l'apporte. Retire, le geste inverse reste sous le pouce. */
     messages.push(
-      texte(
-        entree.de,
-        lien
-          ? `📣 C'est rangé. « Suivre la boutique » mène maintenant à votre chaîne.${
+      lien
+        ? boutonsMessage(
+            entree.de,
+            `📣 C'est rangé. « Suivre la boutique » mène maintenant à votre chaîne.${
               dansMinutes ? `\nVotre page se met à jour dans ~${dansMinutes} minutes.` : ""
-            }\n\nPartagez votre boutique dans la chaîne : chaque commande qui en vient se comptera à part.`
-          : `📣 Lien retiré. « Suivre la boutique » disparaît de votre page.${
+            }\n\nPartagez votre boutique dans la chaîne : chaque commande qui en vient se comptera à part.`,
+            [{ id: "carte", titre: "Ma carte à partager" }],
+          )
+        : boutonsMessage(
+            entree.de,
+            `📣 Lien retiré. « Suivre la boutique » disparaît de votre page.${
               dansMinutes ? `\nMise à jour dans ~${dansMinutes} minutes.` : ""
             }`,
-      ),
+            [{ id: "chaine", titre: "Ma chaîne" }],
+          ),
     );
   }
 

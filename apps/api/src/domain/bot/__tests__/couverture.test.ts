@@ -496,7 +496,9 @@ describe("les chemins defensifs de la machine", () => {
       ctx({ boutique: null }),
     );
     expect(r.langue).toBe("en");
-    expect(r.messages).toHaveLength(1);
+    /* Deux messages depuis l'ADR 0111 : la confirmation, puis l'accueil froid
+       dans la langue demandee — la bascule ne ferme plus en muet. */
+    expect(r.messages).toHaveLength(2);
     // et redemander la MEME langue ne bascule rien
     const rien = reagirAcheteuse(
       ETAT_INITIAL,
@@ -647,6 +649,89 @@ describe("les chemins defensifs de la machine", () => {
       soldesXaf: 5,
     });
     expect(corpsTexte(soldes.messages[0])).toContain("CT-9");
+  });
+});
+
+describe("la réponse qui clôt porte ses gestes — ADR 0111", () => {
+  /* Le strict necessaire d'une commande d'apres-achat ; chaque cas ajuste. */
+  const COMMANDE = {
+    reference: "CT-104312",
+    boutique: "Chez Amina",
+    libelle: "Payée",
+    resteXaf: 0,
+  };
+
+  it("un refus d'apres-achat AVEC boutique offre la vitrine et l'humaine", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contresigner" },
+      ctx({ derniereCommande: { ...COMMANDE, contresignable: false } }),
+    );
+    expect(corpsBoutons(r.messages[0])).toBe(TEXTES.fr.contresigneImpossible);
+    expect(idsBoutons(r.messages[0])).toEqual(["catalogue", "vendeuse"]);
+  });
+
+  it("un refus d'apres-achat SANS boutique offre les portes de l'accueil", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contresigner" },
+      ctx({ boutique: null }),
+    );
+    expect(corpsBoutons(r.messages[0])).toBe(TEXTES.fr.apresAchatSansCommande);
+    expect(idsBoutons(r.messages[0])).toEqual(["suivi", "comment"]);
+  });
+
+  it("le merci de la contre-signature INVITE a l'avis — les deux gestes de confiance", () => {
+    /* ADR 0072 : la contre-signature puis l'avis verifie. Le bouton `avis`
+       est l'identifiant que `veutNoter` route deja. */
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contresigner" },
+      ctx({ derniereCommande: { ...COMMANDE, contresignable: true } }),
+    );
+    expect(r.effet).toEqual({ type: "contresigner" });
+    expect(idsBoutons(r.messages[0])).toEqual(["avis"]);
+  });
+
+  it("la contestation enregistree met l'HUMAINE en premier", () => {
+    /* Le geste utile d'un litige est de parler a la vendeuse (ADR 0078),
+       pas de retourner au catalogue. */
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "contester:oui" },
+      ctx({ derniereCommande: COMMANDE }),
+    );
+    expect(idsBoutons(r.messages[0])).toEqual(["vendeuse", "catalogue"]);
+  });
+
+  it("« english » sans boutique enchaine l'accueil froid dans la langue demandee", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "english" },
+      ctx({ boutique: null }),
+    );
+    expect(r.langue).toBe("en");
+    expect(r.messages).toHaveLength(2);
+    expect(idsListe(r.messages[1])).toEqual(["vendre", "suivi", "comment"]);
+  });
+
+  it("la boutique introuvable garde ses deux portes ouvertes", () => {
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "boutique inconnue-xyz" },
+      ctx({ boutique: null }),
+    );
+    expect(corpsBoutons(r.messages[0])).toBe(TEXTES.fr.boutiqueIntrouvable);
+    expect(idsBoutons(r.messages[0])).toEqual(["suivi", "comment"]);
+  });
+
+  it("une forme non lue au repos vendeuse porte les deux gestes de tous les jours", () => {
+    const r = reagirVendeuse({ genre: "autre", forme: "vocal" }, VERS, {
+      smsReconnu: false,
+      commandesOuvertes: [],
+      soldesXaf: 0,
+    });
+    expect(idsBoutons(r.messages[0])).toEqual(["article", "ma_boutique"]);
   });
 });
 

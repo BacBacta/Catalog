@@ -629,7 +629,13 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
       const suite = boutique ? accueilBoutique(vers, boutique, tNouveau, panierDe(etat)) : null;
       return {
         etat: suite?.etat ?? etat,
-        messages: [texte(vers, tNouveau.langueChangee), ...(suite?.messages ?? [])],
+        /* Sans boutique, la confirmation fermait en muet : l'accueil froid
+           suit, dans la langue demandee — c'est pour se reorienter qu'on
+           change de langue (ADR 0111). */
+        messages: [
+          texte(vers, tNouveau.langueChangee),
+          ...(suite?.messages ?? [accueilFroid(vers, tNouveau)]),
+        ],
         langue: demande,
       };
     }
@@ -642,7 +648,17 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
      DIT, au lieu de le faire disparaitre en silence (ADR 0035). */
   if (entree.genre === "texte" && !texteEstDuContenu(etat) && extraireSlugBoutique(entree.texte)) {
     if (!boutique) {
-      return { etat: ETAT_INITIAL, messages: [texte(vers, t.boutiqueIntrouvable)] };
+      /* Le lien est abime, et l'on n'a rien a ouvrir a la place : on le dit,
+         et les deux portes qui repondent d'ici restent offertes (ADR 0111). */
+      return {
+        etat: ETAT_INITIAL,
+        messages: [
+          boutons(vers, t.boutiqueIntrouvable, [
+            { id: "suivi", titre: t.btnSuivre },
+            { id: "comment", titre: t.btnComment },
+          ]),
+        ],
+      };
     }
     const panier = panierDe(etat);
     const memeBoutique = "slug" in etat && etat.slug === boutique.slug;
@@ -1338,16 +1354,46 @@ function reagirApresAchat(
       : "";
   const commande = ctx.derniereCommande ?? null;
 
+  /**
+   * La reponse qui CLOT l'apres-achat porte ses gestes — ADR 0111.
+   *
+   * Merci, refus, contestation enregistree : chacune fermait l'echange en
+   * texte nu, a l'instant exact ou la personne se demande « et maintenant ? ».
+   * Les gestes dependent du contexte, et chaque identifiant est deja route :
+   * avec une boutique dans le fil, la vitrine et l'humaine ; sans, les deux
+   * portes de l'accueil qui repondent d'ici (`suivi`, `comment`).
+   *
+   * `vendeuseDAbord` sert la contestation : le geste utile d'un litige est de
+   * parler a la vendeuse, pas de retourner au catalogue.
+   */
+  const cloture = (corps: string, vendeuseDAbord = false): MessageSortant => {
+    if (!ctx.boutique) {
+      return boutons(vers, corps, [
+        { id: "suivi", titre: t.btnSuivre },
+        { id: "comment", titre: t.btnComment },
+      ]);
+    }
+    const catalogue = { id: "catalogue", titre: t.btnVoirArticles };
+    const vendeuse = ctx.boutique.whatsappVendeuse
+      ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }]
+      : [];
+    return boutons(
+      vers,
+      corps,
+      vendeuseDAbord ? [...vendeuse, catalogue] : [catalogue, ...vendeuse],
+    );
+  };
+
   /* Le mot d'avis attendu : tout texte devient le commentaire. Les mots-cles
      globaux, eux, ont deja repris la main plus haut. */
   if (etat.nom === "avis_mot") {
     if (id === "avis:sans_mot") {
-      return { etat: ETAT_INITIAL, messages: [texte(vers, t.avisMotMerci)] };
+      return { etat: ETAT_INITIAL, messages: [cloture(t.avisMotMerci)] };
     }
     if (entree.genre === "texte" && entree.texte.trim().length > 1) {
       return {
         etat: ETAT_INITIAL,
-        messages: [texte(vers, t.avisMotMerci)],
+        messages: [cloture(t.avisMotMerci)],
         effet: { type: "completer_avis", texte: entree.texte.trim().slice(0, 1000) },
       };
     }
@@ -1375,16 +1421,23 @@ function reagirApresAchat(
 
   /* Aucune commande dans ce fil : on le DIT, on n'invente rien. */
   if (!commande) {
-    return { etat: ETAT_INITIAL, messages: [texte(vers, t.apresAchatSansCommande)] };
+    return { etat: ETAT_INITIAL, messages: [cloture(t.apresAchatSansCommande)] };
   }
 
   if (veutContresigner) {
     if (!commande.contresignable) {
-      return { etat, messages: [texte(vers, t.contresigneImpossible)] };
+      return { etat, messages: [cloture(t.contresigneImpossible)] };
     }
     return {
       etat,
-      messages: [texte(vers, t.contresigneMerci(commande.reference))],
+      /* Les deux gestes de confiance s'enchainent (ADR 0072) : le merci de la
+         contre-signature INVITE a l'avis verifie — c'est le seul moment ou il
+         peut naitre, et le bouton `avis` est deja route (`veutNoter`). */
+      messages: [
+        boutons(vers, t.contresigneMerci(commande.reference), [
+          { id: "avis", titre: t.btnDonnerAvis },
+        ]),
+      ],
       effet: { type: "contresigner" },
     };
   }
@@ -1410,23 +1463,23 @@ function reagirApresAchat(
    */
   if (avisParFormulaire && entree.genre === "flux") {
     const lu = lireAvisFlux(entree.reponse);
-    if (!lu) return { etat, messages: [texte(vers, t.avisImpossible)] };
+    if (!lu) return { etat, messages: [cloture(t.avisImpossible)] };
     if (commande.avisDejaDepose) {
-      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+      return { etat, messages: [cloture(t.avisDejaDepose)] };
     }
     if (!commande.avisPossible) {
-      return { etat, messages: [texte(vers, t.avisImpossible)] };
+      return { etat, messages: [cloture(t.avisImpossible)] };
     }
     if (lu.mot) {
       return {
         etat: ETAT_INITIAL,
-        messages: [texte(vers, t.avisMotMerci)],
+        messages: [cloture(t.avisMotMerci)],
         effet: { type: "deposer_avis_complet", note: lu.note, texte: lu.mot },
       };
     }
     return {
       etat: ETAT_INITIAL,
-      messages: [texte(vers, t.avisMotMerci)],
+      messages: [cloture(t.avisMotMerci)],
       effet: { type: "deposer_avis", note: lu.note },
     };
   }
@@ -1434,17 +1487,17 @@ function reagirApresAchat(
   if (id === "contester:oui") {
     return {
       etat,
-      messages: [texte(vers, t.contesteEnregistre(commande.reference))],
+      messages: [cloture(t.contesteEnregistre(commande.reference), true)],
       effet: { type: "contester" },
     };
   }
 
   if (veutNoter) {
     if (commande.avisDejaDepose) {
-      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+      return { etat, messages: [cloture(t.avisDejaDepose)] };
     }
     if (!commande.avisPossible) {
-      return { etat, messages: [texte(vers, t.avisImpossible)] };
+      return { etat, messages: [cloture(t.avisImpossible)] };
     }
     /* Le formulaire s'AJOUTE a la liste d'etoiles — meme regle que la
        livraison (ADR 0055) : un Flow exige un WhatsApp recent, la liste
@@ -1477,13 +1530,13 @@ function reagirApresAchat(
 
   if (note !== null) {
     if (!Number.isInteger(note) || note < 1 || note > 5) {
-      return { etat, messages: [texte(vers, t.avisImpossible)] };
+      return { etat, messages: [cloture(t.avisImpossible)] };
     }
     if (commande.avisDejaDepose) {
-      return { etat, messages: [texte(vers, t.avisDejaDepose)] };
+      return { etat, messages: [cloture(t.avisDejaDepose)] };
     }
     if (!commande.avisPossible) {
-      return { etat, messages: [texte(vers, t.avisImpossible)] };
+      return { etat, messages: [cloture(t.avisImpossible)] };
     }
     /* La note s'enregistre TOUT DE SUITE ; le mot l'enrichit ensuite. */
     return {
@@ -2171,9 +2224,19 @@ export function reagirVendeuse(
     boutique?: BoutiqueVendeuse | null;
   },
 ): Reaction {
-  /* Une forme non lue — ADR 0049. Le fil vendeuse est en francais (ADR 0033). */
+  /* Une forme non lue — ADR 0049. Le fil vendeuse est en francais (ADR 0033).
+     Au repos, ce refus CLOT l'echange : il porte les deux gestes de tous les
+     jours au lieu de laisser le fil en suspens (ADR 0111). */
   if (entree.genre === "autre") {
-    return { etat: ETAT_INITIAL, messages: [texte(vers, TEXTES.fr.formeNonLue(entree.forme))] };
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        boutons(vers, TEXTES.fr.formeNonLue(entree.forme), [
+          { id: "article", titre: "Ajouter un article" },
+          { id: "ma_boutique", titre: "Ma boutique" },
+        ]),
+      ],
+    };
   }
 
   if (entree.genre === "texte" && contexte.smsReconnu) {

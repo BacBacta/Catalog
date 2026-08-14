@@ -131,7 +131,7 @@ describe("fil acheteuse — du lien a la commande", () => {
       { genre: "texte", texte: "boutique inconnue-du-registre" },
       ctx({ boutique: null }),
     );
-    expect(corpsTexte(r.messages[0])).toMatch(/introuvable/);
+    expect(corpsQuelconque(r.messages[0])).toMatch(/introuvable/);
   });
 
   it("« Parler a la vendeuse » donne le wa.me du numero personnel, panier garde", () => {
@@ -1358,8 +1358,8 @@ describe("l'après-achat dans le fil (ADR 0036)", () => {
       avecCommande(),
     );
     expect(r.effet).toEqual({ type: "contresigner" });
-    expect(corpsTexte(r.messages[0])).toContain("CT-522801");
-    expect(corpsTexte(r.messages[0])).toMatch(/deux voix/);
+    expect(corpsQuelconque(r.messages[0])).toContain("CT-522801");
+    expect(corpsQuelconque(r.messages[0])).toMatch(/deux voix/);
   });
 
   it("le mot « confirmer » fait la même chose que le bouton", () => {
@@ -1374,14 +1374,14 @@ describe("l'après-achat dans le fil (ADR 0036)", () => {
       avecCommande({ contresignable: false }),
     );
     expect(r.effet).toBeUndefined();
-    expect(corpsTexte(r.messages[0])).toMatch(/plus d'objet/);
+    expect(corpsQuelconque(r.messages[0])).toMatch(/plus d'objet/);
   });
 
   it("SANS commande dans le fil, aucun geste n'est autorisé — on le dit", () => {
     for (const id of ["contresigner", "contester", "avis", "note:5"]) {
       const r = reagirAcheteuse(ETAT_INITIAL, { genre: "bouton", id }, ctx());
       expect(r.effet, id).toBeUndefined();
-      expect(corpsTexte(r.messages[0]), id).toMatch(/Aucune commande/);
+      expect(corpsQuelconque(r.messages[0]), id).toMatch(/Aucune commande/);
     }
   });
 
@@ -1406,7 +1406,7 @@ describe("l'après-achat dans le fil (ADR 0036)", () => {
   it("l'avis n'ouvre qu'après livraison, et une seule fois", () => {
     const avant = reagirAcheteuse(ETAT_INITIAL, { genre: "bouton", id: "avis" }, avecCommande());
     expect(avant.effet).toBeUndefined();
-    expect(corpsTexte(avant.messages[0])).toMatch(/livrée/);
+    expect(corpsQuelconque(avant.messages[0])).toMatch(/livrée/);
 
     const deja = reagirAcheteuse(
       ETAT_INITIAL,
@@ -1414,7 +1414,7 @@ describe("l'après-achat dans le fil (ADR 0036)", () => {
       avecCommande({ avisPossible: true, avisDejaDepose: true }),
     );
     expect(deja.effet).toBeUndefined();
-    expect(corpsTexte(deja.messages[0])).toMatch(/déjà donné/);
+    expect(corpsQuelconque(deja.messages[0])).toMatch(/déjà donné/);
   });
 
   it("« Donner mon avis » propose les cinq notes, la plus haute d'abord", () => {
