@@ -20,10 +20,13 @@ on:
         type: choice
         options: [flux, gabarits, les-deux, mesurer-photopicker, mesurer-composants, accueil-etat, accueil-poser, mesurer-cta]
       mode:
-        description: "Mode (--etat est en lecture seule)"
+        description: "Mode (--etat et --verifier sont en lecture seule)"
         required: true
         type: choice
-        options: ["--etat", "--deposer"]
+        # `--verifier` relit chez Meta la definition deposee et la compare a la
+        # notre. Il ne cree, ne publie et ne supprime rien : c'est le pas qui
+        # manquait apres `--deposer`, ou `--etat` ne rendait que le STATUT.
+        options: ["--etat", "--deposer", "--verifier"]
         default: "--etat"
       # Exige par `mesurer-cta` SEUL. Il n'a pas de defaut : une mesure qui
       # part vers un numero devine serait un vrai message chez un inconnu.

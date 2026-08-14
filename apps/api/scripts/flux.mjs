@@ -4,6 +4,7 @@
  *   node apps/api/scripts/flux.mjs             → les affiche et les valide
  *   node apps/api/scripts/flux.mjs --etat      → dit lesquels existent deja
  *   node apps/api/scripts/flux.mjs --deposer   → les cree, televerse, publie
+ *   node apps/api/scripts/flux.mjs --verifier  → relit chez Meta ce qui est servi
  *
  * ── Pourquoi ce script existe ─────────────────────────────────────────────
  *
@@ -30,7 +31,13 @@
  *
  *   1. `--mesurer-composants`  → son premier brouillon est un temoin nu ;
  *                                s'il passe, 7.3 est acceptee ici ;
- *   2. `--deposer`             → seulement ensuite.
+ *   2. `--deposer`             → seulement ensuite ;
+ *   3. `--verifier`            → et on relit ce que Meta sert.
+ *
+ * Le troisieme n'est pas une politesse. `--etat` rend le STATUT d'un Flow,
+ * jamais la version du JSON servi : apres le depot du 14/08 on pouvait
+ * affirmer « les cinq sont publies » sans pouvoir affirmer « les cinq sont en
+ * 7.3 ». `--verifier` relit la definition chez Meta et repond a la seconde.
  *
  * Temoin refuse : rejouer `--mesurer-composants 7.2`, puis `7.1`, et
  * redescendre les CINQ definitions a la version la plus haute acceptee —
@@ -349,6 +356,115 @@ if (mode === "--voir") {
       `  fly secrets set ${poses.map(([v, id]) => `${v}=${id}`).join(" ")} --app catalog-api-preprod\n`,
     );
   }
+} else if (mode === "--verifier") {
+  await exigerConfiguration();
+
+  /**
+   * ── Meta sert-il ce que nous croyons avoir depose ? ─────────────────────
+   *
+   * Le depot du 14/08 (ADR 0096) s'est termine sur cinq « publie » et zero
+   * erreur de validation. C'etait le meilleur signal que l'outillage
+   * produisait, et ce n'etait PAS une preuve : `--etat` rend le STATUT
+   * (`PUBLISHED`), jamais la version du JSON servi. On pouvait donc affirmer
+   * « les cinq sont publies » sans pouvoir affirmer « les cinq sont en 7.3 ».
+   *
+   * Ce mode relit la definition chez Meta et la compare a la notre. Il est en
+   * LECTURE SEULE : aucun brouillon cree, rien de publie, rien de supprime.
+   *
+   * ── Deux verdicts, et un seul est dur ──────────────────────────────────
+   *
+   * `version` se compare a l'identique : c'est la question qui a motive ce
+   * mode, et elle n'admet pas de nuance.
+   *
+   * Le RESTE de la definition se compare aussi, mais son ecart est rendu
+   * comme une INFORMATION, pas comme un echec. Meta normalise ce qu'il
+   * stocke — il complete des defauts, il peut reordonner. Traiter cette
+   * normalisation comme un defaut ferait crier ce mode a chaque execution,
+   * et un garde-fou qui crie toujours ne se lit plus.
+   *
+   * ── Ce que ce mode NE peut pas etablir ─────────────────────────────────
+   *
+   * `GET /{id}/assets` rend la definition que Meta detient. Rien dans la
+   * reponse ne dit qu'elle est celle de la version PUBLIEE plutot que d'un
+   * brouillon. Si Meta ne rend aucune definition, ce mode le DIT et sort en
+   * erreur — il ne conclut pas « conforme » faute de contradiction. C'est le
+   * seul cas ou un outil de verification est pire que pas d'outil du tout.
+   */
+  const liste = await appel(`/${WABA}/flows`);
+  const parNom = new Map((liste.data ?? []).map((f) => [f.name, f]));
+  let ecarts = 0;
+
+  for (const f of FLUX) {
+    const existant = parNom.get(f.nom);
+    if (!existant) {
+      console.log(`  ${f.nom.padEnd(20)} ABSENT de ce WABA`);
+      ecarts += 1;
+      continue;
+    }
+
+    let servie = null;
+    let panne = null;
+    try {
+      const actifs = await appel(`/${existant.id}/assets`);
+      const flowJson = (actifs.data ?? []).find((a) => a?.asset_type === "FLOW_JSON");
+      if (!flowJson?.download_url) {
+        panne = "aucun actif FLOW_JSON, ou pas d'URL de telechargement";
+      } else {
+        /* L'URL rendue est deja signee : y ajouter le jeton n'apporte rien et
+           l'enverrait a un hote qui n'est pas celui de l'API. */
+        const r = await fetch(flowJson.download_url);
+        if (!r.ok) panne = `telechargement HTTP ${r.status}`;
+        else servie = await r.json();
+      }
+    } catch (e) {
+      panne = e instanceof Error ? e.message : String(e);
+    }
+
+    if (panne) {
+      /* On ne conclut RIEN quand on n'a pas lu. Un « conforme » faute de
+         contradiction serait exactement le mensonge que ce mode existe pour
+         empecher. */
+      console.log(`  ${f.nom.padEnd(20)} NON RELU — ${panne}`);
+      ecarts += 1;
+      continue;
+    }
+
+    const notre = definition(f);
+    const versionOk = servie?.version === notre.version;
+    const etat = versionOk ? "version conforme" : "VERSION DIFFERENTE";
+    console.log(
+      `  ${f.nom.padEnd(20)} ${etat.padEnd(20)} servie ${JSON.stringify(servie?.version)} / attendue ${JSON.stringify(notre.version)}`,
+    );
+    if (!versionOk) ecarts += 1;
+
+    /* Comparaison structurelle, cles triees pour qu'un simple reordonnancement
+       ne passe pas pour un ecart. Purement informatif — voir l'en-tete. */
+    const stable = (v) =>
+      JSON.stringify(v, (_c, x) =>
+        x && typeof x === "object" && !Array.isArray(x)
+          ? Object.fromEntries(
+              Object.keys(x)
+                .sort()
+                .map((k) => [k, x[k]]),
+            )
+          : x,
+      );
+    if (stable(servie) !== stable(notre)) {
+      const ecransServis = (servie?.screens ?? []).map((s) => s?.id).join(", ");
+      const ecransNotres = (notre?.screens ?? []).map((s) => s?.id).join(", ");
+      console.log(
+        `    (le reste differe — Meta normalise ce qu'il stocke ; ecrans servis : ${ecransServis || "aucun"} / attendus : ${ecransNotres || "aucun"})`,
+      );
+    }
+  }
+
+  if (ecarts > 0) {
+    console.error(
+      `\n${ecarts} formulaire(s) ne sont pas dans l'etat attendu. Rejouer --deposer, puis ce mode.`,
+    );
+    process.exit(1);
+  }
+  console.log("\nLes cinq definitions servies par Meta declarent la version attendue.");
 } else if (mode === "--mesurer-photopicker") {
   await exigerConfiguration();
 
@@ -779,7 +895,7 @@ if (mode === "--voir") {
   );
 } else {
   console.error(
-    `mode inconnu : ${mode}. Utilisez --voir, --etat, --deposer, --mesurer-photopicker ou --mesurer-composants.`,
+    `mode inconnu : ${mode}. Utilisez --voir, --etat, --deposer, --verifier, --mesurer-photopicker ou --mesurer-composants.`,
   );
   process.exit(1);
 }

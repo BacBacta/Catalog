@@ -91,4 +91,34 @@ describe("la version de Flow JSON est UNE decision, pas cinq recopies", () => {
       expect(v, "le brouillon de mesure doit declarer la version deployee").toBe(deployee);
     }
   });
+
+  it("tout mode de `flux.mjs` est joignable depuis le workflow", () => {
+    /**
+     * Les secrets du bot vivent dans la machine Fly, et `depots-meta.yml` est
+     * le SEUL chemin qui les atteint. Un mode present dans le script mais
+     * absent du menu du workflow n'existe donc pas : il est ecrit, teste
+     * peut-etre, et injoignable — le genre d'outil qu'on croit avoir le jour
+     * ou l'on en a besoin.
+     *
+     * Le cas s'est presente avec `--verifier` (14/08) : le seul moyen de
+     * savoir si Meta sert bien ce qu'on a depose, et il aurait pu rester dans
+     * le fichier sans jamais pouvoir tourner.
+     */
+    const script = readFileSync(join(RACINE, "apps/api/scripts/flux.mjs"), "utf8");
+    const wf = readFileSync(join(RACINE, ".github/workflows/depots-meta.yml"), "utf8");
+
+    const modes = [...script.matchAll(/mode === "(--[a-z-]+)"/g)]
+      .map((m) => m[1])
+      .filter((m): m is string => m !== undefined);
+    expect(modes.length, "aucun mode trouve dans flux.mjs").toBeGreaterThan(0);
+
+    /* `--voir` est le defaut hors ligne : il ne parle a personne et n'a rien a
+       faire dans un menu de depot. Tous les autres touchent Meta. */
+    const injoignables = modes.filter((m) => m !== "--voir" && !wf.includes(m));
+    expect(
+      injoignables,
+      `modes absents de depots-meta.yml : ${injoignables.join(", ")} — ` +
+        "un mode qui ne figure pas au menu ne peut pas etre execute",
+    ).toEqual([]);
+  });
 });
