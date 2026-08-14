@@ -33,6 +33,7 @@ on:
             remise-a-zero,
             journaux,
             envoyer-amorce,
+            raz-numero,
           ]
         default: inventaire
       waba:
@@ -40,7 +41,7 @@ on:
         type: string
         default: ""
       numero:
-        description: "Pour « envoyer-amorce » UNIQUEMENT : le wa_id, chiffres seuls, sans « + »"
+        description: "Pour « envoyer-amorce » et « raz-numero » : le wa_id, chiffres seuls, sans « + »"
         type: string
         default: ""
       confirmation:
@@ -150,6 +151,42 @@ jobs:
       # Un Flow en BROUILLON s'envoie sans erreur et ne s'ouvre jamais — c'est
       # l'oubli le plus couteux du dispositif, et c'est pour cela que le statut
       # est affiche a cote de l'identifiant.
+      # ── Rendre UN numero a l'etat d'inconnu — rejouer le parcours entier ──
+      #
+      # Rejouer « je decouvre Catalog, j'ouvre ma boutique dans le fil » exige
+      # que le numero redevienne une inconnue. Effacer la conversation ne
+      # suffit pas : le/la vendeur/se se reconnait par DEUX chemins
+      # (`authUser.phoneNumber` et `seller.phone`), et n'en couper qu'un donne
+      # un parcours a moitie neuf — le bot repond « Collez ici le SMS de votre
+      # operateur » a une prospect.
+      #
+      # Le script DETACHE, il n'efface pas : commandes, preuves, avis et
+      # journal d'audit restent en base. Une remise a zero de test n'a aucune
+      # raison de detruire une preuve de paiement — c'est justement ce que le
+      # produit promet de ne jamais faire.
+      #
+      # Le diagnostic tourne D'ABORD et sa sortie reste dans le journal du run
+      # : c'est la seule trace de ce que l'etat etait avant. Le script sans
+      # `--voir` ecrit, et on ne verrait plus ce qu'on a quitte.
+      - name: Remettre un numero a zero
+        if: inputs.operation == 'raz-numero'
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${{ inputs.numero }}" | grep -qE '^[0-9]{8,15}$'; then
+            echo "« numero » doit etre le wa_id : chiffres seuls, sans « + »."
+            echo "Exemple : 32466457281"
+            exit 1
+          fi
+          echo "── Avant ──────────────────────────────────────────────────"
+          flyctl ssh console --app catalog-api-preprod \
+            -C "node /app/apps/api/scripts/terrain-raz.mjs +${{ inputs.numero }} --voir"
+          echo
+          echo "── Application ────────────────────────────────────────────"
+          flyctl ssh console --app catalog-api-preprod \
+            -C "node /app/apps/api/scripts/terrain-raz.mjs +${{ inputs.numero }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
       - name: Etat des formulaires
         if: inputs.operation == 'etat-flux'
         run: flyctl ssh console --app catalog-api-preprod -C "node /app/apps/api/scripts/flux.mjs --etat"
