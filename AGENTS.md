@@ -266,6 +266,12 @@ docs/terrain/                    instruments de test de terrain
                                  étapes, chaque geste marqué « en place » /
                                  « à construire » / « à trancher » — l'écart
                                  entre le dépôt et la cible, rendu regardable
+  parcours-premium.html          la cible premium, jouable : les deux personas
+                                 (vendeuse et acheteuse) de bout en bout, Flows
+                                 Meta en tiroir, un seul geste actif à la fois,
+                                 et le compteur d'automatisation qui prouve la
+                                 promesse — 1 message tapé côté vendeuse (le
+                                 SMS), 0 côté acheteuse
 ```
 
 **Règle de dépendance** : `domain` ne dépend de rien. `routes` et `jobs`
