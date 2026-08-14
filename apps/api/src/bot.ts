@@ -1020,7 +1020,7 @@ async function creerBoutique(
       })
     : null;
 
-  const slug = await slugLibre(deps.prisma, slugifier(demande.nomBoutique));
+  const slug = await slugLibre(deps.prisma, slugifier(demande.nomBoutique), demande.ville);
 
   try {
     const seller = await deps.prisma.$transaction(async (tx) => {

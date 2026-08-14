@@ -185,7 +185,7 @@ export function sellerRoutes(deps: SessionDeps) {
               userId: v.userId,
               phone,
               businessName: nom,
-              slug: await slugLibre(deps.prisma, slugifier(nom)),
+              slug: await slugLibre(deps.prisma, slugifier(nom), ville),
               city: ville,
             },
             select: {
@@ -302,15 +302,55 @@ export function sellerRoutes(deps: SessionDeps) {
 }
 
 /**
- * Premier identifiant d'URL libre. `slug` est unique en base : la boucle evite
+ * Premier identifiant d'URL libre. `slug` est unique en base : l'echelle evite
  * le rejet d'inscription pour une homonymie, qui est frequente — « chez tantine »
  * n'est pas un nom rare.
+ *
+ * ── L'echelle passe par la VILLE — ADR 0100 ───────────────────────────────
+ *
+ *     chez-solange  →  chez-solange-douala  →  chez-solange-douala-2  →  …
+ *
+ * Elle etait purement numerique — `-2` … `-50` — et cinquante homonymes
+ * GLOBAUX suffisaient a la saturer. Constate le 14/08/2026, en reproduisant
+ * autre chose : quarante executions de la suite ont cree cinquante « Chez
+ * Solange », et l'ouverture suivante levait. `traiterLivraisonBot` avale
+ * l'exception et repond « panne passagere » — la vendeuse ne pouvait pas
+ * ouvrir sa boutique et n'apprenait jamais pourquoi.
+ *
+ * La ville fait deux choses, et la seconde compte plus que la premiere :
+ *
+ * 1. la capacite devient cinquante PAR VILLE au lieu de cinquante en tout ;
+ * 2. **l'adresse se lit.** `chez-solange-douala` dit quelque chose ;
+ *    `chez-solange-7` ne dit rien. C'est une adresse qu'on met en Statut
+ *    WhatsApp : elle est VUE avant d'etre cliquee.
+ *
+ * `ville` est facultative parce que cette fonction est publique et qu'un
+ * appelant peut ne pas en avoir. Sans elle — ou quand elle ne slugifie en rien
+ * — l'ancienne echelle numerique reprend : un repli, pas une levee.
  */
-export async function slugLibre(prisma: PrismaClient, base: string): Promise<string> {
-  for (let i = 0; i < 50; i++) {
-    const essai = i === 0 ? base : `${base}-${i + 1}`;
-    const pris = await prisma.seller.findUnique({ where: { slug: essai }, select: { id: true } });
-    if (!pris) return essai;
+export async function slugLibre(
+  prisma: PrismaClient,
+  base: string,
+  ville?: string | null,
+): Promise<string> {
+  const libre = async (essai: string) =>
+    !(await prisma.seller.findUnique({ where: { slug: essai }, select: { id: true } }));
+
+  if (await libre(base)) return base;
+
+  /* `slugifier` rend « boutique » quand il ne reste aucune lettre. Coller
+     « -boutique » a une adresse serait pire que de la numeroter. */
+  const villeSlug = ville ? slugifier(ville) : "";
+  const racine = villeSlug && villeSlug !== "boutique" ? `${base}-${villeSlug}` : base;
+
+  if (racine !== base && (await libre(racine))) return racine;
+
+  for (let i = 2; i <= 50; i++) {
+    const essai = `${racine}-${i}`;
+    if (await libre(essai)) return essai;
   }
-  throw new Error(`aucun identifiant d'URL libre pour « ${base} »`);
+  /* Elle reste possible — cinquante homonymes dans la MEME ville. Le message
+     nomme la ville : sans elle, il ne dirait pas ou le probleme se pose, et la
+     suite ne serait pas decidable. */
+  throw new Error(`aucun identifiant d'URL libre pour « ${racine} »`);
 }
