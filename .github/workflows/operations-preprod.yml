@@ -12,13 +12,25 @@ on:
         description: "Quelle operation"
         required: true
         type: choice
-        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai, sonde-connexion]
+        options:
+          [
+            reinitialiser-boutiques-bot,
+            poser-flux-ids,
+            poser-banc-essai,
+            sonde-connexion,
+            rejouer-accroche,
+          ]
       mode:
         description: "Reinitialisation seulement : --voir (lecture seule) ou --vraiment"
         required: true
         type: choice
         options: ["--voir", "--vraiment"]
         default: "--voir"
+      numero:
+        description: "rejouer-accroche seulement : le wa_id destinataire, sans « + » (ex. 32466457281)"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: operations-preprod
@@ -70,6 +82,41 @@ jobs:
       - name: Poser les numeros du banc d'essai
         if: inputs.quoi == 'poser-banc-essai'
         run: flyctl secrets set BANC_ESSAI_NUMEROS_HORS_CM="+32466457281" --app catalog-api-preprod
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # ── Voir la copie sur un vrai telephone, sans attendre un pouce ────────
+      #
+      # AGENTS.md §7.5 : la definition de terminé est une commande, et pour une
+      # copie c'est une capture d'ecran. Un instantane de test dit que le
+      # message a la bonne FORME ; il ne dit pas ce qu'un pouce en voit — le
+      # pli de « Voir plus », la hauteur du menu, deux libelles identiques dans
+      # un meme ecran. C'est ce qui a produit l'ADR 0109, et rien dans la suite
+      # de tests ne l'aurait montre.
+      #
+      # L'operation rejoue donc un ENTRANT — « bonjour » — au nom du numero
+      # donne : le bot repond pour de vrai, sur le telephone, par le chemin
+      # normal. On simule le pouce, on observe l'ecran (`sandbox-entrant.mjs`).
+      #
+      # ── Ce qu'elle ne fait PAS, et c'est deliberé ─────────────────────────
+      #
+      # Elle n'INITIE pas une conversation : elle fait ARRIVER un message
+      # entrant, exactement comme le telephone l'aurait envoye, et le bot
+      # repond dans la fenetre que cet entrant ouvre. L'invariant de l'ADR 0034
+      # — le bot ne parle jamais le premier — tient au sens strict.
+      #
+      # Les deux valeurs sensibles restent SUR la machine : le shell distant
+      # les lit dans son environnement, la ligne de commande ne porte que leurs
+      # noms, et le script n'imprime que le code de retour et le destinataire.
+      - name: Rejouer l'accroche vers un numero
+        if: inputs.quoi == 'rejouer-accroche'
+        run: |
+          set -euo pipefail
+          numero='${{ inputs.numero }}'
+          case "$numero" in
+            '') echo "Donnez le wa_id destinataire dans « numero », sans « + »."; exit 1 ;;
+            *[!0-9]*) echo "Le wa_id ne porte que des chiffres — recu : $numero"; exit 1 ;;
+          esac
+          flyctl ssh console --app catalog-api-preprod -C "sh -lc 'ENTRANT_URL=http://127.0.0.1:8080/api/whatsapp/entrant/\$WHATSAPP_ENTRANT_SECRET ENTRANT_AUTH=\$WABOT_WEBHOOK_AUTH node apps/api/scripts/sandbox-entrant.mjs $numero texte bonjour'"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       # Lecture seule : ou en est la chaine de connexion WhatsApp — defis
