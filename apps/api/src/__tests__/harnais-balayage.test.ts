@@ -1,4 +1,3 @@
-import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
@@ -15,6 +14,7 @@ import {
   type Scene,
   type Tour,
 } from "./harnais/pilote.ts";
+import { poserInstantanes } from "./harnais/poser.ts";
 
 /**
  * Le BALAYAGE SYSTEMATIQUE — audit de pipeline, phases 3 et 7.
@@ -165,73 +165,78 @@ describeDb("balayage systématique — 22 gestes × 22 étapes", () => {
   it("rend le tableau de couverture, et le pose sur le disque", () => {
     const r = compte.rapport();
 
-    /* Une etape jouee qui n'est pas au catalogue veut dire que la machine a
-       produit un etat que `couverture.ts` ne connait pas — donc que le tableau
-       a un trou invisible. C'est un echec du HARNAIS, pas du produit. */
-    expect(r.etapesInconnues, "des étapes jouées ne sont pas au catalogue").toEqual([]);
-
     const muets = jouees.filter((c) => c.muet && c.famille !== "silence");
     const lignesMuettes = muets
       .map((c) => `| ${c.etape} | ${c.famille} | ${c.libelle} | ${c.etapeApres} |`)
       .join("\n");
 
-    writeFileSync(
-      join(SORTIE, "balayage-couverture.md"),
-      [
-        "# Couverture mesurée par le harnais",
-        "",
-        "Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.**",
-        "",
-        "Une case non exercée est `non mesuré`, jamais `guidé`.",
-        "",
-        tableauMarkdown(r),
-        "",
-        `Seuil du §7 : ${SEUIL_PRINCIPAL} % sur les étapes principales.`,
-        r.sousLeSeuil.length === 0
-          ? "Aucune étape principale sous le seuil."
-          : `**${r.sousLeSeuil.length} étape(s) principale(s) sous le seuil : ${r.sousLeSeuil.map((l) => l.etape).join(", ")}**`,
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+    /**
+     * Les trois instantanes sont COMPOSES ici, et POSES par `poser.ts` — qui
+     * refuse d'ecrire depuis une mesure incomplete (defaut du 14/08 : une
+     * execution degradee ecrasait 534 lignes de mesure par un tableau a 0 %).
+     *
+     * Les deux assertions qui suivent disent CE QUI a manque ; le refus de
+     * `poserInstantanes` tient l'invariant meme si ces lignes bougent un jour.
+     */
+    poserInstantanes(SORTIE, r, [
+      {
+        nom: "balayage-couverture.md",
+        contenu: [
+          "# Couverture mesurée par le harnais",
+          "",
+          "Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.**",
+          "",
+          "Une case non exercée est `non mesuré`, jamais `guidé`.",
+          "",
+          tableauMarkdown(r),
+          "",
+          `Seuil du §7 : ${SEUIL_PRINCIPAL} % sur les étapes principales.`,
+          r.sousLeSeuil.length === 0
+            ? "Aucune étape principale sous le seuil."
+            : `**${r.sousLeSeuil.length} étape(s) principale(s) sous le seuil : ${r.sousLeSeuil.map((l) => l.etape).join(", ")}**`,
+          "",
+        ].join("\n"),
+      },
+      {
+        nom: "balayage-muets.md",
+        contenu: [
+          "# Cases où la personne n'a RIEN reçu",
+          "",
+          "Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.**",
+          "",
+          "`silence` est exclu : aucun message n'est parti, donc aucune réponse n'est due.",
+          "La question qu'il pose — une relance existe-t-elle ? — est ailleurs.",
+          "",
+          muets.length === 0
+            ? "Aucune. Chaque geste a reçu une réponse."
+            : ["| Étape | Geste | Détail | Étape après |", "|---|---|---|---|", lignesMuettes].join(
+                "\n",
+              ),
+          "",
+        ].join("\n"),
+      },
+      {
+        nom: "balayage-reponses.md",
+        contenu: [
+          "# Ce que chaque geste a reçu, case par case",
+          "",
+          "Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.**",
+          "",
+          "| Étape | Geste | Étape après | Première réponse |",
+          "|---|---|---|---|",
+          ...jouees.map(
+            (c) =>
+              `| ${c.etape} | ${c.famille} | ${c.etapeApres} | ${c.muet ? "**— MUET —**" : c.premiereReponse.replace(/\|/g, "\\|")} |`,
+          ),
+          "",
+        ].join("\n"),
+      },
+    ]);
 
-    writeFileSync(
-      join(SORTIE, "balayage-muets.md"),
-      [
-        "# Cases où la personne n'a RIEN reçu",
-        "",
-        "Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.**",
-        "",
-        "`silence` est exclu : aucun message n'est parti, donc aucune réponse n'est due.",
-        "La question qu'il pose — une relance existe-t-elle ? — est ailleurs.",
-        "",
-        muets.length === 0
-          ? "Aucune. Chaque geste a reçu une réponse."
-          : ["| Étape | Geste | Détail | Étape après |", "|---|---|---|---|", lignesMuettes].join(
-              "\n",
-            ),
-        "",
-      ].join("\n"),
-      "utf8",
-    );
-
-    writeFileSync(
-      join(SORTIE, "balayage-reponses.md"),
-      [
-        "# Ce que chaque geste a reçu, case par case",
-        "",
-        "Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.**",
-        "",
-        "| Étape | Geste | Étape après | Première réponse |",
-        "|---|---|---|---|",
-        ...jouees.map(
-          (c) =>
-            `| ${c.etape} | ${c.famille} | ${c.etapeApres} | ${c.muet ? "**— MUET —**" : c.premiereReponse.replace(/\|/g, "\\|")} |`,
-        ),
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+    /* Une etape jouee qui n'est pas au catalogue veut dire que la machine a
+       produit un etat que `couverture.ts` ne connait pas — donc que le tableau
+       a un trou invisible. C'est un echec du HARNAIS, pas du produit. */
+    expect(r.etapesInconnues, "des étapes jouées ne sont pas au catalogue").toEqual([]);
 
     /* Le harnais doit avoir joue TOUTES les cases de son propre catalogue :
        s'il en manque, c'est le balayage qui est incomplet, et le pourcentage
