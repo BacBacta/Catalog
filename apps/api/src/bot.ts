@@ -43,6 +43,7 @@ import {
   type ArticleBot,
   type BoutiqueBot,
   confirmationCommande,
+  detailCommandeVendeuse,
   type Entree as EntreeMachine,
   ETAT_INITIAL,
   type EtatConv,
@@ -2464,7 +2465,7 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
       where: { sellerId: sellerIdent, balanceXaf: { gt: 0 }, cancelledAt: null },
       orderBy: { createdAt: "desc" },
       take: 20,
-      select: { id: true, ref: true, balanceXaf: true },
+      select: { id: true, ref: true, balanceXaf: true, step: true, totalXaf: true },
     }),
     deps.prisma.seller.findUnique({
       where: { id: sellerIdent },
@@ -2482,6 +2483,9 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     id: o.id,
     reference: o.ref,
     resteXaf: o.balanceXaf,
+    /* Le registre (ADR 0107) affiche l'etape ; « soldes » l'ignore. */
+    etape: o.step,
+    totalXaf: o.totalXaf,
   }));
   const soldesXaf = commandesOuvertes.reduce((s, c) => s + c.resteXaf, 0);
 
@@ -2508,6 +2512,59 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     messages.push(
       texte(entree.de, await marquerLivree(deps, sellerIdent, reaction.effet.reference)),
     );
+  }
+
+  if (reaction.effet?.type === "detail_commande") {
+    /**
+     * Une ligne du registre — ADR 0107. `sellerId` dans le WHERE, et ce n'est
+     * pas une politesse : l'identifiant vient d'un message que WhatsApp nous
+     * renvoie, il doit rester incapable d'ouvrir la commande d'une autre.
+     */
+    const c = await deps.prisma.order.findFirst({
+      where: { id: reaction.effet.id, sellerId: sellerIdent },
+      select: {
+        ref: true,
+        step: true,
+        items: true,
+        totalXaf: true,
+        amountPaidXaf: true,
+        balanceXaf: true,
+        proofState: true,
+        delivery: true,
+      },
+    });
+    if (!c) {
+      messages.push(
+        texte(entree.de, "Cette commande n'est plus dans votre registre. Écrivez « commandes »."),
+      );
+    } else {
+      const lignes = Array.isArray(c.items)
+        ? (c.items as Array<{ name?: unknown; quantity?: unknown; unitPriceXaf?: unknown }>)
+            .filter((l) => typeof l?.name === "string")
+            .map((l) => ({
+              nom: l.name as string,
+              quantite: typeof l.quantity === "number" ? l.quantity : 1,
+              prixUnitaireXaf: typeof l.unitPriceXaf === "number" ? l.unitPriceXaf : 0,
+            }))
+        : [];
+      const livraison = c.delivery as { phone?: unknown } | null;
+      messages.push(
+        texte(
+          entree.de,
+          detailCommandeVendeuse({
+            reference: c.ref,
+            etape: c.step,
+            lignes,
+            totalXaf: c.totalXaf,
+            payeXaf: c.amountPaidXaf,
+            resteXaf: c.balanceXaf,
+            preuve: c.proofState,
+            destination: destinationLisible(c.delivery),
+            telephoneLivraison: typeof livraison?.phone === "string" ? livraison.phone : null,
+          }),
+        ),
+      );
+    }
   }
 
   if (reaction.effet?.type === "envoyer_carte") {

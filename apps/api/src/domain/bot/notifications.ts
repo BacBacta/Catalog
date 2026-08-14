@@ -179,10 +179,12 @@ export function recapAbsence(corpsEnAttente: readonly string[]): string | null {
     ...lignes,
     ...(deborde > 0 ? [`… et ${deborde} de plus, au prochain message.`] : []),
     "",
-    /* Un geste qui EXISTE — l'écran Commandes de l'espace vendeuse — jamais
-       un mot que le bot ne connaît pas encore : promettre un geste absent est
-       la faute de « Voir une boutique » (ADR 0103, 0104). */
-    "Le détail de chaque commande est dans votre espace vendeuse, écran Commandes.",
+    /* Le registre EXISTE depuis l'ADR 0107 — la promesse est donc permise, et
+       un test la LIE au geste : si `demandeRegistre` cesse un jour de
+       reconnaître « commandes », la copie rougit avec lui. C'était la faute
+       de « Voir une boutique » (ADR 0103) : une copie qui promet un geste
+       absent, et rien pour l'attraper. */
+    "Écrivez *commandes* pour les ouvrir une à une.",
   ].join("\n");
 }
 

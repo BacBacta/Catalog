@@ -15,7 +15,7 @@ import {
   veutPositionFlux,
 } from "./flux.ts";
 import { motDeGeste } from "./geste.ts";
-import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
+import { demandeCarteVitrine, demandeConges, demandeRegistre } from "./inscription.ts";
 import {
   boutons,
   demandeLocalisation,
@@ -377,7 +377,13 @@ export type EffetBot =
    * Le formulaire rend la note ET le mot d'un coup — un seul effet, donc, et
    * pas deux qui se suivraient : le service ecrit l'avis complet en une fois.
    */
-  | { type: "deposer_avis_complet"; note: number; texte: string };
+  | { type: "deposer_avis_complet"; note: number; texte: string }
+  /**
+   * Une ligne du registre des commandes — ADR 0107. La machine sait DEMANDER
+   * le detail, le service sait le charger : les articles et la livraison ne
+   * vivent pas dans le contexte, ils se lisent a la demande.
+   */
+  | { type: "detail_commande"; id: string };
 
 export interface Reaction {
   etat: EtatConv;
@@ -2090,7 +2096,22 @@ export interface CommandeOuverte {
   id: string;
   reference: string;
   resteXaf: number;
+  /**
+   * L'etape de la commande — ADR 0107. Facultative parce que « soldes » n'en
+   * a pas besoin : seule la ligne du registre l'affiche, et une etape absente
+   * s'omet au lieu d'inventer.
+   */
+  etape?: "recue" | "preparee" | "chez_le_livreur" | "livree";
+  totalXaf?: number;
 }
+
+/** L'etape, dite comme la vendeuse la dirait. Le registre n'invente pas de vocabulaire. */
+export const ETAPE_EN_MOTS: Record<NonNullable<CommandeOuverte["etape"]>, string> = {
+  recue: "reçue",
+  preparee: "préparée",
+  chez_le_livreur: "chez le livreur",
+  livree: "livrée",
+};
 
 /** Ce que le menu vendeuse montre d'elle-meme — charge par le service. */
 export interface BoutiqueVendeuse {
@@ -2221,6 +2242,86 @@ export function reagirVendeuse(
     };
   }
 
+  /**
+   * ── Le REGISTRE des commandes — ADR 0107 ─────────────────────────────────
+   *
+   * La moitie « retrouver » de l'ADR 0105 : la notification informe, le
+   * registre retrouve. Une liste, dix lignes au plus, la plus recente en
+   * tete ; une ligne ouvre le detail (effet `detail_commande` — les articles
+   * et la livraison se chargent a la demande, ils ne vivent pas dans le
+   * contexte).
+   */
+  if (id === "registre" || (entree.genre === "texte" && demandeRegistre(entree.texte))) {
+    const ouvertes = contexte.commandesOuvertes;
+    if (ouvertes.length === 0) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [
+          texte(
+            vers,
+            "Aucune commande en cours : tout est soldé. Les nouvelles apparaîtront ici — écrivez « commandes » quand vous voulez.",
+          ),
+        ],
+      };
+    }
+    /* Neuf lignes de commandes au plus : la dixieme, s'il en reste, mene a
+       l'espace vendeuse qui les liste TOUTES. Le debordement est dit, jamais
+       avale — la regle du recapitulatif (ADR 0105). */
+    const visibles = ouvertes.slice(0, ouvertes.length > 10 ? 9 : 10);
+    const lignes = [
+      ...visibles.map((c) => ({
+        id: `reg:${c.id}`,
+        titre: c.reference,
+        description: [
+          `reste ${formatXaf(c.resteXaf)}`,
+          ...(c.etape ? [ETAPE_EN_MOTS[c.etape]] : []),
+        ].join(" · "),
+      })),
+      ...(ouvertes.length > visibles.length
+        ? [
+            {
+              id: "registre_espace",
+              titre: "Voir tout",
+              description: `${ouvertes.length - visibles.length} de plus, dans votre espace`,
+            },
+          ]
+        : []),
+    ];
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        liste(
+          vers,
+          `📒 *Vos commandes en cours — ${ouvertes.length}*\nÀ encaisser : ${formatXaf(contexte.soldesXaf)}. Touchez une commande pour son détail.`,
+          "Ouvrir",
+          lignes,
+        ),
+      ],
+    };
+  }
+
+  if (id?.startsWith("reg:")) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [],
+      effet: { type: "detail_commande", id: id.slice(4) },
+    };
+  }
+
+  if (id === "registre_espace") {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        texte(
+          vers,
+          contexte.boutique?.lienEspace
+            ? `Toutes vos commandes, avec leurs étapes : ${contexte.boutique.lienEspace}`
+            : "Toutes vos commandes vivent dans votre espace vendeuse, écran Commandes.",
+        ),
+      ],
+    };
+  }
+
   if (mot === "solde" || mot === "soldes" || id === "solde") {
     const n = contexte.commandesOuvertes.length;
     const corps =
@@ -2265,7 +2366,7 @@ export function reagirVendeuse(
     `Votre lien de boutique — partagez-le, mettez-le en Statut :\n${b.lienBoutique}`,
     ...(b.lienEspace ? [`Vos chiffres et votre reversement : ${b.lienEspace}`] : []),
     "",
-    "Un paiement reçu ? Collez ici le SMS de votre opérateur — il devient le reçu. Une commande remise ? Écrivez « livrée CT-… ».",
+    "Un paiement reçu ? Collez ici le SMS de votre opérateur — il devient le reçu. Une commande remise ? Écrivez « livrée CT-… ». Vos commandes en cours : écrivez « commandes ».",
     /* Le geste est ANNONCE : un mot-clé que personne ne connaît n'existe pas. */
     ...(b.enConges
       ? ["Prête à reprendre ? Écrivez « je reprends »."]
@@ -2295,6 +2396,53 @@ export function reagirVendeuse(
       ),
     ],
   };
+}
+
+/**
+ * Le DETAIL d'une commande du registre — ADR 0107. Pur : le service charge,
+ * cette fonction dit. Elle reprend le vocabulaire des notifications
+ * (`corpsNouvelleCommande`) : la destination, le numero a appeler, et le
+ * geste suivant — jamais un fait sans la suite.
+ */
+export function detailCommandeVendeuse(d: {
+  reference: string;
+  etape: NonNullable<CommandeOuverte["etape"]>;
+  lignes: ReadonlyArray<{ nom: string; quantite: number; prixUnitaireXaf: number }>;
+  totalXaf: number;
+  payeXaf: number;
+  resteXaf: number;
+  /** `prouve`/`contresigne` : le paiement a son recu. `conteste` : gelee. */
+  preuve: "attendu" | "declare_non_trace" | "prouve" | "contresigne" | "conteste";
+  destination?: string | null;
+  telephoneLivraison?: string | null;
+}): string {
+  const paiement =
+    d.preuve === "conteste"
+      ? "⚠️ Paiement contesté — la commande est gelée tant que le désaccord n'est pas réglé."
+      : d.resteXaf === 0
+        ? "Soldée."
+        : `Payé ${formatXaf(d.payeXaf)} · reste ${formatXaf(d.resteXaf)}${
+            d.preuve === "prouve" || d.preuve === "contresigne"
+              ? " — l'encaissé a son reçu"
+              : d.preuve === "declare_non_trace"
+                ? " — déclaré à la main, non tracé"
+                : ""
+          }`;
+  const geste =
+    d.preuve === "conteste"
+      ? "Le plus rapide reste d'appeler l'acheteuse."
+      : d.etape === "livree"
+        ? "Commande remise — il ne reste que l'encaissement."
+        : `Quand c'est remis, écrivez : *livrée ${d.reference}*`;
+  return [
+    `📒 *${d.reference}* — ${ETAPE_EN_MOTS[d.etape]}`,
+    ...d.lignes.map((l) => `${l.quantite}× ${l.nom} — ${formatXaf(l.prixUnitaireXaf)}`),
+    `Total ${formatXaf(d.totalXaf)} · ${paiement}`,
+    ...(d.destination ? [`📍 ${d.destination}`] : []),
+    ...(d.telephoneLivraison ? [`Numéro à appeler : ${formatPhone(d.telephoneLivraison)}`] : []),
+    "",
+    geste,
+  ].join("\n");
 }
 
 /** Le verdict des sept controles, dit en langue simple dans le fil. */

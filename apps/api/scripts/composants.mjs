@@ -49,6 +49,9 @@ const AMORCES = ["Je veux vendre", "Voir une boutique", "Où est ma commande ?",
 const COMMANDES = [
   { command_name: "vendre", command_description: "Ouvrir ma boutique en deux minutes" },
   { command_name: "boutique", command_description: "Le menu de ma boutique" },
+  /* Le registre — ADR 0107. La barre oblique est retiree par `motDeGeste`
+     (ADR 0104) : `/commandes` vaut « commandes ». */
+  { command_name: "commandes", command_description: "Mes commandes en cours" },
   { command_name: "suivi", command_description: "Où en est ma commande" },
   { command_name: "aide", command_description: "Les gestes qui marchent partout" },
 ];

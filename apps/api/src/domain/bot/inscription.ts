@@ -250,6 +250,16 @@ export function demandeEspaceVendeuse(texteBrut: string): boolean {
 }
 
 /**
+ * « commandes » — le REGISTRE des commandes ouvertes (ADR 0107). C'est la
+ * moitie « retrouver » du recapitulatif d'absence (ADR 0105) : la
+ * notification informe, le registre retrouve.
+ */
+export function demandeRegistre(texteBrut: string): boolean {
+  const net = motDeGeste(texteBrut);
+  return /^(?:mes )?commandes$|^registre$/.test(net);
+}
+
+/**
  * « solde » — le chiffre que la vendeuse vient chercher. MESURE au banc du
  * 10/08/2026 : tape pendant qu'un achat etait en cours (elle venait de
  * parcourir sa propre boutique), le mot partait au fil acheteuse qui ne le

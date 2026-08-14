@@ -6,6 +6,7 @@ import {
   demandeConges,
   demandeEspaceVendeuse,
   demandeInscription,
+  demandeRegistre,
   demandeSoldes,
 } from "./inscription.ts";
 
@@ -141,6 +142,15 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     /* « Ma carte » vient du meme menu, et part au fil vendeuse qui la sait
        fabriquer (`conversation.ts`, id « carte »). */
     if ((entree.genre === "bouton" || entree.genre === "liste") && entree.id === "carte") {
+      return "vendeuse";
+    }
+    /* Le registre des commandes — ADR 0107. Le mot, et les lignes de sa
+       liste : une reponse `reg:` ne peut venir que d'un registre envoye. */
+    if (entree.genre === "texte" && demandeRegistre(t)) return "vendeuse";
+    if (
+      (entree.genre === "bouton" || entree.genre === "liste") &&
+      (entree.id?.startsWith("reg:") || entree.id === "registre" || entree.id === "registre_espace")
+    ) {
       return "vendeuse";
     }
     if (entree.genre === "texte" && demandeAjoutArticle(t)) return "inscription";

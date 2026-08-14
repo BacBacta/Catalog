@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { demandeRegistre } from "../inscription.ts";
 import { estResumable, RECAP_SUJETS_MAX, recapAbsence } from "../notifications.ts";
 
 /**
@@ -33,15 +34,17 @@ describe("recapAbsence — un message, une ligne par événement", () => {
     /* La PREMIERE ligne seulement : le detail ne se recopie pas, il vit dans
        la commande, que l'espace vendeuse affiche. */
     expect(r).not.toContain("Acompte attendu");
-    expect(r).toContain("espace vendeuse");
+    expect(r).toContain("commandes");
   });
 
-  it("le récapitulatif ne promet AUCUN geste que le bot ne connaît pas", () => {
-    /* La faute de « Voir une boutique » (ADR 0103, 0104) : annoncer un mot
-       qui ne mene nulle part. « commandes » n'existe pas encore dans le fil —
-       tant qu'il n'existe pas, le recapitulatif n'a pas le droit de l'ecrire. */
+  it("la promesse du récapitulatif est LIÉE au geste qu'elle annonce", () => {
+    /* La faute de « Voir une boutique » (ADR 0103) : une copie qui promet un
+       geste absent, et rien pour l'attraper. Le registre existe (ADR 0107),
+       donc la promesse est permise — mais elle rougit avec le geste : si
+       `demandeRegistre` cesse de reconnaître « commandes », ce test tombe. */
     const r = recapAbsence([CORPS_COMMANDE("CT-1"), CORPS_COMMANDE("CT-2")]) ?? "";
-    expect(r).not.toMatch(/écrivez \*?commandes\*?/i);
+    expect(r).toMatch(/écrivez \*?commandes\*?/i);
+    expect(demandeRegistre("commandes")).toBe(true);
   });
 
   it("au-delà du plafond, le débordement est DIT, jamais avalé", () => {
