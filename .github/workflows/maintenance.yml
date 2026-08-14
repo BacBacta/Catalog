@@ -24,10 +24,23 @@ on:
       operation:
         description: "Ce qu'on fait"
         type: choice
-        options: [inventaire, etat-flux, poser-waba, poser-flux, remise-a-zero, journaux]
+        options:
+          [
+            inventaire,
+            etat-flux,
+            poser-waba,
+            poser-flux,
+            remise-a-zero,
+            journaux,
+            envoyer-amorce,
+          ]
         default: inventaire
       waba:
         description: "Pour « poser-waba » UNIQUEMENT : l'identifiant du compte WhatsApp Business (chiffres)"
+        type: string
+        default: ""
+      numero:
+        description: "Pour « envoyer-amorce » UNIQUEMENT : le wa_id, chiffres seuls, sans « + »"
         type: string
         default: ""
       confirmation:
@@ -93,6 +106,35 @@ jobs:
       - name: Journaux recents de la machine
         if: inputs.operation == 'journaux'
         run: timeout 30 flyctl logs --app catalog-api-preprod --no-tail || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      # ── L'amorce, relivree a un numero — relecture de copie ─────────────
+      #
+      # L'accueil froid et le « Comment ça marche ? » sont de la COPIE, et une
+      # copie ne se relit pas dans un diff : elle se relit dans une bulle, a la
+      # bonne largeur, sur un telephone. Les revoir demandait jusqu'ici
+      # d'effacer la conversation et de rouvrir le fil — un geste manuel qui
+      # depend en plus d'un evenement dont on a mesure qu'il n'arrive PAS a la
+      # reouverture (ADR 0106, quatrieme dementi).
+      #
+      # Le contenu n'est PAS un parametre : le script le construit depuis le
+      # domaine. Un numero entre, les messages du produit sortent — ce canal ne
+      # peut pas servir a dire autre chose que ce que le bot dit deja.
+      #
+      # `numero` est valide ICI aussi, avant de partir : le script refuserait de
+      # toute facon, mais l'echec est plus lisible avant la traversee SSH.
+      - name: Envoyer l'amorce
+        if: inputs.operation == 'envoyer-amorce'
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${{ inputs.numero }}" | grep -qE '^[0-9]{8,15}$'; then
+            echo "« numero » doit etre le wa_id : chiffres seuls, sans « + »."
+            echo "Exemple : 32466457281"
+            exit 1
+          fi
+          flyctl ssh console --app catalog-api-preprod \
+            -C "node /app/apps/api/scripts/amorce-envoyer.mjs ${{ inputs.numero }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
