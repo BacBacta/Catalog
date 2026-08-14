@@ -91,6 +91,8 @@ try {
            s.status,
            s.created_at                                           AS creee_le,
            (SELECT count(*)::int FROM "product" p WHERE p.seller_id = s.id) AS articles,
+           (SELECT count(*)::int FROM "product" p
+             WHERE p.seller_id = s.id AND p.image_key IS NOT NULL)          AS illustres,
            (SELECT count(*)::int FROM "order"   o WHERE o.seller_id = s.id) AS commandes,
            (SELECT count(*)::int FROM "review"  r WHERE r.seller_id = s.id) AS avis
       FROM "seller" s
@@ -105,8 +107,12 @@ try {
   for (const b of rows) {
     const date = new Date(b.creee_le).toISOString().slice(0, 10);
     console.log(
+      /* `illustres` a rejoint la ligne le 14/08/2026, en cherchant une photo
+         perdue : « articles sans photo en base » et « photos perdues par le
+         stockage » se reparent a des endroits opposes, et RIEN ne disait
+         dans quel monde on etait. */
       `  ${b.slug.padEnd(24)} ${String(b.status).padEnd(10)} ${date}  ` +
-        `${b.articles} art. · ${b.commandes} cmd. · ${b.avis} avis   « ${b.nom} »`,
+        `${b.articles} art. (${b.illustres} avec photo) · ${b.commandes} cmd. · ${b.avis} avis   « ${b.nom} »`,
     );
   }
 
