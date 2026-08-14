@@ -62,3 +62,35 @@ déploiement embarquant ce lot.
   secondaire : l'accueil n'attend plus d'être deviné.
 - **La forme exacte de `request_welcome`** sera constatée au premier
   déclenchement réel ; la lecture tolérante est faite pour survivre à l'écart.
+
+## Amendement du 14/08, 20h47 — le quatrième démenti mesuré
+
+La documentation promet l'événement à l'ouverture d'une conversation nouvelle
+**ou rouverte après suppression**. Mesuré sur notre numéro, drapeau posé
+depuis 1 h 36, chaîne de lecture vérifiée de bout en bout par un étalon :
+
+```
+protocole : suppression du fil → réouverture (rien tapé) → « bonjour »
+journal   : bot : livraison — types=[text] lues=1/1
+```
+
+Le « bonjour » a laissé sa ligne — l'instrument voit les arrivées, y compris
+celles que le parseur ne saurait pas lire (les types se lisent AVANT lui).
+**Aucun `request_welcome` n'est arrivé.** À la réouverture d'un fil supprimé,
+Meta n'émet rien. Après `cta_url`, `location_request_message` et
+`CalendarPicker`, c'est le quatrième écart mesuré entre la documentation et
+la plateforme — dans le sens inverse des trois premiers : une capacité
+annoncée présente, et absente.
+
+**Ce qui reste vrai, et ce qu'on en fait :**
+
+- le cas du **numéro vraiment vierge** — qui n'a jamais écrit au numéro de sa
+  vie — reste NON MESURÉ : il exige un telephone qu'aucun de nos tests n'a.
+  Le drapeau reste posé et le lecteur en place : si Meta émet dans ce cas-là,
+  l'accueil part, et la ligne d'arrivée le montrera ;
+- **l'accueil garanti est celui du premier message écrit** — n'importe quel
+  texte rend les trois portes. C'est le seul déclencheur qui ne dépend
+  d'aucune promesse de Meta, et il est mesuré ;
+- la correction de jonction (`entreePourAcheteuse`) et le test de bout en
+  bout gardent leur valeur : ils tiennent le chemin prêt pour le jour où
+  l'événement arrive vraiment.
