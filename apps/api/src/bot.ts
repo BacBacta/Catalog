@@ -1567,6 +1567,18 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
           if (url) a.imageUrl = url;
         }),
       );
+      /**
+       * Le compte, parce que les deux moities se confondent : un catalogue
+       * dont AUCUN article ne porte de cle est une boutique sans photos —
+       * normal, rien a reparer. Un catalogue dont les articles portent des
+       * cles mais dont aucune URL ne sort est une PANNE. La rafale dit la
+       * meme phrase dans les deux cas ; cette ligne les separe.
+       */
+      const avecUrl = illustres.slice(0, RAFALE_MAX).filter((a) => a.imageUrl).length;
+      console.log(
+        `bot : rafale — articles=${boutique.articles.length} ` +
+          `avec_cle=${illustres.length} photos=${avecUrl}`,
+      );
     } else {
       const articleVise = idGeste?.startsWith("art:") ? idGeste.slice(4) : null;
       const cibleId = articleVise ?? (slugDuTexte ? boutique.articles[0]?.id : null) ?? null;
@@ -2323,12 +2335,36 @@ function resoudreLignes(
  * degrade en « pas d'image » — jamais en message perdu.
  */
 async function urlJpegVerifiee(deps: BotDeps, cleDeBase: string): Promise<string | null> {
-  if (!deps.storage) return null;
+  /**
+   * ── Trois causes, un seul `null` — corrige le 14/08/2026 ─────────────────
+   *
+   * « Le catalogue n'affiche pas les photos » etait indiagnosticable : cette
+   * fonction rendait `null` pour trois raisons SANS RAPPORT — pas de stockage
+   * configure, objet absent du seau, seau en erreur — et n'en disait aucune.
+   * En face, la rafale n'a qu'un comportement pour les trois : elle annonce
+   * « aucune photo ». La panne se presentait donc comme une boutique sans
+   * photos, ce qu'elle n'etait pas.
+   *
+   * C'est la meme forme de defaut que le constat C-003 et que la jonction de
+   * l'ADR 0106 : ce qui ne se journalise pas ne se distingue pas, et ce qui
+   * ne se distingue pas se repare au hasard.
+   *
+   * La cle n'est PAS journalisee. Elle est opaque (ADR 0017), mais elle
+   * n'apprend rien ici : c'est la cause qu'on cherche, pas l'objet.
+   */
+  if (!deps.storage) {
+    console.warn("bot : photo — aucun stockage configure, aucune image ne peut partir");
+    return null;
+  }
   const cle = `${cleDeBase}.jpg`;
   try {
-    if ((await deps.storage.taille(cle)) === null) return null;
+    if ((await deps.storage.taille(cle)) === null) {
+      console.warn(`bot : photo — objet absent du stockage (${deps.storage.name})`);
+      return null;
+    }
     return await deps.storage.urlSignee(cle, 600);
-  } catch {
+  } catch (e) {
+    console.warn(`bot : photo — stockage en erreur (${resumerErreur(e)})`);
     return null;
   }
 }
