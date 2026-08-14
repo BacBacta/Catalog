@@ -85,6 +85,7 @@ import {
 } from "./domain/bot/inscription.ts";
 import type { LecteurMedia, PhotoCdnChiffree } from "./domain/bot/media.ts";
 import {
+  type AccuseLecture,
   accuseLecture,
   boutons as boutonsMessage,
   image as imageMessage,
@@ -345,13 +346,67 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
      * media, re-encodage, carte-vitrine). De CONFORT : un echec ne coute rien
      * et ne casse pas le fil — l'indicateur se dissipe seul.
      */
+    /**
+     * ── Il n'est PLUS ATTENDU — 14/08/2026 ────────────────────────────────
+     *
+     * Il l'etait, et cela mettait un aller-retour Meta COMPLET en tete du
+     * chemin, avant que le moindre travail ne commence. Pour un message dont
+     * le commentaire ci-dessus dit lui-meme qu'il est de confort et qu'un
+     * echec ne coute rien : on payait comptant la latence d'une chose qu'on
+     * accepte de perdre.
+     *
+     * Sans `await`, la requete part quand meme — elle est simplement lancee
+     * en parallele du travail. L'ordre d'arrivee reste le bon : la coche
+     * bleue prend un aller-retour, la reponse prend un aller-retour PLUS le
+     * travail, donc elle ne peut pas doubler la coche.
+     *
+     * Le `.catch` reste : sans lui, un accuse refuse deviendrait un rejet
+     * non traite, et le processus entier tomberait pour un confort.
+     */
+    let msAccuse: number | null = null;
     if (entree.messageId && deps.envoyeur.accuser) {
-      await deps.envoyeur
+      const departAccuse = performance.now();
+      void deps.envoyeur
         .accuser(accuseLecture(entree.messageId, { frappe: true }))
+        .then(() => {
+          msAccuse = Math.round(performance.now() - departAccuse);
+        })
         .catch(() => {});
     }
 
-    await traiterEntree(deps, entree).catch((e: unknown) => {
+    /**
+     * ── Le chronometre — 14/08/2026 ──────────────────────────────────────
+     *
+     * « C'est lent » ne se corrige pas : on ne sait pas de QUOI c'est lent.
+     * Ce compteur separe les deux seules familles qui comptent — le temps
+     * passe A PARLER A META, et le notre. L'un se reduit en envoyant moins de
+     * messages, l'autre en travaillant mieux ; les confondre fait optimiser
+     * la mauvaise moitie.
+     *
+     * Il enveloppe l'envoyeur au lieu de compter dans `envoyerSequence` :
+     * TOUS les envois du tour sont ainsi vus, y compris ceux des chemins qui
+     * appellent `envoyer` directement.
+     */
+    let envois = 0;
+    let msEnvois = 0;
+    const chronometre: EnvoyeurBot = {
+      nom: deps.envoyeur.nom,
+      envoyer: async (m) => {
+        const depart = performance.now();
+        try {
+          return await deps.envoyeur.envoyer(m);
+        } finally {
+          envois += 1;
+          msEnvois += performance.now() - depart;
+        }
+      },
+      ...(deps.envoyeur.accuser
+        ? { accuser: (a: AccuseLecture) => deps.envoyeur.accuser?.(a) ?? Promise.resolve() }
+        : {}),
+    };
+
+    const departTour = performance.now();
+    await traiterEntree({ ...deps, envoyeur: chronometre }, entree).catch((e: unknown) => {
       /* Une entree qui casse ne bloque ni les suivantes ni la relivraison —
          mais elle se NOMME. La panne muette du 07/08/2026 : tous les envois
          mouraient sur (#131037), et ce catch ne disait rien. */
@@ -362,6 +417,23 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
          lui-meme protege : si c'est LUI qui est casse, on ne boucle pas. */
       deps.envoyeur.envoyer(texte(entree.de, TEXTES.fr.pannePassagere)).catch(() => {});
     });
+
+    /**
+     * La ligne de chronometre. Elle ne dit ni numero, ni contenu, ni
+     * identifiant — un genre d'entree et des durees, comme la ligne d'arrivee
+     * (ADR 0023).
+     *
+     * `nous` est le tour ENTIER moins ce qui a ete passe dans les envois :
+     * c'est notre part — base, machine a etats, pipeline image. Quand `envois`
+     * domine, la reponse est d'envoyer MOINS de messages, pas d'optimiser du
+     * code qui ne coute rien.
+     */
+    const msTour = Math.round(performance.now() - departTour);
+    console.log(
+      `bot : tour — genre=${entree.genre} envois=${envois} ` +
+        `meta=${Math.round(msEnvois)}ms nous=${Math.max(0, msTour - Math.round(msEnvois))}ms ` +
+        `accuse=${msAccuse === null ? "-" : `${msAccuse}ms`} total=${msTour}ms`,
+    );
 
     if (entree.messageId) {
       await deps.prisma.botMessageVu
