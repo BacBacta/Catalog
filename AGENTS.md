@@ -262,6 +262,10 @@ docs/terrain/                    instruments de test de terrain
   bot-parcours.html              maquette cliquable des trois parcours du bot,
                                  messages copiés des sources — à rejouer quand
                                  une copie change, pour voir ce qu'elle donne
+  parcours-vendeur-v2.html       maquette cliquable du parcours vendeur en sept
+                                 étapes, chaque geste marqué « en place » /
+                                 « à construire » / « à trancher » — l'écart
+                                 entre le dépôt et la cible, rendu regardable
 ```
 
 **Règle de dépendance** : `domain` ne dépend de rien. `routes` et `jobs`

@@ -1,0 +1,1444 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parcours vendeur v2 — maquette cliquable</title>
+</head>
+<body>
+
+<style>
+  /* ───────────────────────────── jetons ─────────────────────────────────
+     Palette héritée de packages/ui/src/tokens.css : la marque de Catalog est
+     #0e7a5f, la pile typographique est celle du système, et le rayon des
+     cartes est 16px (ADR 0030). Le téléphone garde SES couleurs — celles de
+     WhatsApp — parce que c'est un objet, pas une carte de la page.
+
+     Ce fichier n'adopte PAS le thème « Modernist » du paquet de handoff
+     (rouge #ec3013, Archivo téléchargée, rayon 0). Voir la section « ce que
+     cette maquette n'est pas », en bas de page.                            */
+  :root {
+    --ground: #eff3f1;
+    --surface: #ffffff;
+    --encre: #101c18;
+    --encre-2: #4f605a;
+    --muted: #6d7b76;
+    --filet: #dde5e1;
+    --filet-fin: #e7edea;
+    --marque: #0e7a5f;
+    --marque-doux: #e3f1ec;
+    --ambre: #8f5c13;
+    --ambre-doux: #fdf4e4;
+
+    /* le fil WhatsApp */
+    --fil-fond: #e5ddd5;
+    --fil-entrant: #ffffff;
+    --fil-sortant: #d9fdd3;
+    --fil-encre: #111b21;
+    --fil-encre-2: #667781;
+    --fil-barre: #f0f2f5;
+    --fil-ombre: rgba(11, 20, 26, 0.13);
+
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --t-titre: clamp(1.9rem, 1.2rem + 2.6vw, 3rem);
+    --r: 16px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0b100e;
+      --surface: #141b18;
+      --encre: #f2f6f4;
+      --encre-2: #a9b8b2;
+      --muted: #8b9a94;
+      --filet: #26302c;
+      --filet-fin: #1c2421;
+      --marque: #17a37f;
+      --marque-doux: #10241f;
+      --ambre: #eda100;
+      --ambre-doux: #2a2110;
+
+      --fil-fond: #0b141a;
+      --fil-entrant: #202c33;
+      --fil-sortant: #005c4b;
+      --fil-encre: #e9edef;
+      --fil-encre-2: #8696a0;
+      --fil-barre: #202c33;
+      --fil-ombre: rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0b100e;
+    --surface: #141b18;
+    --encre: #f2f6f4;
+    --encre-2: #a9b8b2;
+    --muted: #8b9a94;
+    --filet: #26302c;
+    --filet-fin: #1c2421;
+    --marque: #17a37f;
+    --marque-doux: #10241f;
+    --ambre: #eda100;
+    --ambre-doux: #2a2110;
+
+    --fil-fond: #0b141a;
+    --fil-entrant: #202c33;
+    --fil-sortant: #005c4b;
+    --fil-encre: #e9edef;
+    --fil-encre-2: #8696a0;
+    --fil-barre: #202c33;
+    --fil-ombre: rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--encre);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .enveloppe {
+    width: 100%;
+    max-width: 1480px;
+    margin-inline: auto;
+    padding-inline: clamp(1rem, 0.5rem + 2.4vw, 2.5rem);
+  }
+
+  /* ───────────────────────────── en-tête ──────────────────────────────── */
+
+  header { padding-block: clamp(2.2rem, 1.4rem + 3.6vw, 4rem) 1.2rem; }
+
+  .jalon {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0 0 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--encre-2);
+  }
+  .jalon::before {
+    content: "";
+    width: 2.4rem;
+    height: 2px;
+    background: var(--marque);
+    flex: none;
+  }
+
+  h1 {
+    margin: 0 0 0.9rem;
+    font-size: var(--t-titre);
+    line-height: 1.08;
+    letter-spacing: -0.022em;
+    font-weight: 700;
+    max-width: 20ch;
+  }
+  h1 em { font-style: normal; color: var(--marque); }
+
+  .chapeau {
+    max-width: 62ch;
+    margin: 0 0 1.6rem;
+    font-size: 1.02rem;
+    color: var(--encre-2);
+  }
+  .chapeau strong { color: var(--encre); font-weight: 600; }
+
+  /* ───────────────────────── légende des états ────────────────────────── */
+
+  .legende {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.4rem;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 1.6rem;
+    background: var(--surface);
+    border: 1px solid var(--filet);
+    border-radius: var(--r);
+    font-size: 0.82rem;
+    color: var(--encre-2);
+  }
+  .legende > div { display: flex; align-items: center; gap: 0.5rem; }
+
+  .etat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.1rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .etat--place { background: var(--marque-doux); color: var(--marque); }
+  .etat--construire { background: var(--ambre-doux); color: var(--ambre); }
+  .etat--trancher {
+    background: transparent;
+    color: var(--encre-2);
+    border: 1px solid var(--encre-2);
+  }
+
+  /* ───────────────────────────── onglets ──────────────────────────────── */
+
+  .onglets {
+    display: flex;
+    gap: 0.4rem;
+    overflow-x: auto;
+    padding-bottom: 0.7rem;
+    margin-bottom: 1.4rem;
+    border-bottom: 1px solid var(--filet);
+    scrollbar-width: thin;
+  }
+  .onglet {
+    flex: none;
+    padding: 0.55rem 0.95rem;
+    border: 1px solid var(--filet);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--encre-2);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 150ms cubic-bezier(0.2, 0.8, 0.2, 1), color 150ms;
+  }
+  .onglet:hover { background: var(--marque-doux); color: var(--marque); }
+  .onglet[aria-selected="true"] {
+    background: var(--marque);
+    border-color: var(--marque);
+    color: #fff;
+    font-weight: 600;
+  }
+  /* ───────────────────────────── l'établi ─────────────────────────────── */
+
+  .etabli {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding-bottom: 3rem;
+    align-items: start;
+  }
+  @media (min-width: 940px) {
+    .etabli { grid-template-columns: 320px 1fr; }
+  }
+  @media (min-width: 1300px) {
+    .etabli { grid-template-columns: 320px 320px 1fr; }
+  }
+
+  .titre-colonne {
+    margin: 0 0 0.7rem;
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .colonne { position: sticky; top: 1rem; }
+  @media (max-width: 939px) { .colonne { position: static; } }
+
+  /* ───────────────────────────── téléphone ────────────────────────────── */
+
+  .tel {
+    border-radius: 22px;
+    overflow: hidden;
+    background: var(--fil-barre);
+    box-shadow: 0 1px 2px var(--fil-ombre), 0 18px 44px -18px rgba(11, 20, 26, 0.4);
+    border: 1px solid var(--filet);
+  }
+  .tel__barre {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.8rem;
+    background: var(--fil-barre);
+    border-bottom: 1px solid var(--filet-fin);
+  }
+  .tel__pastille {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--marque);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    flex: none;
+  }
+  .tel__nom { font-size: 0.85rem; font-weight: 600; color: var(--fil-encre); line-height: 1.2; }
+  .tel__sous { font-size: 0.7rem; color: var(--fil-encre-2); }
+
+  .fil {
+    height: 460px;
+    overflow-y: auto;
+    padding: 0.8rem 0.7rem 1rem;
+    background: var(--fil-fond);
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) { .fil { scroll-behavior: auto; } }
+
+  .bulle {
+    max-width: 86%;
+    padding: 0.45rem 0.6rem 0.3rem;
+    border-radius: 8px;
+    background: var(--fil-entrant);
+    color: var(--fil-encre);
+    font-size: 0.82rem;
+    line-height: 1.45;
+    box-shadow: 0 1px 0.5px var(--fil-ombre);
+    white-space: pre-wrap;
+    word-break: break-word;
+    animation: pose 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @keyframes pose { from { transform: translateY(6px); } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .bulle { animation: none; } }
+
+  .bulle--moi { align-self: flex-end; background: var(--fil-sortant); }
+  .bulle--bot { align-self: flex-start; }
+  .bulle__heure {
+    display: block;
+    text-align: right;
+    font-size: 0.62rem;
+    color: var(--fil-encre-2);
+    margin-top: 0.15rem;
+  }
+
+  .bulle__actions {
+    margin: 0.45rem -0.6rem -0.3rem;
+    border-top: 1px solid var(--filet-fin);
+  }
+  .bulle__action {
+    display: block;
+    width: 100%;
+    padding: 0.5rem;
+    border: 0;
+    border-top: 1px solid var(--filet-fin);
+    background: transparent;
+    color: #027eb5;
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: center;
+    cursor: default;
+  }
+  .bulle__action:first-child { border-top: 0; }
+  :root[data-theme="dark"] .bulle__action { color: #53bdeb; }
+
+  .bulle__liste {
+    margin: 0.5rem 0 0;
+    border-top: 1px solid var(--filet-fin);
+    padding-top: 0.4rem;
+  }
+  .liste-ligne { padding: 0.35rem 0; border-bottom: 1px solid var(--filet-fin); }
+  .liste-ligne:last-child { border-bottom: 0; }
+  .liste-ligne b { display: block; font-weight: 600; }
+  .liste-ligne span { font-size: 0.74rem; color: var(--fil-encre-2); }
+
+  .photos {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    margin-bottom: 0.35rem;
+  }
+  .photos div {
+    aspect-ratio: 1;
+    background: linear-gradient(135deg, #cfd8d4, #aab5b0);
+    border-radius: 4px;
+    display: grid;
+    place-items: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #46524d;
+  }
+  .photo-une {
+    height: 110px;
+    background: linear-gradient(135deg, #cfd8d4, #aab5b0);
+    border-radius: 4px;
+    margin-bottom: 0.35rem;
+    display: grid;
+    place-items: center;
+    font-size: 0.72rem;
+    color: #46524d;
+  }
+
+  /* L'affiche est rendue en 1080×1920 (ADR 0037). Ici elle est SUGGÉRÉE, pas
+     mise à l'échelle : à la largeur d'une bulle, un vrai 9:16 ferait 500 px de
+     haut et pousserait tout le reste du fil hors de vue. */
+  .affiche {
+    min-height: 200px;
+    border-radius: 6px;
+    margin-bottom: 0.35rem;
+    background: var(--marque);
+    color: #fff;
+    padding: 0.7rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    gap: 0.5rem;
+  }
+  .affiche b { font-size: 1rem; }
+  .affiche .vignettes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .affiche .vignettes div { aspect-ratio: 1.3; background: rgba(255, 255, 255, 0.26); border-radius: 3px; }
+
+  .systeme {
+    align-self: center;
+    max-width: 90%;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.6);
+    color: var(--fil-encre-2);
+    font-size: 0.68rem;
+    font-family: var(--mono);
+    text-align: center;
+  }
+  /* En sombre, le gris du fil passe sous le seuil sur ce fond très foncé :
+     l'aparté garde son recul par la taille et la casse, pas par la pâleur. */
+  :root[data-theme="dark"] .systeme,
+  :root:not([data-theme="light"]) .systeme {
+    background: rgba(255, 255, 255, 0.08);
+    color: #c6d2d7;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .systeme {
+      background: rgba(255, 255, 255, 0.6);
+      color: var(--fil-encre-2);
+    }
+  }
+
+  /* ─────────────────────── commandes sous le fil ──────────────────────── */
+
+  .commandes-fil {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.7rem;
+    background: var(--fil-barre);
+    border-top: 1px solid var(--filet-fin);
+  }
+  .geste {
+    flex: 1;
+    padding: 0.6rem 0.8rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--marque);
+    color: #fff;
+    font: inherit;
+    font-size: 0.83rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .geste:hover { filter: brightness(1.08); }
+  .geste:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+  .rejouer {
+    flex: none;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--filet);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--encre-2);
+    font: inherit;
+    font-size: 0.83rem;
+    cursor: pointer;
+    min-height: 44px;
+  }
+  .rejouer:hover { background: var(--marque-doux); color: var(--marque); }
+
+  .indice {
+    margin: 0.6rem 0 0;
+    font-size: 0.78rem;
+    color: var(--muted);
+    min-height: 2.6em;
+  }
+
+  /* ──────────────────────── l'app vendeuse ────────────────────────────── */
+
+  .app {
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid var(--filet);
+    background: var(--surface);
+    box-shadow: 0 1px 2px rgb(20 32 28 / 0.05), 0 12px 32px -14px rgb(20 32 28 / 0.3);
+    display: flex;
+    flex-direction: column;
+    height: 528px;
+  }
+  .app__corps { flex: 1; overflow-y: auto; padding: 0.9rem; }
+  .app__surtitre {
+    margin: 0;
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--marque);
+    font-weight: 600;
+  }
+  .app__titre { margin: 0.1rem 0 0.9rem; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; }
+
+  .app__vide { display: grid; place-items: center; height: 100%; padding: 2rem; text-align: center; color: var(--muted); font-size: 0.85rem; }
+
+  .tuile {
+    padding: 0.9rem;
+    border-radius: var(--r);
+    background: var(--marque-doux);
+    margin-bottom: 0.8rem;
+  }
+  .tuile__label { font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--marque); font-weight: 600; }
+  .tuile__valeur { font-size: 1.85rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .tuile__note { font-size: 0.74rem; color: var(--encre-2); }
+
+  .carte {
+    padding: 0.75rem;
+    border: 1px solid var(--filet);
+    border-radius: var(--r);
+    margin-bottom: 0.6rem;
+    background: var(--surface);
+  }
+  .carte__titre { font-weight: 700; font-size: 0.9rem; }
+  .carte__note { font-size: 0.76rem; color: var(--encre-2); }
+  .rangee { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+  .montant { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .pastille {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    margin-top: 0.35rem;
+  }
+  .pastille--marque { background: var(--marque-doux); color: var(--marque); }
+  .pastille--ambre { background: var(--ambre-doux); color: var(--ambre); }
+  .pastille--neutre { background: var(--filet-fin); color: var(--encre-2); }
+
+  .ligne-article { display: flex; gap: 0.6rem; align-items: center; padding: 0.6rem 0; border-bottom: 1px solid var(--filet-fin); }
+  .ligne-article:last-of-type { border-bottom: 0; }
+  .vignette { width: 46px; height: 46px; border-radius: 10px; background: linear-gradient(135deg, #cfd8d4, #aab5b0); flex: none; }
+  .vignette--vide { border: 1px dashed var(--muted); background: none; display: grid; place-items: center; font-size: 0.6rem; color: var(--muted); text-align: center; }
+  .fleches { display: flex; flex-direction: column; gap: 3px; }
+  .fleches span { width: 26px; height: 26px; border: 1px solid var(--filet); border-radius: 8px; display: grid; place-items: center; font-size: 0.75rem; color: var(--encre-2); }
+
+  .controle { display: flex; gap: 0.5rem; align-items: baseline; font-size: 0.8rem; padding: 0.15rem 0; }
+  .controle b { color: var(--marque); flex: none; white-space: nowrap; }
+
+  .champ-sms {
+    border: 1px solid var(--muted);
+    border-radius: 12px;
+    background: var(--ground);
+    padding: 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    line-height: 1.5;
+    min-height: 80px;
+    margin-bottom: 0.5rem;
+    word-break: break-word;
+  }
+
+  .barre-entonnoir { display: grid; grid-template-columns: 68px 1fr 42px; gap: 0.5rem; align-items: center; font-size: 0.76rem; margin-bottom: 0.35rem; }
+  .barre-entonnoir i { height: 16px; border-radius: 4px; display: block; font-style: normal; }
+  .barre-entonnoir span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .part { display: flex; height: 20px; border-radius: 6px; overflow: hidden; margin-bottom: 0.4rem; }
+  .part i { display: block; }
+  .cle { display: flex; flex-wrap: wrap; gap: 0.7rem; font-size: 0.72rem; color: var(--encre-2); }
+  .cle i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 0.25rem; }
+
+  .app__nav { display: flex; border-top: 1px solid var(--filet); background: var(--surface); }
+  .app__nav div { flex: 1; text-align: center; padding: 0.5rem 0 0.6rem; font-size: 0.64rem; color: var(--muted); }
+  .app__nav div[data-actif] { color: var(--marque); font-weight: 700; box-shadow: inset 0 2px 0 var(--marque); }
+
+  /* ───────────────────────── sous le capot ────────────────────────────── */
+
+  .trace { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+  .trace li {
+    padding: 0.85rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--filet);
+    border-left: 3px solid var(--marque);
+    border-radius: var(--r);
+    animation: pose 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) { .trace li { animation: none; } }
+  .trace li[data-etat="a-construire"] { border-left-color: var(--ambre); }
+  .trace li[data-etat="a-trancher"] { border-left-color: var(--encre-2); border-left-style: dashed; }
+
+  .trace__tete { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+  .trace__quoi { font-weight: 600; font-size: 0.93rem; }
+  .trace__src { font-family: var(--mono); font-size: 0.7rem; color: var(--marque); word-break: break-word; }
+  .trace__note { margin: 0.35rem 0 0; font-size: 0.83rem; color: var(--encre-2); }
+
+  .vide-trace { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+
+  h2 { font-size: clamp(1.35rem, 1rem + 1.4vw, 1.9rem); letter-spacing: -0.015em; margin: 0 0 0.8rem; }
+  h3 { font-size: 1.02rem; margin: 0 0 0.35rem; }
+
+  .intro-parcours { max-width: 68ch; margin: 0 0 1.2rem; color: var(--encre-2); font-size: 0.93rem; }
+
+  /* ────────────────────────── sections de fin ─────────────────────────── */
+
+  .socle { border-top: 1px solid var(--filet); background: var(--surface); padding-block: clamp(2rem, 1.4rem + 2.6vw, 3.4rem); }
+  .grille { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .fiche { padding: 1.1rem; border: 1px solid var(--filet); border-radius: var(--r); background: var(--ground); }
+  .fiche p { margin: 0.4rem 0 0; font-size: 0.86rem; color: var(--encre-2); }
+  .fiche p:first-of-type { margin-top: 0.5rem; }
+
+  table.compare { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 0.8rem; }
+  table.compare th, table.compare td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--filet); vertical-align: top; }
+  table.compare th { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  table.compare code { font-family: var(--mono); font-size: 0.8rem; }
+
+  footer { padding-block: 2rem 3rem; color: var(--muted); font-size: 0.82rem; }
+  footer a { color: var(--marque); }
+
+  :focus-visible { outline: 2px solid var(--marque); outline-offset: 2px; }
+</style>
+
+<header>
+  <div class="enveloppe">
+    <p class="jalon">docs/terrain · maquette cliquable</p>
+    <h1>Le parcours vendeur, <em>service par service</em>.</h1>
+    <p class="chapeau">
+      Sept étapes, deux canaux. Le fil WhatsApp est un <strong>guichet de services</strong> — un mot,
+      une carte, zéro question ; l'app vendeuse est le comptoir. Chaque geste ci-dessous porte son
+      état réel : ce qui répond déjà aujourd'hui, ce que la cible v2 ajoute, et ce qui attend une
+      décision. <strong>La copie « en place » est recopiée des sources</strong>, pas réécrite — c'est
+      ce qui rend cette page rejouable quand un texte change.
+    </p>
+    <div class="legende">
+      <div><span class="etat etat--place">en place</span> le fil répond déjà ainsi — la source est citée</div>
+      <div><span class="etat etat--construire">à construire</span> copie proposée, ADR à écrire</div>
+      <div><span class="etat etat--trancher">à trancher</span> deux décisions se contredisent</div>
+    </div>
+  </div>
+</header>
+
+<div class="enveloppe">
+  <div class="onglets" id="onglets" role="tablist" aria-label="Étapes du parcours"></div>
+</div>
+
+<main class="enveloppe">
+  <h2 id="titre-parcours">—</h2>
+  <p class="intro-parcours" id="intro-parcours"></p>
+
+  <div class="etabli">
+    <div class="colonne">
+      <p class="titre-colonne">Fil WhatsApp</p>
+      <div class="tel">
+        <div class="tel__barre">
+          <div class="tel__pastille" aria-hidden="true">C</div>
+          <div>
+            <div class="tel__nom">Catalog</div>
+            <div class="tel__sous" id="tel-sous">Service automatisé</div>
+          </div>
+        </div>
+        <div class="fil" id="fil" role="log" aria-live="polite" aria-label="Conversation"></div>
+        <div class="commandes-fil">
+          <button class="geste" id="geste" type="button">Premier geste</button>
+          <button class="rejouer" id="rejouer" type="button" aria-label="Rejouer depuis le début">↺</button>
+        </div>
+      </div>
+      <p class="indice" id="indice" aria-live="polite"></p>
+    </div>
+
+    <div class="colonne">
+      <p class="titre-colonne">Comptoir — app vendeuse</p>
+      <div class="app" id="app"></div>
+    </div>
+
+    <div>
+      <p class="titre-colonne">Sous le capot</p>
+      <ol class="trace" id="trace"></ol>
+      <p class="vide-trace" id="vide-trace">Le premier geste est sous le téléphone. Chaque étape s'inscrira ici.</p>
+    </div>
+  </div>
+</main>
+
+<section class="socle">
+  <div class="enveloppe">
+    <h2>Ce qui reste à décider</h2>
+    <p class="intro-parcours">
+      Trois contradictions entre le storyboard « cible 2026 v2 » et le dépôt d'aujourd'hui. Aucune ne
+      se tranche en écrivant du code : ce sont des décisions produit, donc des ADR. Les combler en
+      silence est exactement ce que le §7.7 d'AGENTS.md interdit.
+    </p>
+    <div class="grille">
+      <div class="fiche">
+        <span class="etat etat--trancher">à trancher</span>
+        <h3 style="margin-top:.5rem">L'ouverture : ligne à virgules ou formulaire ?</h3>
+        <p>
+          Le storyboard décrit une ouverture par une ligne « Chez Bintou, Douala, Deïdo » + une photo,
+          puis une checklist en 3 étapes qui persiste. Le dépôt a tranché autrement depuis :
+          l'ADR 0087 met l'ouverture dans un <strong>Flow en deux écrans</strong>, l'ADR 0088 ramène
+          la confirmation à <strong>une seule bulle</strong> avec un menu natif.
+        </p>
+        <p>
+          Les deux ne se composent pas : le Flow rend la ligne à virgules inutile. La checklist, elle,
+          reste compatible — elle deviendrait une ligne de la liste native. Question ouverte : garde-t-on
+          le Flow (recommandé — il est mesuré au banc) et ne reprend-on du storyboard que la checklist ?
+        </p>
+      </div>
+      <div class="fiche">
+        <span class="etat etat--trancher">à trancher</span>
+        <h3 style="margin-top:.5rem">La carte-vitrine : 1080×1080 ou 1080×1920 ?</h3>
+        <p>
+          La légende du storyboard annonce une carte carrée de 1080×1080. Le code et l'ADR 0037 posent
+          <strong>1080×1920</strong>, le gabarit du Statut WhatsApp — et l'ADR 0059 a fait varier la
+          disposition selon le nombre d'articles pour que la carte ne sorte pas au tiers remplie.
+        </p>
+        <p>
+          Le carré sert l'impression et le groupe ; le 9:16 sert le Statut, qui est le canal de vente
+          n° 1 du produit. Ce sont deux formats, pas un choix — la vraie question est de savoir si on
+          en génère <strong>deux</strong>, et à quel coût de rendu.
+        </p>
+      </div>
+      <div class="fiche">
+        <span class="etat etat--trancher">à trancher</span>
+        <h3 style="margin-top:.5rem">Le SMS du storyboard n'est pas un format réel</h3>
+        <p>
+          La figure « Encaissement » montre
+          <code>Vous avez recu 9500 XAF de 6XXXXXX45. ID Trans: MP2608.1412.C78912</code> — une
+          amorce MTN française collée à un identifiant de forme Orange, et un libellé
+          <code>ID Trans:</code> qui n'existe dans aucun des motifs validés.
+        </p>
+        <p>
+          <strong>Les motifs de SMS ne s'inventent pas</strong> (AGENTS.md §7.4). Cette maquette
+          utilise le message réel de <code>docs/formats-sms-operateurs.md</code>, avec
+          <code>Transaction ID:</code> et un identifiant à douze chiffres. Rien à trancher côté
+          produit — c'est la figure du storyboard qui est à corriger.
+        </p>
+      </div>
+    </div>
+
+    <h2 style="margin-top:2.4rem">Ce que cette maquette n'est pas</h2>
+    <p class="intro-parcours">
+      Le paquet de handoff embarque un système visuel complet, « Modernist ». Il n'est pas adopté ici,
+      et ce n'est pas un oubli : quatre de ses partis pris heurtent des contraintes non négociables du
+      dépôt. Ce qu'on reprend du paquet, c'est la <strong>structure du parcours et la copie</strong>.
+    </p>
+    <table class="compare">
+      <thead>
+        <tr><th>Modernist</th><th>Catalog</th><th>Pourquoi Catalog gagne</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>@import url(fonts.googleapis.com…Archivo)</code></td>
+          <td>pile système, zéro octet</td>
+          <td>« Aucune police téléchargée sur la boutique publique » — AGENTS.md §2 et §8, et le budget de 30 Ko</td>
+        </tr>
+        <tr>
+          <td>accent <code>#ec3013</code></td>
+          <td><code>--color-brand-500 #0e7a5f</code></td>
+          <td>le rouge est réservé à <code>--color-danger</code> ; et « non tracé » est gris, jamais rouge (ADR 0022)</td>
+        </tr>
+        <tr>
+          <td><code>--radius-*: 0</code>, filets 2 px</td>
+          <td><code>--radius-card: 16px</code>, ombres à deux couches</td>
+          <td>c'est précisément ce que l'ADR 0030 a décidé et mesuré</td>
+        </tr>
+        <tr>
+          <td>pas de thème sombre</td>
+          <td>thème sombre choisi valeur par valeur</td>
+          <td><code>tokens.test.ts</code> mesure les contrastes WCAG sur les <em>deux</em> thèmes</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="intro-parcours" style="margin-top:1rem">
+      À quoi s'ajoute l'échelle : les figures du storyboard descendent à 9 px de texte, quand
+      <code>tokens.css</code> pose « jamais sous 15 px sur mobile » et 44 px de cible tactile. Les
+      figures sont des plans, pas des valeurs à transposer.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="enveloppe">
+    Fichier autonome — aucune dépendance, aucun réseau. À rejouer quand une copie change, pour voir
+    ce qu'elle donne. Voisins : <code>bot-parcours.html</code> (les trois parcours du bot),
+    <code>banc-essai-parcours-vendeur.html</code> (le protocole de test de terrain),
+    <code>rampe-paiement.html</code> (les codes USSD sur un vrai téléphone).
+  </div>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const LIEN = "https://boutique.catalog.cm/chez-bintou";
+  const ESPACE = "https://app.catalog.cm";
+  const RECU = "https://boutique.catalog.cm/v/?c=8f3k2";
+
+  /* ─────────────────────────── les écrans de l'app ───────────────────────
+     Recopiés de apps/seller/src/routes/*.tsx : mêmes libellés, même
+     hiérarchie, jetons de packages/ui/src/tokens.css. Les écrans de l'app
+     sont, à une exception près, DÉJÀ à la cible — le delta v2 est dans le
+     fil.                                                                   */
+
+  const nav = (actif) =>
+    '<div class="app__nav">' +
+    ["Accueil", "Articles", "Commandes", "Chiffres", "Reglages"]
+      .map((l) => `<div${l === actif ? " data-actif" : ""}>${l}</div>`)
+      .join("") +
+    "</div>";
+
+  const ECRANS = {
+    aucun: '<div class="app__vide">À cette étape, le fil suffit.<br>La vendeuse n\'ouvre pas l\'app.</div>',
+
+    accueil:
+      '<div class="app__corps">' +
+      '<p class="app__surtitre">Espace vendeuse</p>' +
+      '<p class="app__titre">Votre boutique</p>' +
+      '<div class="carte"><div class="carte__titre">Numero de reversement</div>' +
+      '<span class="pastille pastille--ambre">A regler</span>' +
+      '<p class="carte__note">C\'est là que l\'argent arrive. Une vérification par code, une seule fois.</p></div>' +
+      '<div class="carte"><div class="carte__titre">Ajouter un article</div>' +
+      '<p class="carte__note">Nom, prix, photo — le formulaire fait les trois.</p></div>' +
+      '<div class="carte"><div class="carte__titre">Verifier un recu</div>' +
+      '<p class="carte__note">Le code d\'un reçu, et son verdict.</p></div>' +
+      "</div>" +
+      nav("Accueil"),
+
+    articles:
+      '<div class="app__corps">' +
+      '<p class="app__surtitre">Catalogue</p>' +
+      '<p class="app__titre">Mes articles</p>' +
+      '<div class="ligne-article"><div class="vignette"></div>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:.85rem;font-weight:600">Pagne wax 6 yards</div>' +
+      '<div class="montant">15 000 FCFA</div>' +
+      '<div class="carte__note">4 en stock</div></div>' +
+      '<div class="fleches"><span>↑</span><span>↓</span></div></div>' +
+      '<div class="ligne-article"><div class="vignette"></div>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:.85rem;font-weight:600">Sac tressé</div>' +
+      '<div class="montant">8 500 FCFA</div>' +
+      '<span class="pastille pastille--marque">2 en stock</span></div>' +
+      '<div class="fleches"><span>↑</span><span>↓</span></div></div>' +
+      '<div class="ligne-article"><div class="vignette vignette--vide">sans<br>photo</div>' +
+      '<div style="flex:1;min-width:0"><div style="font-size:.85rem;font-weight:600">Huile de palme 5 L</div>' +
+      '<div class="montant">4 500 FCFA</div>' +
+      '<div class="carte__note">Sans photo — une photo double les chances de vendre.</div></div>' +
+      '<div class="fleches"><span>↑</span><span>↓</span></div></div>' +
+      '<p class="carte__note" style="margin-top:.7rem">Le nombre en stock se corrige à la main : il ne se décompte pas tout seul.</p>' +
+      "</div>" +
+      nav("Articles"),
+
+    commandes:
+      '<div class="app__corps">' +
+      '<p class="app__surtitre">Espace vendeuse</p>' +
+      '<p class="app__titre">Mes commandes</p>' +
+      '<div class="tuile"><div class="tuile__label">Soldes a encaisser</div>' +
+      '<div class="tuile__valeur">31 000 FCFA</div>' +
+      '<div class="tuile__note">Ce que vos clientes vous doivent encore, sur les commandes en cours.</div></div>' +
+      '<div class="carte"><div class="rangee"><span class="carte__titre">CT-104312</span><span class="montant">21 500 F</span></div>' +
+      '<div class="carte__note">Marie Ngono · +237 6 52 00 00 01</div>' +
+      '<span class="pastille pastille--neutre">Creee</span> <span class="pastille pastille--ambre">Solde a encaisser</span></div>' +
+      '<div class="carte"><div class="rangee"><span class="carte__titre">CT-104305</span><span class="montant">12 000 F</span></div>' +
+      '<div class="carte__note">Pagne wax × 1 · Deïdo</div>' +
+      '<span class="pastille pastille--neutre">Preparee</span></div>' +
+      '<div class="carte"><div class="rangee"><span class="carte__titre">CT-104298</span><span class="montant">9 500 F</span></div>' +
+      '<div class="carte__note">Sac tressé × 1 · Akwa</div>' +
+      '<span class="pastille pastille--marque">Livree</span></div>' +
+      "</div>" +
+      nav("Commandes"),
+
+    preuve:
+      '<div class="app__corps">' +
+      '<p class="app__surtitre">Preuve · CT-104312</p>' +
+      '<p class="app__titre">Prouver le paiement</p>' +
+      '<div class="carte__note" style="margin-bottom:.4rem">Collez le SMS de votre opérateur — le message entier.</div>' +
+      '<div class="champ-sms">Vous avez recu 10750 XAF de MARIE NGONO (237652000001 ) sur votre compte Mobile Money 2026-08-14 10:31:04. …Transaction ID: 17600000002.</div>' +
+      '<p class="carte__note">Ne vous fiez jamais à une capture d\'écran : elle ne porte aucun identifiant contrôlable.</p>' +
+      '<div class="carte" style="margin-top:.6rem"><div class="carte__titre" style="margin-bottom:.3rem">Les sept contrôles</div>' +
+      '<div class="controle"><b>1 ✓</b> Format opérateur reconnu (MTN MoMo)</div>' +
+      '<div class="controle"><b>2 ✓</b> Montant conforme — 10 750 F attendus</div>' +
+      '<div class="controle"><b>3 ✓</b> Contrepartie cohérente</div>' +
+      '<div class="controle"><b>4 ✓</b> Horodatage postérieur à la commande</div>' +
+      '<div class="controle"><b>5 ✓</b> Identifiant jamais vu sur tout le réseau</div>' +
+      '<div class="controle"><b>6 —</b> Identifiant auto-cohérent <span class="carte__note">(Orange seulement)</span></div>' +
+      '<div class="controle"><b>7 ⏳</b> Contre-signature de l\'acheteuse</div>' +
+      "</div></div>" +
+      nav("Commandes"),
+
+    chiffres:
+      '<div class="app__corps">' +
+      '<p class="app__surtitre">Statistiques</p>' +
+      '<p class="app__titre">Vos chiffres</p>' +
+      '<div class="carte"><div class="carte__titre" style="margin-bottom:.5rem">De la vue à la preuve</div>' +
+      '<div class="barre-entonnoir"><span>Visites</span><i style="background:#5cb99b;width:100%"></i><span>1 240</span></div>' +
+      '<div class="barre-entonnoir"><span>Fiches vues</span><i style="background:#3a997d;width:62%"></i><span>770</span></div>' +
+      '<div class="barre-entonnoir"><span>Commandes</span><i style="background:#0d7b60;width:18%"></i><span>64</span></div>' +
+      '<div class="barre-entonnoir"><span>Prouvées</span><i style="background:#005b46;width:12%"></i><span>41</span></div>' +
+      '<p class="carte__note" style="margin-top:.4rem">Les vues d\'articles ne sont pas encore comptées : la boutique est statique.</p></div>' +
+      '<div class="carte"><div class="carte__titre" style="margin-bottom:.5rem">Comment vos ventes sont prouvées</div>' +
+      '<div class="part"><i style="background:#005b46;width:34%"></i><i style="background:#2b8d71;width:30%"></i><i style="background:#b1b1b1;width:36%"></i></div>' +
+      '<div class="cle"><span><i style="background:#005b46"></i>Contresignées</span>' +
+      '<span><i style="background:#2b8d71"></i>Prouvées</span>' +
+      '<span><i style="background:#b1b1b1"></i>Non tracées</span></div>' +
+      '<p class="carte__note" style="margin-top:.4rem">« Non tracé » est gris, pas rouge : un dépôt direct déclaré n\'est pas une faute.</p></div>' +
+      '<details><summary style="font-size:.8rem;min-height:44px">Voir le tableau</summary>' +
+      '<p class="carte__note">Chaque graphique exige ses colonnes et ses lignes — la règle est tenue par le typage.</p></details>' +
+      "</div>" +
+      nav("Chiffres"),
+  };
+
+  /* ────────────────────────────── le parcours ──────────────────────────── */
+
+  const PARCOURS = [
+    {
+      id: "decouverte",
+      onglet: "1 · Découverte",
+      titre: "Découverte — le fil s'ouvre avant qu'on écrive",
+      sous: "vendeuse · +237 6 •• •• •• 12",
+      intro:
+        "Une vendeuse arrive par le lien de parrainage d'une autre vendeuse, par un QR sur l'étal, ou par la boutique d'une consœur. Le fil doit dire ce qu'il est AVANT le premier mot tapé : un menu qu'on découvre par hasard n'existe pas.",
+      pas: [
+        {
+          de: "moi",
+          texte: "Bonjour",
+          quoi: "Le premier message — quel qu'il soit",
+          etat: "en-place",
+          src: "aiguillage.ts · le geste décide, pas l'identité",
+          note: "Aucun mot de passe d'entrée : n'importe quel premier message d'un numéro inconnu ouvre le fil vendeuse. Le lien de boutique, lui, primerait et ouvrirait le fil acheteuse.",
+        },
+        {
+          de: "bot",
+          texte:
+            "Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même.\n\n*Comment s'appelle votre boutique ?*\nExemple : Chez Amina",
+          actions: [{ l: "Ouvrir ma boutique" }],
+          quoi: "L'accueil, et le formulaire qui s'ajoute",
+          etat: "en-place",
+          src: "inscription.ts · PREMIERE_QUESTION + flux.ts (ADR 0087)",
+          note: "Le formulaire s'AJOUTE à la question, il ne la remplace pas : une vendeuse peut commencer le Flow, l'abandonner, et répondre à la question. Deux chemins, un seul état.",
+        },
+        {
+          de: "bot",
+          affiche: {
+            haut: "Boutique vérifiée Catalog",
+            nom: "Chez Amina",
+            bas: "Ouvrez la vôtre — envoyez « boutique » à ce numéro",
+          },
+          texte: "Carte de parrainage — l'objet qui circule en Statut et à l'étal.",
+          quoi: "La surface d'acquisition : QR, carte à imprimer",
+          etat: "a-construire",
+          src: "ADR à écrire · la carte-vitrine (0037/0059) existe, la carte de PARRAINAGE non",
+          note: "Le storyboard promet « QR sur l'étal, carte-visite image, lien vendre avec ‹slug› ». Le champ parrainId existe déjà en base — attribution seule, aucune récompense calculée. L'objet imprimable, lui, reste à composer.",
+        },
+      ],
+    },
+
+    {
+      id: "ouverture",
+      onglet: "2 · Ouverture",
+      titre: "Ouverture — une bulle, et la boutique est réelle",
+      sous: "vendeuse · +237 6 •• •• •• 12",
+      intro:
+        "C'est ici que le storyboard et le dépôt se contredisent. Le storyboard veut une ligne à virgules ; le dépôt a mesuré un Flow en deux écrans, puis a ramené la confirmation à une seule bulle. La maquette montre l'état du dépôt, et pose la checklist du storyboard à côté comme la seule pièce à reprendre.",
+      pas: [
+        {
+          de: "moi",
+          flow: {
+            titre: "Ouvrir ma boutique",
+            lignes: ["Nom · Chez Bintou", "Ville · Douala", "Quartier · Deïdo", "Article · Sac tressé — 8 500 F"],
+          },
+          quoi: "Le Flow en deux écrans, rempli d'un coup",
+          etat: "en-place",
+          src: "flux.ts · formulaire d'ouverture (ADR 0087)",
+          note: "Deux écrans : la boutique, puis le premier article. Le second est facultatif — l'ouverture n'attend pas qu'un article existe.",
+        },
+        {
+          de: "bot",
+          texte:
+            "✅ *Chez Bintou* est ouverte.\n*Sac tressé* — 8 500 FCFA est en ligne.\n\nVotre lien à partager — mettez-le en statut WhatsApp :\n" +
+            LIEN,
+          liste: {
+            bouton: "Que faire ?",
+            lignes: [
+              { nom: "Ajouter un article", desc: "Nom, prix, photo — en un seul formulaire" },
+              { nom: "Ma carte à poster", desc: "L'affiche de votre boutique, pour votre Statut" },
+              { nom: "Ma boutique", desc: "Votre lien, vos soldes, vos réglages" },
+            ],
+          },
+          quoi: "UNE bulle : la confirmation, le lien, le menu natif",
+          etat: "en-place",
+          src: "inscription.ts · messageBoutiqueCreee (ADR 0088)",
+          note: "Le lien reste du TEXTE, délibérément : elle doit le COPIER pour son Statut. Un bouton cta_url l'ouvre, il ne le donne pas. Trois lignes, chacune au routage vérifié — une ligne de menu qui ouvre sur rien est pire que pas de menu.",
+        },
+        {
+          de: "bot",
+          texte:
+            "*3 étapes pour vendre*\n✓ Profil — nom, quartier, vitrine posés\n2. Premier article — envoyez une photo légendée « nom prix »\n3. Carte partagée — postez votre carte-vitrine en Statut",
+          quoi: "La checklist persistante — l'onboarding qui ne repart pas de zéro",
+          etat: "a-trancher",
+          src: "storyboard §02 · contredit en partie par les ADR 0087/0088",
+          note: "La ligne à virgules du storyboard est caduque : le Flow la remplace. La checklist, elle, survit — mais comme QUATRIÈME ligne de la liste native, pas comme un message de plus. L'ADR 0088 vient de ramener l'ouverture à une bulle ; en rajouter une la défait.",
+        },
+      ],
+    },
+
+    {
+      id: "catalogue",
+      onglet: "3 · Catalogue",
+      titre: "Catalogue — la rafale, et une seule confirmation",
+      sous: "vendeuse · +237 6 •• •• •• 12",
+      intro:
+        "Le geste réel d'une vendeuse n'est pas « un article, puis un autre » : c'est une salve de photos, comme pour un Statut. La lecture de légende « nom prix » existe déjà ; ce qui manque, c'est le GROUPEMENT — n photos, un seul « Tout publier ».",
+      pas: [
+        {
+          de: "moi",
+          photoUne: "photo de l'étal",
+          texte: "Pagne wax 6 yards 15 000",
+          quoi: "Une photo légendée « nom prix »",
+          etat: "en-place",
+          src: "inscription.ts · lireLegendeArticle (ADR 0035)",
+          note: "Le prix est le DERNIER groupe de chiffres ; tout ce qui précède est le nom. « 6 yards » reste donc dans le nom. La ponctuation de fin part avec le séparateur — « Eau, 1000 » donne « Eau ».",
+        },
+        {
+          de: "bot",
+          texte: "*Pagne wax 6 yards* — 15 000 FCFA est dans votre catalogue.",
+          actions: [{ l: "Ma carte à poster" }, { l: "Ajouter un article" }],
+          quoi: "La confirmation, article par article",
+          etat: "en-place",
+          src: "conversation.ts · confirmation d'article",
+          note: "Rien ne se publie sans confirmation : la machine FAIT CONFIRMER ce qu'elle a lu (§7.7). C'est ce message qui devient coûteux en rafale — cinq photos, cinq confirmations.",
+        },
+        {
+          de: "moi",
+          photos: ["", "", "+2"],
+          texte: "Pagne wax 6 yards 15 000 · Sac tressé 8 500 · Huile 5 L 4 500 · …",
+          quoi: "La rafale : cinq photos légendées d'affilée",
+          etat: "a-construire",
+          src: "ADR à écrire · groupement des entrées média",
+          note: "Le regroupement suppose une fenêtre de collecte (quelques secondes après la dernière photo) et un état « brouillons » qui n'existe pas encore. L'idempotence des entrants (ADR 0040) donne déjà la garantie qu'une photo n'est traitée qu'une fois.",
+        },
+        {
+          de: "bot",
+          texte:
+            "*5 articles prêts à publier*\n1 · Pagne wax 6 yards — 15 000 F\n2 · Sac tressé — 8 500 F\n3 · Huile de palme 5 L — 4 500 F\n4 · Bijoux perles — 3 000 F\n5 · Robe kaba — 12 000 F\n\nNoms et prix lus dans vos légendes. Rien ne se publie sans vous.",
+          actions: [{ l: "Tout publier" }, { l: "Corriger le 3" }],
+          quoi: "UNE carte, UNE confirmation",
+          etat: "a-construire",
+          src: "ADR à écrire · storyboard §04",
+          note: "« Corriger le 3 » est le point d'attention : la correction devient adressable par NUMÉRO, pas par un re-dialogue. C'est ce qui évite de rejouer cinq fois le formulaire d'article.",
+          app: "articles",
+        },
+        {
+          de: "bot",
+          texte:
+            "Publiés. Votre boutique passe à *12 articles* — votre carte-vitrine a été mise à jour.",
+          quoi: "Le retour, et la carte régénérée dans la foulée",
+          etat: "a-construire",
+          src: "ADR à écrire · voir l'étape Partage",
+          note: "La reconstruction de la boutique statique passe déjà par la porte prévue (ADR 0065/0068) et absorbe la rafale par groupement. C'est la POUSSÉE de la carte qui manque, pas sa régénération.",
+          app: "articles",
+        },
+      ],
+    },
+
+    {
+      id: "partage",
+      onglet: "4 · Partage",
+      titre: "Partage — la carte s'entretient toute seule",
+      sous: "vendeuse · +237 6 •• •• •• 12",
+      intro:
+        "Un lien wa.me nu n'a aucun aperçu riche. L'image EST la compensation, et le Statut est le canal de vente n° 1. La carte existe et se demande ; ce que la v2 ajoute, c'est qu'on n'ait plus à la demander.",
+      pas: [
+        {
+          de: "moi",
+          texte: "ma carte",
+          quoi: "Le mot-clé — la carte à la demande",
+          etat: "en-place",
+          src: "aiguillage.ts · carte · pack-statut.ts",
+          note: "Le mot est annoncé à l'ouverture et reparaît après chaque article : un mot-clé que personne ne connaît n'existe pas.",
+        },
+        {
+          de: "bot",
+          affiche: {
+            haut: "Boutique vérifiée Catalog",
+            nom: "Chez Bintou",
+            bas: "boutique.catalog.cm/chez-bintou · 12 articles · 8 ventes prouvées",
+          },
+          texte:
+            "Votre affiche est prête. Postez-la en Statut — vos clientes touchent le lien, votre boutique s'ouvre.",
+          quoi: "La carte-vitrine générée, 1080×1920",
+          etat: "en-place",
+          src: "carte-vitrine.ts (ADR 0037) · disposition selon le nombre d'articles (ADR 0059)",
+          note: "Les photos ne sont pas dans le SVG : l'adaptateur les compose par-dessus, aux emplacements que le module publie. Les encoder en base64 gonflerait la chaîne de centaines de kilo-octets.",
+        },
+        {
+          de: "bot",
+          texte:
+            "Vos 5 nouveaux articles sont sur votre affiche. Elle est à jour — reposez-la en Statut quand vous voulez.",
+          quoi: "La poussée automatique après chaque publication",
+          etat: "a-construire",
+          src: "ADR à écrire · storyboard §05",
+          note: "Techniquement ouvert depuis le déblocage du WABA (ADR 0054) : hors fenêtre de 24 h, un gabarit utilitaire réveille le fil. Le vrai arbitrage est la FRÉQUENCE — une carte poussée à chaque article devient du bruit, et le bruit se paie en désabonnements.",
+        },
+        {
+          de: "systeme",
+          texte: "carré 1080×1080 pour l'impression et les groupes ? — décision ouverte",
+          quoi: "Deux formats, pas un choix",
+          etat: "a-trancher",
+          src: "storyboard : 1080×1080 · ADR 0037 : 1080×1920",
+          note: "Le 9:16 sert le Statut, le carré sert l'impression à l'étal et le partage en groupe. Les deux se défendent ; ce qui se décide, c'est de savoir si on en rend deux, et ce que ça coûte à chaque republication.",
+        },
+      ],
+    },
+
+    {
+      id: "commande",
+      onglet: "5 · Commande",
+      titre: "Commande — elle arrive sans qu'on la demande",
+      sous: "vendeuse · +237 6 •• •• •• 12",
+      intro:
+        "La notification de commande est le message le plus dense du produit : elle dit ce qui est vendu, ce qui est attendu, où livrer, qui appeler, et le geste suivant. Elle est déjà à la cible — y compris l'annonce du SMS à venir, que le storyboard croyait manquante.",
+      pas: [
+        {
+          de: "bot",
+          texte:
+            "🛍️ *Nouvelle commande CT-104312*\nSac tressé × 2\nHuile de palme 5 L × 1\nTotal : *21 500 FCFA*\nAcompte attendu : *10 750 FCFA*.\nUn SMS de 10 750 FCFA devrait arriver de votre opérateur — collez-le ici : il devient le reçu.\n📍 Bonapriso, près de la pharmacie\nNuméro à appeler pour la remise : +237 6 52 00 00 01\n\nQuand c'est remis, écrivez ici : *livrée CT-104312*\nPréparée, chez le livreur, historique : " +
+            ESPACE,
+          quoi: "La notification — et le rapprochement PRÉPARÉ",
+          etat: "en-place",
+          src: "notifications.ts · corpsNouvelleCommande",
+          note: "« Un SMS de X devrait arriver — collez-le ici » est déjà dans le message : c'est le rapprochement préparé du storyboard §07. Le delta v2 n'est donc pas de l'inventer, mais de le REDIRE au bon moment, quand le SMS arrive.",
+          app: "commandes",
+        },
+        {
+          de: "systeme",
+          texte: "fenêtre ouverte → immédiat · fenêtre fermée → le gabarit réveille le fil",
+          quoi: "La fenêtre de 24 h, et la porte des gabarits",
+          etat: "en-place",
+          src: "gabarits.ts (ADR 0054) · relance.ts (ADR 0060)",
+          note: "Une commande arrivée à 21 h un vendredi n'attend plus que la vendeuse réécrive. Le gabarit est la seule façon d'ouvrir cette porte, et Meta le facture — d'où les relances qui passent par la porte, jamais par la fenêtre.",
+          app: "commandes",
+        },
+        {
+          de: "bot",
+          texte:
+            "*Pendant votre absence*\n2 commandes : CT-104298 (9 500 F) · CT-104305 (12 000 F).\nÉcrivez « commandes » pour le détail.",
+          quoi: "La file restituée en UNE carte",
+          etat: "a-construire",
+          src: "ADR à écrire · storyboard §06",
+          note: "Les notifications en attente existent et ne sont jamais perdues ; ce qui manque est le GROUPEMENT au réveil. Trois commandes en attente valent aujourd'hui trois messages — exactement le mur que l'ADR 0086 a nommé.",
+          app: "commandes",
+        },
+      ],
+    },
+
+    {
+      id: "encaissement",
+      onglet: "6 · Encaissement",
+      titre: "Encaissement — un seul collage, deux personnes prévenues",
+      sous: "vendeuse · +237 6 •• •• •• 12",
+      intro:
+        "C'est le cœur du produit : Catalog n'a pas besoin de vérifier le paiement, il a besoin de le rendre vérifiable. Le collage dans le fil suffit depuis l'ADR 0083 — la dette du double collage est réglée. Le SMS utilisé ici est le message RÉEL de la spécification, pas celui du storyboard.",
+      pas: [
+        {
+          de: "moi",
+          texte:
+            "Vous avez recu 10750 XAF de MARIE NGONO (237652000001 ) sur votre compte Mobile Money 2026-08-14 10:31:04. Message de l'expediteur:. Votre nouveau solde est de 41250 FCFA. Frais: 0 XAF. Transaction ID: 17600000002.",
+          mono: true,
+          quoi: "Le SMS collé, entier, tel qu'il est arrivé",
+          etat: "en-place",
+          src: "docs/formats-sms-operateurs.md · MTN réception (français)",
+          note: "Le libellé est « Transaction ID: », majuscules aux deux lettres — l'envoi MTN, lui, écrit « Transaction Id: ». Un motif écrit de mémoire se casse exactement là. Le solde de la vendeuse est dans ce message : il ne va dans aucune trace, aucun log, aucun message d'erreur.",
+          app: "preuve",
+        },
+        {
+          de: "bot",
+          texte:
+            "✅ Paiement prouvé — les contrôles passent. CT-104312 est à jour, le reçu est émis.",
+          quoi: "Le verdict, dit en langue simple, dans le fil",
+          etat: "en-place",
+          src: "conversation.ts · messageVerdict (ADR 0083)",
+          note: "Trois verdicts, jamais deux : prouvé, accepté sous réserve, refusé. Un refus ne s'explique pas dans le fil — il renvoie à l'écran de preuve, contrôle par contrôle, parce qu'un motif de refus détaillé est une notice de contournement.",
+          app: "preuve",
+        },
+        {
+          de: "systeme",
+          texte: "l'acheteuse reçoit son reçu : " + RECU,
+          quoi: "Le verdict poussé aux DEUX",
+          etat: "en-place",
+          src: "ADR 0021 · le reçu vérifiable · /v/?c=<code>",
+          note: "Deux clés, deux pouvoirs : le code de vérification identifie et devient public dès qu'un reçu est montré ; le jeton acheteuse autorise la contre-signature, et lui seul. Ne jamais ouvrir le suivi par la référence.",
+          app: "preuve",
+        },
+        {
+          de: "bot",
+          texte:
+            "Contre-signature reçue : votre cliente confirme avoir payé. La vente est prouvée à deux voix.",
+          quoi: "Le septième contrôle — la collusion à une seule voix",
+          etat: "en-place",
+          src: "ADR 0036 · contre-signer sans quitter WhatsApp",
+          note: "C'est le contrôle qui distingue « prouvé » de « prouvé à deux voix », et c'est lui qui alimente la part la plus appuyée de l'écran Chiffres.",
+          app: "preuve",
+        },
+      ],
+    },
+
+    {
+      id: "apres",
+      onglet: "7 · Post-vente",
+      titre: "Post-vente — le produit travaille la nuit",
+      sous: "vendeuse · +237 6 •• •• •• 12",
+      intro:
+        "La remise se marque d'un mot, l'avis se demande tout seul, la réputation se construit. Ce que la v2 ajoute est le seul service que la vendeuse ne demande jamais : le résumé du matin.",
+      pas: [
+        {
+          de: "moi",
+          texte: "livrée CT-104312",
+          quoi: "La remise, en un mot depuis le fil",
+          etat: "en-place",
+          src: "conversation.ts · notifications.ts · corpsLivraisonMarquee",
+          note: "Le fil ne connaît que « livrée » ; les étapes intermédiaires — préparée, chez le livreur — vivent dans l'espace vendeuse. Un paiement, lui, ne recule jamais : une transition arrière est journalisée puis ignorée.",
+        },
+        {
+          de: "bot",
+          texte:
+            "📦 *CT-104312 est marquée livrée.* L'acheteuse vient d'en être prévenue, avec l'invitation à laisser un avis.",
+          quoi: "L'avis demandé au bon moment",
+          etat: "en-place",
+          src: "notifications.ts · carte-avis.ts (ADR 0076)",
+          note: "L'avis est vérifié parce qu'il suit une commande prouvée, pas parce qu'on l'a modéré. Review.productId est nullable : l'avis peut porter sur la boutique ou sur un article précis — la décision de modèle qui ne se rattrape pas plus tard.",
+        },
+        {
+          de: "bot",
+          texte:
+            "*Votre matin · jeudi 14 août*\nBonjour Bintou — hier chez vous :\n2 commandes · 1 paiement prouvé · 340 visites\n\nÀ faire : préparer CT-104305 · un SMS de 10 750 F attendu pour CT-104312.",
+          quoi: "Le résumé du matin — le service qu'on ne demande jamais",
+          etat: "a-construire",
+          src: "ADR à écrire · storyboard §08 · gabarit utilitaire (ADR 0054)",
+          note: "C'est le service le plus emblématique de la doctrine v2 : zéro message de la vendeuse, et la journée démarre par l'action suivante. Deux garde-fous à poser dans l'ADR : l'heure (Africa/Douala, sans heure d'été) et le silence — une boutique sans rien à dire n'envoie rien.",
+          app: "chiffres",
+        },
+        {
+          de: "bot",
+          texte: "★★★★★ « Sac solide, livraison rapide » — sur *Sac tressé*.",
+          quoi: "L'avis reçu, et la réputation qui parle",
+          etat: "en-place",
+          src: "carte-avis.ts · pack-statut.ts (ADR 0076)",
+          note: "« 12 articles · 8 ventes prouvées » sur la carte-vitrine : la réputation parle avant le premier avis. Un compteur à zéro ne rassure personne — il ne s'affiche qu'à partir d'une vente prouvée.",
+          app: "chiffres",
+        },
+        {
+          de: "systeme",
+          texte: "étage 3 · un numéro à son nom, sous le WABA Catalog",
+          quoi: "L'offre par étages",
+          etat: "a-trancher",
+          src: "storyboard §08 · « le pricing est un ADR du porteur du produit »",
+          note: "Cumulatif : étage 1 = le fil partagé, étage 2 = catalogue Meta natif, étage 3 = numéro dédié. Le coût réel par numéro chez le BSP décide du palier — ce n'est pas une décision d'implémentation.",
+          app: "chiffres",
+        },
+      ],
+    },
+  ];
+
+  /* ──────────────────────────── le rendu ───────────────────────────────── */
+
+  const $ = (id) => document.getElementById(id);
+  const filEl = $("fil");
+  const traceEl = $("trace");
+  const appEl = $("app");
+  const gesteEl = $("geste");
+  const videEl = $("vide-trace");
+
+  const echapper = (s) =>
+    String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  /* *gras* de WhatsApp → <strong>, appliqué APRÈS l'échappement. */
+  const gras = (s) => echapper(s).replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>");
+
+  const ETIQUETTE = {
+    "en-place": ["etat--place", "en place"],
+    "a-construire": ["etat--construire", "à construire"],
+    "a-trancher": ["etat--trancher", "à trancher"],
+  };
+
+  const HEURES = ["09:41", "09:42", "10:14", "10:31", "12:05", "18:20", "18:22", "07:30"];
+
+  let courant = 0;
+  let curseur = 0;
+
+  function bulle(pas, i) {
+    const el = document.createElement("div");
+    if (pas.de === "systeme") {
+      el.className = "systeme";
+      el.textContent = pas.texte;
+      return el;
+    }
+    el.className = "bulle bulle--" + (pas.de === "moi" ? "moi" : "bot");
+
+    let html = "";
+
+    if (pas.photos) {
+      html +=
+        '<div class="photos">' +
+        pas.photos.map((p) => "<div>" + echapper(p) + "</div>").join("") +
+        "</div>";
+    }
+    if (pas.photoUne) {
+      html += '<div class="photo-une">' + echapper(pas.photoUne) + "</div>";
+    }
+    if (pas.affiche) {
+      html +=
+        '<div class="affiche"><div><div style="opacity:.85;letter-spacing:.1em;text-transform:uppercase;font-size:.6rem">' +
+        echapper(pas.affiche.haut) +
+        "</div><b>" +
+        echapper(pas.affiche.nom) +
+        '</b></div><div class="vignettes"><div></div><div></div></div><div style="opacity:.9">' +
+        echapper(pas.affiche.bas) +
+        "</div></div>";
+    }
+    if (pas.flow) {
+      html +=
+        '<div style="border:1px solid var(--filet-fin);border-radius:6px;padding:.45rem .55rem;margin-bottom:.35rem">' +
+        '<div style="font-weight:600;margin-bottom:.25rem">📋 ' +
+        echapper(pas.flow.titre) +
+        "</div>" +
+        pas.flow.lignes
+          .map((l) => '<div style="font-size:.76rem;opacity:.85">' + echapper(l) + "</div>")
+          .join("") +
+        "</div>";
+    }
+    if (pas.texte) {
+      html += pas.mono
+        ? '<span style="font-family:var(--mono);font-size:.72rem">' + echapper(pas.texte) + "</span>"
+        : gras(pas.texte);
+    }
+
+    html += '<span class="bulle__heure">' + HEURES[i % HEURES.length] + (pas.de === "moi" ? " ✓✓" : "") + "</span>";
+
+    if (pas.liste) {
+      html +=
+        '<div class="bulle__liste">' +
+        pas.liste.lignes
+          .map(
+            (l) =>
+              '<div class="liste-ligne"><b>' +
+              echapper(l.nom) +
+              "</b><span>" +
+              echapper(l.desc || "") +
+              "</span></div>",
+          )
+          .join("") +
+        "</div>" +
+        '<div class="bulle__actions"><button class="bulle__action" type="button" tabindex="-1">☰ ' +
+        echapper(pas.liste.bouton) +
+        "</button></div>";
+    }
+    if (pas.actions) {
+      html +=
+        '<div class="bulle__actions">' +
+        pas.actions
+          .map((a) => '<button class="bulle__action" type="button" tabindex="-1">' + echapper(a.l) + "</button>")
+          .join("") +
+        "</div>";
+    }
+
+    el.innerHTML = html;
+    return el;
+  }
+
+  function ligneTrace(pas, i) {
+    const li = document.createElement("li");
+    li.dataset.etat = pas.etat;
+    const [cls, mot] = ETIQUETTE[pas.etat];
+    li.innerHTML =
+      '<div class="trace__tete"><span class="trace__quoi">' +
+      i +
+      ". " +
+      echapper(pas.quoi) +
+      '</span><span class="etat ' +
+      cls +
+      '">' +
+      mot +
+      "</span></div>" +
+      '<div class="trace__src">' +
+      echapper(pas.src) +
+      "</div>" +
+      '<p class="trace__note">' +
+      echapper(pas.note) +
+      "</p>";
+    return li;
+  }
+
+  function avancer() {
+    const p = PARCOURS[courant];
+    if (curseur >= p.pas.length) return;
+    const pas = p.pas[curseur];
+
+    filEl.appendChild(bulle(pas, curseur));
+    filEl.scrollTop = filEl.scrollHeight;
+
+    videEl.hidden = true;
+    traceEl.appendChild(ligneTrace(pas, curseur + 1));
+
+    if (pas.app) appEl.innerHTML = ECRANS[pas.app];
+
+    curseur += 1;
+    majGeste();
+  }
+
+  function majGeste() {
+    const p = PARCOURS[courant];
+    const reste = p.pas.length - curseur;
+    if (reste <= 0) {
+      gesteEl.textContent = "Fin de l'étape";
+      gesteEl.disabled = true;
+      $("indice").textContent =
+        "Étape terminée. Passez à la suivante par les onglets, ou rejouez avec ↺.";
+      return;
+    }
+    gesteEl.disabled = false;
+    const suivant = p.pas[curseur];
+    gesteEl.textContent = curseur === 0 ? "Premier geste" : "Geste suivant";
+    $("indice").textContent = "Suivant : " + suivant.quoi + " (" + reste + " restant" + (reste > 1 ? "s" : "") + ")";
+  }
+
+  function ouvrir(i) {
+    courant = i;
+    curseur = 0;
+    const p = PARCOURS[i];
+
+    filEl.textContent = "";
+    traceEl.textContent = "";
+    videEl.hidden = false;
+    appEl.innerHTML = ECRANS.aucun;
+    $("titre-parcours").textContent = p.titre;
+    $("intro-parcours").textContent = p.intro;
+    $("tel-sous").textContent = p.sous;
+
+    [...$("onglets").children].forEach((b, j) =>
+      b.setAttribute("aria-selected", String(j === i)),
+    );
+    majGeste();
+  }
+
+  PARCOURS.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.className = "onglet";
+    b.type = "button";
+    b.role = "tab";
+    b.textContent = p.onglet;
+    b.setAttribute("aria-selected", "false");
+    b.addEventListener("click", () => ouvrir(i));
+    $("onglets").appendChild(b);
+  });
+
+  gesteEl.addEventListener("click", avancer);
+  $("rejouer").addEventListener("click", () => ouvrir(courant));
+
+  ouvrir(0);
+})();
+</script>
+
+</body>
+</html>
