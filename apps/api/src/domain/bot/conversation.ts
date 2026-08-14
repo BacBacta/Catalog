@@ -340,7 +340,12 @@ export type Entree =
    * La reponse d'un Flow — ADR 0055. Le contenu voyage BRUT : c'est le
    * domaine qui le relit (`lireReponseFlux`), pas le parseur d'entrees.
    */
-  | { genre: "flux"; reponse: string; messageId?: string };
+  | { genre: "flux"; reponse: string; messageId?: string }
+  /**
+   * L'OUVERTURE du fil — ADR 0106. `request_welcome`, relaye par le parseur :
+   * la personne vient d'ouvrir la conversation, elle n'a encore rien ecrit.
+   */
+  | { genre: "ouverture_fil"; messageId?: string };
 
 export interface BrouillonCommande {
   slug: string;
@@ -595,6 +600,27 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
    */
   if (entree.genre === "autre") {
     return { etat, messages: [texte(vers, t.formeNonLue(entree.forme))] };
+  }
+
+  /**
+   * L'OUVERTURE du fil — ADR 0106. La personne vient d'ouvrir la
+   * conversation, elle n'a encore rien ecrit : l'accueil a trois portes
+   * (ADR 0103) est exactement le message concu pour elle. L'etat ne bouge
+   * pas s'il portait quelque chose — un fil existant qui emettrait cet
+   * evenement (forme non mesuree) ne perd rien.
+   */
+  if (entree.genre === "ouverture_fil") {
+    if (boutique) return accueilBoutique(vers, boutique, t, panierDe(etat));
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        boutons(vers, t.aideAcheteuse, [
+          { id: "vendre", titre: t.btnVendre },
+          { id: "suivi", titre: t.btnSuivre },
+          { id: "comment", titre: t.btnComment },
+        ]),
+      ],
+    };
   }
 
   /* Le changement de langue prime sur tout : c'est une demande sur la

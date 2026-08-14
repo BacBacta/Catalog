@@ -160,9 +160,23 @@ if (mode === "--accueil-etat") {
     console.error("Amorces hors bornes (4 au plus, 80 caracteres chacune) :", trop);
     process.exit(1);
   }
+  /**
+   * `enable_welcome_message: true` — ADR 0106. Pose, il fait arriver un
+   * message `request_welcome` des que quelqu'un ouvre une conversation
+   * NEUVE : le seul cas ou le bot parle le premier sans gabarit.
+   *
+   * ⚠️ ORDRE IMPERATIF : le bot doit savoir LIRE cet evenement avant que ce
+   * drapeau parte (`entrees.ts`, genre `ouverture_fil`). Le poser sur une
+   * image qui ne le lit pas ferait repondre « je ne sais pas lire ce type de
+   * message » a chaque ouverture de fil — le contraire d'un accueil.
+   */
   const r = await appel(`/${NUMERO_ID}/conversational_automation`, {
     method: "POST",
-    body: JSON.stringify({ prompts: AMORCES, commands: COMMANDES }),
+    body: JSON.stringify({
+      enable_welcome_message: true,
+      prompts: AMORCES,
+      commands: COMMANDES,
+    }),
   });
   if (!r.ok) {
     console.error(
@@ -171,6 +185,7 @@ if (mode === "--accueil-etat") {
     process.exit(1);
   }
   console.log(`✅ ${AMORCES.length} amorce(s) et ${COMMANDES.length} commande(s) posees.`);
+  console.log("   Le message d'accueil a l'ouverture du fil est ACTIVE (ADR 0106).");
   console.log("Elles s'affichent au PREMIER ouvrage du fil, avant tout message.");
 } else if (mode === "--mesurer-cta") {
   exigerJeton();

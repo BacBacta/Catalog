@@ -65,7 +65,18 @@ export interface ContexteAiguillage {
 }
 
 export interface EntreeAiguillee {
-  genre: "texte" | "bouton" | "liste" | "image" | "autre" | "flux" | "localisation";
+  /* `ouverture_fil` (ADR 0106) suit la regle 5, le defaut : une conversation
+     NEUVE n'est jamais celle d'une vendeuse installee, donc elle part au fil
+     acheteuse, qui sait accueillir. */
+  genre:
+    | "texte"
+    | "bouton"
+    | "liste"
+    | "image"
+    | "autre"
+    | "flux"
+    | "localisation"
+    | "ouverture_fil";
   texte?: string | undefined;
   id?: string | undefined;
 }

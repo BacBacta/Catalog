@@ -506,3 +506,23 @@ describe("les chemins defensifs de la machine", () => {
     expect(corpsTexte(soldes.messages[0])).toContain("CT-9");
   });
 });
+
+describe("l'ouverture du fil rend l'accueil — ADR 0106", () => {
+  it("sans boutique : les trois portes, comme si la personne avait écrit", () => {
+    /* C'est le SEUL chemin où le bot parle le premier sans gabarit : la
+       personne vient d'ouvrir la conversation, la fenêtre est à elle. */
+    const r = reagirAcheteuse(ETAT_INITIAL, { genre: "ouverture_fil" }, ctx({ boutique: null }));
+    expect(idsBoutons(r.messages[0])).toEqual(["vendre", "suivi", "comment"]);
+  });
+
+  it("avec une boutique en contexte : l'accueil de la boutique, panier gardé", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0, panier: [{ articleId: "a1", quantite: 2 }] },
+      { genre: "ouverture_fil" },
+      ctx(),
+    );
+    expect(r.messages.length).toBeGreaterThan(0);
+    /* Le panier survit : une ouverture de fil n'est pas un « annuler ». */
+    expect(JSON.stringify(r.etat)).toContain("panier");
+  });
+});

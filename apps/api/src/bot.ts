@@ -910,7 +910,10 @@ async function filInscription(
  */
 function entreePourMachine(
   entree: EntreeBot,
-): Exclude<EntreeMachine, { genre: "flux" } | { genre: "localisation" }> {
+): Exclude<
+  EntreeMachine,
+  { genre: "flux" } | { genre: "localisation" } | { genre: "ouverture_fil" }
+> {
   const id = entree.messageId ? { messageId: entree.messageId } : {};
   switch (entree.genre) {
     case "texte":
@@ -935,6 +938,12 @@ function entreePourMachine(
        donc une phrase plutot qu'un silence (ADR 0049). */
     case "localisation":
       return { genre: "autre", forme: "localisation", ...id };
+    /* L'ouverture de fil (ADR 0106) n'atteint ces machines qu'en theorie —
+       une conversation NEUVE n'est pas celle d'une vendeuse installee. Si
+       elle y arrive quand meme, un texte vide tombe sur le MENU, la reponse
+       d'accueil du fil vendeuse — jamais « je ne sais pas lire ». */
+    case "ouverture_fil":
+      return { genre: "texte", texte: "", ...id };
     default:
       return { genre: entree.genre, id: entree.id, ...id };
   }

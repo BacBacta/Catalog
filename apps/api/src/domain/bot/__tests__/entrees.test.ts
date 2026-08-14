@@ -129,3 +129,25 @@ describe("le wamid entrant (ADR 0035)", () => {
     });
   });
 });
+
+describe("l'ouverture du fil — request_welcome (ADR 0106)", () => {
+  const enveloppe = (messages: unknown[]) => ({
+    entry: [{ changes: [{ value: { messages } }] }],
+  });
+
+  it("un request_welcome devient une entrée d'ouverture, avec son identifiant", () => {
+    /* La forme est DOCUMENTAIRE, pas mesurée : le drapeau n'a jamais été posé
+       sur notre numéro avant ce lot. La lecture minimale — type et expéditeur —
+       est ce qui la rend robuste aux variantes. */
+    const e = lireEntreesBot(
+      enveloppe([{ from: "237690112233", type: "request_welcome", id: "wamid.OUVERTURE" }]),
+    );
+    expect(e).toEqual([
+      { de: "237690112233", genre: "ouverture_fil", messageId: "wamid.OUVERTURE" },
+    ]);
+  });
+
+  it("sans expéditeur, rien n'est lu — jamais une levée", () => {
+    expect(lireEntreesBot(enveloppe([{ type: "request_welcome" }]))).toEqual([]);
+  });
+});

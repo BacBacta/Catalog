@@ -76,6 +76,14 @@ export type EntreeBot =
    */
   | { de: string; genre: "autre"; forme: FormeNonLue; messageId?: string }
   /**
+   * L'OUVERTURE du fil — ADR 0106. Quand `enable_welcome_message` est pose
+   * sur le numero, Meta envoie un message de type `request_welcome` des que
+   * quelqu'un ouvre une conversation NEUVE, avant qu'il ait rien ecrit.
+   * C'est le seul cas ou le bot parle le premier sans gabarit : la personne
+   * vient d'ouvrir la porte, la fenetre de service est a elle.
+   */
+  | { de: string; genre: "ouverture_fil"; messageId?: string }
+  /**
    * La reponse d'un Flow — ADR 0055. Le contenu voyage BRUT : c'est le
    * domaine qui le lit, pas le parseur, qui reste du texte vers des donnees.
    */
@@ -160,6 +168,18 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
         }
         /* Coordonnees inexploitables : rien n'est retenu, et la suite traite
            le message comme une forme non lue. */
+      }
+
+      /**
+       * `request_welcome` — ADR 0106. La forme est DOCUMENTAIRE, pas mesuree :
+       * le drapeau n'a jamais ete pose sur notre numero avant ce lot. La
+       * lecture est donc minimale — le type et l'expediteur suffisent — et
+       * une variante inattendue retombe sur la forme non lue, qui repond
+       * poliment au lieu de se taire.
+       */
+      if (m.type === "request_welcome") {
+        sortie.push({ de: m.from, genre: "ouverture_fil", ...messageId });
+        continue;
       }
 
       if (m.type === "interactive") {
