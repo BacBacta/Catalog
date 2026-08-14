@@ -3,8 +3,10 @@
 ## 1. texte « bonjour »
    intention : comprendre
    étape : aucun_prospect → accueil
-    ← boutons[vendre]
-      Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes.
+    ← boutons[vendre · suivi · comment]
+      Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vérifie son reçu.
+      
+      Que puis-je faire pour vous ?
 
 ## 2. bouton « vendre »
    intention : avancer
