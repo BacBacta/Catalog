@@ -91,10 +91,10 @@ describe("les variables d'environnement de l'API sont documentees", () => {
     ).toEqual([]);
   });
 
-  it("les cinq formulaires ont chacun leur variable, lue ET declaree", () => {
+  it("les six formulaires ont chacun leur variable, lue ET declaree", () => {
     /* Le cas qui a motive ce fichier. Les Flows sont publies chez Meta ; ce
-       sont ces variables qui les BRANCHENT, et l'un des cinq manquait. */
-    for (const quoi of ["LIVRAISON", "INSCRIPTION", "OUVERTURE", "ARTICLE", "AVIS"]) {
+       sont ces variables qui les BRANCHENT, et l'un d'eux manquait. */
+    for (const quoi of ["LIVRAISON", "INSCRIPTION", "OUVERTURE", "ARTICLE", "AVIS", "COMPTOIR"]) {
       const v = `WABOT_FLUX_${quoi}_ID`;
       expect(lues.has(v), `${v} n'est lue nulle part`).toBe(true);
       expect(declarees.has(v), `${v} n'est pas declaree dans .env.example`).toBe(true);

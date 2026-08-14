@@ -106,6 +106,21 @@ const FLUX = [
     champs: ["nom", "prix", "stock", "photo"],
   },
   {
+    /**
+     * Le comptoir en UN ecran — ADR 0102. Les quatre faits d'une vente
+     * negociee (article, prix convenu, cliente, remise) arrivent d'un coup ;
+     * le recapitulatif et la creation restent dans le fil (ADR 0090). Les
+     * types de champs ont tous un precedent depose : `phone` vient du
+     * formulaire de livraison, `number` de celui d'article.
+     */
+    cle: "comptoir",
+    nom: "catalog_comptoir",
+    fichier: "docs/flux-comptoir.json",
+    variable: "WABOT_FLUX_COMPTOIR_ID",
+    categories: ["OTHER"],
+    champs: ["article", "prix", "cliente", "remise"],
+  },
+  {
     cle: "avis",
     nom: "catalog_avis",
     fichier: "docs/flux-avis.json",

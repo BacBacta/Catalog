@@ -54,7 +54,14 @@ export interface ContexteAiguillage {
    * verrait sa reponse partir au fil acheteuse des qu'un panier est ouvert,
    * et son article se perdre.
    */
-  formulaireArticle?: boolean;
+  /**
+   * Vrai quand l'entree est la reponse d'un formulaire VENDEUSE — le jeton
+   * dit « article » ou « comptoir ». Elle ne peut venir que d'un message que
+   * la machine vendeuse a envoye, et c'est elle qui sait la lire.
+   * (S'appelait `formulaireArticle` : le comptoir en un ecran — ADR 0102 —
+   * a montre que le drapeau nommait UN formulaire au lieu du camp entier.)
+   */
+  formulaireVendeuse?: boolean;
 }
 
 export interface EntreeAiguillee {
@@ -105,9 +112,9 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
      geste le plus naturel du canal, il part a l'inscription qui sait le lire. */
   if (ctx.estVendeuse) {
     if (entree.genre === "image") return "inscription";
-    /* La reponse du formulaire d'article — un geste vendeuse s'il en est :
-       elle ne peut venir QUE d'un message que le fil inscription a envoye. */
-    if (entree.genre === "flux" && ctx.formulaireArticle) return "inscription";
+    /* La reponse d'un formulaire VENDEUSE (article, comptoir) : elle ne peut
+       venir QUE d'un message que la machine vendeuse a envoye. */
+    if (entree.genre === "flux" && ctx.formulaireVendeuse) return "inscription";
     /**
      * Le menu d'ouverture est une LISTE — ADR 0088. Une reponse de liste
      * arrive en `genre === "liste"`, pas `"bouton"` : ne router que les

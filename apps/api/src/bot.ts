@@ -34,7 +34,9 @@ import {
   COMPTOIR_DEPART,
   demandeComptoir,
   messageATransferer,
+  phraseRefusComptoir,
   type VenteDeclaree,
+  venteDepuisFlux,
 } from "./domain/bot/comptoir-vendeuse.ts";
 import { confianceAuPaiement, type VerdictConfiance } from "./domain/bot/confiance.ts";
 import {
@@ -61,6 +63,7 @@ import {
   genreDuJeton,
   jetonFlux,
   lireArticleFlux,
+  lireComptoirFlux,
   lireInscriptionFlux,
   lireOuvertureFlux,
   messageFlux,
@@ -205,6 +208,9 @@ export interface BotDeps {
   /** Le formulaire de creation d'article — tache #62. Meme regime : un raccourci
       qui s'AJOUTE aux questions, jamais un passage oblige. */
   fluxArticleId?: string;
+  /** Le comptoir en UN ecran — ADR 0102. Meme regime que l'article : un
+      raccourci a cote des quatre questions, recapitulatif dans le fil. */
+  fluxComptoirId?: string;
   /**
    * Le declencheur de reconstruction de la boutique publique — ADR 0065.
    * ABSENT par defaut : sans lui, aucun deploiement n'est demande et aucun
@@ -494,7 +500,9 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
       achatEnCours: etatAchat.nom !== "accueil",
       /* Le jeton vit dans la charge utile, que l'aiguillage ne lit pas :
          c'est ICI qu'on le regarde, une fois, pour toutes les regles. */
-      formulaireArticle: entree.genre === "flux" && genreDuJeton(entree.reponse) === "article",
+      formulaireVendeuse:
+        entree.genre === "flux" &&
+        ["article", "comptoir"].includes(genreDuJeton(entree.reponse) ?? ""),
     },
   );
 
@@ -539,7 +547,26 @@ async function filInscription(
        d'une vente negociee ; quatre questions, puis le moteur. */
     etat = { nom: "comptoir", comptoir: COMPTOIR_DEPART };
     await poserEtat(deps, phone, etat);
-    await deps.envoyeur.envoyer(questionDeLEtat(etat, entree.de));
+    /* Le formulaire s'AJOUTE a la question — la regle de l'inscription et de
+       l'article, inchangee (ADR 0055, 0063) : un Flow exige un WhatsApp
+       recent, la question marche partout, et le MEME etat vit derriere les
+       deux. La question part en dernier : c'est elle qui reste visible si le
+       formulaire n'affiche rien. Sans `WABOT_FLUX_COMPTOIR_ID`, le fil est
+       exactement celui d'hier (AGENTS.md §5). */
+    await envoyerSequence(deps, [
+      ...(deps.fluxComptoirId
+        ? [
+            messageFlux(
+              entree.de,
+              deps.fluxComptoirId,
+              "Déclarer la vente",
+              jetonFlux("comptoir"),
+              "Plus rapide : les quatre réponses d'un coup, dans un formulaire.",
+            ),
+          ]
+        : []),
+      questionDeLEtat(etat, entree.de),
+    ]);
     return;
   } else if (sellerId) {
     etat = { nom: "article_nom" };
@@ -617,6 +644,38 @@ async function filInscription(
     }
     await poserEtat(deps, phone, ETAT_INITIAL);
     await envoyerSequence(deps, await publierArticleDepuisFil(deps, sellerId, entree.de, lu));
+    return;
+  }
+
+  /**
+   * Le comptoir en UN ecran — ADR 0102. Meme place que l'article : la reponse
+   * du formulaire passe AVANT la machine a etats, sinon une reponse arrivant
+   * apres l'expiration de l'etat serait lue comme un nom d'article.
+   *
+   * La machine du fil VALIDE (`venteDepuisFlux` rejoue `avancerComptoir` pas
+   * a pas — un seul valideur), et le fil garde le dernier mot : recapitulatif
+   * puis « Confirmer ». Le formulaire ne cree JAMAIS la vente (ADR 0090).
+   * Un champ fautif garde les champs precedents acquis : la vendeuse corrige
+   * UN champ dans le fil, pas quatre.
+   */
+  if (sellerId && entree.genre === "flux" && genreDuJeton(entree.reponse) === "comptoir") {
+    const brut = lireComptoirFlux(entree.reponse);
+    if (!brut) {
+      const depart: EtatVendeuse = { nom: "comptoir", comptoir: COMPTOIR_DEPART };
+      await poserEtat(deps, phone, depart);
+      await envoyerSequence(deps, [
+        texte(entree.de, "Le formulaire n'a pas pu être lu. Reprenons ici, c'est aussi rapide."),
+        questionDeLEtat(depart, entree.de),
+      ]);
+      return;
+    }
+    const r = venteDepuisFlux(brut);
+    const suivant: EtatVendeuse = { nom: "comptoir", comptoir: r.etat };
+    await poserEtat(deps, phone, suivant);
+    await envoyerSequence(deps, [
+      ...(r.type === "refus" && r.motif ? [texte(entree.de, phraseRefusComptoir(r.motif))] : []),
+      questionDeLEtat(suivant, entree.de),
+    ]);
     return;
   }
 

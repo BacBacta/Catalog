@@ -200,6 +200,64 @@ export function avancerComptoir(
 }
 
 /**
+ * Le comptoir en UN ecran — ADR 0102. Les quatre champs arrivent d'un coup,
+ * par le formulaire, au lieu de quatre allers-retours.
+ *
+ * ── UN valideur, pas deux ─────────────────────────────────────────────────
+ *
+ * Cette fonction ne connait AUCUNE regle : elle rejoue `avancerComptoir` pas
+ * a pas, comme si la vendeuse avait repondu aux quatre questions. Un
+ * formulaire ne doit pas faire entrer ce que la question refuse — et la
+ * maniere la plus sure de le garantir n'est pas un test de parite entre deux
+ * validations : c'est de n'en avoir qu'une.
+ *
+ * ── Le credit partiel ─────────────────────────────────────────────────────
+ *
+ * Un champ fautif arrete la marche LA ou elle echoue : la reaction porte
+ * l'etat positionne au pas fautif, champs precedents acquis. L'appelant dit
+ * le refus et pose la question de CE pas — la vendeuse corrige un champ dans
+ * le fil, pas quatre. C'est le meme esprit que l'ouverture (ADR 0087) : le
+ * formulaire et les questions partagent leur etat, on passe de l'un a l'autre.
+ *
+ * ── Jamais « creer » ──────────────────────────────────────────────────────
+ *
+ * La marche s'arrete au RECAPITULATIF, jamais au-dela : les mots de commande
+ * (« annuler », « confirmer ») n'existent pas ici, parce qu'un contenu de
+ * champ n'est pas un geste. Rien ne se cree sans le « Confirmer » du fil —
+ * la lecon de l'ADR 0032, reprise par l'ADR 0090.
+ */
+export interface ChampsComptoirFlux {
+  article: string;
+  prix: string;
+  cliente: string;
+  remise: string;
+}
+
+const MOTIF_DU_PAS: Record<keyof ChampsComptoirFlux, MotifRefus> = {
+  article: "article_vide",
+  prix: "prix_illisible",
+  cliente: "numero_illisible",
+  remise: "remise_trop_courte",
+};
+
+export function venteDepuisFlux(champs: ChampsComptoirFlux): ReactionComptoir {
+  const pas: readonly (keyof ChampsComptoirFlux)[] = ["article", "prix", "cliente", "remise"];
+  let etat: EtatComptoir = COMPTOIR_DEPART;
+  for (const cle of pas) {
+    const r = avancerComptoir(etat, { texte: champs[cle] });
+    /* Le mot exact « annuler » est un GESTE dans le fil et une VALEUR ici.
+       `avancerComptoir` le lit en geste — on le rattrape : fermer un comptoir
+       que le formulaire vient d'ouvrir serait lire une valeur comme un ordre.
+       Le champ est refuse au motif de SON pas, et la question du fil reprend. */
+    if (r.type === "abandon") return refus(etat, MOTIF_DU_PAS[cle]);
+    if (r.type === "refus") return r;
+    etat = r.etat;
+  }
+  /* La marche depuis le depart ne peut finir qu'en recap ; le type le sait. */
+  return { type: "recap", etat, ouvert: true };
+}
+
+/**
  * Ce que la vendeuse TRANSFERE a sa cliente, une fois la commande creee.
  *
  * ── Le jeton n'y est pas, et c'est la regle qui compte ────────────────────

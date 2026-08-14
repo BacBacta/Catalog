@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { formatXaf } from "@catalog/contracts/money";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
@@ -219,5 +220,103 @@ describeDb("le comptoir vendeuse, de bout en bout (ADR 0069)", () => {
     /* Et la machine attend toujours la cliente — pas la remise. */
     await traiterLivraisonBot(s.deps, texteEntrant(s.vendeuseWaId, "677 00 11 22"));
     expect(s.envoyeur.envoyes.map(corps).join("\n")).toMatch(/Où se fait la remise/);
+  });
+});
+
+/**
+ * Le comptoir en UN ecran — ADR 0102, contre la vraie base.
+ *
+ * Ce que le domaine seul ne peut pas etablir : que la reponse du formulaire
+ * traverse `traiterLivraisonBot`, atterrit dans le MEME etat que les quatre
+ * questions, et que le recapitulatif du fil reste l'unique porte de creation.
+ */
+const reponseFlux = (de: string, charge: Record<string, unknown>) => ({
+  messages: [
+    {
+      from: de,
+      type: "interactive",
+      interactive: {
+        type: "nfm_reply",
+        nfm_reply: { response_json: JSON.stringify(charge) },
+      },
+    },
+  ],
+});
+
+describeDb("le comptoir en un écran (ADR 0102)", () => {
+  it("formulaire rempli → récapitulatif du fil → Confirmer crée la commande", async () => {
+    const s = await scene();
+    await traiterLivraisonBot(
+      s.deps,
+      reponseFlux(s.vendeuseWaId, {
+        flow_token: "comptoir:",
+        article: "Robe wax",
+        prix: "12500",
+        cliente: "677 00 11 22",
+        remise: "Carrefour Warda",
+      }),
+    );
+
+    /* Le recapitulatif, avec ses boutons — jamais de creation muette. */
+    const recap = s.envoyeur.envoyes.at(-1);
+    expect(corps(recap as MessageSortant)).toContain("Robe wax");
+    /* Le montant, par la MEME fonction que la copie — pas une espace devinee. */
+    expect(corps(recap as MessageSortant)).toContain(formatXaf(12500));
+    expect(
+      await prisma.order.count({ where: { sellerId: s.sellerId } }),
+      "le formulaire ne cree JAMAIS la vente",
+    ).toBe(0);
+
+    await traiterLivraisonBot(s.deps, bouton(s.vendeuseWaId, "confirmer"));
+    expect(await prisma.order.count({ where: { sellerId: s.sellerId } })).toBe(1);
+    const commande = await prisma.order.findFirstOrThrow({
+      where: { sellerId: s.sellerId },
+      select: { totalXaf: true, buyerPhone: true, delivery: true },
+    });
+    expect(commande.totalXaf).toBe(12500);
+    /* Le numero du formulaire, normalise par la MEME regle que le fil. */
+    expect(commande.buyerPhone).toBe("+237677001122");
+  });
+
+  it("un numéro illisible refuse LE champ — article et prix restent acquis", async () => {
+    const s = await scene();
+    await traiterLivraisonBot(
+      s.deps,
+      reponseFlux(s.vendeuseWaId, {
+        flow_token: "comptoir:",
+        article: "Robe wax",
+        prix: "12500",
+        cliente: "pas un numero",
+        remise: "Carrefour Warda",
+      }),
+    );
+    const dits = s.envoyeur.envoyes.map((m) => corps(m)).join("\n---\n");
+    expect(dits).toMatch(/numéro/i);
+    /* La question posee est celle de LA cliente — pas la premiere. */
+    expect(corps(s.envoyeur.envoyes.at(-1) as MessageSortant)).toMatch(/cliente/i);
+
+    /* Elle repond dans le fil : l'etat du formulaire est bien le sien. */
+    await traiterLivraisonBot(s.deps, texteEntrant(s.vendeuseWaId, "699 11 22 33"));
+    expect(corps(s.envoyeur.envoyes.at(-1) as MessageSortant)).toMatch(/remise/i);
+  });
+
+  it("« vendu » offre le formulaire quand l'identifiant est posé — la question reste", async () => {
+    const s = await scene();
+    const deps = { ...s.deps, fluxComptoirId: "1234567890" };
+    await traiterLivraisonBot(deps, texteEntrant(s.vendeuseWaId, "vendu"));
+    const formes = s.envoyeur.envoyes.map(
+      (m) => (m as { interactive?: { type?: string } }).interactive?.type ?? "texte",
+    );
+    /* Le formulaire d'abord, la QUESTION en dernier : c'est elle qui reste
+       visible si le Flow ne s'affiche pas (ADR 0063). */
+    expect(formes).toEqual(["flow", "texte"]);
+    expect(corps(s.envoyeur.envoyes.at(-1) as MessageSortant)).toMatch(/vendu/i);
+  });
+
+  it("sans identifiant, « vendu » est exactement le fil d'hier", async () => {
+    const s = await scene();
+    await traiterLivraisonBot(s.deps, texteEntrant(s.vendeuseWaId, "vendu"));
+    expect(s.envoyeur.envoyes).toHaveLength(1);
+    expect(corps(s.envoyeur.envoyes[0] as MessageSortant)).toMatch(/vendu/i);
   });
 });

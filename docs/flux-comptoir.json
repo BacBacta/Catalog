@@ -1,0 +1,71 @@
+{
+  "version": "7.3",
+  "screens": [
+    {
+      "id": "COMPTOIR",
+      "title": "Déclarer une vente",
+      "terminal": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "La vente que vous venez de conclure — au prix convenu, pas celui du catalogue."
+          },
+          {
+            "type": "Form",
+            "name": "formulaire",
+            "children": [
+              {
+                "type": "TextInput",
+                "name": "article",
+                "label": "Qu'avez-vous vendu ?",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Exemple : Robe wax grande taille"
+              },
+              {
+                "type": "TextInput",
+                "name": "prix",
+                "label": "Prix convenu, en francs",
+                "required": true,
+                "input-type": "number",
+                "helper-text": "Exemple : 12500"
+              },
+              {
+                "type": "TextInput",
+                "name": "cliente",
+                "label": "Numéro WhatsApp de votre cliente",
+                "required": true,
+                "input-type": "phone",
+                "helper-text": "Exemple : 677 00 11 22"
+              },
+              {
+                "type": "TextInput",
+                "name": "remise",
+                "label": "Où se fait la remise ?",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "Exemple : Carrefour Warda, devant la pharmacie"
+              },
+              {
+                "type": "Footer",
+                "label": "Relire la vente",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "article": "${form.article}",
+                    "prix": "${form.prix}",
+                    "cliente": "${form.cliente}",
+                    "remise": "${form.remise}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -44,12 +44,13 @@ const definitions = readdirSync(DOCS)
   .map((f) => ({ nom: f, version: JSON.parse(readFileSync(join(DOCS, f), "utf8")).version }));
 
 describe("la version de Flow JSON est UNE decision, pas cinq recopies", () => {
-  it("trouve bien les cinq definitions", () => {
+  it("trouve bien les six definitions", () => {
     /* Sans ce garde, un chemin casse ferait passer les tests suivants sur une
        liste vide — et le test le plus dangereux est celui qui ne teste rien. */
     expect(definitions.map((d) => d.nom).sort()).toEqual([
       "flux-article.json",
       "flux-avis.json",
+      "flux-comptoir.json",
       "flux-inscription.json",
       "flux-livraison.json",
       "flux-ouverture.json",
@@ -64,7 +65,7 @@ describe("la version de Flow JSON est UNE decision, pas cinq recopies", () => {
     }
   });
 
-  it("les cinq declarent la MEME version", () => {
+  it("les six declarent la MEME version", () => {
     const versions = [...new Set(definitions.map((d) => d.version))];
     expect(
       versions,

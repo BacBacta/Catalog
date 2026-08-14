@@ -106,9 +106,16 @@ export function lireReponseFlux(brut: string): LivraisonLue | null {
  * livraison.
  */
 
-export type GenreFlux = "livraison" | "inscription" | "ouverture" | "avis" | "article";
+export type GenreFlux = "livraison" | "inscription" | "ouverture" | "avis" | "article" | "comptoir";
 
-const GENRES: readonly GenreFlux[] = ["livraison", "inscription", "ouverture", "avis", "article"];
+const GENRES: readonly GenreFlux[] = [
+  "livraison",
+  "inscription",
+  "ouverture",
+  "avis",
+  "article",
+  "comptoir",
+];
 
 /**
  * Le jeton d'un envoi : le genre, puis une reference facultative.
@@ -309,6 +316,33 @@ export function lireArticleFlux(brut: string): ArticleLu | null {
   /* 0 vaut ABSENT : c'est deja la convention de la base (`stock Int @default(0)`
      = « non annonce »), et « il en annonce zero » ne veut rien dire. */
   return { nom, prixXaf, ...(stock ? { stock } : {}), ...(photo ?? {}) };
+}
+
+/**
+ * Le comptoir en UN ecran — ADR 0102. L'EXTRACTION seulement : quatre champs
+ * presents et non vides, tels quels, espaces compris.
+ *
+ * La validation n'est pas ici, et c'est le contrat : elle appartient a
+ * `venteDepuisFlux` (comptoir-vendeuse), qui rejoue la machine du fil pas a
+ * pas. Valider ici aussi creerait le second valideur que ce decoupage existe
+ * precisement pour interdire.
+ */
+export interface ComptoirFluxBrut {
+  article: string;
+  prix: string;
+  cliente: string;
+  remise: string;
+}
+
+export function lireComptoirFlux(brut: string): ComptoirFluxBrut | null {
+  const d = objetDe(brut);
+  if (!d) return null;
+  const article = champ(d, "article");
+  const prix = champ(d, "prix");
+  const cliente = champ(d, "cliente");
+  const remise = champ(d, "remise");
+  if (!article || !prix || !cliente || !remise) return null;
+  return { article, prix, cliente, remise };
 }
 
 /** Ce que le formulaire d'avis rend. Le mot est facultatif — il l'est partout. */
