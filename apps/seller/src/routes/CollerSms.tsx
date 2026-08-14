@@ -104,8 +104,8 @@ const CONTROLES: Array<{ n: number; id: string; title: string; attente: string }
   {
     n: 7,
     id: "contresignature",
-    title: "Confirmation de l'acheteuse",
-    attente: "L'acheteuse confirmera depuis son lien de suivi.",
+    title: "Confirmation de l'acheteur/se",
+    attente: "L'acheteur/se confirmera depuis son lien de suivi.",
   },
 ];
 

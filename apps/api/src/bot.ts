@@ -1632,7 +1632,7 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
             parametres: [
               commande.ref,
               formatXaf(commande.totalXaf),
-              destinationLisible(b.livraison) ?? "à convenir avec l'acheteuse",
+              destinationLisible(b.livraison) ?? "à convenir avec l'acheteur/se",
             ],
           },
         );
@@ -2494,7 +2494,7 @@ async function creerVenteAuComptoir(
   const messages: MessageSortant[] = [
     texte(
       vers,
-      `✅ *${commande.ref} est créée.* Transférez le message suivant à votre cliente — il porte tout ce qu'il lui faut pour payer.\nDès qu'elle a payé, collez ici le SMS de votre opérateur : il devient son reçu vérifiable.`,
+      `✅ *${commande.ref} est créée.* Transférez le message suivant à votre client/e — il porte tout ce qu'il faut pour payer.\nDès que c'est payé, collez ici le SMS de votre opérateur : il devient son reçu vérifiable.`,
     ),
     /* Le message a transferer part SEUL : c'est lui qu'elle fait suivre, sans
        avoir a decouper le notre. Il ne porte NI jeton NI lien de suivi — il

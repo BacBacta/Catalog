@@ -39,8 +39,8 @@ export function ChoixOperateur({ operateurs, onChoisir }: ChoixOperateurProps) {
       </div>
       {operateurs.length === 0 ? (
         <p class="text-caption text-danger">
-          Aucun operateur n'est configure pour l'instant. Reglez directement avec la vendeuse sur
-          WhatsApp.
+          Aucun operateur n'est configure pour l'instant. Reglez directement avec le/la vendeur/se
+          sur WhatsApp.
         </p>
       ) : null}
     </section>

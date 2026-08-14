@@ -93,7 +93,7 @@ const lienBot = botDisponible() ? lienCommanderAuBot(boutique.whatsapp, boutique
             role="status"
             class="rounded-field border border-warn/40 bg-warn-soft px-3 py-2 text-body text-warn"
           >
-            🌴 La vendeuse ne prend pas de nouvelle commande en ce moment. Le catalogue reste
+            🌴 Le/la vendeur/se ne prend pas de nouvelle commande en ce moment. Le catalogue reste
             consultable, et vous pouvez lui écrire.
           </p>
         ) : null
@@ -106,7 +106,7 @@ const lienBot = botDisponible() ? lienCommanderAuBot(boutique.whatsapp, boutique
             data-testid="ecrire-vendeuse"
             class="inline-flex min-h-[var(--size-touch)] items-center justify-center self-start rounded-field border border-control-line bg-surface px-5 py-3 text-body font-semibold text-ink no-underline"
           >
-            Écrire à la vendeuse
+            Écrire au vendeur/se
           </a>
         ) : lienBot && boutique.articles.length > 0 ? (
           <a
@@ -144,7 +144,7 @@ const lienBot = botDisponible() ? lienCommanderAuBot(boutique.whatsapp, boutique
     }
 
     <footer class="pt-2 text-caption text-muted">
-      Catalogue tenu sur Catalog. La commande se conclut sur WhatsApp, avec la vendeuse.
+      Catalogue tenu sur Catalog. La commande se conclut sur WhatsApp, avec le/la vendeur/se.
     </footer>
   </main>
 </Base>

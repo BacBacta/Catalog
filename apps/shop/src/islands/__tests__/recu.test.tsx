@@ -102,7 +102,7 @@ describe("la carte de recu", () => {
   });
 
   it("dit si l'acheteuse a confirme, et quand", () => {
-    expect(html).toMatch(/Pas encore confirmée par l'acheteuse/);
+    expect(html).toMatch(/Pas encore confirmée par l'acheteur\/se/);
     const signe = rendre(
       <CarteRecu
         recu={recu({ etat: "contresigne", contresigneA: "2026-06-23T17:00:00.000Z" })}

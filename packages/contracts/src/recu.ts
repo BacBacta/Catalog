@@ -91,14 +91,14 @@ export const MESSAGE_REFUS: Record<RefusRecu, { titre: string; detail: string }>
   declare_non_trace: {
     titre: "Paiement déclaré à la main, sans reçu",
     detail:
-      "La vendeuse déclare avoir reçu l'argent, mais aucun SMS d'opérateur ne l'atteste. " +
+      "Le/la vendeur/se déclare avoir reçu l'argent, mais aucun SMS d'opérateur ne l'atteste. " +
       "Il n'y a donc rien à vérifier auprès de l'opérateur, et pas de reçu.",
   },
   preuve_absente: {
     titre: "Le paiement n'est pas encore prouvé",
     detail:
       "Aucun SMS d'opérateur n'a encore été apporté pour cette commande. Le reçu apparaîtra " +
-      "quand la vendeuse aura collé le message reçu de son opérateur.",
+      "quand le/la vendeur/se aura collé le message reçu de son opérateur.",
   },
   conteste: {
     titre: "Ce paiement est contesté",

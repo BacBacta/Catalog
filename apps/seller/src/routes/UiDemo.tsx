@@ -96,7 +96,7 @@ const CHECKS: ProofCheckItem[] = [
   {
     id: "c5",
     title: "Identifiant jamais réclamé ailleurs",
-    explanation: "Cet identifiant de transaction n’a été utilisé chez aucune autre vendeuse.",
+    explanation: "Cet identifiant de transaction n’a été utilisé chez aucun/e autre vendeur/se.",
     state: "pass",
   },
   {
@@ -107,8 +107,8 @@ const CHECKS: ProofCheckItem[] = [
   },
   {
     id: "c7",
-    title: "Contre-signature de l’acheteuse",
-    explanation: "Elle n’a pas encore confirmé depuis son lien de suivi.",
+    title: "Contre-signature de l’acheteur/se",
+    explanation: "Pas encore confirmé depuis le lien de suivi.",
     state: "pending",
   },
 ];
@@ -250,7 +250,7 @@ export function UiDemo() {
             <Field
               label="Nom de la boutique"
               htmlFor="shop"
-              hint="C’est ce que voient vos clientes."
+              hint="C’est ce que voient vos client/es."
             >
               <Input id="shop" defaultValue="Chez Maman Jeanne" />
             </Field>
@@ -295,7 +295,7 @@ export function UiDemo() {
 
         <Section
           title="Les sept contrôles"
-          note="Chaque ligne dit pourquoi, en langue simple. Sans le pourquoi, la vendeuse expédie quand même."
+          note="Chaque ligne dit pourquoi, en langue simple. Sans le pourquoi, le/la vendeur/se expédie quand même."
         >
           <ProofChecklist items={CHECKS} />
         </Section>

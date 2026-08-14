@@ -46,7 +46,7 @@ const ACTION: Record<EtapeCommande, string> = {
   recue: "Marquer recue",
   preparee: "C'est prepare",
   chez_le_livreur: "Confiee au livreur",
-  livree: "Remise a la cliente",
+  livree: "Remise a votre client/e",
 };
 
 export function Commandes() {
@@ -153,21 +153,21 @@ function Liste() {
 
   if (etat.nom === "chargement") {
     return (
-      <Ecran titre="Mes commandes" surtitre="Espace vendeuse">
+      <Ecran titre="Mes commandes" surtitre="Espace vendeur/se">
         <LoadingState label="Lecture de vos commandes…" />
       </Ecran>
     );
   }
   if (etat.nom === "hors_ligne") {
     return (
-      <Ecran titre="Mes commandes" surtitre="Espace vendeuse">
+      <Ecran titre="Mes commandes" surtitre="Espace vendeur/se">
         <OfflineState action={<Button onClick={() => void charger()}>Reessayer</Button>} />
       </Ecran>
     );
   }
   if (etat.nom === "erreur") {
     return (
-      <Ecran titre="Mes commandes" surtitre="Espace vendeuse">
+      <Ecran titre="Mes commandes" surtitre="Espace vendeur/se">
         <ErrorState action={<Button onClick={() => void charger()}>Reessayer</Button>}>
           {etat.message}
         </ErrorState>
@@ -176,11 +176,11 @@ function Liste() {
   }
 
   return (
-    <Ecran titre="Mes commandes" surtitre="Espace vendeuse">
+    <Ecran titre="Mes commandes" surtitre="Espace vendeur/se">
       <StatTile
         label="Soldes a encaisser"
         value={<MoneyDisplay amountXaf={etat.soldesXaf} size="hero" />}
-        note="Ce que vos clientes vous doivent encore, sur les commandes en cours."
+        note="Ce que vos client/es vous doivent encore, sur les commandes en cours."
         data-testid="soldes-a-encaisser"
       />
 
@@ -190,7 +190,7 @@ function Liste() {
 
       {etat.commandes.length === 0 ? (
         <EmptyState title="Aucune commande">
-          Vos commandes apparaitront ici des qu'une cliente en passera une.
+          Vos commandes apparaitront ici des qu'un/e client/e en passera une.
         </EmptyState>
       ) : (
         etat.commandes.map((c) => (
@@ -216,7 +216,7 @@ function LigneCommande({
     <Card data-testid={`commande-${commande.reference}`}>
       <CardTitle>{commande.reference}</CardTitle>
       <CardNote>
-        {commande.acheteuse.nom ?? "Cliente"} · {commande.acheteuse.telephone}
+        {commande.acheteuse.nom ?? "Client/e"} · {commande.acheteuse.telephone}
       </CardNote>
 
       <div className="flex flex-wrap items-center gap-2">

@@ -76,7 +76,7 @@ export async function changerNumeroDeReversement(
       reversementGeleDepuis: true,
     },
   });
-  if (!vendeuse) throw new Error(`vendeuse introuvable: ${entree.sellerId}`);
+  if (!vendeuse) throw new Error(`boutique introuvable: ${entree.sellerId}`);
 
   /**
    * ── Le gel passe AVANT le domaine, et il ne se leve pas tout seul ──────

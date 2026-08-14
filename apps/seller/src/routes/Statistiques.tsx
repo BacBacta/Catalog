@@ -186,7 +186,7 @@ function PartProuvee({ stats, periode }: { stats: StatsVendeuse; periode: string
     { cle: "nonTrace", valeur: p.nonTrace },
   ]).map((s, i) => ({
     ...s,
-    libelle: ["Contresigné par l'acheteuse", "Prouvé par SMS", "Non tracé"][i] as string,
+    libelle: ["Contresigné par l'acheteur/se", "Prouvé par SMS", "Non tracé"][i] as string,
     couleur: [
       "var(--color-preuve-contresigne)",
       "var(--color-preuve-prouve)",
@@ -371,7 +371,7 @@ function Vues({ stats, periode }: { stats: StatsVendeuse; periode: string }) {
       {!stats.instrumentation.vuesInstrumentees ? (
         <CardNote data-testid="vues-non-instrumentees">
           <strong className="text-ink">Ces vues ne sont pas encore comptées.</strong> Votre boutique
-          publique ne nous prévient pas encore quand une cliente ouvre une page. Tant que ce sera le
+          publique ne nous prévient pas encore quand quelqu'un ouvre une page. Tant que ce sera le
           cas, ce chiffre restera à zéro — ce n'est pas votre fréquentation.
           {total > 0 ? " Les valeurs affichées viennent de données de démonstration." : ""}
         </CardNote>
@@ -508,9 +508,9 @@ function ArticlesLesPlusVus({ stats, periode }: { stats: StatsVendeuse; periode:
 function SourcesDeTrafic() {
   return (
     <Card>
-      <CardTitle>D'où viennent vos clientes</CardTitle>
+      <CardTitle>D'où viennent vos client/es</CardTitle>
       <CardNote data-testid="sources-de-trafic-absentes">
-        Nous ne le mesurons pas encore. Rien n'enregistre aujourd'hui si une cliente arrive par
+        Nous ne le mesurons pas encore. Rien n'enregistre aujourd'hui si un/e client/e arrive par
         WhatsApp, par un lien partagé ou par une recherche — et nous préférons vous le dire plutôt
         que d'afficher un graphique inventé.
       </CardNote>

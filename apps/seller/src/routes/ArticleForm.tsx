@@ -278,7 +278,7 @@ function Formulaire() {
           <Field
             label="Nom de l'article"
             htmlFor="nom-article"
-            hint="Comme vous le dites a vos clientes."
+            hint="Comme vous le dites a vos client/es."
           >
             <Input
               id="nom-article"

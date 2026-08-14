@@ -51,7 +51,7 @@ export class ChiffreurAesGcm implements ChiffreurSms {
     if (!secret || secret.length < 32) {
       throw new Error(
         "SMS_ENCRYPTION_KEY est requis et fait au moins 32 caracteres. Sans cle, " +
-          "le SMS brut — qui porte le solde du compte de la vendeuse — serait " +
+          "le SMS brut — qui porte le solde du compte de qui vend — serait " +
           "stocke en clair.",
       );
     }
@@ -96,7 +96,7 @@ export class ChiffreurInerte implements ChiffreurSms {
     if (env.NODE_ENV === "production") {
       throw new Error(
         "ChiffreurInerte ne chiffre RIEN : en production, le solde de chaque " +
-          "vendeuse serait en clair en base. Configurez SMS_ENCRYPTION_KEY.",
+          "boutique serait en clair en base. Configurez SMS_ENCRYPTION_KEY.",
       );
     }
   }

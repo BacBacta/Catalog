@@ -126,8 +126,8 @@ function Formulaire({ vendeuse }: { vendeuse: Vendeuse }) {
       <Card>
         <CardTitle>C'est la que l'argent arrive</CardTitle>
         <CardNote>
-          Ce numero n'a pas besoin d'etre celui de votre connexion. Beaucoup de vendeuses se
-          connectent avec une puce et se font payer sur l'autre — c'est prevu.
+          Ce numero n'a pas besoin d'etre celui de votre connexion. Beaucoup se connectent avec une
+          puce et se font payer sur l'autre — c'est prevu.
         </CardNote>
         <CardNote>
           Numero actuel :{" "}

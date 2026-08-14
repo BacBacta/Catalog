@@ -159,7 +159,7 @@ describe("ecran d'attente", () => {
   );
 
   it("dit qui confirmera, et ne confirme rien lui-meme", () => {
-    expect(html).toContain("La vendeuse confirmera la reception");
+    expect(html).toContain("Le/la vendeur/se confirmera la reception");
   });
 
   it("n'annonce NI succes NI echec", () => {
@@ -200,7 +200,7 @@ describe("ecran d'attente", () => {
   it("reste lisible quand le numero de la vendeuse est inconnu", () => {
     const sansLien = rendre(<Attente numero="677123456" montantXaf={7500} />);
     expect(sansLien).not.toContain("wa.me");
-    expect(sansLien).toContain("Prevenez la vendeuse");
+    expect(sansLien).toContain("Prevenez le/la vendeur/se");
   });
 });
 
@@ -222,7 +222,7 @@ describe("choix de l'operateur", () => {
 
   it("reste utilisable quand la configuration est vide", () => {
     const html = rendre(<ChoixOperateur operateurs={[]} onChoisir={() => {}} />);
-    expect(html).toMatch(/Reglez directement avec la vendeuse/);
+    expect(html).toMatch(/Reglez directement avec le\/la vendeur\/se/);
   });
 });
 

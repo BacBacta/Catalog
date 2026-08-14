@@ -53,6 +53,11 @@ Le produit s'est écrit au féminin — c'est son public d'abord visé. La **cop
 s'adresse désormais à quiconque vend : « le/la vendeur/se », « client/e »,
 « payé/e », « prêt/e ». Vingt-sept phrases reprises, dans les trois fils.
 
+> **Amendement du même soir, deuxième passe.** Le porteur du produit : « oui,
+> enchaîne acheteuse ». Le mot a suivi — « l'acheteur/se » — et la passe a
+> découvert que la première s'était arrêtée trop tôt : voir la section
+> « Ce qui manquait à la première passe » plus bas.
+
 **Les identifiants de code ne bougent pas** : le fil `"vendeuse"`, le module
 `comptoir-vendeuse.ts`, `EtatVendeuse`, le pas `comptoir:cliente`. C'est la
 règle d'AGENTS.md §1 pour `catalogue`, appliquée telle quelle — le nom commun
@@ -60,11 +65,52 @@ du code n'est pas la copie, et un renommage produirait un diff illisible pour
 zéro gain lisible. Les ADR 0001 à 0107 gardent le mot : un ADR ne se réécrit
 pas.
 
-**Une exception, mesurée et documentée** : le gabarit `reversement_absent` dit
-« vos clientes » et il est **approuvé par Meta**. Le corriger dans le dépôt ne
-changerait pas ce que Meta envoie — il faudrait re-soumettre, attendre, et
-risquer un refus. La copie du dépôt est un miroir de l'approuvé ; la faire
-diverger la rendrait menteuse. Le mot bouge quand le gabarit est re-soumis.
+**Deux exceptions, mesurées et documentées** : les gabarits
+`reversement_absent` (« vos clientes ») et `paiement_conteste`
+(« L'acheteuse de la commande ») sont **approuvés par Meta**. Les corriger dans
+le dépôt ne changerait pas ce que Meta envoie — il faudrait re-soumettre,
+attendre, et risquer un refus. La copie du dépôt est un miroir de l'approuvé ;
+la faire diverger la rendrait menteuse. Le mot bouge quand le gabarit est
+re-soumis.
+
+## Ce qui manquait à la première passe
+
+La deuxième passe cherchait « acheteuse ». Elle a trouvé le mot — et, en
+passant, **trente-huit phrases au féminin seul que la première n'avait jamais
+regardées** : tout l'écran vendeur/se (« Espace vendeuse », « vos clientes »
+huit fois, « Remise a la cliente »), toute la boutique publique (« Écrire à la
+vendeuse », « Prevenir la vendeuse »), la politique de confidentialité, et les
+libellés de reçu de `packages/contracts`.
+
+La cause n'est pas l'inattention : **la garde tenait une liste de huit
+fichiers du bot**, et une liste ne protège que ce qu'elle nomme. Les trente-huit
+phrases étaient hors garde sans que rien ne le dise — et un écran ajouté demain
+y aurait échappé pareillement. C'est le même défaut de forme que le constat
+C-003 : un dispositif qui a l'air de couvrir, et qui couvre un huitième.
+
+La garde **parcourt** désormais les arbres de copie entiers — `apps/api/src`,
+`apps/seller/src`, `apps/shop/src`, `apps/site/src`, `packages/ui/src`,
+`packages/contracts/src`, `packages/db/prisma`. Ce qui est ajouté est couvert
+d'office. 2 089 phrases inspectées au lieu de 150.
+
+Trois choses apprises en l'écrivant, et qui valent d'être notées :
+
+- **Le texte JSX n'est pas entre guillemets.** `<p>La vendeuse…</p>` est un
+  nœud. Sans un second extracteur (`>…<`), toute la boutique publique passait
+  sous la garde en silence — la forme la plus coûteuse d'un test vert.
+- **Un `//` cherché n'importe où mange la fin de `"https://…"`**, laisse un
+  guillemet ouvert, apparie de travers avec le suivant et fabrique des phrases
+  qui n'existent pas : neuf faux positifs, mesurés. Les deux motifs de
+  commentaire sont ancrés en début de ligne.
+- **Le doublet explicite est neutralisé avant la recherche.** « les vendeuses
+  et vendeurs camerounais » est la forme la plus inclusive, pas une
+  infraction ; une garde qui la rejette rejette ce qu'elle demande.
+
+Quatre messages d'erreur de démarrage (`SMS_ENCRYPTION_KEY`,
+`ChiffreurInerte`, `ConsoleSmsSender`, `BETTER_AUTH_SECRET`) ont été repris
+aussi. Ils ne sont lus que par qui déploie — mais le mot y désigne quand même
+une personne, et les exclure aurait demandé une liste d'exceptions plus longue
+que la correction.
 
 ## La garde, parce qu'une décision de copie se défait toute seule
 
@@ -84,10 +130,12 @@ une exception qui ne protège plus rien devient un trou.
 
 ## Ce qui reste à faire, et qui n'est pas fait
 
-- **`acheteuse` n'est pas traité.** Le mot subsiste dans la copie acheteuse,
-  et il relève de la même décision. L'annoncer ici sans le faire serait la
-  promesse creuse que l'ADR 0103 interdit : il est donc **hors** de la garde,
-  explicitement, jusqu'à ce que cette copie soit relue à son tour.
+- **`acheteuse` est traité** (amendement du 14/08, seconde passe). Le mot était
+  annoncé hors garde ici ; il y est entré le soir même, avec les trente-huit
+  phrases que la liste fermée cachait.
+- **Les gabarits Meta restent au féminin**, et c'est le seul reste assumé. Le
+  mot bouge à la re-soumission, pas avant ; un troisième test tombe le jour où
+  l'exception ne protège plus rien.
 - **L'anglais n'a pas eu à bouger** : `seller` et `buyer` sont déjà neutres.
 - **Le pidgin reste fermé** (`PIDGIN_RELU = false`) : ses clés retombent sur
   le français, donc elles héritent du terme sans relecture — ce qui est le

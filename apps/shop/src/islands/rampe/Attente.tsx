@@ -41,7 +41,7 @@ export function Attente({ numero, montantXaf, whatsapp, reference }: AttenteProp
 
   return (
     <section class="flex flex-col gap-4" data-testid="attente">
-      <h2 class="text-title font-bold text-ink">La vendeuse confirmera la reception</h2>
+      <h2 class="text-title font-bold text-ink">Le/la vendeur/se confirmera la reception</h2>
 
       <p class="text-body text-ink-2">
         Vous avez compose un transfert de <strong class="text-ink">{formatXaf(montantXaf)}</strong>{" "}
@@ -50,8 +50,8 @@ export function Attente({ numero, montantXaf, whatsapp, reference }: AttenteProp
 
       <p class="rounded-card border border-line bg-surface p-4 text-caption text-ink-2">
         Catalog n'a pas de fenetre sur votre operateur : nous ne voyons pas passer les transferts.
-        La vendeuse, elle, recoit un SMS de son operateur. Quand elle le colle dans Catalog, le recu
-        apparait, avec l'identifiant de transaction — et c'est ce recu qui vaut preuve, pas une
+        La boutique, elle, recoit un SMS de son operateur. Une fois ce SMS colle dans Catalog, le
+        recu apparait, avec l'identifiant de transaction — et c'est ce recu qui vaut preuve, pas une
         capture d'ecran.
       </p>
 
@@ -67,11 +67,11 @@ export function Attente({ numero, montantXaf, whatsapp, reference }: AttenteProp
           data-testid="prevenir-vendeuse"
           class="inline-flex min-h-[var(--size-touch)] items-center justify-center rounded-field bg-brand-fill px-5 py-3 text-body font-semibold text-brand-on-fill"
         >
-          Prevenir la vendeuse sur WhatsApp
+          Prevenir le/la vendeur/se sur WhatsApp
         </a>
       ) : (
         <p class="text-caption text-muted">
-          Prevenez la vendeuse sur WhatsApp : le numero et le montant sont ecrits ci-dessus.
+          Prevenez le/la vendeur/se sur WhatsApp : le numero et le montant sont ecrits ci-dessus.
         </p>
       )}
     </section>

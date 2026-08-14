@@ -129,7 +129,7 @@ function Liste() {
           </Button>
         }
       >
-        Votre catalogue est toujours en ligne pour vos clientes. C'est seulement cet ecran qui
+        Votre catalogue est toujours en ligne pour vos client/es. C'est seulement cet ecran qui
         n'arrive pas a le lire.
       </OfflineState>,
     );
@@ -265,7 +265,7 @@ function Liste() {
       {archives ? (
         <CardNote>
           L'ordre ne se change pas quand les articles archives sont affiches : la liste montree
-          n'est pas celle que voient vos clientes.
+          n'est pas celle que voient vos client/es.
         </CardNote>
       ) : null}
     </>,

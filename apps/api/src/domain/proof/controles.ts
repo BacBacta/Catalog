@@ -136,7 +136,7 @@ export function controle3Contrepartie(
       3,
       "contrepartie",
       "warn",
-      "Ce message ne contient pas de numéro exploitable. Ce n'est pas bloquant, mais la confirmation de l'acheteuse comptera davantage.",
+      "Ce message ne contient pas de numéro exploitable. Ce n'est pas bloquant, mais la confirmation de l'acheteur/se comptera davantage.",
     );
   }
 
@@ -150,7 +150,7 @@ export function controle3Contrepartie(
       "warn",
       pattern.sens === "sortant"
         ? "Aucun numéro de reversement enregistré : impossible de vérifier que l'argent est bien parti chez vous."
-        : "Aucun numéro d'acheteuse enregistré sur cette commande : impossible de rapprocher l'expéditeur.",
+        : "Aucun numéro d'acheteur/se enregistré sur cette commande : impossible de rapprocher l'expéditeur.",
     );
   }
 
@@ -161,7 +161,7 @@ export function controle3Contrepartie(
       "pass",
       pattern.sens === "sortant"
         ? "L'argent est bien parti vers votre numéro de reversement."
-        : "L'expéditeur correspond au numéro de l'acheteuse.",
+        : "L'expéditeur correspond au numéro de l'acheteur/se.",
     );
   }
 
@@ -178,7 +178,7 @@ export function controle3Contrepartie(
     3,
     "contrepartie",
     "warn",
-    "L'argent vient d'un autre numéro que celui enregistré. C'est fréquent — deuxième puce, paiement par un proche — mais la confirmation de l'acheteuse comptera davantage.",
+    "L'argent vient d'un autre numéro que celui enregistré. C'est fréquent — deuxième puce, paiement par un proche — mais la confirmation de l'acheteur/se comptera davantage.",
   );
 }
 
@@ -244,7 +244,7 @@ export function controle5Unicite(): CheckResult {
     5,
     "unicite",
     "pending",
-    "Vérification que ce paiement n'a pas déjà été utilisé — chez vous ou chez une autre vendeuse.",
+    "Vérification que ce paiement n'a pas déjà été utilisé — chez vous ou chez un/e autre vendeur/se.",
   );
 }
 
@@ -316,22 +316,22 @@ export function controle7Contresignature(
   sens: Sens = "entrant",
 ): CheckResult {
   if (commande.contresigneeParAcheteuse) {
-    return c(7, "contresignature", "pass", "L'acheteuse a confirmé avoir payé.");
+    return c(7, "contresignature", "pass", "L'acheteur/se a confirmé avoir payé.");
   }
   if (sens === "sortant") {
     return c(
       7,
       "contresignature",
       "warn",
-      "Ce message est celui de l'acheteuse, pas le vôtre : il corrobore le paiement sans le prouver. " +
-        "Il faut votre SMS de réception, ou la confirmation de l'acheteuse depuis son lien de suivi.",
+      "Ce message est celui de l'acheteur/se, pas le vôtre : il corrobore le paiement sans le prouver. " +
+        "Il faut votre SMS de réception, ou la confirmation de l'acheteur/se depuis son lien de suivi.",
     );
   }
   return c(
     7,
     "contresignature",
     "pending",
-    "En attente de la confirmation de l'acheteuse. Elle la donne depuis son lien de suivi.",
+    "En attente de la confirmation de l'acheteur/se. Elle se donne depuis le lien de suivi.",
   );
 }
 

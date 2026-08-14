@@ -114,7 +114,7 @@ test.describe("cycle de vie d'une commande", () => {
     );
 
     await page.goto("/commandes");
-    await page.getByRole("button", { name: "Remise a la cliente" }).click();
+    await page.getByRole("button", { name: "Remise a votre client/e" }).click();
 
     await expect(page.getByRole("status").filter({ hasText: "CT-1043" })).toContainText(
       /solde a encaisser/i,

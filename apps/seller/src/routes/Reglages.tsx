@@ -93,7 +93,7 @@ function CarteConges({ depuis }: { depuis: string | null }) {
           <>
             Vous partez, vous etes malade, vous n'avez plus de marchandise ? Fermez aux commandes
             plutot que d'en accepter que vous ne pourrez pas honorer. Votre boutique reste visible
-            et vos clientes peuvent toujours vous ecrire.
+            et vos client/es peuvent toujours vous ecrire.
           </>
         )}
       </CardNote>
@@ -180,8 +180,8 @@ function CarteNom({ seller }: { seller: NonNullable<Vendeuse["seller"]> }) {
           <CardNote>
             Votre adresse en ligne ne change pas : elle reste{" "}
             <strong className="text-ink">/{seller.slug}</strong>. C'est voulu — vous l'avez
-            peut-etre deja partagee en Statut ou sur une affiche, et un lien casse mene vos clientes
-            sur une page vide.
+            peut-etre deja partagee en Statut ou sur une affiche, et un lien casse mene vos
+            client/es sur une page vide.
           </CardNote>
           <p role="status" aria-live="polite" className="text-caption text-danger">
             {erreur}
@@ -214,7 +214,7 @@ function Contenu({ vendeuse }: { vendeuse: Vendeuse }) {
   const seller = vendeuse.seller;
 
   return (
-    <Ecran titre="Reglages" surtitre="Espace vendeuse">
+    <Ecran titre="Reglages" surtitre="Espace vendeur/se">
       <Card>
         <CardTitle>Votre connexion</CardTitle>
         <CardNote>

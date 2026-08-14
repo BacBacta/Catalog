@@ -48,7 +48,7 @@ const ETAPES: string[] = [
   "Touchez « Composer » : le clavier de votre telephone s'ouvre.",
   "Appuyez sur appeler. La session de votre operateur prend le relais.",
   "Choisissez l'option de transfert d'argent vers un abonne.",
-  "Saisissez le numero de la vendeuse, puis le montant exact.",
+  "Saisissez le numero de la boutique, puis le montant exact.",
   "Confirmez avec votre code secret — il se tape chez l'operateur, jamais ici.",
 ];
 

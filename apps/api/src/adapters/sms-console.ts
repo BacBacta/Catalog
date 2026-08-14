@@ -20,7 +20,7 @@ export class ConsoleSmsSender implements SmsSender {
     if (env.NODE_ENV === "production") {
       throw new Error(
         "ConsoleSmsSender est un fournisseur de developpement : en production, " +
-          "aucun OTP ne partirait et les vendeuses resteraient dehors. " +
+          "aucun OTP ne partirait et personne ne pourrait se connecter. " +
           "Configurez SMS_PROVIDER sur un vrai fournisseur.",
       );
     }

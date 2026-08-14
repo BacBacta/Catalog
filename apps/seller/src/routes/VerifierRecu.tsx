@@ -160,7 +160,7 @@ function Authentique({ recu, portee }: { recu: RecuJson; portee: string }) {
           <dd className="text-ink">{recu.reference}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt>Confirmé par l'acheteuse</dt>
+          <dt>Confirmé par l'acheteur/se</dt>
           <dd className="text-ink">{recu.contresigneA ? "oui" : "pas encore"}</dd>
         </div>
         {recu.resteXaf > 0 ? (

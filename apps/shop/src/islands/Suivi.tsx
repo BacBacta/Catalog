@@ -142,8 +142,8 @@ export default function SuiviAcheteuse() {
       <section class="flex flex-col gap-2" data-testid="lien-inconnu">
         <h2 class="text-body font-semibold text-ink">Ce lien de suivi ne mène à rien</h2>
         <p class="text-caption text-ink-2">
-          Reprenez le lien que la vendeuse vous a envoyé sur WhatsApp, en entier. Un lien tronqué à
-          la recopie ne fonctionne pas.
+          Reprenez le lien que le/la vendeur/se vous a envoyé sur WhatsApp, en entier. Un lien
+          tronqué à la recopie ne fonctionne pas.
         </p>
       </section>
     );
@@ -318,7 +318,7 @@ function DepotAvis({ jeton, verifie }: { jeton: string; verifie: boolean }) {
 
   return (
     <form onSubmit={envoyer} class="flex flex-col gap-3" data-testid="depot-avis">
-      <h3 class="text-body font-semibold text-ink">Votre avis sur cette vendeuse</h3>
+      <h3 class="text-body font-semibold text-ink">Votre avis sur cette boutique</h3>
 
       {/* Le label est dit ICI, une fois, plutot que repete sur cinq boutons. */}
       <fieldset class="flex flex-col gap-2 border-0 p-0">

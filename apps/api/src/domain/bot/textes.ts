@@ -540,7 +540,7 @@ const fr: TextesAcheteuse = {
   contesteEnregistre: (ref) =>
     `${ref} est signalée. Elle n'avance plus tant que le désaccord n'est pas réglé — parlez-en directement au vendeur/se, c'est le plus rapide.`,
   avisInvitation: (nom) =>
-    `Comment s'est passée votre commande chez *${nom}* ?\nVotre avis aide les prochaines acheteuses.`,
+    `Comment s'est passée votre commande chez *${nom}* ?\nVotre avis aide celles et ceux qui achèteront après vous.`,
   btnNoter: "Noter la boutique",
   avisLigne: (n) => "⭐".repeat(n),
   avisNoteEnregistree: (verifie) =>

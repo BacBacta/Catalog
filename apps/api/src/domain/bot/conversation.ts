@@ -2430,7 +2430,7 @@ export function detailCommandeVendeuse(d: {
           }`;
   const geste =
     d.preuve === "conteste"
-      ? "Le plus rapide reste d'appeler l'acheteuse."
+      ? "Le plus rapide reste d'appeler l'acheteur/se."
       : d.etape === "livree"
         ? "Commande remise — il ne reste que l'encaissement."
         : `Quand c'est remis, écrivez : *livrée ${d.reference}*`;

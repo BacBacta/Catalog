@@ -71,7 +71,7 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
   return (
     <Ecran
       titre={seller.businessName}
-      surtitre="Espace vendeuse"
+      surtitre="Espace vendeur/se"
       actions={
         <Button tone="ghost" onClick={() => void deconnecter()}>
           Me deconnecter
@@ -97,7 +97,7 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
         <StatTile
           label="Soldes a encaisser"
           value={<MoneyDisplay amountXaf={soldes} size="hero" />}
-          note="Ce que vos clientes vous doivent encore, sur les commandes en cours."
+          note="Ce que vos client/es vous doivent encore, sur les commandes en cours."
           data-testid="tuile-soldes"
           className="border-brand-100 bg-linear-to-br from-brand-soft to-surface dark:border-line"
         />
@@ -124,8 +124,8 @@ function Accueil({ vendeuse }: { vendeuse: Vendeuse }) {
         </p>
         <CardNote>
           {seller.payoutPhone
-            ? "C'est sur ce numero que vos clientes vous paient. Il peut etre sur une autre puce que celle de votre connexion."
-            : "C'est le numero sur lequel vos clientes vous paieront. Tant qu'il n'est pas pose, aucune rampe de paiement ne peut etre generee."}
+            ? "C'est sur ce numero que vos client/es vous paient. Il peut etre sur une autre puce que celle de votre connexion."
+            : "C'est le numero sur lequel vos client/es vous paieront. Tant qu'il n'est pas pose, aucune rampe de paiement ne peut etre generee."}
         </CardNote>
         <Button
           render={<Link to="/reversement" />}
@@ -222,8 +222,8 @@ function CreationProfil({ vendeuse }: { vendeuse: Vendeuse }) {
       <Card>
         <CardNote>
           {demanderContact
-            ? "Trois questions, une seule fois. Le nom est celui que vos clientes verront."
-            : "Deux questions, une seule fois. Le nom est celui que vos clientes verront."}
+            ? "Trois questions, une seule fois. Le nom est celui que vos client/es verront."
+            : "Deux questions, une seule fois. Le nom est celui que vos client/es verront."}
         </CardNote>
         <form onSubmit={soumettre} noValidate className="flex flex-col gap-4">
           <Field
@@ -252,7 +252,7 @@ function CreationProfil({ vendeuse }: { vendeuse: Vendeuse }) {
             <Field
               label="Numero WhatsApp de la boutique"
               htmlFor="contact"
-              hint="Celui que vos clientes toucheront. Il se corrige dans Reglages."
+              hint="Celui que vos client/es toucheront. Il se corrige dans Reglages."
             >
               <Input
                 id="contact"

@@ -39,7 +39,7 @@ const REPONSE_ACCEPTEE = {
     { n: 3, id: "contrepartie", state: "pass", explanation: "L'expéditeur correspond." },
     { n: 4, id: "horodatage", state: "pass", explanation: "La date est cohérente." },
     { n: 5, id: "unicite", state: "pass", explanation: "Ce paiement n'avait jamais été utilisé." },
-    { n: 7, id: "contresignature", state: "pending", explanation: "En attente de l'acheteuse." },
+    { n: 7, id: "contresignature", state: "pending", explanation: "En attente de l'acheteur/se." },
   ],
   resume: {
     operateur: "MTN MoMo",
@@ -86,7 +86,7 @@ test.describe("écran de collage du SMS", () => {
       "Date cohérente",
       "Paiement jamais utilisé ailleurs",
       "Identifiant cohérent",
-      "Confirmation de l'acheteuse",
+      "Confirmation de l'acheteur/se",
     ]) {
       // Texte partiel : `ProofChecklist` numerote les lignes, donc le titre
       // rendu est « 1. Message d'opérateur reconnu En attente ».

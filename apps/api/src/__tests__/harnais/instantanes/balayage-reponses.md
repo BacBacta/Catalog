@@ -290,12 +290,12 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:remise | retour_arriere | comptoir:recap | 🧾 *Récapitulatif de la vente* |
 | comptoir:remise | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
 | comptoir:remise | reprise_25h | aucun_vendeuse | *‹boutique›* |
-| comptoir:recap | texte_juste | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre cliente — il porte tout ce qu'il lui faut pour p |
+| comptoir:recap | texte_juste | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre client/e — il porte tout ce qu'il faut pour paye |
 | comptoir:recap | texte_faute | comptoir:recap | 🧾 *Récapitulatif de la vente* |
-| comptoir:recap | texte_sans_accents | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre cliente — il porte tout ce qu'il lui faut pour p |
-| comptoir:recap | anglais | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre cliente — il porte tout ce qu'il lui faut pour p |
+| comptoir:recap | texte_sans_accents | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre client/e — il porte tout ce qu'il faut pour paye |
+| comptoir:recap | anglais | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre client/e — il porte tout ce qu'il faut pour paye |
 | comptoir:recap | pidgin | comptoir:recap | 🧾 *Récapitulatif de la vente* |
-| comptoir:recap | bouton_attendu | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre cliente — il porte tout ce qu'il lui faut pour p |
+| comptoir:recap | bouton_attendu | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre client/e — il porte tout ce qu'il faut pour paye |
 | comptoir:recap | bouton_ancien | comptoir:recap | 🧾 *Récapitulatif de la vente* |
 | comptoir:recap | ligne_liste | comptoir:recap | 🧾 *Récapitulatif de la vente* |
 | comptoir:recap | flux_valide | comptoir:recap | Je ne sais pas encore lire ce type de message. Écrivez-moi, ou appuyez sur un bouton. |

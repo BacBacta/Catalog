@@ -488,12 +488,12 @@ export function suiviRoutes(deps: RecuDeps) {
    */
   const MESSAGE_REFUS: Record<string, string> = {
     contestation_sans_paiement:
-      "Aucun paiement n'a encore ete enregistre sur cette commande — il n'y a donc rien a contester. Si vous voulez annuler, ecrivez-le a la vendeuse : c'est elle qui peut le faire.",
+      "Aucun paiement n'a encore ete enregistre sur cette commande — il n'y a donc rien a contester. Si vous voulez annuler, ecrivez-le au vendeur/se : lui/elle seul/e peut le faire.",
     contresignature_sans_preuve:
-      "Le paiement n'est pas encore prouve : la vendeuse doit d'abord coller le SMS de son operateur. Vous serez prevenue ici des que c'est fait.",
+      "Le paiement n'est pas encore prouve : le/la vendeur/se doit d'abord coller le SMS de son operateur. Vous serez prevenu/e ici des que c'est fait.",
     recul_ignore: "C'est deja fait — rien de plus n'est necessaire.",
     litige_ouvert:
-      "Cette commande est en litige : elle n'avance plus sans intervention humaine. Ecrivez a la vendeuse.",
+      "Cette commande est en litige : elle n'avance plus sans intervention humaine. Ecrivez au vendeur/se.",
     transition_interdite: "Ce geste n'est pas possible sur cette commande.",
   };
 
@@ -570,7 +570,7 @@ export function suiviRoutes(deps: RecuDeps) {
     if (evenement.type === "contestation" && deps.apresContestation) {
       await deps
         .apresContestation(commande.id)
-        .catch(() => console.warn("suivi : vendeuse non prevenue de la contestation"));
+        .catch(() => console.warn("suivi : boutique non prevenue de la contestation"));
     }
     return c.json({ etat: resultat.etat });
   }

@@ -173,7 +173,7 @@ export function sellerRoutes(deps: SessionDeps) {
             {
               erreur: "numero_contact_requis",
               message:
-                "Le numero WhatsApp de la boutique est necessaire : c'est lui que vos clientes toucheront.",
+                "Le numero WhatsApp de la boutique est necessaire : c'est lui que vos client/es toucheront.",
             },
             422,
           );

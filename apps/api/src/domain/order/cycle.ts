@@ -174,13 +174,13 @@ export interface EtapeSuivi {
  */
 const LIBELLES: Record<ModeLivraison, Record<OrderStep, string>> = {
   livraison: {
-    recue: "Commande recue par la vendeuse",
+    recue: "Commande recue par la boutique",
     preparee: "Preparee, prete a partir",
     chez_le_livreur: "Confiee au livreur — il vous appellera en arrivant dans votre quartier",
     livree: "Livree",
   },
   retrait: {
-    recue: "Commande recue par la vendeuse",
+    recue: "Commande recue par la boutique",
     preparee: "Preparee, prete a retirer",
     chez_le_livreur: "Confiee au livreur",
     livree: "Retiree au point convenu",

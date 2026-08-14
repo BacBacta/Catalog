@@ -112,7 +112,7 @@ test.describe("l'ecran statistiques", () => {
     // Trois classes, chacune nommee ET chiffree : la couleur ne porte jamais
     // l'information seule.
     const carte = page.getByTestId("tuile-part-prouvee").locator("..");
-    await expect(carte).toContainText("Contresigné par l'acheteuse");
+    await expect(carte).toContainText("Contresigné par l'acheteur/se");
     await expect(carte).toContainText("Prouvé par SMS");
     await expect(carte).toContainText("Non tracé");
   });

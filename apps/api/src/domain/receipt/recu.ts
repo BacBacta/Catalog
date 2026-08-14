@@ -138,8 +138,8 @@ export function porteeDuRecu(recu: Recu): string {
     "l'opérateur peut confirmer, apporté par la personne dont l'argent est en jeu.";
   const contresigne =
     recu.etat === "contresigne"
-      ? " L'acheteuse l'a confirmé de son côté : deux parties indépendantes portent le même identifiant."
-      : " L'acheteuse ne l'a pas encore confirmé de son côté.";
+      ? " L'acheteur/se l'a confirmé de son côté : deux parties indépendantes portent le même identifiant."
+      : " L'acheteur/se ne l'a pas encore confirmé de son côté.";
   const reserve = recu.aConfirmer
     ? " Le format de ce SMS d'opérateur n'a pas encore été confronté à un message réel : à contrôler auprès de l'opérateur."
     : "";

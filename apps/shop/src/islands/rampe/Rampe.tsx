@@ -43,7 +43,7 @@ export function Rampe({ operateur, versement, onCompose }: RampeProps) {
         <h2 class="text-body font-semibold text-ink">{operateur.nom}</h2>
         <p class="rounded-field border border-warn bg-warn-soft p-3 text-caption text-warn">
           {operateur.nom} refuse les montants sous {formatXaf(operateur.montantMinXaf)}. Reglez
-          directement avec la vendeuse sur WhatsApp.
+          directement avec le/la vendeur/se sur WhatsApp.
         </p>
       </section>
     );

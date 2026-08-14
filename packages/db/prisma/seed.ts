@@ -457,7 +457,7 @@ async function main() {
     const catalogue = productsBySeller.get(o.seller) ?? [];
     const items: OrderItem[] = o.items.map(([idx, quantity]) => {
       const p = catalogue[idx];
-      if (!p) throw new Error(`produit ${idx} absent chez la vendeuse ${o.seller}`);
+      if (!p) throw new Error(`produit ${idx} absent dans la boutique ${o.seller}`);
       return { productId: p.id, name: p.name, unitPriceXaf: p.priceXaf, quantity };
     });
 
@@ -562,8 +562,8 @@ async function main() {
               id: "contre_signature",
               state: p.countersigned ? "pass" : "pending",
               explanation: p.countersigned
-                ? "L'acheteuse a confirme."
-                : "En attente de la confirmation de l'acheteuse.",
+                ? "L'acheteur/se a confirme."
+                : "En attente de la confirmation de l'acheteur/se.",
             },
           ],
           verdict: p.verdict,

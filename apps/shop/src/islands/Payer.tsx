@@ -129,7 +129,7 @@ export default function Payer() {
       <section class="flex flex-col gap-3">
         <h2 class="text-body font-semibold text-ink">Rien a payer ici</h2>
         <p class="text-caption text-ink-2">
-          Ce lien de paiement est incomplet. Reprenez le lien que la vendeuse vous a envoye sur
+          Ce lien de paiement est incomplet. Reprenez le lien que le/la vendeur/se vous a envoye sur
           WhatsApp, ou demandez-lui son numero et le montant.
         </p>
       </section>
@@ -197,7 +197,7 @@ function SansRampe({ horsLigne }: { horsLigne: boolean }) {
       </h2>
       <p class="text-caption text-ink-2">
         Vous pouvez payer quand meme : ouvrez le menu mobile money de votre operateur comme
-        d'habitude. Le numero de la vendeuse et le montant sont ecrits dans votre conversation
+        d'habitude. Le numero de la boutique et le montant sont ecrits dans votre conversation
         WhatsApp.
       </p>
       <button

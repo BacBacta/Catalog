@@ -76,11 +76,11 @@ export function CarteRecu({ recu, portee }: CarteRecuProps) {
       </section>
 
       <section class="flex flex-col gap-1 rounded-card border border-line bg-surface p-4">
-        <p class="text-caption font-semibold text-ink-2">Confirmation de l'acheteuse</p>
+        <p class="text-caption font-semibold text-ink-2">Confirmation de l'acheteur/se</p>
         <p class="text-body text-ink" data-testid="contresignature">
           {recu.contresigneA
             ? `Confirmée le ${quand(recu.contresigneA)}.`
-            : "Pas encore confirmée par l'acheteuse."}
+            : "Pas encore confirmée par l'acheteur/se."}
         </p>
       </section>
 

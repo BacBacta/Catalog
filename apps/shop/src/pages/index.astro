@@ -27,23 +27,23 @@ const PILIERS = [
   {
     titre: "Un catalogue partageable",
     corps:
-      "Vos articles, avec photo et prix, dans un lien que vous envoyez vous-même. Vos clientes commandent sans quitter WhatsApp.",
+      "Vos articles, avec photo et prix, dans un lien que vous envoyez vous-même. Vos client/es commandent sans quitter WhatsApp.",
   },
   {
     titre: "Le paiement, pré-rempli",
     corps:
-      "Le clavier de l'acheteuse s'ouvre garni : le code de votre opérateur, votre numéro, le montant. Elle n'a plus qu'à appeler.",
+      "Le clavier de l'acheteur/se s'ouvre garni : le code de votre opérateur, votre numéro, le montant. Un appui sur appeler, et c'est fait.",
   },
   {
     titre: "Un reçu vérifiable",
     corps:
-      "Chaque paiement prouvé donne un reçu que l'acheteuse peut vérifier, avec l'identifiant de transaction de l'opérateur.",
+      "Chaque paiement prouvé donne un reçu que l'acheteur/se peut vérifier, avec l'identifiant de transaction de l'opérateur.",
   },
 ] as const;
 ---
 <Base
   title={`${EDITEUR.produit} — le catalogue et la preuve de paiement`}
-  description="Catalog outille les vendeuses camerounaises qui vendent déjà sur WhatsApp : un catalogue partageable, une rampe de paiement mobile money, et un reçu que l'acheteuse peut vérifier."
+  description="Catalog outille les vendeuses et vendeurs camerounais qui vendent déjà sur WhatsApp : un catalogue partageable, une rampe de paiement mobile money, et un reçu que l'acheteur/se peut vérifier."
 >
   <main class="mx-auto flex w-full max-w-[46rem] flex-col gap-10 px-4 py-10">
     <header class="flex flex-col gap-3">
@@ -52,7 +52,7 @@ const PILIERS = [
         Vendez sur WhatsApp comme aujourd'hui. Avec une preuve de paiement en plus.
       </p>
       <p class="text-body text-ink-2">
-        {EDITEUR.produit} outille les vendeuses camerounaises qui vendent <strong class="text-ink"
+        {EDITEUR.produit} outille les vendeuses et vendeurs camerounais qui vendent <strong class="text-ink"
           >déjà</strong
         > sur WhatsApp. La conversation ne bouge pas : on ajoute par-dessus un catalogue partageable,
         une rampe de paiement mobile money, un suivi de commande et une réputation vérifiée.
@@ -83,7 +83,7 @@ const PILIERS = [
         Ce qui fait foi, c'est <strong class="text-ink">le SMS que votre opérateur vous a
         envoyé, à vous</strong>. Vous le collez, Catalog l'analyse et lui applique sept contrôles :
         format de l'opérateur, montant, contrepartie, horodatage, unicité de l'identifiant de
-        transaction sur tout le réseau, cohérence interne, et contre-signature de l'acheteuse.
+        transaction sur tout le réseau, cohérence interne, et contre-signature de l'acheteur/se.
       </p>
       <p class="text-body text-ink-2">
         La personne qui apporte la preuve est celle dont l'argent est en jeu. C'est ce qui fait
@@ -94,7 +94,7 @@ const PILIERS = [
     <section class="flex flex-col gap-3">
       <h2 class="text-title font-bold text-ink">Votre argent ne passe pas par nous</h2>
       <p class="text-body text-ink-2">
-        Les fonds vont du portefeuille de l'acheteuse au vôtre, <strong class="text-ink"
+        Les fonds vont du portefeuille de l'acheteur/se au vôtre, <strong class="text-ink"
           >directement</strong
         >. {EDITEUR.produit} n'initie rien, ne détient rien, n'encaisse rien — et ne peut donc
         prélever aucune commission.
@@ -122,7 +122,7 @@ const PILIERS = [
         <li>Vous partagez votre lien, ou l'image de vitrine que le bot vous prépare pour le Statut.</li>
       </ol>
       <p class="text-caption text-muted">
-        Tout se fait dans la conversation. L'espace vendeuse existe pour vos chiffres et votre
+        Tout se fait dans la conversation. L'espace vendeur/se existe pour vos chiffres et votre
         numéro de reversement, mais rien ne vous oblige à y aller pour vendre.
       </p>
     </section>
@@ -130,12 +130,12 @@ const PILIERS = [
     <section class="flex flex-col gap-2">
       <h2 class="text-title font-bold text-ink">Vous avez reçu un lien de boutique ?</h2>
       <p class="text-body text-ink-2">
-        Ouvrez-le : vous verrez les articles, vous commanderez, et vous discuterez avec la vendeuse
+        Ouvrez-le : vous verrez les articles, vous commanderez, et vous discuterez avec le/la vendeur/se
         sur son WhatsApp comme d'habitude. Si elle prouve votre paiement, vous recevez un reçu
         vérifiable — et vous pouvez confirmer que le paiement vient bien de vous.
       </p>
       <p class="text-caption text-muted">
-        Chaque boutique a son propre lien, que la vendeuse partage elle-même. Il n'y a pas
+        Chaque boutique a son propre lien, que la boutique partage elle-même. Il n'y a pas
         d'annuaire ici : ce n'est pas une place de marché.
         {nombre > 0 ? ` (${nombre} boutique${nombre > 1 ? "s" : ""} en ligne.)` : ""}
       </p>

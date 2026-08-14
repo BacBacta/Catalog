@@ -285,7 +285,7 @@ export async function notifierConteste(deps: NotificateurDeps, orderId: string):
     await notifier(
       deps,
       commande.seller.phone,
-      `⚠️ *${commande.ref} est contestée.*\nL'acheteuse dit ne pas reconnaître ce paiement. La commande est gelée : elle n'avance plus tant que le désaccord n'est pas réglé.\nLa preuve n'est pas effacée — elle reste au dossier. Le plus rapide reste d'appeler l'acheteuse.`,
+      `⚠️ *${commande.ref} est contestée.*\nL'acheteur/se dit ne pas reconnaître ce paiement. La commande est gelée : elle n'avance plus tant que le désaccord n'est pas réglé.\nLa preuve n'est pas effacée — elle reste au dossier. Le plus rapide reste d'appeler l'acheteur/se.`,
       undefined,
       /* Hors fenetre, le gabarit ouvre la porte — ADR 0054. C'est le sujet ou
          l'attente coute le plus cher : une commande gelee que la vendeuse

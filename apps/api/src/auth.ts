@@ -113,7 +113,7 @@ export function origines(env: NodeJS.ProcessEnv = process.env): string[] {
 export function verifierSecretAuth(env: NodeJS.ProcessEnv = process.env): void {
   if (!env.BETTER_AUTH_SECRET) {
     throw new Error(
-      "BETTER_AUTH_SECRET est absent. Il signe les sessions vendeuses : sans lui, " +
+      "BETTER_AUTH_SECRET est absent. Il signe les sessions vendeur/se : sans lui, " +
         "Better Auth retombe sur un secret par defaut, public et partage. " +
         "Poser une valeur aleatoire de 32 octets : openssl rand -hex 32. " +
         "Voir docs/runbooks/deploiement.md, section « Les secrets ».",

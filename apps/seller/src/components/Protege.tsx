@@ -22,7 +22,7 @@ export function Protege({ children }: { children: (v: Vendeuse) => ReactNode }) 
 
   if (session.etat === "chargement") {
     return (
-      <Ecran titre="Espace vendeuse">
+      <Ecran titre="Espace vendeur/se">
         <LoadingState label="Ouverture de votre espace…" />
       </Ecran>
     );
@@ -30,7 +30,7 @@ export function Protege({ children }: { children: (v: Vendeuse) => ReactNode }) 
 
   if (session.etat === "horsLigne") {
     return (
-      <Ecran titre="Espace vendeuse">
+      <Ecran titre="Espace vendeur/se">
         <OfflineState
           action={
             <Button tone="outline" onClick={() => void rafraichir()}>

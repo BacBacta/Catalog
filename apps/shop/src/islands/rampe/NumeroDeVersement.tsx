@@ -38,7 +38,7 @@ export function NumeroDeVersement({ numero, montantXaf, boutique }: NumeroDeVers
   return (
     <section class="flex flex-col gap-2 rounded-card border border-line bg-surface p-4">
       <p class="text-caption text-ink-2">
-        {boutique ? `Vous payez ${boutique}` : "Vous payez la vendeuse"}
+        {boutique ? `Vous payez ${boutique}` : "Vous payez le/la vendeur/se"}
       </p>
       <p class="text-hero font-extrabold leading-tight text-ink">{formatXaf(montantXaf)}</p>
       <p class="text-caption text-ink-2">sur le numero</p>

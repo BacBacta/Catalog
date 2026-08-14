@@ -83,7 +83,7 @@ export function BanniereConges({ depuis }: { depuis: string | null }) {
         {depuis ? <span className="font-normal text-muted"> — {depuisQuand(depuis)}</span> : null}
       </p>
       <p className="text-caption text-muted">
-        Elle reste en ligne et vos clientes peuvent vous ecrire, mais aucune nouvelle commande ne
+        Elle reste en ligne et vos client/es peuvent vous ecrire, mais aucune nouvelle commande ne
         peut etre creee. Vos commandes en cours continuent normalement.
       </p>
       <p role="status" aria-live="polite" className="text-caption text-danger">
