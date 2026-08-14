@@ -134,6 +134,23 @@ textes ne promettent pas de rareté : « Plus que 2 disponibles » côté bot,
 « La vendeuse en annonce 2 » côté boutique, et l'app vendeuse dit en toutes
 lettres que le nombre se corrige à la main.
 
+Un cinquième point, et celui-ci n'était écrit nulle part avant le 14/08 —
+c'est ce qui l'a rendu durable. **Une commande non payée ne se ferme jamais.**
+`src/domain/order/expiration.ts` est complet et testé — fenêtre de 48 h,
+rappels à 2 h et 24 h —, `Order.expiresAt` est écrite à chaque commande, et
+**personne n'appelle rien de tout ça** (constat C-003). Il n'existe même pas
+d'état « expirée » : `OrderStep` compte quatre étapes.
+
+Ce qui EXISTE et qu'on confond avec : une relance d'acompte
+(`bot-relance-acompte`), qui a sa propre logique, ne part que si rien n'a été
+encaissé, et ne dit rien de l'expiration.
+
+Les deux arbitrages produit sont tranchés par l'**ADR 0101** — une commande
+dont un franc a été encaissé n'expire **jamais** (Catalog ne détient aucun
+fonds : « expirer » une commande payée promettrait un retour d'argent qu'il ne
+peut pas faire), et **la vendeuse seule** est prévenue, en différé, faute de
+gabarit hors fenêtre. Le branchement, lui, reste à faire.
+
 Quatre choses à savoir du lot 14, toutes dans l'ADR 0023 :
 
 - **Le SMS brut ne figure dans AUCUNE trace**, et c'est tenu par deux couches :

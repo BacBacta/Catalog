@@ -221,8 +221,28 @@ Vérifiées le 28/07/2026. Ne pas mettre à jour une version majeure sans ADR.
 | **TypeScript** | **6.x — PAS 7** | TS 7 ne supporte pas encore Astro |
 | Outils | pnpm 11 · Biome 2.5 · Vitest 4.1 · Playwright 1.62 | |
 
-pg-boss reste utilisé — relances d'expiration de commande, rappels de solde,
-travaux de maintenance — même s'il n'y a plus de re-vérification de paiement.
+pg-boss reste utilisé, et **exactement pour deux choses** — `src/jobs/` ne
+contient qu'un fichier, qui monte deux files :
+
+- `bot-relance-acompte` — un rappel à l'acheteuse, et seulement si le mode est
+  `acompte` **et** que rien n'a encore été encaissé ;
+- `bot-relance-reversement` — un rappel à la vendeuse qui n'a pas posé son
+  numéro de reversement.
+
+Ce paragraphe affirmait jusqu'au 14/08/2026 que pg-boss servait aux « relances
+d'expiration de commande, rappels de solde, travaux de maintenance ». **Les
+trois étaient faux**, et ce décalage est ce qui a rendu le défaut durable : le
+constat C-003 de `docs/audit-pipeline-2026-08.md` a mis des mois à se voir
+parce que la documentation décrivait le comportement attendu comme s'il
+existait.
+
+L'**expiration des commandes n'est pas branchée**. `src/domain/order/expiration.ts`
+est complet et testé — fenêtre de 48 h, rappels à 2 h et 24 h — et **personne ne
+l'appelle** ; `Order.expiresAt` est écrite et jamais relue. Ses deux arbitrages
+produit sont tranchés (ADR 0101 : une commande dont un franc a été encaissé
+n'expire jamais, et la vendeuse seule est prévenue), le branchement reste à
+faire. Ne pas supposer qu'une commande non payée se ferme toute seule : elle
+reste ouverte indéfiniment.
 
 ### Pièges de version — ces habitudes sont périmées en 2026
 - ❌ `tailwind.config.js` → la configuration est en CSS via `@theme`.
