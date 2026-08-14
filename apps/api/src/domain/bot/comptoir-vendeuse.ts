@@ -1,5 +1,6 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { normalizePhone } from "@catalog/contracts/phone";
+import { motDeGeste } from "./geste.ts";
 import { lirePrix } from "./inscription.ts";
 
 /**
@@ -92,7 +93,7 @@ const net = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").tr
  * a un formulaire qu'elle n'a pas ouvert.
  */
 export function demandeComptoir(texteBrut: string): boolean {
-  return /^(j'?ai\s+)?vendu$|^vente$/.test(net(texteBrut).replace(/\s+/g, " "));
+  return /^(j'?ai\s+)?vendu$|^vente$/.test(motDeGeste(texteBrut).replace(/\s+/g, " "));
 }
 
 /** Un « - » colle a des chiffres : une faute de saisie, pas une remise. */

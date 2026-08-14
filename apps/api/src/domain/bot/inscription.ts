@@ -11,6 +11,7 @@ import {
 } from "./comptoir-vendeuse.ts";
 import { extraireSlugBoutique, INACTIVITE_MAX_MS, motCleGlobal } from "./conversation.ts";
 import type { FormeNonLue } from "./entrees.ts";
+import { motDeGeste } from "./geste.ts";
 import { boutons, liste, type MessageSortant, reaction, texte } from "./messages.ts";
 import { TEXTES } from "./textes.ts";
 
@@ -229,7 +230,7 @@ const sansAccents = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g
  * devine jamais un parrain autrement.
  */
 export function demandeInscription(texteBrut: string): { parrain?: string } | null {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   const avecParrain = /^(?:je veux )?vendre avec ([a-z0-9][a-z0-9-]*)$/.exec(net);
   if (avecParrain?.[1]) return { parrain: avecParrain[1] };
   if (/^(?:je veux vendre|vendre|ouvrir ma boutique|devenir vendeuse|sell)$/.test(net)) return {};
@@ -238,13 +239,13 @@ export function demandeInscription(texteBrut: string): { parrain?: string } | nu
 
 /** « Ajouter un article » — le geste d'une vendeuse deja installee. */
 export function demandeAjoutArticle(texteBrut: string): boolean {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   return /^(?:ajouter(?: un)?(?: article)?|nouvel article|article)$/.test(net);
 }
 
 /** « Ma boutique » — le retour au fil vendeuse depuis un fil d'achat. */
 export function demandeEspaceVendeuse(texteBrut: string): boolean {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   return /^(?:ma boutique|espace vendeuse|vendeuse)$/.test(net);
 }
 
@@ -255,7 +256,7 @@ export function demandeEspaceVendeuse(texteBrut: string): boolean {
  * connait pas — juste apres une commande, l'instant precis ou elle le tape.
  */
 export function demandeSoldes(texteBrut: string): boolean {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   return /^(?:solde|soldes)$/.test(net);
 }
 
@@ -271,7 +272,7 @@ export function demandeSoldes(texteBrut: string): boolean {
  * inoperant la moitie du temps.
  */
 export function demandeConges(texteBrut: string): boolean | null {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   if (/^(?:conges|vacances|je pars|fermer|fermee|fermer la boutique)$/.test(net)) return true;
   if (/^(?:je reprends|reprendre|rouvrir|ouvrir|ouverte|de retour)$/.test(net)) return false;
   return null;
@@ -279,7 +280,7 @@ export function demandeConges(texteBrut: string): boolean | null {
 
 /** « Ma carte » — la carte-vitrine a poster en Statut (ADR 0037). */
 export function demandeCarteVitrine(texteBrut: string): boolean {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   return /^(?:ma carte|carte|ma vitrine|vitrine|affiche)$/.test(net);
 }
 
@@ -335,8 +336,7 @@ const SORTIE_DE_SECOURS = "\n\nPour sortir : tapez « annuler ».";
 /** Exportees : le formulaire d'article (flux.ts) refuse ce que la question refuse. */
 export const NOM_MIN = 2;
 export const NOM_MAX = 80;
-const abandon = (t: string) =>
-  /^(?:annuler|stop|cancel)$/.test(sansAccents(t.trim().toLowerCase()));
+const abandon = (t: string) => /^(?:annuler|stop|cancel)$/.test(motDeGeste(t));
 
 /* ────────────────────────── les messages ────────────────────────────────── */
 

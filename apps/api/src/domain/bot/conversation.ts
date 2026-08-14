@@ -14,6 +14,7 @@ import {
   messageFlux,
   veutPositionFlux,
 } from "./flux.ts";
+import { motDeGeste } from "./geste.ts";
 import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
 import {
   boutons,
@@ -420,12 +421,12 @@ const sansAccents = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g
  * « CT- » se tolere absent : six chiffres suffisent.
  */
 export function demandeRemise(texteBrut: string): string | null {
-  const m = /^livree\s+(?:ct-?)?(\d{6})$/.exec(sansAccents(texteBrut.trim().toLowerCase()));
+  const m = /^livree\s+(?:ct-?)?(\d{6})$/.exec(motDeGeste(texteBrut));
   return m?.[1] ? `CT-${m[1]}` : null;
 }
 
 export function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | "panier" | null {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   if (net === "menu" || net === "accueil" || net === "home") return "menu";
   if (net === "annuler" || net === "stop" || net === "cancel") return "annuler";
   if (net === "aide" || net === "help") return "aide";
@@ -439,7 +440,7 @@ export function motCleGlobal(texteBrut: string): "menu" | "annuler" | "aide" | "
  * attendue, pas d'une question.
  */
 function demandeStatut(texteBrut: string): boolean {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   return /\b(commandes?|suivis?|statuts?|livraisons?|orders?|status|tracking)\b/.test(net);
 }
 
@@ -450,7 +451,7 @@ function demandeStatut(texteBrut: string): boolean {
  * memes deux boutons de sortie.
  */
 function questionFrequente(texteBrut: string): "prix" | "photo" | "variante" | null {
-  const net = sansAccents(texteBrut.trim().toLowerCase());
+  const net = motDeGeste(texteBrut);
   if (/\b(prix|combien|cout|tarif|price|how much|cost)\b/.test(net)) return "prix";
   if (/\b(photos?|images?|pictures?)\b/.test(net)) return "photo";
   if (/\b(tailles?|couleurs?|pointures?|modeles?|sizes?|colou?rs?|models?)\b/.test(net)) {
