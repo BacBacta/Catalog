@@ -3,7 +3,7 @@
 ## 1. texte « bonjour »
    intention : comprendre
    étape : aucun_prospect → accueil
-    ← boutons[vendre · suivi · comment]
+    ← liste[vendre · suivi · comment]
       Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vérifie son reçu.
       
       Que puis-je faire pour vous ?
