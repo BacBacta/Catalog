@@ -80,9 +80,31 @@ lire ce type de message ». Il s'appelle désormais `formulaireVendeuse`
   définitions ; la garde d'environnement (`env-declaree.test.ts`) exige la
   sixième variable, lue **et** déclarée.
 
-## Ce qu'il reste à faire pour le voir vivre
+## Déposé le 14/08/2026, et vu sur un téléphone
 
-`depots-meta → flux --deposer` créera `catalog_comptoir` (l'ordre de
-l'ADR 0093 est déjà acquitté : 7.3 est mesurée), puis
-`fly secrets set WABOT_FLUX_COMPTOIR_ID=<id>` et un redéploiement. Rien ne part
-du fait de cet ADR.
+`depots-meta → flux --deposer` a créé `catalog_comptoir` — **2024756688241442**,
+définition téléversée, publiée, **aucune `validation_error`**. Les quatre types
+de champs passent donc pour de vrai, `input-type: phone` compris.
+
+Un mode d'aperçu est né avec lui, et pour une raison qui vaut d'être dite : le
+formulaire était déposable et **invisible**. `composants.mjs --apercu-comptoir
+<numéro> [fluxId]` envoie le message qui le propose — construit par
+`messageComptoirFlux`, la fonction que le bot appelle en production, jamais une
+copie recopiée (ADR 0089, 0098).
+
+L'identifiant s'y prend **en argument avant l'environnement**. Ce n'est pas une
+commodité : entre le dépôt chez Meta et la pose de `WABOT_FLUX_COMPTOIR_ID`
+dans la machine, il existe une fenêtre où l'identifiant est connu et la
+variable absente — et c'est exactement la fenêtre où l'on veut voir le
+formulaire. Sans cet argument, voir coûterait un secret posé et un
+redéploiement, c'est-à-dire qu'on ne verrait qu'après avoir décidé.
+
+La garde « tout mode est joignable depuis le workflow » (`flux-version.test.ts`)
+ne lisait que `flux.mjs` ; elle lit désormais les deux scripts. Ils vivent dans
+la même image, derrière la même console, et rien ne les distinguait sauf que le
+test n'en ouvrait qu'un.
+
+**Ce qui reste** : `fly secrets set WABOT_FLUX_COMPTOIR_ID=2024756688241442
+--app catalog-api-preprod` puis un redéploiement. Tant que le secret n'est pas
+posé, « vendu » ouvre exactement le fil d'hier — quatre questions —, et un test
+le tient au mot.
