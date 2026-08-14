@@ -45,6 +45,37 @@ commande ? Touchez *Suivre ma commande* » — le bouton est déjà sous le mess
 L'annuaire n'est plus **nié**, il n'est simplement pas promis ; un test le
 vérifie par la négative.
 
+### Amendement du 14/08 — la boutique ouverte 24h/24
+
+Le porteur du produit : « la boutique est ouverte 24h/24, tu dors, pas de
+problème, ta boutique reçoit toujours des commandes ». Le premier bénéfice
+disait « un lien de boutique à partager » ; il dit désormais **« une boutique
+ouverte 24h/24 »**, avec l'image concrète — *vous dormez, vous êtes au marché,
+vous êtes en course : la commande se prend quand même*.
+
+C'est le bon premier bénéfice, et pour une raison de fond : **c'est le seul qui
+ne demande aucun effort en échange.** Le lien demande de le partager, le reçu
+demande de coller un SMS ; celui-là arrive tout seul. Il tient parce que le fil
+acheteur/se mène la commande de bout en bout — catalogue, panier, livraison,
+rampe de paiement — sans qu'aucune main de vendeur/se soit nécessaire.
+
+**La borne est connue et volontaire** : le mode congés (ADR 0039) ferme la
+boutique aux nouvelles commandes. Ce n'est pas une contradiction — c'est un
+geste que le/la vendeur/se pose lui-même. La copie décrit l'état par défaut,
+elle ne promet pas qu'on ne puisse jamais s'arrêter.
+
+### Le défaut trouvé en passant : la dernière ligne anglaise citait un bouton absent
+
+L'anglais fermait sur « Tap « Suivre ma commande » » alors que son bouton porte
+**« Track my order »**. La phrase envoyait chercher un libellé qui n'existe
+nulle part à l'écran — exactement le cul-de-sac que cette ligne existe pour
+éviter, et seulement pour les anglophones.
+
+Les deux bouts étaient corrects séparément : le texte était traduit, le bouton
+était traduit. **C'est leur jonction qui ne l'était pas** — la septième fois
+que ce motif se présente dans ce produit. Un test lie désormais la dernière
+ligne à `btnSuivre` de la même langue, au lieu de vérifier chacun de son côté.
+
 Rien n'y suppose un type de commerce : ni vêtement, ni nourriture, ni service.
 
 ## 2. Le terme : « vendeur/se » dans la copie, « vendeuse » dans le code

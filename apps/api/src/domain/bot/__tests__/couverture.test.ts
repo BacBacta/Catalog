@@ -354,6 +354,49 @@ describe("les chemins defensifs de la machine", () => {
     expect(TEXTES.en.commentCaMarche).toMatch(/no commission/i);
   });
 
+  it("elle met en avant la boutique ouverte 24h/24 — le bénéfice qui ne coûte rien au vendeur", () => {
+    /**
+     * Demande du porteur du produit, 14/08/2026 : « la boutique est ouverte
+     * 24h/24, tu dors, pas de problème, ta boutique reçoit toujours des
+     * commandes ».
+     *
+     * C'est le seul bénéfice qui ne demande AUCUN effort en echange : le lien
+     * demande de le partager, le reçu demande de coller un SMS, celui-ci
+     * arrive tout seul. Il tient parce que le fil acheteur/se mene la commande
+     * de bout en bout — catalogue, panier, livraison, rampe de paiement —
+     * sans qu'aucune main de vendeur/se soit necessaire.
+     *
+     * La borne, et elle est volontaire : le mode conges (ADR 0039) FERME la
+     * boutique aux nouvelles commandes. Ce n'est pas une contradiction — c'est
+     * un geste que le vendeur/se pose lui-meme. La copie dit l'etat par
+     * defaut, elle ne promet pas qu'on ne puisse jamais s'arreter.
+     */
+    expect(TEXTES.fr.commentCaMarche).toMatch(/24h\/24/);
+    expect(TEXTES.fr.commentCaMarche).toMatch(/vous dormez/i);
+    expect(TEXTES.en.commentCaMarche).toMatch(/24\/7/);
+    expect(TEXTES.en.commentCaMarche).toMatch(/asleep/i);
+  });
+
+  it("la derniere ligne nomme un bouton QUI EXISTE dans la meme langue", () => {
+    /**
+     * L'ADR 0108 ferme l'explication sur un GESTE et non sur un manque, et le
+     * geste est le bouton pose juste dessous. Encore faut-il que le nom cite
+     * soit celui que la personne lit.
+     *
+     * Mesure du 14/08/2026 : l'anglais disait « Tap « Suivre ma commande » »
+     * alors que son bouton porte « Track my order ». La phrase envoyait
+     * chercher un libelle qui n'existe nulle part a l'ecran — le cul-de-sac
+     * que cette ligne existe precisement pour eviter. Les deux bouts etaient
+     * corrects separement ; c'est leur jonction qui ne l'etait pas.
+     */
+    for (const langue of ["fr", "en"] as const) {
+      const t = TEXTES[langue];
+      expect(t.commentCaMarche, `${langue} : la derniere ligne ne cite pas son bouton`).toContain(
+        t.btnSuivre,
+      );
+    }
+  });
+
   it("elle dit le premier pas, et ne promet AUCUN annuaire", () => {
     /* Un onboarding qui explique sans dire quoi faire ensuite laisse devant un
        fait, pas devant un geste. Et l'annuaire n'existe pas, par construction :
