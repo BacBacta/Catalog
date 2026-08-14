@@ -174,7 +174,12 @@ if (mode === "--accueil-etat") {
   }
 } else if (mode === "--apercu-carnet") {
   exigerJeton();
-  const vers = exigerNumero();
+  /* `exigerNumero` VALIDE l'identifiant de notre numero emetteur et ne rend
+     rien. Le destinataire, lui, se lit dans les arguments — comme pour
+     `--mesurer-cta`. Confondre les deux fait echouer l'envoi en disant
+     « numero destinataire exige » alors qu'il a bien ete passe. */
+  exigerNumero();
+  const vers = (process.argv[3] ?? "").replace(/\D/g, "");
   if (!vers) {
     console.error(
       "Un numero destinataire est exige : node apps/api/scripts/composants.mjs --apercu-carnet +237…",
@@ -200,7 +205,7 @@ if (mode === "--accueil-etat") {
    * une vraie commande. On ne montre que ce qui a change.
    */
   const { confirmationCommande } = await import("../src/domain/bot/conversation.ts");
-  const messages = confirmationCommande(vers.replace(/^\+/, ""), {
+  const messages = confirmationCommande(vers, {
     reference: "CT-APERCU",
     codeVerification: "ACDE-4679",
     boutique: "Chez Bea",
