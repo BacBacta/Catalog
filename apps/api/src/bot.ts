@@ -386,9 +386,26 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
      * Il enveloppe l'envoyeur au lieu de compter dans `envoyerSequence` :
      * TOUS les envois du tour sont ainsi vus, y compris ceux des chemins qui
      * appellent `envoyer` directement.
+     *
+     * ── Le DETAIL par envoi, et pourquoi la somme ne suffisait pas ────────
+     *
+     * Mesure du 14/08/2026 : `envois=2 meta=1332ms`. Deux lectures collent a
+     * ce chiffre, et elles appellent des correctifs OPPOSES :
+     *
+     *   666 + 666  → le point d'entree est lent : envoyer MOINS de messages ;
+     *   900 + 432  → la poignee de main TLS est refaite au premier envoi de
+     *                chaque tour : REUTILISER les connexions.
+     *
+     * Une somme ne les distingue pas, un detail oui. Le TYPE voyage avec —
+     * une image se paie plus cher, Meta allant chercher le media lui-meme, et
+     * un type de message n'est pas une donnee personnelle (ADR 0023).
      */
     let envois = 0;
     let msEnvois = 0;
+    /* Bornee : un tour de catalogue emet jusqu'a sept messages, et une ligne
+       de journal n'est pas un tableur. Au-dela, la somme parle encore. */
+    const detail: string[] = [];
+    const DETAIL_MAX = 8;
     const chronometre: EnvoyeurBot = {
       nom: deps.envoyeur.nom,
       envoyer: async (m) => {
@@ -396,8 +413,10 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
         try {
           return await deps.envoyeur.envoyer(m);
         } finally {
+          const ms = performance.now() - depart;
           envois += 1;
-          msEnvois += performance.now() - depart;
+          msEnvois += ms;
+          if (detail.length < DETAIL_MAX) detail.push(`${m.type}:${Math.round(ms)}`);
         }
       },
       ...(deps.envoyeur.accuser
@@ -432,7 +451,8 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
     console.log(
       `bot : tour — genre=${entree.genre} envois=${envois} ` +
         `meta=${Math.round(msEnvois)}ms nous=${Math.max(0, msTour - Math.round(msEnvois))}ms ` +
-        `accuse=${msAccuse === null ? "-" : `${msAccuse}ms`} total=${msTour}ms`,
+        `accuse=${msAccuse === null ? "-" : `${msAccuse}ms`} total=${msTour}ms` +
+        (detail.length > 0 ? ` detail=[${detail.join(" ")}]` : ""),
     );
 
     if (entree.messageId) {
