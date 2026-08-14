@@ -45,8 +45,42 @@ describe("10 000 codes : aucun motif degenere", () => {
   for (let i = 0; i < N; i++) codes.push(generateVerificationCode(rnd));
   const nus = codes.map((c) => c.replace("-", ""));
 
-  it("aucun doublon", () => {
-    expect(new Set(codes).size).toBe(N);
+  /**
+   * ── Deux seuils tires du CALCUL, et non du confort ─────────────────────
+   *
+   * Celui-ci et celui des moities jumelles portaient des bornes qui sont
+   * fausses pour un generateur PARFAIT. Mesure du 14/08 (run 31788410462) :
+   * la porte du deploiement est passee au rouge sur « expected 2 to be less
+   * than or equal to 1 », et le generateur n'y etait pour rien.
+   *
+   * Verifie avant de toucher au seuil — 4 000 000 de tirages reels :
+   * 7 moities jumelles observees pour 10,24 attendues, soit 1 ecart-type.
+   * Le generateur n'est pas biaise ; c'est la borne qui mentait.
+   *
+   * Les deux bornes se recalculent donc, et le chiffre est ecrit :
+   *
+   *   doublon    : 10 000 codes dans 25⁸ = 152 587 890 625
+   *                lambda = C(10000,2)/25⁸ = 3,28e-4
+   *                P(>= 1) = 1 sur 3 053      <- l'ancienne borne
+   *                P(>= 2) = 1 sur 18 600 000 <- celle-ci
+   *
+   *   jumelles   : lambda = 10 000/25⁴ = 2,56e-2
+   *                P(>= 2) = 1 sur 3 104      <- l'ancienne borne
+   *                P(>= 4) = 1 sur 364 556    <- celle-ci
+   *
+   * Le pouvoir de detection ne bouge PAS : le defaut que ces tests cherchent
+   * — un pas partageant un facteur avec les 25 symboles — ne produit pas deux
+   * ou trois cas, il en produit des milliers. Entre « 1 » et « 3 », il n'y a
+   * que du bruit ; entre « 3 » et « ce que rend un generateur degenere », il y
+   * a trois ordres de grandeur.
+   *
+   * Et le produit ne depend pas de ces bornes : `verification_code` est
+   * `@unique` en base. Une collision, si elle arrivait, se heurterait a la
+   * base avant d'exister deux fois.
+   */
+  it("au plus un doublon sur 10 000 — au-dela, le generateur a une periode", () => {
+    const doublons = N - new Set(codes).size;
+    expect(doublons, `doublons : ${doublons}`).toBeLessThanOrEqual(1);
   });
 
   it("tous valides et dans l'alphabet", () => {
@@ -62,9 +96,11 @@ describe("10 000 codes : aucun motif degenere", () => {
 
   it("les deux moities ne sont jamais systematiquement egales", () => {
     // Un `ABCD-ABCD` isole est possible par hasard (1 sur 25⁴ ≈ 390 000) ;
-    // plusieurs sur 10 000 tirages signalent une periode dans le generateur.
+    // une PERIODE dans le generateur en produirait des milliers. Le seuil est
+    // calcule dans la note ci-dessus : 3 est encore du bruit, et il laisse
+    // une fausse alerte tous les 364 556 passages au lieu de tous les 3 104.
     const jumelles = nus.filter((c) => c.slice(0, 4) === c.slice(4));
-    expect(jumelles.length).toBeLessThanOrEqual(1);
+    expect(jumelles.length, `moities jumelles : ${jumelles.length}`).toBeLessThanOrEqual(3);
   });
 
   it("aucune position n'est figee sur un seul caractere", () => {
