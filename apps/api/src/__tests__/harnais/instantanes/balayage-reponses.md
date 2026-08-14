@@ -45,8 +45,8 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_nom | hors_sujet | inscription_ville | *est-ce que vous vendez des chaussures pour bébé ?* — c'est noté. |
 | inscription_nom | silence | inscription_nom | **— MUET —** |
 | inscription_nom | double_envoi | inscription_ville | **— MUET —** |
-| inscription_nom | retour_arriere | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| inscription_nom | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| inscription_nom | retour_arriere | accueil | C'est annulé. |
+| inscription_nom | abandon | accueil | C'est annulé. |
 | inscription_nom | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | inscription_ville | texte_juste | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
 | inscription_ville | texte_faute | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
@@ -67,8 +67,8 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_ville | hors_sujet | inscription_confirme | J'ai lu : *Chez Mireille*, à *est-ce que vous vendez des chaussures pour bébé ?*. |
 | inscription_ville | silence | inscription_ville | **— MUET —** |
 | inscription_ville | double_envoi | inscription_confirme | **— MUET —** |
-| inscription_ville | retour_arriere | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| inscription_ville | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| inscription_ville | retour_arriere | accueil | C'est annulé. |
+| inscription_ville | abandon | accueil | C'est annulé. |
 | inscription_ville | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | inscription_confirme | texte_juste | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
 | inscription_confirme | texte_faute | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
@@ -90,7 +90,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | inscription_confirme | silence | inscription_confirme | **— MUET —** |
 | inscription_confirme | double_envoi | inscription_confirme | **— MUET —** |
 | inscription_confirme | retour_arriere | inscription_confirme | J'ai lu : *Chez Mireille*, à *Douala*. |
-| inscription_confirme | abandon | accueil | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| inscription_confirme | abandon | accueil | C'est annulé. |
 | inscription_confirme | reprise_25h | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | aucun_vendeuse | texte_juste | aucun_vendeuse | *‹boutique›* |
 | aucun_vendeuse | texte_faute | aucun_vendeuse | *‹boutique›* |
@@ -133,8 +133,8 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | article_nom | hors_sujet | article_prix | *est-ce que vous vendez des chaussures pour bébé ?* — son prix, en francs ? |
 | article_nom | silence | article_nom | **— MUET —** |
 | article_nom | double_envoi | article_prix | **— MUET —** |
-| article_nom | retour_arriere | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| article_nom | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| article_nom | retour_arriere | aucun_vendeuse | C'est annulé. |
+| article_nom | abandon | aucun_vendeuse | C'est annulé. |
 | article_nom | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | article_prix | texte_juste | article_photo | Robe wax — 12 500 FCFA. |
 | article_prix | texte_faute | article_photo | Robe wax — 12 500 FCFA. |
@@ -155,8 +155,8 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | article_prix | hors_sujet | article_prix | Je n'ai pas compris le prix. Écrivez-le en chiffres, sans virgule. |
 | article_prix | silence | article_prix | **— MUET —** |
 | article_prix | double_envoi | article_photo | **— MUET —** |
-| article_prix | retour_arriere | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| article_prix | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| article_prix | retour_arriere | aucun_vendeuse | C'est annulé. |
+| article_prix | abandon | aucun_vendeuse | C'est annulé. |
 | article_prix | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | article_photo | texte_juste | article_photo | J'attends la photo — envoyez-la comme une image, depuis l'appareil photo ou la galerie. |
 | article_photo | texte_faute | article_photo | J'attends la photo — envoyez-la comme une image, depuis l'appareil photo ou la galerie. |
@@ -177,8 +177,8 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | article_photo | hors_sujet | article_photo | J'attends la photo — envoyez-la comme une image, depuis l'appareil photo ou la galerie. |
 | article_photo | silence | article_photo | **— MUET —** |
 | article_photo | double_envoi | article_photo | **— MUET —** |
-| article_photo | retour_arriere | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
-| article_photo | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| article_photo | retour_arriere | aucun_vendeuse | C'est annulé. |
+| article_photo | abandon | aucun_vendeuse | C'est annulé. |
 | article_photo | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | article_confirme | texte_juste | article_confirme | J'ai lu : *Robe wax* — *12 500 FCFA*. C'est bon ? |
 | article_confirme | texte_faute | article_confirme | J'ai lu : *Robe wax* — *12 500 FCFA*. C'est bon ? |
@@ -200,7 +200,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | article_confirme | silence | article_confirme | **— MUET —** |
 | article_confirme | double_envoi | article_confirme | **— MUET —** |
 | article_confirme | retour_arriere | article_confirme | J'ai lu : *Robe wax* — *12 500 FCFA*. C'est bon ? |
-| article_confirme | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| article_confirme | abandon | aucun_vendeuse | C'est annulé. |
 | article_confirme | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | comptoir:article | texte_juste | comptoir:prix | *Sac en cuir* — au prix convenu avec votre client/e, en francs ? |
 | comptoir:article | texte_faute | comptoir:prix | *Sak en kuir* — au prix convenu avec votre client/e, en francs ? |
@@ -222,7 +222,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:article | silence | comptoir:article | **— MUET —** |
 | comptoir:article | double_envoi | comptoir:prix | **— MUET —** |
 | comptoir:article | retour_arriere | comptoir:prix | *corriger* — au prix convenu avec votre client/e, en francs ? |
-| comptoir:article | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| comptoir:article | abandon | aucun_vendeuse | C'est annulé. |
 | comptoir:article | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | comptoir:prix | texte_juste | comptoir:cliente | *Le numéro WhatsApp de votre client/e ?* |
 | comptoir:prix | texte_faute | comptoir:cliente | *Le numéro WhatsApp de votre client/e ?* |
@@ -244,7 +244,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:prix | silence | comptoir:prix | **— MUET —** |
 | comptoir:prix | double_envoi | comptoir:cliente | **— MUET —** |
 | comptoir:prix | retour_arriere | comptoir:prix | Je n'ai pas lu de prix. En francs, en chiffres — exemple : 12500. |
-| comptoir:prix | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| comptoir:prix | abandon | aucun_vendeuse | C'est annulé. |
 | comptoir:prix | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | comptoir:cliente | texte_juste | comptoir:remise | *Où se fait la remise ?* Le lieu convenu, en quelques mots. |
 | comptoir:cliente | texte_faute | comptoir:remise | *Où se fait la remise ?* Le lieu convenu, en quelques mots. |
@@ -266,7 +266,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:cliente | silence | comptoir:cliente | **— MUET —** |
 | comptoir:cliente | double_envoi | comptoir:remise | **— MUET —** |
 | comptoir:cliente | retour_arriere | comptoir:cliente | Ce numéro ne se lit pas. Celui de votre client/e, au format camerounais — exemple : 677 00 11 22. |
-| comptoir:cliente | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| comptoir:cliente | abandon | aucun_vendeuse | C'est annulé. |
 | comptoir:cliente | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | comptoir:remise | texte_juste | comptoir:recap | 🧾 *Récapitulatif de la vente* |
 | comptoir:remise | texte_faute | comptoir:recap | 🧾 *Récapitulatif de la vente* |
@@ -288,7 +288,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:remise | silence | comptoir:remise | **— MUET —** |
 | comptoir:remise | double_envoi | comptoir:recap | **— MUET —** |
 | comptoir:remise | retour_arriere | comptoir:recap | 🧾 *Récapitulatif de la vente* |
-| comptoir:remise | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| comptoir:remise | abandon | aucun_vendeuse | C'est annulé. |
 | comptoir:remise | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | comptoir:recap | texte_juste | aucun_vendeuse | ✅ *CT-‹ref› est créée.* Transférez le message suivant à votre client/e — il porte tout ce qu'il faut pour paye |
 | comptoir:recap | texte_faute | comptoir:recap | 🧾 *Récapitulatif de la vente* |
@@ -310,7 +310,7 @@ Produit par `harnais-balayage.test.ts`. **Ce fichier ne s'écrit pas à la main.
 | comptoir:recap | silence | comptoir:recap | **— MUET —** |
 | comptoir:recap | double_envoi | aucun_vendeuse | **— MUET —** |
 | comptoir:recap | retour_arriere | comptoir:article | *Qu'avez-vous vendu ?* |
-| comptoir:recap | abandon | aucun_vendeuse | C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. |
+| comptoir:recap | abandon | aucun_vendeuse | C'est annulé. |
 | comptoir:recap | reprise_25h | aucun_vendeuse | *‹boutique›* |
 | accueil | texte_juste | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |
 | accueil | texte_faute | accueil | Je suis Catalog. Ici, un vendeur/se ouvre sa boutique en deux minutes ; un acheteur/se suit sa commande et vér |

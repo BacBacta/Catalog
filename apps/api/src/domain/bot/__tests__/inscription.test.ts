@@ -137,6 +137,31 @@ describe("l'inscription, etat par etat", () => {
       expect(corps(r.messages[0])).toMatch(/annulé/);
     }
   });
+
+  it("la sortie porte ses gestes en BOUTONS, et ils dependent de qui sort — ADR 0110", () => {
+    /**
+     * Mesure du 14/08, 23 h 38, sur le telephone du porteur : « C'est annulé.
+     * Écrivez « vendre » pour reprendre, ou « ajouter » pour un article. » —
+     * une fermeture en texte nu, deux gestes a TAPER. Et « ajouter », propose
+     * a une prospect sans boutique, ne routait meme pas : la regle 3 de
+     * l'aiguillage le reserve aux vendeuses installees.
+     *
+     * Les identifiants offerts doivent etre ROUTES pour la personne qui les
+     * recoit — un bouton qui ouvre sur rien est pire que pas de bouton
+     * (ADR 0088).
+     */
+    for (const [etat, attendus] of [
+      [{ nom: "inscription_nom" }, ["vendre", "comment"]],
+      [{ nom: "inscription_ville", nomBoutique: "B" }, ["vendre", "comment"]],
+      [{ nom: "article_prix", nomArticle: "A" }, ["article", "ma_boutique"]],
+    ] as Array<[EtatVendeuse, string[]]>) {
+      const annule = reagirInscription(etat, { genre: "texte", texte: "annuler" }, VERS);
+      expect(idsBoutons(annule.messages[0]), etat.nom).toEqual(attendus);
+      /* « menu » (mis de cote) est la meme sortie, avec les memes gestes. */
+      const menu = reagirInscription(etat, { genre: "texte", texte: "menu" }, VERS);
+      expect(idsBoutons(menu.messages[0]), `${etat.nom} via menu`).toEqual(attendus);
+    }
+  });
 });
 
 describe("l'ajout d'article, photo comprise", () => {

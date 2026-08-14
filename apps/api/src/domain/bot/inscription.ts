@@ -343,6 +343,45 @@ const QUESTION_NOM_ARTICLE =
 
 const SORTIE_DE_SECOURS = "\n\nPour sortir : tapez « annuler ».";
 
+/**
+ * La reponse qui CLOT un flux porte ses gestes — ADR 0110.
+ *
+ * « Annuler » et « menu » fermaient le fil en texte nu : les gestes suivants
+ * n'existaient que comme mots a taper. Pire, la copie proposait « ajouter » a
+ * une prospect SANS boutique — un mot que la regle 3 de l'aiguillage reserve
+ * aux vendeuses installees : tape la, il partait au fil acheteuse et rendait
+ * l'accueil generique. Le mot promis ne menait pas ou la phrase promettait.
+ *
+ * Les boutons dependent donc de QUI sort, et l'etat le dit :
+ *
+ * - une prospect (`inscription_*`) n'a pas de boutique : elle peut REPRENDRE
+ *   (`vendre`, route vers l'inscription — regle 2) ou lire ce que le produit
+ *   change (`comment`, route vers l'explication du fil acheteuse) ;
+ * - une vendeuse installee (`article_*`, `comptoir`) retrouve ses deux gestes
+ *   de tous les jours : `article` et `ma_boutique` — les identifiants du menu
+ *   d'ouverture (ADR 0088), dont le routage bouton ET liste est deja tenu par
+ *   les tests d'aiguillage.
+ *
+ * Les mots tapes restent reconnus : le bouton s'ajoute au mot, il ne le
+ * remplace jamais (meme regle que les Flows, ADR 0063).
+ */
+function messageSortieFlux(vers: string, etat: EtatVendeuse, corps: string): MessageSortant {
+  const prospect = etat.nom.startsWith("inscription_");
+  return boutons(
+    vers,
+    corps,
+    prospect
+      ? [
+          { id: "vendre", titre: "Reprendre" },
+          { id: "comment", titre: "Comment ça marche ?" },
+        ]
+      : [
+          { id: "article", titre: "Ajouter un article" },
+          { id: "ma_boutique", titre: "Ma boutique" },
+        ],
+  );
+}
+
 /** Exportees : le formulaire d'article (flux.ts) refuse ce que la question refuse. */
 export const NOM_MIN = 2;
 export const NOM_MAX = 80;
@@ -773,12 +812,7 @@ export function reagirInscription(
     if (mot === "menu") {
       return {
         etat: null,
-        messages: [
-          texte(
-            vers,
-            "C'est mis de côté. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article.",
-          ),
-        ],
+        messages: [messageSortieFlux(vers, etat, "C'est mis de côté.")],
       };
     }
   }
@@ -787,12 +821,7 @@ export function reagirInscription(
   if (entree.genre === "texte" && entree.texte && abandon(entree.texte)) {
     return {
       etat: null,
-      messages: [
-        texte(
-          vers,
-          "C'est annulé. Écrivez « vendre » pour reprendre, ou « ajouter » pour un article.",
-        ),
-      ],
+      messages: [messageSortieFlux(vers, etat, "C'est annulé.")],
     };
   }
 
@@ -819,7 +848,10 @@ export function reagirInscription(
         return { etat: null, messages: [], effet: { type: "creer_vente", vente: r.vente } };
       }
       if (r.type === "abandon") {
-        return { etat: null, messages: [texte(vers, "C'est annulé — rien n'a été créé.")] };
+        return {
+          etat: null,
+          messages: [messageSortieFlux(vers, etat, "C'est annulé — rien n'a été créé.")],
+        };
       }
       const suivant: EtatVendeuse = { nom: "comptoir", comptoir: r.etat };
       const messages: MessageSortant[] =

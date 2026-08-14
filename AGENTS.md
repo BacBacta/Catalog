@@ -200,6 +200,23 @@ Règles qui découlent de ce mécanisme :
 - `prefers-reduced-motion` respecté partout, sans exception.
 - Chaque écran possède ses quatre états : chargement, vide, erreur, **hors ligne**.
 
+### Le fil WhatsApp — chaque réponse porte son geste
+- **Aucune réponse ne clôt un échange en muet** (ADR 0110). Tout message qui
+  ferme un parcours — annulation, mise de côté, confirmation, refus, erreur —
+  propose le ou les gestes suivants en **boutons ou en liste**, avec des
+  identifiants que l'aiguillage sait router pour la personne qui les reçoit.
+  Un mot à taper n'est pas une proposition de geste : c'est une consigne.
+- Deux exceptions, chacune parce que le geste est **déjà à l'écran** : la
+  question ouverte (y répondre EST le geste), et la réponse qui suit
+  immédiatement un menu interactif portant les mêmes gestes — les redonner
+  est le doublon que l'ADR 0109 a retiré.
+- **Le bouton s'ajoute au mot tapé, il ne le remplace jamais.** Les mots
+  (« vendre », « annuler », « suivi »…) restent reconnus partout : c'est le
+  chemin qui marche sur tout téléphone, WhatsApp ancien compris.
+- **Un bouton qui ouvre sur rien est pire que pas de bouton** (ADR 0088) : ne
+  jamais offrir un identifiant sans avoir vérifié son routage — bouton ET
+  ligne de liste, qui arrivent sous deux formes distinctes.
+
 ---
 
 ## 3. Stack — versions figées
