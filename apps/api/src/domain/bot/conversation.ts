@@ -2011,9 +2011,15 @@ export function confirmationCommande(
   }
   if (c.waVendeuse) carnet.push(t.apresConfirmation(c.boutique, c.waVendeuse));
   if (carnet.length > 0) {
+    /* Le libelle suit le CORPS. Quand celui-ci dit « pour payer l'acompte,
+       ouvrez… », « Suivre ma commande » ferait lire autre chose que ce qu'on
+       demande — vu a l'ecran le 14/08 sur le premier apercu envoye dans un
+       vrai fil. « Ouvrir le paiement » reste navigationnel : taper ce bouton
+       n'envoie pas d'argent, il ouvre la page ou l'on paie (ADR 0088). */
+    const libelle = c.duAvantXaf > 0 && !c.paiement ? t.libellePaiement : t.libelleSuivi;
     messages.push(
       boutonSuivi
-        ? lienBouton(vers, carnet.join("\n\n"), t.libelleSuivi, boutonSuivi)
+        ? lienBouton(vers, carnet.join("\n\n"), libelle, boutonSuivi)
         : texte(vers, carnet.join("\n\n")),
     );
   }

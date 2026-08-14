@@ -182,6 +182,16 @@ export interface TextesAcheteuse {
   /** Le mot du bouton. Court : la borne n'est pas mesuree, voir `LIEN_LIBELLE_MAX`. */
   libelleSuivi: string;
   /**
+   * Le mot du bouton quand un acompte est attendu et que le bloc paiement n'a
+   * PAS ete monte : le corps dit alors « pour payer l'acompte, ouvrez… », et
+   * « Suivre ma commande » ferait lire autre chose que ce qu'on demande.
+   * Constate a l'ecran le 14/08, sur le premier apercu envoye dans un vrai fil.
+   *
+   * Il reste NAVIGATIONNEL — « ouvrir », pas « payer » : taper ce bouton
+   * n'envoie pas d'argent, il ouvre la page ou l'on paie (ADR 0088).
+   */
+  libellePaiement: string;
+  /**
    * Ou N'IMPORTE QUI controle le recu, une fois emis — analyse du 13/08 : la
    * page /v n'etait distribuee nulle part, alors que le recu verifiable est
    * la proposition de valeur n° 1. Le code est public, le lien peut voyager.
@@ -411,6 +421,7 @@ const fr: TextesAcheteuse = {
      pas, c'est le message qui se retrouve dans le fil. */
   suiteSuiviBouton: "Votre suivi et votre reçu vérifiable vivent ici — gardez ce message.",
   libelleSuivi: "Suivre ma commande",
+  libellePaiement: "Ouvrir le paiement",
   suiteVerification: (lien) =>
     `Une fois le paiement prouvé, n'importe qui peut contrôler le reçu avec le code de vérification, ici : ${lien}`,
   commandeRatee:
@@ -640,6 +651,7 @@ const en: TextesAcheteuse = {
     "Nothing to pay upfront — you pay on delivery.\nFollow your order with the button below.",
   suiteSuiviBouton: "Your tracking and your verifiable receipt live here — keep this message.",
   libelleSuivi: "Track my order",
+  libellePaiement: "Open the payment",
   suiteVerification: (lien) =>
     `Once the payment is proved, anyone can check the receipt with the verification code, here: ${lien}`,
   commandeRatee: "This order could not be saved. Start again from the list — nothing was lost.",
@@ -862,6 +874,7 @@ const wes: TextesAcheteuse = {
   suiteSuiviBouton:
     "Yua tracking an yua resit weh you fit check dey for hia \u2014 keep dis message.",
   libelleSuivi: "Follow ma order",
+  libellePaiement: "Open di payment",
   suiteVerification: (lien) =>
     `Wen di pay don prove, any person fit check di receipt wit di verification code, for hia: ${lien}`,
   commandeRatee: "Dis order no fit enter. Start again for di lis \u2014 notin loss.",

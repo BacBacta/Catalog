@@ -1530,3 +1530,35 @@ describe("le carnet, depuis que le suivi est un bouton", () => {
     expect(corpsQuelconque(m)).toContain("http://exemple.test/suivi?j=abc");
   });
 });
+
+describe("le libellé du bouton suit ce que le corps demande", () => {
+  const base = {
+    reference: "CT-2001",
+    codeVerification: "ACDE-4679",
+    boutique: "Chez Bea",
+    lignes: [{ nom: "Robe", quantite: 1, prixUnitaireXaf: 15000 }],
+    totalXaf: 15000,
+    livraison: {
+      mode: "retrait" as const,
+      pickupPoint: "Marché central",
+      phone: "+237690112233",
+    },
+    lienSuivi: "https://exemple.test/suivi?j=abc",
+  };
+
+  it("acompte attendu sans bloc paiement : le bouton dit d'OUVRIR LE PAIEMENT", () => {
+    /* Vu a l'ecran le 14/08 : le corps disait « pour payer l'acompte, ouvrez
+       le suivi » et le bouton « Suivre ma commande ». Les deux ne parlaient
+       pas de la meme chose. */
+    const m = confirmationCommande(VERS, { ...base, duAvantXaf: 7500 })[1];
+    expect(corpsQuelconque(m)).toMatch(/payer l'acompte/i);
+    expect(libelleBouton(m)).toBe("Ouvrir le paiement");
+    /* Navigationnel, pas decisionnel — ADR 0088. */
+    expect(libelleBouton(m)).not.toMatch(/^payer/i);
+  });
+
+  it("rien à payer d'avance : le bouton dit de SUIVRE", () => {
+    const m = confirmationCommande(VERS, { ...base, duAvantXaf: 0 })[1];
+    expect(libelleBouton(m)).toBe("Suivre ma commande");
+  });
+});
