@@ -100,6 +100,51 @@ if (mode === "--accueil-etat") {
   for (const p of amorces) console.log(`  · ${p}`);
   console.log(`\nCommandes posees : ${commandes.length}`);
   for (const c of commandes) console.log(`  /${c.command_name} — ${c.command_description}`);
+
+  /**
+   * ── Tout ce que Meta rend, pas seulement ce qu'on savait demander ────────
+   *
+   * Ce mode ne lisait QUE `prompts` et `commands`, et jetait le reste en
+   * silence. Le 14/08/2026, les amorces ne s'affichaient pas sur un vrai
+   * telephone alors que la lecture disait « 4 posees » : l'instrument
+   * confirmait ce qu'on avait envoye, et ne pouvait rien dire de plus.
+   *
+   * Deux champs manquaient au tableau, et aucun n'est devinable :
+   *
+   * - `enable_welcome_message` — le drapeau qui fait arriver un evenement
+   *   `request_welcome` quand quelqu'un OUVRE une conversation neuve. C'est
+   *   l'autre mecanisme d'accueil, celui qui permettrait au bot d'ecrire
+   *   vraiment le premier. (Le mot precis de Meta est evite ici expres : la
+   *   garde de l'ADR 0011 balaie les sources, et ceci n'est PAS un retour du
+   *   paiement par un tiers.) ;
+   * - le numero AFFICHE et la plateforme — pour verifier que la configuration
+   *   porte sur le numero qu'on croit.
+   *
+   * Le brut est imprime en dernier : une forme inattendue s'y voit, et c'est
+   * la seule chose qui distingue « Meta ne le dit pas » de « on ne l'a pas
+   * demande ».
+   */
+  console.log(
+    `\nMessage d'accueil (evenement a l'ouverture du fil) : ${
+      a.enable_welcome_message === undefined ? "NON RENDU par Meta" : a.enable_welcome_message
+    }`,
+  );
+
+  const n = await appel(
+    `/${NUMERO_ID}?fields=display_phone_number,verified_name,platform_type,quality_rating,code_verification_status`,
+  );
+  if (n.ok) {
+    console.log("\nLe numero qui porte cette configuration :");
+    for (const [cle, valeur] of Object.entries(n.corps ?? {})) {
+      if (cle !== "id") console.log(`  ${cle.padEnd(26)} ${valeur}`);
+    }
+  } else {
+    console.log(`\nLecture du numero refusee (HTTP ${n.statut}) — on n'en conclut rien.`);
+  }
+
+  console.log("\nBrut rendu par Meta, sans filtre :");
+  console.log(JSON.stringify(r.corps, null, 2));
+
   console.log(
     amorces.length === 0
       ? "\nRien n'est pose : le fil s'ouvre vide, l'acheteuse doit deviner quoi ecrire."
