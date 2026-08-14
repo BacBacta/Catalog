@@ -30,8 +30,22 @@ export type Rappel = (typeof RAPPELS_HEURES)[number];
 
 export interface CommandePourExpiration {
   creeA: Date;
-  /** Vrai des que le total attendu est couvert. Une commande payee n'expire pas. */
-  soldeRegle: boolean;
+  /**
+   * Vrai des qu'UN FRANC est entre sur le portefeuille de la vendeuse — un
+   * acompte suffit, le solde n'a pas a etre couvert.
+   *
+   * ── Ce champ s'appelait `soldeRegle`, et c'etait le mauvais predicat ────
+   *
+   * Arbitrage du 14/08 (ADR 0101). « Le total attendu est couvert » faisait
+   * expirer une commande dont l'acheteuse avait reellement paye la moitie.
+   *
+   * Catalog ne detient aucun fonds (AGENTS.md §2) : faire « expirer » une
+   * commande deja payee suggererait un retour d'argent qu'il ne peut pas
+   * faire. Et un acompte prouve porte un RECU — l'expirer l'orphelinerait.
+   *
+   * L'expiration ne concerne donc qu'un seul cas : personne n'a rien paye.
+   */
+  argentEncaisse: boolean;
   /** Sortie de parcours. Une commande annulee n'expire pas non plus. */
   annuleeA: Date | null;
   /** Rappels deja partis, en heures. Rend la fonction idempotente. */
@@ -42,8 +56,8 @@ export type EtatExpiration =
   /** Rien a faire : payee, annulee, ou encore dans les temps sans rappel du. */
   | { etat: "vivante"; echeance: Date; resteMs: number; rappelsDus: Rappel[] }
   | { etat: "expiree"; echeance: Date; depuisMs: number }
-  /** Payee ou annulee : l'expiration ne s'applique plus. */
-  | { etat: "hors_champ"; raison: "solde_regle" | "annulee" };
+  /** Un franc encaisse, ou annulee : l'expiration ne s'applique plus. */
+  | { etat: "hors_champ"; raison: "argent_encaisse" | "annulee" };
 
 export function echeance(creeA: Date, fenetreMs: number = FENETRE_EXPIRATION_MS): Date {
   return new Date(creeA.getTime() + fenetreMs);
@@ -66,7 +80,7 @@ export function etatExpiration(
   now: Date,
   fenetreMs: number = FENETRE_EXPIRATION_MS,
 ): EtatExpiration {
-  if (commande.soldeRegle) return { etat: "hors_champ", raison: "solde_regle" };
+  if (commande.argentEncaisse) return { etat: "hors_champ", raison: "argent_encaisse" };
   if (commande.annuleeA) return { etat: "hors_champ", raison: "annulee" };
 
   const fin = echeance(commande.creeA, fenetreMs);

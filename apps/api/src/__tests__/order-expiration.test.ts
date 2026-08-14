@@ -24,7 +24,7 @@ const plus = (heures: number) => new Date(CREE.getTime() + heures * H);
 
 const commande = (p: Partial<CommandePourExpiration> = {}): CommandePourExpiration => ({
   creeA: CREE,
-  soldeRegle: false,
+  argentEncaisse: false,
   annuleeA: null,
   rappelsEnvoyes: [],
   ...p,
@@ -77,8 +77,31 @@ describe("etatExpiration — la fenetre", () => {
 
 describe("etatExpiration — ce qui n'expire pas", () => {
   it("une commande PAYEE n'expire pas, meme trois jours apres", () => {
-    const r = etatExpiration(commande({ soldeRegle: true }), plus(72));
-    expect(r).toEqual({ etat: "hors_champ", raison: "solde_regle" });
+    const r = etatExpiration(commande({ argentEncaisse: true }), plus(72));
+    expect(r).toEqual({ etat: "hors_champ", raison: "argent_encaisse" });
+  });
+
+  /**
+   * ── L'ARBITRAGE du 14/08 — ADR 0101 ────────────────────────────────────
+   *
+   * Un ACOMPTE paye suffit. Le solde n'a pas besoin d'etre couvert : des
+   * qu'un franc est entre sur le portefeuille de la vendeuse, la commande
+   * sort du champ de l'expiration.
+   *
+   * Le predicat etait `soldeRegle` — « le total attendu est couvert » —, et
+   * il faisait donc expirer une commande dont l'acheteuse avait reellement
+   * paye la moitie. Catalog ne detient aucun fonds (AGENTS.md §2) : faire
+   * « expirer » une commande payee suggererait un retour d'argent qu'il ne
+   * peut pas faire. Et un acompte prouve porte un RECU — l'expirer
+   * l'orphelinerait.
+   */
+  it("un ACOMPTE paye suffit : le solde n'a pas a etre couvert", () => {
+    const r = etatExpiration(commande({ argentEncaisse: true }), plus(72));
+    expect(r).toEqual({ etat: "hors_champ", raison: "argent_encaisse" });
+  });
+
+  it("zero franc encaisse : elle expire, c'est le seul cas", () => {
+    expect(etatExpiration(commande({ argentEncaisse: false }), plus(49)).etat).toBe("expiree");
   });
 
   it("une commande ANNULEE n'expire pas", () => {
@@ -87,8 +110,8 @@ describe("etatExpiration — ce qui n'expire pas", () => {
   });
 
   it("payee l'emporte sur annulee — on ne fait pas expirer de l'argent recu", () => {
-    const r = etatExpiration(commande({ soldeRegle: true, annuleeA: plus(1) }), plus(72));
-    expect(r).toMatchObject({ raison: "solde_regle" });
+    const r = etatExpiration(commande({ argentEncaisse: true, annuleeA: plus(1) }), plus(72));
+    expect(r).toMatchObject({ raison: "argent_encaisse" });
   });
 });
 
@@ -133,7 +156,7 @@ describe("etatExpiration — les rappels", () => {
   });
 
   it("aucun rappel sur une commande payee ou annulee", () => {
-    for (const p of [{ soldeRegle: true }, { annuleeA: plus(1) }]) {
+    for (const p of [{ argentEncaisse: true }, { annuleeA: plus(1) }]) {
       const r = etatExpiration(commande(p), plus(24));
       expect(r.etat).toBe("hors_champ");
     }
@@ -155,7 +178,7 @@ describe("doitExpirer", () => {
   it("resume l'etat en un booleen", () => {
     expect(doitExpirer(commande(), plus(47))).toBe(false);
     expect(doitExpirer(commande(), plus(48))).toBe(true);
-    expect(doitExpirer(commande({ soldeRegle: true }), plus(72))).toBe(false);
+    expect(doitExpirer(commande({ argentEncaisse: true }), plus(72))).toBe(false);
   });
 });
 
