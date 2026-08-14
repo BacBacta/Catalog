@@ -107,13 +107,18 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
      donc poser la question au lieu de choisir a la place de la personne. */
   if (ctx.etatVendeuseEnCours) return "inscription";
 
-  /* 2. Ouvrir une boutique : le geste d'une prospect, tape ou pris au bouton
+  /* 2. Ouvrir une boutique : le geste d'une prospect, tape ou pris au menu
      que le fil acheteuse propose. Une vendeuse deja installee qui l'ecrit
      n'ouvre pas une seconde boutique — un numero, une boutique
-     (`Seller.phone` est UNIQUE) —, elle part au fil vendeuse. */
+     (`Seller.phone` est UNIQUE) —, elle part au fil vendeuse.
+
+     Les DEUX formes valent le meme geste : l'accueil froid est une liste
+     depuis l'ADR 0109, et une ligne touchee arrive en `genre === "liste"`.
+     N'accepter que le bouton rendait la premiere porte de l'entonnoir
+     muette — exactement le piege mesure a l'ADR 0088, cote vendeuse. */
   const veutVendre =
     (entree.genre === "texte" && demandeInscription(t) !== null) ||
-    (entree.genre === "bouton" && entree.id === "vendre");
+    ((entree.genre === "bouton" || entree.genre === "liste") && entree.id === "vendre");
   if (veutVendre) {
     return ctx.estVendeuse ? "vendeuse" : "inscription";
   }

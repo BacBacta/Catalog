@@ -10,7 +10,7 @@ import {
   reagirAcheteuse,
   reagirVendeuse,
 } from "../conversation.ts";
-import type { MessageBoutons, MessageTexte } from "../messages.ts";
+import type { MessageBoutons, MessageListe, MessageTexte } from "../messages.ts";
 import { langueDemandee, PIDGIN_RELU, TEXTES } from "../textes.ts";
 
 /**
@@ -49,6 +49,11 @@ const corpsTexte = (m: unknown) => (m as MessageTexte).text.body;
 const corpsBoutons = (m: unknown) => (m as MessageBoutons).interactive.body.text;
 const idsBoutons = (m: unknown) =>
   (m as MessageBoutons).interactive.action.buttons.map((b) => b.reply.id);
+/* L'accueil froid est une LISTE depuis l'ADR 0109 : ses portes sont des
+   lignes, pas des boutons. */
+const lignesListe = (m: unknown) =>
+  (m as MessageListe).interactive.action.sections.flatMap((s) => s.rows);
+const idsListe = (m: unknown) => lignesListe(m).map((r) => r.id);
 
 describe("textes — les trois catalogues produisent, en entier", () => {
   it("chaque entree des trois langues rend une chaine non vide", () => {
@@ -287,13 +292,57 @@ describe("les chemins defensifs de la machine", () => {
     /* ADR 0034 : c'est ici que l'entonnoir vendeuse fuyait. ADR 0103 : il
        fuyait aussi pour les deux autres publics — celle qui attend sa commande
        devait DEVINER le mot « suivi », celle qui ne connait pas le produit
-       n'avait rien a lire. */
+       n'avait rien a lire. ADR 0109 : les trois portes sont des LIGNES. */
     const r = reagirAcheteuse(
       ETAT_INITIAL,
       { genre: "texte", texte: "bonjour" },
       ctx({ boutique: null }),
     );
-    expect(idsBoutons(r.messages[0])).toEqual(["vendre", "suivi", "comment"]);
+    expect(r.messages).toHaveLength(1);
+    expect(idsListe(r.messages[0])).toEqual(["vendre", "suivi", "comment"]);
+  });
+
+  it("chaque porte de l'accueil PORTE SA DESCRIPTION — le menu se lit avant de se toucher", () => {
+    /**
+     * ADR 0109. Trois boutons ne portaient que trois libelles nus : ce qu'ils
+     * font ne tenait nulle part, donc l'explication retombait dans la bulle
+     * suivante, et cette bulle reposait les memes boutons. La description
+     * n'est pas un ornement — c'est ce qui rend la deuxieme bulle inutile.
+     */
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "bonjour" },
+      ctx({ boutique: null }),
+    );
+    for (const ligne of lignesListe(r.messages[0])) {
+      expect(ligne.description, `${ligne.id} : ligne sans description`).toBeTruthy();
+    }
+    /* Le pied porte la consigne qui ne tient dans aucune ligne : quoi faire
+       quand on a DEJA le lien d'une boutique. */
+    expect((r.messages[0] as MessageListe).interactive.footer?.text).toBe(TEXTES.fr.piedAccueil);
+  });
+
+  it("une ligne du menu vaut le meme geste que le bouton d'hier — sinon le menu est muet", () => {
+    /**
+     * Le piege de l'ADR 0088, cote acheteur/se : une reponse de liste arrive
+     * en `genre === "liste"`, jamais `"bouton"`. Ne router que les boutons
+     * rendrait chaque ligne MUETTE — pas d'erreur, pas de trace, un menu mort.
+     */
+    for (const id of ["suivi", "comment"] as const) {
+      const parBouton = reagirAcheteuse(
+        ETAT_INITIAL,
+        { genre: "bouton", id },
+        ctx({ boutique: null }),
+      );
+      const parListe = reagirAcheteuse(
+        ETAT_INITIAL,
+        { genre: "liste", id },
+        ctx({ boutique: null }),
+      );
+      expect(parListe.messages, `${id} : la ligne ne rend pas ce que le bouton rendait`).toEqual(
+        parBouton.messages,
+      );
+    }
   });
 
   it("le bouton « suivi » rend le MEME statut que le mot tapé", () => {
@@ -313,16 +362,46 @@ describe("les chemins defensifs de la machine", () => {
     expect(boutonSuivi.messages).toEqual(motSuivi.messages);
   });
 
-  it("« comment ça marche » explique, puis REPOSE les deux gestes", () => {
-    /* Un texte nu laisserait chercher quoi taper la personne qui vient
-       justement de comprendre a quoi sert le produit. */
+  it("« comment ça marche » explique, et ne REDONNE pas les gestes déjà offerts", () => {
+    /**
+     * ADR 0109 — la redondance mesuree sur la capture du 14/08. La reponse
+     * reposait « Vendre avec Catalog » et « Suivre ma commande », deja poses
+     * trois lignes plus haut : le meme libelle apparaissait deux fois a
+     * l'ecran, et les anciens boutons restent touchables (c'est pour cela que
+     * `boutiqueFermee` existe). La copie NOMME desormais le geste au lieu de
+     * le dupliquer.
+     */
     const r = reagirAcheteuse(
       ETAT_INITIAL,
       { genre: "bouton", id: "comment" },
       ctx({ boutique: null }),
     );
-    expect(corpsBoutons(r.messages[0])).toBe(TEXTES.fr.commentCaMarche);
-    expect(idsBoutons(r.messages[0])).toEqual(["vendre", "suivi"]);
+    expect(r.messages).toHaveLength(1);
+    expect(corpsTexte(r.messages[0])).toBe(TEXTES.fr.commentCaMarche);
+    expect(r.messages[0]).not.toHaveProperty("interactive");
+  });
+
+  it("l'explication tient SOUS LE PLI — mesure du 14/08, coupe a ~776 caracteres", () => {
+    /**
+     * Le defaut que cet ADR corrige, et il ne se voyait dans aucun test :
+     * le corps faisait 957 caracteres, WhatsApp l'a coupe par « Voir plus »
+     * apres ~776 sur le telephone du porteur du produit. Les 181 caracteres
+     * caches portaient le premier pas (« nom de boutique, ville ») et la
+     * sortie de secours — les deux lignes que l'ADR 0108 avait ecrites
+     * precisement pour fermer sur un geste.
+     *
+     * Le pli se calcule en LIGNES RENDUES, pas en caracteres : ce plafond est
+     * un substitut calibre sur une mesure, pas une constante documentee par
+     * Meta. D'ou la marge — 640 pour 776 mesures —, qui tient une police plus
+     * grande ou un ecran plus etroit.
+     */
+    const ACCROCHE_MAX = 640;
+    for (const langue of ["fr", "en"] as const) {
+      expect(
+        TEXTES[langue].commentCaMarche.length,
+        `${langue} : l'accroche repasse sous « Voir plus »`,
+      ).toBeLessThanOrEqual(ACCROCHE_MAX);
+    }
   });
 
   it("l'explication s'adresse au VENDEUR — c'est lui qui écrit au numéro sans lien", () => {
@@ -377,11 +456,12 @@ describe("les chemins defensifs de la machine", () => {
     expect(TEXTES.en.commentCaMarche).toMatch(/asleep/i);
   });
 
-  it("la derniere ligne nomme un bouton QUI EXISTE dans la meme langue", () => {
+  it("la derniere ligne nomme une porte QUI EXISTE dans la meme langue", () => {
     /**
-     * L'ADR 0108 ferme l'explication sur un GESTE et non sur un manque, et le
-     * geste est le bouton pose juste dessous. Encore faut-il que le nom cite
-     * soit celui que la personne lit.
+     * L'ADR 0108 ferme l'explication sur un GESTE et non sur un manque. Le
+     * geste n'est plus un bouton pose dessous (ADR 0109 : il faisait doublon)
+     * mais la ligne du menu juste au-dessus — donc le nom cite doit etre
+     * exactement celui que la personne lit dans ce menu.
      *
      * Mesure du 14/08/2026 : l'anglais disait « Tap « Suivre ma commande » »
      * alors que son bouton porte « Track my order ». La phrase envoyait
@@ -575,7 +655,7 @@ describe("l'ouverture du fil rend l'accueil — ADR 0106", () => {
     /* C'est le SEUL chemin où le bot parle le premier sans gabarit : la
        personne vient d'ouvrir la conversation, la fenêtre est à elle. */
     const r = reagirAcheteuse(ETAT_INITIAL, { genre: "ouverture_fil" }, ctx({ boutique: null }));
-    expect(idsBoutons(r.messages[0])).toEqual(["vendre", "suivi", "comment"]);
+    expect(idsListe(r.messages[0])).toEqual(["vendre", "suivi", "comment"]);
   });
 
   it("avec une boutique en contexte : l'accueil de la boutique, panier gardé", () => {

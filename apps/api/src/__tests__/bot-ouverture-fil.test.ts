@@ -3,7 +3,7 @@ import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
-import type { MessageBoutons, MessageSortant } from "../domain/bot/messages.ts";
+import type { MessageListe, MessageSortant } from "../domain/bot/messages.ts";
 import { describeDb } from "./_base.ts";
 import { identifiants } from "./_identifiants.ts";
 
@@ -64,13 +64,13 @@ describeDb("request_welcome traverse le service — ADR 0106", () => {
     });
 
     expect(s.envoyeur.envoyes.length).toBeGreaterThan(0);
-    const accueil = s.envoyeur.envoyes.at(-1) as MessageBoutons;
+    /* Une LISTE depuis l'ADR 0109 : trois portes, chacune avec sa
+       description, dans une seule bulle. */
+    const accueil = s.envoyeur.envoyes.at(-1) as MessageListe;
     expect(accueil.type).toBe("interactive");
-    expect(accueil.interactive.action.buttons.map((b) => b.reply.id)).toEqual([
-      "vendre",
-      "suivi",
-      "comment",
-    ]);
+    expect(accueil.interactive.action.sections.flatMap((sec) => sec.rows.map((r) => r.id))).toEqual(
+      ["vendre", "suivi", "comment"],
+    );
     /* Le message dit ce que Catalog EST — c'est la copie de l'ADR 0103,
        jamais « je ne sais pas lire ce type de message ». */
     expect(accueil.interactive.body.text).toContain("Je suis Catalog");

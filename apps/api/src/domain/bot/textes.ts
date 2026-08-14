@@ -73,12 +73,43 @@ export interface TextesAcheteuse {
   /** Le bouton qui explique le produit a qui n'en a jamais entendu parler. */
   btnComment: string;
   /**
-   * La reponse a « Comment ça marche ? » — ADR 0103.
+   * ── Le menu de l'accueil froid — ADR 0109 ──────────────────────────────
+   *
+   * Les trois portes sont des LIGNES DE LISTE, plus des boutons. Le libelle
+   * ci-dessous est celui du bouton qui OUVRE la liste (20 caracteres au
+   * plus), et chaque porte gagne une description (72 au plus) : un menu qui
+   * se lit avant de se toucher.
+   *
+   * C'est l'outil de l'ADR 0088 — celui qui a fait passer l'ouverture
+   * vendeuse de quatre bulles a une — applique enfin a l'accueil froid, reste
+   * en boutons et donc plafonne a trois libelles nus.
+   */
+  btnQueFaire: string;
+  descVendre: string;
+  descSuivi: string;
+  descComment: string;
+  /**
+   * Le pied de l'accueil (60 caracteres au plus) : la seule consigne qui ne
+   * tient dans aucune ligne de menu — que faire quand on A deja le lien d'une
+   * boutique. Elle est POSITIVE : l'ADR 0108 a retire le « il n'y a pas
+   * d'annuaire ici », un negatif en derniere ligne du premier message.
+   */
+  piedAccueil: string;
+  /**
+   * La reponse a « Comment ça marche ? » — ADR 0103, 0108, raccourcie par
+   * l'ADR 0109.
    *
    * Elle dit la valeur numero un (AGENTS.md §1) : le recu opposable. Elle ne
    * promet PAS d'annuaire de boutiques, parce qu'il n'en existe pas : une
    * boutique se decouvre par un lien partage, et le dire evite de laisser
    * chercher un catalogue general qui n'arrivera jamais.
+   *
+   * **Elle tient sous le pli.** Mesure du 14/08/2026, sur le telephone du
+   * porteur du produit : WhatsApp a coupe le corps par « Voir plus » apres
+   * ~776 caracteres, et les 181 restants portaient le premier pas et la
+   * sortie de secours — les deux lignes que l'ADR 0108 avait ecrites pour
+   * fermer sur un geste. Un plafond garde le texte court
+   * (`ACCROCHE_MAX`, `couverture.test.ts`).
    */
   commentCaMarche: string;
   aideGestes: string;
@@ -326,8 +357,13 @@ const fr: TextesAcheteuse = {
   btnVendre: "Vendre avec Catalog",
   btnSuivre: "Suivre ma commande",
   btnComment: "Comment ça marche ?",
+  btnQueFaire: "Que faire ?",
+  descVendre: "Votre boutique en deux minutes, ici même",
+  descSuivi: "Où en est votre commande, et votre reçu",
+  descComment: "Ce que Catalog change pour vous",
+  piedAccueil: "Vous avez le lien d'une boutique ? Ouvrez-le ici.",
   commentCaMarche:
-    "*Vous vendez déjà sur WhatsApp. Catalog ne change pas ça.*\n\nVous gardez vos clients, vos discussions, votre façon de faire. Catalog ajoute trois choses par-dessus :\n\n🛒 *Une boutique ouverte 24h/24* — vos articles avec photos et prix, dans un lien que vous partagez. Vous dormez, vous êtes au marché, vous êtes en course : la commande se prend quand même, et elle vous attend à votre réveil. Fini de tout réécrire à chaque personne.\n\n💰 *L'argent arrive droit chez vous* — sur VOTRE Mobile Money, celui que vous avez déjà, à n'importe quelle heure. Catalog n'y touche jamais et ne prend aucune commission.\n\n🧾 *Un reçu que tout le monde peut vérifier* — vous collez le SMS de votre opérateur, et le paiement devient une preuve. C'est votre protection contre les fausses captures d'écran.\n\nPour commencer : le nom de votre boutique et votre ville. Deux minutes, ici même, rien à installer.\n\nVous attendez plutôt une commande ? Touchez « Suivre ma commande ».",
+    "*Vous vendez déjà sur WhatsApp. Catalog ne change pas ça.*\n\nVous gardez vos clients et votre façon de faire. Catalog ajoute trois choses :\n\n🛒 *Une boutique ouverte 24h/24* — vos articles en photos, dans un lien. Vous dormez, la commande se prend quand même.\n💰 *L'argent arrive droit chez vous* — sur VOTRE Mobile Money. Catalog n'y touche jamais, aucune commission.\n🧾 *Un reçu vérifiable* — vous collez le SMS de l'opérateur : votre preuve contre les fausses captures.\n\nPour commencer, écrivez *vendre* : nom de boutique, ville. Deux minutes.\nVous attendez une commande ? Touchez « Suivre ma commande » au-dessus.",
   aideGestes:
     "Quatre mots marchent partout : « menu » (accueil de la boutique), « panier » (ce que vous avez choisi), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler au vendeur/se » est à l'accueil. Write « english » for English.",
   annule: "C'est annulé — le panier est vide, rien n'a été commandé.",
@@ -568,8 +604,13 @@ const en: TextesAcheteuse = {
   btnVendre: "Sell with Catalog",
   btnSuivre: "Track my order",
   btnComment: "How does it work?",
+  btnQueFaire: "What can I do?",
+  descVendre: "Your shop in two minutes, right here",
+  descSuivi: "Where your order is, and your receipt",
+  descComment: "What Catalog changes for you",
+  piedAccueil: "Got a shop link? Open it here to order.",
   commentCaMarche:
-    "*You already sell on WhatsApp. Catalog does not change that.*\n\nYou keep your customers, your chats, your way of working. Catalog adds three things on top:\n\n🛒 *A shop open 24/7* — your items with photos and prices, in a link you share. You are asleep, at the market, out running errands: the order is taken anyway, and it is waiting for you when you wake up. No more retyping everything for each person.\n\n💰 *The money comes straight to you* — on YOUR Mobile Money, the one you already have, at any hour. Catalog never touches it and takes no commission.\n\n🧾 *A receipt anyone can check* — you paste your operator's SMS, and the payment becomes proof. That is your protection against fake screenshots.\n\nTo start: your shop name and your city. Two minutes, right here, nothing to install.\n\nWaiting for an order instead? Tap \u201cTrack my order\u201d.",
+    "*You already sell on WhatsApp. Catalog does not change that.*\n\nYou keep your customers and your way of working. Catalog adds three things:\n\n🛒 *A shop open 24/7* — your items with photos, in a link. You are asleep, the order is taken anyway.\n💰 *The money comes straight to you* — on YOUR Mobile Money. Catalog never touches it, no commission.\n🧾 *A receipt anyone can check* — you paste your operator SMS: your protection against fake screenshots.\n\nTo start, write *sell*: shop name, city. Two minutes.\nWaiting for an order? Tap \u201cTrack my order\u201d above.",
   aideGestes:
     "Four words work everywhere: “menu” (shop home), “cart” (what you picked), “cancel” (drop the current order), “status” (your last order). For a human, the “Talk to the seller” button is on the home screen. Écrivez « français » pour le français.",
   annule: "Cancelled — your cart is empty, nothing was ordered.",

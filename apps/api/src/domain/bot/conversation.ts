@@ -617,16 +617,7 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
    */
   if (entree.genre === "ouverture_fil") {
     if (boutique) return accueilBoutique(vers, boutique, t, panierDe(etat));
-    return {
-      etat: ETAT_INITIAL,
-      messages: [
-        boutons(vers, t.aideAcheteuse, [
-          { id: "vendre", titre: t.btnVendre },
-          { id: "suivi", titre: t.btnSuivre },
-          { id: "comment", titre: t.btnComment },
-        ]),
-      ],
-    };
+    return { etat: ETAT_INITIAL, messages: [accueilFroid(vers, t)] };
   }
 
   /* Le changement de langue prime sur tout : c'est une demande sur la
@@ -706,28 +697,32 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
   if (apres) return apres;
 
   if (!boutique) {
-    const bouton = entree.genre === "bouton" ? entree.id : null;
-    if (bouton === "suivi" || (entree.genre === "texte" && demandeStatut(entree.texte))) {
+    /**
+     * Le menu de l'accueil est une LISTE — ADR 0109. Une ligne touchee arrive
+     * en `genre === "liste"`, jamais `"bouton"` : ne lire que les boutons
+     * rendrait « Suivre ma commande » et « Comment ça marche ? » MUETTES,
+     * sans erreur ni trace. Meme piege que celui de l'ADR 0088, cote
+     * acheteur/se cette fois — et il est tenu par un test, pas par la memoire.
+     */
+    const choix = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+    if (choix === "suivi" || (entree.genre === "texte" && demandeStatut(entree.texte))) {
       return {
         etat: ETAT_INITIAL,
         messages: [messageStatut(vers, ctx.derniereCommande ?? null, t)],
       };
     }
     /**
-     * « Comment ça marche ? » — ADR 0103. La reponse REPOSE les deux gestes :
-     * quelqu'un qui vient de comprendre le produit est precisement celui qui
-     * va vouloir agir, et un texte nu le laisserait chercher quoi taper.
+     * « Comment ça marche ? » — ADR 0103, raccourcie et DESARMEE par l'ADR
+     * 0109.
+     *
+     * Elle ne repose plus les gestes en boutons : ils sont dans le menu juste
+     * au-dessus, qui reste touchable, et les redonner ici affichait deux fois
+     * le meme libelle. La copie nomme donc le geste au lieu de le dupliquer —
+     * et le mot ecrit (« vendre », « suivi ») marche partout, y compris pour
+     * qui a fait defiler le menu hors de l'ecran.
      */
-    if (bouton === "comment") {
-      return {
-        etat: ETAT_INITIAL,
-        messages: [
-          boutons(vers, t.commentCaMarche, [
-            { id: "vendre", titre: t.btnVendre },
-            { id: "suivi", titre: t.btnSuivre },
-          ]),
-        ],
-      };
+    if (choix === "comment") {
+      return { etat: ETAT_INITIAL, messages: [texte(vers, t.commentCaMarche)] };
     }
     /**
      * L'accueil OFFRE les trois services joignables d'ici — ADR 0034 pour la
@@ -740,19 +735,11 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
      * commande devait DEVINER le mot « suivi », et celle qui ne connait pas le
      * produit n'avait rien a lire.
      *
-     * Trois est le maximum de l'API : ce menu est complet par construction, il
-     * ne peut pas s'allonger sans qu'on choisisse quoi retirer.
+     * Depuis l'ADR 0109, ces trois portes sont des LIGNES DE LISTE et non des
+     * boutons : chacune porte sa description, et le menu peut s'allonger sans
+     * qu'on choisisse quoi retirer (dix lignes, contre trois boutons).
      */
-    return {
-      etat: ETAT_INITIAL,
-      messages: [
-        boutons(vers, t.aideAcheteuse, [
-          { id: "vendre", titre: t.btnVendre },
-          { id: "suivi", titre: t.btnSuivre },
-          { id: "comment", titre: t.btnComment },
-        ]),
-      ],
-    };
+    return { etat: ETAT_INITIAL, messages: [accueilFroid(vers, t)] };
   }
 
   const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
@@ -1694,6 +1681,45 @@ function questionMode(
 /** « 4.8 » → « 4,8 » en francais ; l'anglais garde le point. */
 function noteAffichee(note: number, langue: "fr" | "point"): string {
   return langue === "fr" ? String(note).replace(".", ",") : String(note);
+}
+
+/**
+ * L'ACCUEIL FROID — une seule bulle, et c'est une LISTE (ADR 0109).
+ *
+ * ── Ce que la capture du 14/08 a montre ──────────────────────────────────
+ *
+ * Deux bulles a la meme minute : l'accueil et ses trois boutons, puis
+ * l'explication qui REPOSAIT deux des trois memes boutons. Le porteur du
+ * produit : « mal coordonnes et redondants ». A l'ecran, « Vendre avec
+ * Catalog » apparaissait deux fois — et les anciens boutons restent
+ * touchables (c'est pour cela que `boutiqueFermee` existe), donc deux chemins
+ * vivants pour un seul geste, sans indice de celui qui compte.
+ *
+ * ── Pourquoi une liste, exactement comme l'ouverture vendeuse ────────────
+ *
+ * Trois boutons portent trois libelles NUS : ce qu'ils font ne tient nulle
+ * part, donc l'explication retombe en texte, et le texte n'a pas de fin.
+ * C'est le mur mesure au banc du 13/08 et resolu par l'ADR 0088 — la liste
+ * porte dix lignes, chacune avec sa description, plus un pied. Le menu se lit
+ * avant de se toucher, et la bulle suivante n'a plus a le redire.
+ *
+ * Les trois identifiants sont ceux qui existaient (`vendre`, `suivi`,
+ * `comment`) : le geste ne change pas, sa presentation change. Leur routage
+ * en forme `liste` est tenu par `aiguillage.ts` et par le bloc sans boutique
+ * ci-dessus — une ligne qui ouvre sur rien serait pire que pas de menu.
+ */
+function accueilFroid(vers: string, t: TextesAcheteuse): MessageSortant {
+  return liste(
+    vers,
+    t.aideAcheteuse,
+    t.btnQueFaire,
+    [
+      { id: "vendre", titre: t.btnVendre, description: t.descVendre },
+      { id: "suivi", titre: t.btnSuivre, description: t.descSuivi },
+      { id: "comment", titre: t.btnComment, description: t.descComment },
+    ],
+    t.piedAccueil,
+  );
 }
 
 function accueilBoutique(

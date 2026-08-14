@@ -35,6 +35,19 @@ describe("aiguiller", () => {
     }
   });
 
+  it("la porte « vendre » de l'accueil vaut le meme geste en LISTE qu'en bouton", () => {
+    /**
+     * ADR 0109 : l'accueil froid est passe en liste, et une ligne touchee
+     * arrive en `genre === "liste"`. N'accepter que le bouton aurait rendu la
+     * PREMIERE porte de l'entonnoir muette — le meme piege que l'ADR 0088
+     * cote vendeuse, ou chaque ligne du menu d'ouverture n'aurait rien fait.
+     */
+    expect(aiguiller({ genre: "bouton", id: "vendre" }, REPOS)).toBe("inscription");
+    expect(aiguiller({ genre: "liste", id: "vendre" }, REPOS)).toBe("inscription");
+    /* Et une vendeuse installee qui touche la meme ligne rentre chez elle. */
+    expect(aiguiller({ genre: "liste", id: "vendre" }, VENDEUSE)).toBe("vendeuse");
+  });
+
   it("« vendre » d'une vendeuse installee ne rouvre pas une boutique", () => {
     // Un numero, une boutique : `Seller.phone` est UNIQUE.
     expect(aiguiller(txt("vendre"), VENDEUSE)).toBe("vendeuse");
