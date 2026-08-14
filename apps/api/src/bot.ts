@@ -283,7 +283,46 @@ async function reclamer(deps: BotDeps, messageId: string, maintenant: Date): Pro
 
 export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
-  for (const entree of lireEntreesBot(corps)) {
+  const entrees = lireEntreesBot(corps);
+
+  /**
+   * ── La ligne d'arrivee — 14/08/2026 ──────────────────────────────────────
+   *
+   * Le bot ne journalisait AUCUNE arrivee, par conception (redaction,
+   * ADR 0023) — et l'evenement d'ouverture de fil (ADR 0106) a montre le prix
+   * de ce silence : « Meta n'a rien envoye » et « c'est arrive et traite sans
+   * bruit » etaient indiscernables, meme journaux en main.
+   *
+   * Cette ligne dit les TYPES et rien d'autre : ni numero, ni contenu, ni
+   * identifiant. `typesBruts` lit le corps AVANT le parseur — c'est elle qui
+   * revele une forme que `lireEntreesBot` ne saurait pas lire (types presents,
+   * zero entree lue). Elle respecte l'ADR 0023 : un type de message n'est pas
+   * une donnee personnelle.
+   */
+  const typesBruts = (() => {
+    try {
+      const c = corps as { messages?: unknown; entry?: unknown };
+      const messages = Array.isArray(c?.messages)
+        ? c.messages
+        : Array.isArray(c?.entry)
+          ? (c.entry as Array<{ changes?: Array<{ value?: { messages?: unknown[] } }> }>)
+              .flatMap((e) => e?.changes ?? [])
+              .flatMap((ch) => ch?.value?.messages ?? [])
+          : [];
+      return messages
+        .map((m) => (m as { type?: unknown })?.type)
+        .filter((t): t is string => typeof t === "string");
+    } catch {
+      return [];
+    }
+  })();
+  if (typesBruts.length > 0 || entrees.length > 0) {
+    console.log(
+      `bot : livraison — types=[${typesBruts.join(",")}] lues=${entrees.length}/${typesBruts.length}`,
+    );
+  }
+
+  for (const entree of entrees) {
     /* Un message qui porte un code de defi (AAAA-BB) appartient a la
        connexion WhatsApp (ADR 0027), deja traitee par `surMessage` : le bot
        ne repond pas par-dessus. */
