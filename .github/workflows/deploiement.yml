@@ -94,7 +94,27 @@ jobs:
       - run: pnpm db:generate
       - run: pnpm db:migrate
       - run: pnpm shop:snapshot
-      - run: pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm size
+      # ── Cinq etapes, pas une ────────────────────────────────────────────
+      #
+      # Elles etaient enchainees par `&&` dans un seul `run`. Le comportement
+      # est identique — une etape qui echoue arrete le job dans les deux cas —
+      # mais GitHub n'en rendait qu'UNE duree : 2 min 43 s sur le passage du
+      # 14/08, sans qu'on sache laquelle les consomme.
+      #
+      # On ne peut pas optimiser ce qu'on ne mesure pas, et le decoupage ne
+      # coute rien. C'est aussi la forme qu'a deja `ci.yml`, ou ces cinq
+      # commandes sont cinq etapes depuis toujours : les deux workflows
+      # cessent de diverger sur ce point.
+      - name: Types
+        run: pnpm typecheck
+      - name: Lint et format
+        run: pnpm lint
+      - name: Tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Budget de poids
+        run: pnpm size
       - run: pnpm audit --prod --audit-level high
       # ── La politique de securite de la boutique decrit-elle le HTML emis ? ──
       #
@@ -113,8 +133,64 @@ jobs:
       - name: En-tetes et CSP — verifies contre le HTML construit
         run: pnpm --filter @catalog/shop test
 
+  # ── L'image se construit PENDANT la porte, elle ne se livre qu'apres ───────
+  #
+  # Ce job n'a pas de `needs`. C'est le seul changement, et c'est deliberé :
+  # construire une image ne met rien en service. Sur le passage du 14/08, les
+  # deux blocs etaient enchaines — 3 min 47 s de porte PUIS 3 min 01 s d'`api`,
+  # dont 2 min 54 s de construction — alors qu'ils ne dependent l'un de l'autre
+  # a aucun moment. Les mener de front rend le total egal au plus long des deux.
+  #
+  # **L'invariant de la porte est intact.** « Rien ne part sans que la chaine
+  # soit repassee » parle de ce qui PREND LE TRAFIC, et la livraison reste
+  # derriere la porte : le job `api` attend `porte` comme avant, et c'est lui
+  # seul qui bascule la version et lance le `release_command`.
+  #
+  # Le seul effet de bord est qu'une image peut etre construite pour un commit
+  # dont la porte echoue ensuite. Elle dort dans le registre, elle n'est jamais
+  # livree, et elle coute quelques megaoctets de stockage.
+  image:
+    if: (inputs.cible || 'boutique') == 'api' || (inputs.cible || 'boutique') == 'les-deux'
+    runs-on: ubuntu-latest
+    # Le meme environnement que `api` : `FLY_API_TOKEN` s'y resout de la meme
+    # facon, et une regle de protection posee un jour sur la preproduction
+    # vaudra pour la construction comme pour la livraison.
+    environment: ${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # La meme garde que dans `api`, et elle est ici AUSSI parce que ce job ne
+      # depend plus de lui : sans elle, un choix « production » construirait et
+      # pousserait une image etiquetee dans le registre de la preproduction
+      # avant que quoi que ce soit ne refuse le choix.
+      - name: La cible de production n'existe pas encore
+        if: (inputs.environnement || github.event.client_payload.environnement || 'preproduction') == 'production'
+        run: |
+          echo "Aucune configuration Fly de production dans ce depot."
+          echo "Le seul fly.toml decrit la preproduction (catalog-api-preprod)."
+          echo "Creer fly.production.toml et passer --config avant d'utiliser ce choix."
+          exit 1
+      # `--build-only --push` construit et pousse au registre SANS toucher aux
+      # machines : aucune version ne bascule, aucun `release_command` ne part.
+      #
+      # `--image-label` fixe le tag, donc l'image est nommee de facon
+      # deterministe — `registry.fly.io/catalog-api-preprod:deploy-<sha>`. C'est
+      # ce qui permet au job `api` de la designer sans avoir a lire une sortie.
+      # L'etiquette porte le SHA du commit : deux deploiements du meme commit
+      # reecrivent le meme tag, ce qui est exactement ce qu'on veut.
+      - name: Construction et pousse au registre
+        run: |
+          flyctl deploy --build-only --push --remote-only \
+            --config fly.toml --app catalog-api-preprod \
+            --image-label deploy-${{ github.sha }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
   api:
-    needs: porte
+    # `porte` ET `image` : la porte garde la mise en service, l'image doit
+    # exister pour qu'il y ait quelque chose a livrer. GitHub saute ce job si
+    # l'un des deux echoue.
+    needs: [porte, image]
     # PAS de `${{ }}` ici : `if` est deja un contexte d'expression. Enveloppe,
     # la condition deviendrait une CHAINE non vide — donc toujours vraie, et le
     # job partirait a chaque dispatch.
@@ -148,8 +224,24 @@ jobs:
           echo "Le seul fly.toml decrit la preproduction (catalog-api-preprod)."
           echo "Creer fly.production.toml et passer --config avant d'utiliser ce choix."
           exit 1
-      - name: fly deploy
-        run: flyctl deploy --remote-only --wait-timeout 10m --config fly.toml --app catalog-api-preprod
+      # ── Ce pas ne construit plus rien ─────────────────────────────────────
+      #
+      # `--image` designe l'image que le job `image` a poussee pendant que la
+      # porte tournait. Il ne reste donc ici que la livraison : basculer la
+      # version, lancer le `release_command` de `fly.toml` — les migrations —,
+      # et attendre que les machines soient saines.
+      #
+      # `--remote-only` a disparu : il choisit OU construire, et on ne construit
+      # plus. `--wait-timeout` reste, il borne l'attente de la bascule.
+      #
+      # La reference est recalculee ici plutot que lue dans une sortie du job
+      # `image` : elle ne depend que du SHA, les deux jobs partent du meme, et un
+      # `outputs:` ajouterait un couplage pour rien.
+      - name: fly deploy — livraison de l'image deja construite
+        run: |
+          flyctl deploy --wait-timeout 10m \
+            --config fly.toml --app catalog-api-preprod \
+            --image registry.fly.io/catalog-api-preprod:deploy-${{ github.sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       # Le deploiement est fini quand le service REPOND, pas quand la commande
