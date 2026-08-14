@@ -57,6 +57,9 @@ describe("textes — les trois catalogues produisent, en entier", () => {
         t.boutiqueIntrouvable,
         t.aideAcheteuse,
         t.btnVendre,
+        t.btnSuivre,
+        t.btnComment,
+        t.commentCaMarche,
         t.aideGestes,
         t.annule,
         t.langueChangee,
@@ -280,14 +283,67 @@ describe("les chemins defensifs de la machine", () => {
     expect(r.etat).toMatchObject({ nom: "catalogue", page: 0 });
   });
 
-  it("l'aide sans boutique OFFRE d'ouvrir une boutique — jamais un cul-de-sac", () => {
-    // ADR 0034 : c'est ici que l'entonnoir vendeuse fuyait.
+  it("l'accueil sans boutique OFFRE les trois services — jamais un cul-de-sac", () => {
+    /* ADR 0034 : c'est ici que l'entonnoir vendeuse fuyait. ADR 0103 : il
+       fuyait aussi pour les deux autres publics — celle qui attend sa commande
+       devait DEVINER le mot « suivi », celle qui ne connait pas le produit
+       n'avait rien a lire. */
     const r = reagirAcheteuse(
       ETAT_INITIAL,
       { genre: "texte", texte: "bonjour" },
       ctx({ boutique: null }),
     );
-    expect(idsBoutons(r.messages[0])).toEqual(["vendre"]);
+    expect(idsBoutons(r.messages[0])).toEqual(["vendre", "suivi", "comment"]);
+  });
+
+  it("le bouton « suivi » rend le MEME statut que le mot tapé", () => {
+    /* Le geste existait deja et marchait sans boutique : il fallait le taper
+       pour le trouver. Le bouton ne cree pas un second chemin, il rend le
+       premier visible — les deux passent par `messageStatut`. */
+    const boutonSuivi = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "suivi" },
+      ctx({ boutique: null }),
+    );
+    const motSuivi = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "texte", texte: "ma commande" },
+      ctx({ boutique: null }),
+    );
+    expect(boutonSuivi.messages).toEqual(motSuivi.messages);
+  });
+
+  it("« comment ça marche » explique, puis REPOSE les deux gestes", () => {
+    /* Un texte nu laisserait chercher quoi taper la personne qui vient
+       justement de comprendre a quoi sert le produit. */
+    const r = reagirAcheteuse(
+      ETAT_INITIAL,
+      { genre: "bouton", id: "comment" },
+      ctx({ boutique: null }),
+    );
+    expect(corpsBoutons(r.messages[0])).toBe(TEXTES.fr.commentCaMarche);
+    expect(idsBoutons(r.messages[0])).toEqual(["vendre", "suivi"]);
+  });
+
+  it("l'explication ne promet AUCUN annuaire de boutiques", () => {
+    /* Il n'en existe pas, et par construction : une boutique se decouvre par un
+       lien partage. Promettre une liste enverrait chercher un catalogue general
+       qui n'arrivera jamais — AGENTS.md §7.7, on dit ce qui manque. */
+    for (const t of [TEXTES.fr, TEXTES.en]) {
+      expect(t.commentCaMarche).toMatch(/lien|link/i);
+    }
+    expect(TEXTES.fr.commentCaMarche).toMatch(/pas d'annuaire/i);
+    expect(TEXTES.en.commentCaMarche).toMatch(/no directory/i);
+  });
+
+  it("l'explication ne promet ni commission ni encaissement par Catalog", () => {
+    /* AGENTS.md §2 : les fonds ne transitent jamais par un compte a nous, et
+       aucune commission n'est prelevee. La copie qui s'adresse a une inconnue
+       est l'endroit ou cette promesse se tient ou se perd. */
+    expect(TEXTES.fr.commentCaMarche).toMatch(/n'encaisse rien/i);
+    expect(TEXTES.fr.commentCaMarche).toMatch(/aucune commission/i);
+    expect(TEXTES.en.commentCaMarche).toMatch(/never holds it/i);
+    expect(TEXTES.en.commentCaMarche).toMatch(/no commission/i);
   });
 
   it("changer de langue sans boutique en contexte marche aussi", () => {

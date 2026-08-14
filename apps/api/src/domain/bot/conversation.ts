@@ -673,21 +673,52 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
   if (apres) return apres;
 
   if (!boutique) {
-    if (entree.genre === "texte" && demandeStatut(entree.texte)) {
+    const bouton = entree.genre === "bouton" ? entree.id : null;
+    if (bouton === "suivi" || (entree.genre === "texte" && demandeStatut(entree.texte))) {
       return {
         etat: ETAT_INITIAL,
         messages: [messageStatut(vers, ctx.derniereCommande ?? null, t)],
       };
     }
     /**
-     * L'aide OFFRE une sortie vendeuse — ADR 0034. Sans ce bouton, une
-     * personne qui a entendu parler de Catalog et qui ecrit au numero
-     * s'entend repondre d'ouvrir le lien d'une boutique qu'elle n'a pas :
-     * l'entonnoir fuyait au premier message.
+     * « Comment ça marche ? » — ADR 0103. La reponse REPOSE les deux gestes :
+     * quelqu'un qui vient de comprendre le produit est precisement celui qui
+     * va vouloir agir, et un texte nu le laisserait chercher quoi taper.
+     */
+    if (bouton === "comment") {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [
+          boutons(vers, t.commentCaMarche, [
+            { id: "vendre", titre: t.btnVendre },
+            { id: "suivi", titre: t.btnSuivre },
+          ]),
+        ],
+      };
+    }
+    /**
+     * L'accueil OFFRE les trois services joignables d'ici — ADR 0034 pour la
+     * sortie vendeuse, ADR 0103 pour les deux autres.
+     *
+     * Sans le premier bouton, une personne qui a entendu parler de Catalog et
+     * qui ecrit au numero s'entendait repondre d'ouvrir le lien d'une boutique
+     * qu'elle n'a pas : l'entonnoir fuyait au premier message. Les deux autres
+     * ferment la meme fuite pour les deux autres publics — celle qui attend sa
+     * commande devait DEVINER le mot « suivi », et celle qui ne connait pas le
+     * produit n'avait rien a lire.
+     *
+     * Trois est le maximum de l'API : ce menu est complet par construction, il
+     * ne peut pas s'allonger sans qu'on choisisse quoi retirer.
      */
     return {
       etat: ETAT_INITIAL,
-      messages: [boutons(vers, t.aideAcheteuse, [{ id: "vendre", titre: t.btnVendre }])],
+      messages: [
+        boutons(vers, t.aideAcheteuse, [
+          { id: "vendre", titre: t.btnVendre },
+          { id: "suivi", titre: t.btnSuivre },
+          { id: "comment", titre: t.btnComment },
+        ]),
+      ],
     };
   }
 

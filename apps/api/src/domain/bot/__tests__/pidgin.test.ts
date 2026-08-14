@@ -77,6 +77,14 @@ describe("le pidgin existe, entier et type", () => {
     /* Au-dela, l'API refuse le message : ce n'est pas une regle de style, c'est
        une limite du transport. Elle vaut pour les trois langues. */
     const boutons = [
+      /* Les trois boutons de l'ACCUEIL — ADR 0034, 0103. Ils manquaient a
+         cette liste : `btnVendre` etait un libelle de bouton depuis l'ADR 0034
+         et n'a jamais ete mesure ici. La troncature de `boutons()` est
+         SILENCIEUSE — un libelle trop long part ampute, sans erreur, et c'est
+         le premier message qu'une inconnue recoit. */
+      "btnVendre",
+      "btnSuivre",
+      "btnComment",
       "btnVoirArticles",
       "btnParlerVendeuse",
       "btnAccueil",

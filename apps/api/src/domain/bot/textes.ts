@@ -53,9 +53,34 @@ export const LANGUES_SERVIES: readonly Langue[] = PIDGIN_RELU ? ["fr", "en", "we
 
 export interface TextesAcheteuse {
   boutiqueIntrouvable: string;
+  /**
+   * L'ACCUEIL de quelqu'un qui ecrit au numero sans lien de boutique — ADR
+   * 0034, elargi le 14/08/2026 (ADR 0103).
+   *
+   * Il ne dit plus « ouvrez le lien d'une boutique » comme seule issue : il
+   * NOMME les trois services joignables d'ici, et les trois boutons qui
+   * suivent les rendent. Une orientation qui n'offre qu'une porte laisse
+   * dehors ceux que les deux autres concernent.
+   */
   aideAcheteuse: string;
   /** Le bouton qui ouvre l'inscription vendeuse — ADR 0034. */
   btnVendre: string;
+  /**
+   * Le bouton du suivi — ADR 0103. Le geste existait et marchait deja sans
+   * boutique ; il fallait le TAPER pour le trouver.
+   */
+  btnSuivre: string;
+  /** Le bouton qui explique le produit a qui n'en a jamais entendu parler. */
+  btnComment: string;
+  /**
+   * La reponse a « Comment ça marche ? » — ADR 0103.
+   *
+   * Elle dit la valeur numero un (AGENTS.md §1) : le recu opposable. Elle ne
+   * promet PAS d'annuaire de boutiques, parce qu'il n'en existe pas : une
+   * boutique se decouvre par un lien partage, et le dire evite de laisser
+   * chercher un catalogue general qui n'arrivera jamais.
+   */
+  commentCaMarche: string;
   aideGestes: string;
   annule: string;
   /**
@@ -297,8 +322,12 @@ export interface TextesAcheteuse {
 const fr: TextesAcheteuse = {
   boutiqueIntrouvable: "Cette boutique est introuvable. Vérifiez le lien reçu.",
   aideAcheteuse:
-    "Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes.",
+    "Je suis Catalog. Ici, une vendeuse ouvre sa boutique en deux minutes, et une acheteuse suit sa commande et vérifie son reçu.\n\nQue puis-je faire pour vous ?",
   btnVendre: "Vendre avec Catalog",
+  btnSuivre: "Suivre ma commande",
+  btnComment: "Comment ça marche ?",
+  commentCaMarche:
+    "Catalog aide une vendeuse qui vend déjà sur WhatsApp : un catalogue partageable, un paiement mobile money et un reçu vérifiable.\n\nL'argent va directement de vous à elle — Catalog n'encaisse rien et ne prend aucune commission. Quand elle colle le SMS de son opérateur, votre paiement devient un reçu que n'importe qui peut vérifier : c'est la différence avec une capture d'écran.\n\nPour commander, il vous faut le lien de sa boutique — elle vous l'envoie. Il n'y a pas d'annuaire ici.",
   aideGestes:
     "Quatre mots marchent partout : « menu » (accueil de la boutique), « panier » (ce que vous avez choisi), « annuler » (abandonner la commande en cours), « suivi » (votre dernière commande). Pour un humain, le bouton « Parler à la vendeuse » est à l'accueil. Write « english » for English.",
   annule: "C'est annulé — le panier est vide, rien n'a été commandé.",
@@ -534,8 +563,12 @@ const fr: TextesAcheteuse = {
 const en: TextesAcheteuse = {
   boutiqueIntrouvable: "This shop could not be found. Check the link you received.",
   aideAcheteuse:
-    "I am Catalog. Open a shop link to order — or open your own, right here, in two minutes.",
+    "I am Catalog. Here, a seller opens her shop in two minutes, and a buyer tracks her order and checks her receipt.\n\nWhat can I do for you?",
   btnVendre: "Sell with Catalog",
+  btnSuivre: "Track my order",
+  btnComment: "How does it work?",
+  commentCaMarche:
+    "Catalog helps sellers who already sell on WhatsApp: a shareable catalogue, mobile money payment and a verifiable receipt.\n\nThe money goes straight from you to her — Catalog never holds it and takes no commission. When she pastes her operator's SMS, your payment becomes a receipt anyone can check: that is the difference with a screenshot.\n\nTo order, you need her shop link — she sends it to you. There is no directory here.",
   aideGestes:
     "Four words work everywhere: “menu” (shop home), “cart” (what you picked), “cancel” (drop the current order), “status” (your last order). For a human, the “Talk to the seller” button is on the home screen. Écrivez « français » pour le français.",
   annule: "Cancelled — your cart is empty, nothing was ordered.",
@@ -781,8 +814,19 @@ const wes: TextesAcheteuse = {
    */
   ...fr,
   boutiqueIntrouvable: "A no fit find dis shop. Check di link weh dem send you.",
-  aideAcheteuse:
-    "Na me be di Catalog katalog. Open some shop yi link, or write \u00ab boutique \u00bb plus yi short name (example: boutique chez-amina).",
+  /**
+   * `aideAcheteuse` est RETOMBEE sur le francais le 14/08/2026 \u2014 ADR 0103.
+   *
+   * Le pidgin ecrit ici decrivait l'ancien message : une seule issue, \u00ab ouvre
+   * le lien d'une boutique \u00bb. Le message en porte maintenant trois, et ses
+   * trois boutons sont en repli francais. Garder l'ancienne phrase ferait
+   * annoncer UN service par un texte pidgin au-dessus de TROIS boutons
+   * francais \u2014 pire qu'un repli franc. La reecrire serait inventer une
+   * traduction, ce que l'ADR 0034 interdit.
+   *
+   * Elle revient le jour ou une locutrice relira le nouveau message. Le texte
+   * d'origine reste dans l'historique du depot.
+   */
   aideGestes:
     "Tri wod di work everywhere: \u00ab menu \u00bb (shop home), \u00ab annuler \u00bb (komot for di order weh you start), \u00ab suivi \u00bb (yua las order). If you wan tok wit person, di button \u00ab Tok wit di seller \u00bb dey for home. Write \u00ab fran\u00e7ais \u00bb or \u00ab english \u00bb for change langwej.",
   annule: "A don cancel-am \u2014 yua basket empty, you no order anytin.",
