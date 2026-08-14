@@ -61,12 +61,61 @@ env:
   TZ: "Africa/Douala"
 
 jobs:
-  # ── La porte ───────────────────────────────────────────────────────────
+  # ── La porte, en TROIS battants ────────────────────────────────────────
   #
   # Rien ne part sans que la chaine de verification soit repassee sur le commit
   # qu'on deploie. La CI a deja tourne sur la pull request, mais `main` a pu
   # bouger depuis, et c'est exactement le cas ou l'on veut le savoir avant.
-  porte:
+  #
+  # ── Pourquoi trois jobs et non un ─────────────────────────────────────
+  #
+  # C'etait UN job, donc UN runner a deux coeurs, et les cinq etapes s'y
+  # suivaient en file. Mesure du passage du 14/08 (run 31785207475), rendue
+  # possible par le decoupage en etapes nommees du commit precedent :
+  #
+  #     preambule 44 s · Types 37 s · Lint 2 s · Tests 93 s · Build 19 s
+  #     Budget 2 s · audit 1 s · CSP 3 s        →  3 min 24 s
+  #
+  # Aucune de ces trois familles n'a besoin du resultat des autres. Menees de
+  # front, la porte vaut le plus long des trois battants au lieu de leur somme.
+  #
+  # Le prix est assume et il se chiffre : le preambule est paye trois fois, donc
+  # ~289 runner-secondes au lieu de 204 — +40 % de minutes facturees pour -30 %
+  # d'attente. C'est le bon cote du marche quand on attend un deploiement.
+  #
+  # ── Les preambules ne sont PAS identiques, et c'est mesure ────────────
+  #
+  # `porte-types` n'a ni service postgres, ni migrations, ni instantane :
+  # verifie le 14/08 en local, `pnpm typecheck` et `pnpm lint` passent avec une
+  # `DATABASE_URL` qui ne mene nulle part et sans `catalogue.json` — la boutique
+  # charge son instantane par `import.meta.glob`, qui rend `null` au lieu
+  # d'echouer. Douze secondes d'initialisation de conteneur en moins.
+  #
+  # `pnpm db:generate` reste partout : il ne se connecte a rien (il lit un
+  # schema et ecrit du code), et le client genere est importe par le typage
+  # comme par le build.
+
+  porte-types:
+    runs-on: ubuntu-latest
+    # Une URL de facade : `prisma generate` EXIGE la variable (ADR 0014) mais
+    # n'ouvre aucune connexion. Rien d'autre dans ce job ne parle a une base.
+    env:
+      DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - name: Types
+        run: pnpm typecheck
+      - name: Lint et format
+        run: pnpm lint
+
+  porte-tests:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -93,24 +142,46 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm db:migrate
+      # Garde ici bien qu'il ne soit pas prouve necessaire : ce job porte deja
+      # la base, l'etape coute une seconde, et retirer une entree que les tests
+      # voient serait changer ce qu'ils mesurent en meme temps qu'on deplace les
+      # meubles. Un decoupage ne touche pas aux entrees.
       - run: pnpm shop:snapshot
-      # ── Cinq etapes, pas une ────────────────────────────────────────────
-      #
-      # Elles etaient enchainees par `&&` dans un seul `run`. Le comportement
-      # est identique — une etape qui echoue arrete le job dans les deux cas —
-      # mais GitHub n'en rendait qu'UNE duree : 2 min 43 s sur le passage du
-      # 14/08, sans qu'on sache laquelle les consomme.
-      #
-      # On ne peut pas optimiser ce qu'on ne mesure pas, et le decoupage ne
-      # coute rien. C'est aussi la forme qu'a deja `ci.yml`, ou ces cinq
-      # commandes sont cinq etapes depuis toujours : les deux workflows
-      # cessent de diverger sur ce point.
-      - name: Types
-        run: pnpm typecheck
-      - name: Lint et format
-        run: pnpm lint
       - name: Tests
         run: pnpm test
+
+  porte-paquet:
+    runs-on: ubuntu-latest
+    # `pnpm shop:snapshot` lit la base — c'est le chemin de la chaine de
+    # verification, distinct de `shop:snapshot:distant` du deploiement
+    # (ADR 0070). Sans instantane, aucune page de boutique n'est construite, et
+    # le budget de poids ne mesurerait plus rien.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: catalog
+          POSTGRES_PASSWORD: catalog
+          POSTGRES_DB: catalog
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U catalog"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      DATABASE_URL: "postgresql://catalog:catalog@127.0.0.1:5432/catalog?schema=public"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:migrate
+      - run: pnpm shop:snapshot
       - name: Build
         run: pnpm build
       - name: Budget de poids
@@ -130,6 +201,9 @@ jobs:
       # dans `entetes.test.ts` et se declarent ignorees sans `dist/` — d'ou ce
       # second passage, APRES le build. Sans lui, elles ne tournaient jamais en
       # integration continue.
+      #
+      # Elle reste DANS ce job, et pas dans `porte-tests` : elle lit `dist/`,
+      # donc elle appartient a celui qui construit.
       - name: En-tetes et CSP — verifies contre le HTML construit
         run: pnpm --filter @catalog/shop test
 
@@ -187,10 +261,11 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
   api:
-    # `porte` ET `image` : la porte garde la mise en service, l'image doit
-    # exister pour qu'il y ait quelque chose a livrer. GitHub saute ce job si
-    # l'un des deux echoue.
-    needs: [porte, image]
+    # Les TROIS battants de la porte, ET l'image : la porte garde la mise en
+    # service, l'image doit exister pour qu'il y ait quelque chose a livrer.
+    # GitHub saute ce job des qu'un seul des quatre echoue — la porte reste
+    # entiere, elle est seulement franchie de front.
+    needs: [porte-types, porte-tests, porte-paquet, image]
     # PAS de `${{ }}` ici : `if` est deja un contexte d'expression. Enveloppe,
     # la condition deviendrait une CHAINE non vide — donc toujours vraie, et le
     # job partirait a chaque dispatch.
@@ -264,7 +339,7 @@ jobs:
           exit 1
 
   boutique:
-    needs: porte
+    needs: [porte-types, porte-tests, porte-paquet]
     if: (inputs.cible || 'boutique') == 'boutique' || (inputs.cible || 'boutique') == 'les-deux'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}
