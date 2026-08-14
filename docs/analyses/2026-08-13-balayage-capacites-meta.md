@@ -243,7 +243,37 @@ pas : `product.variants` sans modèle, le pidgin écrit et non servi
 
 ## 5 bis. Deuxième passe (13/08, soir) — ce que le balayage approfondi ajoute
 
-### La version de Flow JSON est un chantier en soi
+### Les versions de Flow JSON EXPIRENT — et nos cinq formulaires sont en 7.0
+
+C'est le point le plus important de la seconde passe, et il n'était pas cherché.
+
+Une version de Flow JSON passe par **trois états** : *Active* (utilisable pour
+de nouveaux Flows), *Frozen* (plus de nouveaux Flows, les existants continuent
+de fonctionner), puis **Expired — « les Flows associés cessent de
+fonctionner »**. La cadence annoncée est d'environ douze mois avant le gel,
+douze de plus avant l'expiration, « certaines versions pouvant être dépréciées
+plus tôt ».
+
+**Les cinq formulaires de Catalog sont en 7.0.** Le jour où 7.0 expire, ils
+cessent de s'ouvrir — et le repli est silencieux par construction (un Flow qui
+ne s'affiche pas laisse la question, ADR 0063). Personne ne le verrait dans une
+erreur ; on le verrait dans le fait que plus aucune vendeuse n'utilise le
+formulaire.
+
+**La date exacte n'a pas pu être lue.** Le tableau des versions vit dans le
+journal des changements, et ce journal est **inatteignable depuis cet
+environnement** : six tentatives, quatre formes d'URL, HTTP 500 systématique
+(la forme singulière rend 404, ce qui confirme que `/changelogs/` est bien le
+chemin) ; l'archive web est bloquée. Toutes les autres pages Meta répondent —
+c'est propre à ces deux pages.
+
+Ce qui reste faisable, et qui est le réflexe de ce dépôt : **mesurer**.
+`flux.mjs --mesurer-composants 7.0` dit si notre WABA accepte encore la 7.0
+pour un nouveau Flow — c'est-à-dire si elle est déjà *Frozen*. La même commande
+en 7.3 dit où aller. La date d'expiration, elle, se lira dans la console Meta
+ou dans le journal quand il redeviendra accessible.
+
+### La version courante est un chantier en soi
 
 La version courante est **7.3** ; les cinq formulaires de Catalog sont en
 **7.0**. Trois des composants visés exigent plus que 7.0 — `NavigationList`
@@ -345,4 +375,8 @@ n'a été montrée à une vendeuse. `docs/terrain/bot-parcours.html` existe pour
 - [Composants de Flow — guide](https://developers.facebook.com/documentation/business-messaging/whatsapp/flows/guides/components)
 - [Gabarits carrousel média](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/marketing-templates/media-card-carousel-templates)
 - [Flow JSON — référence](https://developers.facebook.com/docs/whatsapp/flows/reference/flowjson/)
-- [Journal des changements](https://developers.facebook.com/documentation/business-messaging/whatsapp/changelog) *(HTTP 500 au moment du balayage — non consulté)*
+- [Journal des changements](https://developers.facebook.com/documentation/business-messaging/whatsapp/changelog) et
+  [journal des Flows](https://developers.facebook.com/docs/whatsapp/flows/changelogs/) —
+  **inatteignables**, HTTP 500 reproductible sur six tentatives et quatre formes
+  d'URL, archive web bloquée. C'est là que vit le tableau des versions et de
+  leurs dates d'expiration : la question se reporte donc sur la mesure.
