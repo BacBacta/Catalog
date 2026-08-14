@@ -127,3 +127,66 @@ export function corpsLivraisonRefusee(reference: string, raison: string): string
         : "cette étape n'est pas atteignable maintenant";
   return `${reference} : rien n'a bougé — ${explication}. Le détail est dans votre espace vendeuse, écran Commandes.`;
 }
+
+/* ───────────────── le récapitulatif d'absence — ADR 0105 ────────────────── */
+
+/**
+ * Combien de sujets un récapitulatif porte au plus. C'était `REMISES_MAX = 5`
+ * messages séparés ; le plafond garde le même rôle — informer, jamais
+ * inonder — mais compte désormais des SUJETS dans UN message.
+ */
+export const RECAP_SUJETS_MAX = 10;
+
+/**
+ * Compose le récapitulatif d'absence à partir des corps en attente.
+ *
+ * ── Pourquoi un récapitulatif, et pas cinq messages ───────────────────────
+ *
+ * Une vendeuse qui revient après une bonne journée recevait jusqu'à cinq
+ * messages d'un coup — un par commande —, mêlés à sa conversation en cours.
+ * L'information y était ; RETROUVER n'y était pas. C'est la saturation nommée
+ * le 14/08/2026, et la plateforme n'a rien pour elle : l'API Cloud ne connaît
+ * que le message — ni file, ni regroupement, ni centre de notifications.
+ *
+ * Le récapitulatif tient en UN message : une ligne par événement — la
+ * PREMIÈRE ligne de chaque notification, qui est déjà son titre
+ * (« *CT-240812 est créée.* ») —, puis où trouver le détail. Le détail d'une
+ * commande n'est pas dans la notification : il est dans la commande, que
+ * l'espace vendeuse affiche. On peut donc résumer sans rien perdre.
+ *
+ * ── Ce qui ne se résume JAMAIS ────────────────────────────────────────────
+ *
+ * - les notifications à BOUTONS (contre-signature, avis — ADR 0036) : un
+ *   bouton ne se résume pas, le perdre couperait la preuve à deux voix ;
+ * - les AVERTISSEMENTS (corps ouvrant par ⚠️) : une contestation gèle une
+ *   commande, elle mérite son message entier.
+ *
+ * Le tri est fait par l'appelant ; cette fonction ne reçoit que ce qui se
+ * résume. Elle est pure : des chaînes vers une chaîne, rien d'autre.
+ */
+export function recapAbsence(corpsEnAttente: readonly string[]): string | null {
+  if (corpsEnAttente.length < 2) return null;
+  const gardes = corpsEnAttente.slice(0, RECAP_SUJETS_MAX);
+  const lignes = gardes.map((c) => {
+    const premiere = (c.split("\n", 1)[0] ?? "").trim();
+    const titre = premiere.length > 0 ? premiere : "(notification sans titre)";
+    return `· ${titre.length > 90 ? `${titre.slice(0, 89)}…` : titre}`;
+  });
+  const deborde = corpsEnAttente.length - gardes.length;
+  return [
+    `📥 *Pendant votre absence — ${corpsEnAttente.length} nouvelles :*`,
+    "",
+    ...lignes,
+    ...(deborde > 0 ? [`… et ${deborde} de plus, au prochain message.`] : []),
+    "",
+    /* Un geste qui EXISTE — l'écran Commandes de l'espace vendeuse — jamais
+       un mot que le bot ne connaît pas encore : promettre un geste absent est
+       la faute de « Voir une boutique » (ADR 0103, 0104). */
+    "Le détail de chaque commande est dans votre espace vendeuse, écran Commandes.",
+  ].join("\n");
+}
+
+/** Ce qui se résume : ni boutons, ni avertissement. Une règle, un seul endroit. */
+export function estResumable(corps: string, aDesBoutons: boolean): boolean {
+  return !aDesBoutons && !corps.trimStart().startsWith("⚠️");
+}

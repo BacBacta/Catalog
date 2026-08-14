@@ -97,6 +97,9 @@ export const BLOCS = {
   "harnais-balayage": 24,
   "harnais-vendeuse": 25,
   "harnais-acheteuse": 26,
+  /* Le recapitulatif d'absence (ADR 0105) : quelques numeros de file, rien
+     de plus. */
+  "recap-absence-remise": 27,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

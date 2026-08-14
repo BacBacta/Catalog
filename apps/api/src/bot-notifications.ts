@@ -3,7 +3,12 @@ import type { PrismaClient } from "@catalog/db";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import { gabaritPour, type SujetNotification, variablesManquantes } from "./domain/bot/gabarits.ts";
 import { boutons, gabarit, type MessageSortant, texte } from "./domain/bot/messages.ts";
-import { decisionRemise } from "./domain/bot/notifications.ts";
+import {
+  decisionRemise,
+  estResumable,
+  RECAP_SUJETS_MAX,
+  recapAbsence,
+} from "./domain/bot/notifications.ts";
 import { TEXTES } from "./domain/bot/textes.ts";
 
 /**
@@ -128,13 +133,26 @@ export async function notifier(
   }
 }
 
-/** Plafond de remise par interaction : informer, jamais inonder. */
+/** Plafond de MESSAGES par interaction : informer, jamais inonder. */
 const REMISES_MAX = 5;
 
 /**
  * Remet les notifications en attente d'un numero — appele au debut de chaque
  * entree traitee : le message entrant vient d'OUVRIR la fenetre, c'est le
  * moment sur. La remise se date ; un envoi rate laisse le reste en place.
+ *
+ * ── Le recapitulatif d'absence — ADR 0105 ────────────────────────────────
+ *
+ * Ce qui se RESUME (ni boutons, ni avertissement — `estResumable`) part en UN
+ * message recapitulatif au lieu de N : c'etait jusqu'a cinq notifications de
+ * commande d'affilee, melees a la conversation en cours, et Meta n'a aucun
+ * mecanisme pour ca. Le reste — boutons de contre-signature, contestations —
+ * garde son message entier, dans la limite d'avant.
+ *
+ * L'ORDRE est voulu : le recapitulatif d'abord (la vue d'ensemble), les
+ * messages entiers ensuite (les gestes). Seules les notifications que le
+ * recapitulatif PORTE sont marquees remises — un debordement au-dela de
+ * `RECAP_SUJETS_MAX` reste en file et se dit (« … et N de plus »).
  */
 export async function livrerNotificationsEnAttente(
   deps: NotificateurDeps,
@@ -144,9 +162,29 @@ export async function livrerNotificationsEnAttente(
     const enAttente = await deps.prisma.botNotification.findMany({
       where: { phone, remisLe: null },
       orderBy: { creeLe: "asc" },
-      take: REMISES_MAX,
+      take: RECAP_SUJETS_MAX + REMISES_MAX,
     });
-    for (const n of enAttente) {
+
+    const resumables = enAttente.filter((n) =>
+      estResumable(n.corps, boutonsPersistes(n.boutons).length > 0),
+    );
+    const entieres = enAttente.filter((n) => !resumables.includes(n));
+
+    const recap = recapAbsence(resumables.map((n) => n.corps));
+    if (recap) {
+      await deps.envoyeur.envoyer(texte(versWhatsapp(phone), recap));
+      for (const n of resumables.slice(0, RECAP_SUJETS_MAX)) {
+        await deps.prisma.botNotification.update({
+          where: { id: n.id },
+          data: { remisLe: deps.maintenant?.() ?? new Date() },
+        });
+      }
+    }
+
+    /* Une seule notification resumable ne merite pas un recapitulatif : elle
+       part entiere, comme avant. */
+    const seules = recap ? [] : resumables;
+    for (const n of [...seules, ...entieres].slice(0, REMISES_MAX)) {
       await deps.envoyeur.envoyer(messageDe(phone, n.corps, boutonsPersistes(n.boutons)));
       await deps.prisma.botNotification.update({
         where: { id: n.id },
