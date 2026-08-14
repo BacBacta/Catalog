@@ -31,7 +31,34 @@ let prisma: PrismaClient;
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
 const RUN = 875 * 1000 + selExecution();
-const NOW = new Date("2026-08-05T09:00:00+01:00");
+/**
+ * ── L'horloge est celle du PRESENT, et ce n'est pas un detail ─────────────
+ *
+ * Elle etait figee au 05/08/2026 — la date du defaut, en guise de recit. Cela
+ * rendait ce fichier fragile a un titre qu'on ne voit pas en le lisant :
+ *
+ * `traiterLivraisonBot` se termine par une purge GLOBALE et DATEE — elle
+ * supprime tout `bot_message_vu` dont `reclameLe` remonte a plus de trois
+ * jours de SON horloge a elle. Un autre fichier de tests, joue en parallele
+ * avec l'horloge reelle, effacait donc les lignes de celui-ci en plein milieu.
+ * La garde d'idempotence se retrouvait desarmee : chaque relivraison creait sa
+ * ligne a neuf et repondait.
+ *
+ * Mesure du 14/08 (sel 911) : « expected 4 to be 1 » sur la relivraison — les
+ * trois rejeux traites —, et « expected 0 to be 1 » sur la ligne recente du
+ * test de purge. Puis reproduit HORS SUITE, deterministe : une ligne posee au
+ * 05/08 disparait au premier passage d'un `traiterLivraisonBot` a l'heure
+ * reelle.
+ *
+ * **Ce n'est pas un defaut du produit.** En production toutes les instances
+ * partagent la meme horloge : aucune ne purge les lignes fraiches d'une autre.
+ * C'est le fait d'epingler une horloge dans le passe tout en appelant du code
+ * qui purge globalement par le temps.
+ *
+ * Tous les usages de `NOW` ci-dessous sont RELATIFS — des ecarts. Rien ne
+ * dependait de la date elle-meme, et le recit du 05/08 vit dans l'en-tete.
+ */
+const NOW = new Date();
 
 class EnvoyeurMemoire implements EnvoyeurBot {
   readonly nom = "memoire";

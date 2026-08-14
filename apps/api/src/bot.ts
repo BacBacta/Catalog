@@ -324,7 +324,20 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
   }
 
   /* La purge se fait ici plutot que dans un job : la table ne vit que par ce
-     chemin, et une ligne de trois jours n'a plus aucune relivraison a bloquer. */
+     chemin, et une ligne de trois jours n'a plus aucune relivraison a bloquer.
+
+     ── Elle est GLOBALE et DATEE, et ca se paie en test ──────────────────
+     Elle ne regarde ni le numero ni la conversation : elle efface tout ce qui
+     est vieux selon l'horloge de CET appel. En production c'est sans danger —
+     toutes les instances partagent le temps reel, aucune n'efface les lignes
+     fraiches d'une autre.
+
+     En test, un fichier qui EPINGLE son horloge dans le passe se fait raser
+     ses lignes par n'importe quel autre fichier joue en parallele a l'heure
+     reelle. Constate le 14/08 : `bot-idempotence.test.ts` etait fige au 05/08,
+     sa garde se retrouvait desarmee une execution complete sur cinq, et le
+     rouge accusait le produit. Voir l'ADR 0099 — l'horloge d'un test qui
+     touche cette table se prend au present. */
   await deps.prisma.botMessageVu
     .deleteMany({ where: { reclameLe: { lt: new Date(maintenant.getTime() - RETENTION_VUS_MS) } } })
     .catch(() => {});
