@@ -90,6 +90,19 @@ const reponseFlux = (de: string, charge: Record<string, unknown>) => ({
 
 interface Scene {
   waId: string;
+  /**
+   * Le nom de boutique vient du SCHEMA, pas d'une constante — et c'est le
+   * defaut que ce fichier a lui-meme commis le 15/08/2026.
+   *
+   * Avec un nom fixe (« Chop »), le slug `chop` devient une ressource
+   * PARTAGEE entre executions : un test qui echoue avant son nettoyage laisse
+   * la boutique derriere lui, et l'execution suivante retrouve une vendeuse
+   * deja inscrite sur le meme numero — le formulaire d'ouverture n'est alors
+   * plus recevable, et l'echec ne ressemble en rien a sa cause. Le schema
+   * d'identifiants existe exactement pour ca : ce qui est unique par
+   * execution doit TOUT venir de lui.
+   */
+  boutique: string;
   envoyeur: EnvoyeurMemoire;
   deps: BotDeps;
 }
@@ -100,6 +113,7 @@ function scene(): Scene {
   const envoyeur = new EnvoyeurMemoire();
   return {
     waId,
+    boutique: `Chop ${n}`,
     envoyeur,
     deps: {
       prisma,
@@ -145,7 +159,7 @@ describeDb("la photo du formulaire d'ouverture (ADR 0102)", () => {
       s.deps,
       reponseFlux(s.waId, {
         flow_token: jetonFlux("ouverture"),
-        boutique: "Chop",
+        boutique: s.boutique,
         ville: "Douala",
         langue: "fr",
         nom: "Sac",
@@ -190,7 +204,7 @@ describeDb("la photo du formulaire d'ouverture (ADR 0102)", () => {
       s.deps,
       reponseFlux(s.waId, {
         flow_token: jetonFlux("ouverture"),
-        boutique: "Chop",
+        boutique: s.boutique,
         ville: "Douala",
         langue: "fr",
         nom: "Sac",
