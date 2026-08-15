@@ -1,6 +1,7 @@
 import { IMAGE_TAILLE_MAX_OCTETS } from "@catalog/contracts";
 import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
+import { garantiesSqlPosees } from "./adapters/garanties-sql.ts";
 import { construireInstantane } from "./adapters/instantane-catalogue.ts";
 import { verificateurDepuisEnv } from "./adapters/jeton-actions-github.ts";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
@@ -23,6 +24,8 @@ import { rampeDepuisEnv } from "./domain/ramp/config.ts";
 import { limitesDepuisEnv } from "./domain/rate-limit.ts";
 import { reglesDepuisEnv } from "./domain/securite/debit.ts";
 import {
+  type ChargeExpiration,
+  type ChargeRafale,
   type ChargeRelance,
   type ChargeRelanceReversement,
   demarrerJobsBot,
@@ -30,7 +33,7 @@ import {
 import { gardeDeCohorte } from "./middleware/cohorte.ts";
 import { limiterDebit, MemoireDeDebit } from "./middleware/debit.ts";
 import { monterAvecGardes, TAILLE_JSON_MAX } from "./middleware/securite.ts";
-import { demarrerObservabilite } from "./observabilite/demarrage.ts";
+import { arreterObservabilite, demarrerObservabilite } from "./observabilite/demarrage.ts";
 import { accuseLivraisonRoutes } from "./routes/accuse-livraison.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { commandeRoutes } from "./routes/commandes.ts";
@@ -52,6 +55,10 @@ import { whatsappEntrantRoutes } from "./routes/whatsapp-entrant.ts";
  * `app.ts` reste constructible sans base, ce qui permet de le tester nu.
  */
 const prisma = createPrismaClient();
+
+/** Ce que l'arret propre doit fermer — rempli au fil des demarrages. */
+const arreterProprement: Array<() => Promise<unknown>> = [];
+
 const sms = smsSenderDepuisEnv();
 const otpStore = new PrismaOtpAttemptStore(prisma);
 const storage = resolveStorage();
@@ -273,6 +280,9 @@ app.route(
       await prisma.$queryRaw`SELECT 1`;
       return true;
     },
+    /* Les garanties SQL du lot 3, constatees dans la base REELLE — residu A3
+       de l'audit 2026-08. Voir `adapters/garanties-sql.ts`. */
+    garantiesSql: () => garantiesSqlPosees(prisma),
     position: () => positionCourante(),
     message: () => process.env.STATUT_MESSAGE?.trim() || null,
     ...(process.env.CATALOG_VERSION ? { version: process.env.CATALOG_VERSION } : {}),
@@ -316,9 +326,14 @@ if (secretEntrant && secretAppMeta) {
         const cible = bot as {
           planifierRelance?: (c: ChargeRelance) => Promise<void>;
           planifierRelanceReversement?: (c: ChargeRelanceReversement) => Promise<void>;
+          planifierExpiration?: (c: ChargeExpiration) => Promise<void>;
+          planifierRafale?: (c: ChargeRafale) => Promise<void>;
         };
         cible.planifierRelance = jobs.planifierRelance;
         cible.planifierRelanceReversement = jobs.planifierRelanceReversement;
+        cible.planifierExpiration = jobs.planifierExpiration;
+        cible.planifierRafale = jobs.planifierRafale;
+        arreterProprement.push(() => jobs.arreter());
       })
       .catch(() => console.warn("jobs bot : demarrage refuse — le bot continue sans relance"));
   }
@@ -424,3 +439,24 @@ const racine = monterAvecGardes(app, {
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: racine.fetch, port });
 console.log(`catalog-api ecoute sur http://localhost:${port}`);
+
+/**
+ * L'arret PROPRE — constat B2 de l'audit 2026-08.
+ *
+ * `arreterObservabilite()` (vidage des derniers lots de spans) et
+ * `jobs.arreter()` (pg-boss) etaient ecrits, commentes « a appeler avant un
+ * arret propre »… et appeles par personne : chaque redeploiement perdait les
+ * spans en lot et coupait la file a la hache. Un seul passage — un second
+ * signal pendant l'arret n'attend pas : il sort, l'hebergeur a le dernier
+ * mot de toute facon (fly kill_timeout).
+ */
+let arretEnCours = false;
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.on(signal, () => {
+    if (arretEnCours) process.exit(1);
+    arretEnCours = true;
+    void Promise.allSettled(arreterProprement.map((f) => f()))
+      .then(() => arreterObservabilite())
+      .finally(() => process.exit(0));
+  });
+}

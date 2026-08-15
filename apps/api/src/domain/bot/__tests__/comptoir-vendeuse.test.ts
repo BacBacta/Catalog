@@ -125,10 +125,50 @@ describe("le recapitulatif, avant toute creation", () => {
     expect(r.type).toBe("creer");
   });
 
-  it("« corriger » revient au debut, sans perdre la conversation", () => {
+  it("« corriger » GARDE les quatre faits et demande LEQUEL corriger (non-retour C-04)", () => {
+    /* Avant l'audit 2026-08, « corriger » repartait de COMPTOIR_DEPART :
+       article, prix, cliente, remise — tout etait a retaper. Le defaut que
+       l'ADR 0053 avait corrige cote acheteuse subsistait ici. */
     const r = avancerComptoir(jusquAuRecap(), { texte: "corriger" });
-    expect(r.etat.pas).toBe("article");
     expect(r.type).not.toBe("creer");
+    expect(r.etat).toMatchObject({
+      pas: "choix",
+      article: "Robe wax grande taille",
+      prixXaf: 12500,
+    });
+  });
+
+  it("la correction est CIBLEE : le fait choisi se retape, les trois autres restent", () => {
+    const choix = avancerComptoir(jusquAuRecap(), { texte: "corriger" }).etat;
+    /* Le mot tape vaut l'appui — « numero » vise la cliente. */
+    const correction = avancerComptoir(choix, { texte: "numéro" }).etat;
+    expect(correction).toMatchObject({ pas: "correction", cible: "cliente" });
+    const retour = avancerComptoir(correction, { texte: "699 88 77 66" });
+    expect(retour.type).toBe("recap");
+    expect(retour.etat).toMatchObject({
+      pas: "recap",
+      article: "Robe wax grande taille",
+      prixXaf: 12500,
+      cliente: "+237699887766",
+    });
+    /* Corrigee, la vente se cree avec le fait NOUVEAU et les trois anciens. */
+    const creer = avancerComptoir(retour.etat, { texte: "confirmer" });
+    expect(creer.vente).toMatchObject({ cliente: "+237699887766", prixXaf: 12500 });
+  });
+
+  it("une correction refusee re-explique, et le fait d'origine n'est pas perdu", () => {
+    const choix = avancerComptoir(jusquAuRecap(), { texte: "corriger" }).etat;
+    const correction = avancerComptoir(choix, { id: "corr:prix", texte: "" }).etat;
+    const refus = avancerComptoir(correction, { texte: "gratuit" });
+    expect(refus).toMatchObject({ type: "refus", motif: "prix_illisible" });
+    expect(refus.etat).toMatchObject({ pas: "correction", cible: "prix", prixXaf: 12500 });
+  });
+
+  it("« retour » au choix re-montre le recapitulatif, rien n'a bouge", () => {
+    const choix = avancerComptoir(jusquAuRecap(), { texte: "corriger" }).etat;
+    const r = avancerComptoir(choix, { texte: "retour" });
+    expect(r.type).toBe("recap");
+    expect(r.etat).toMatchObject({ pas: "recap", article: "Robe wax grande taille" });
   });
 
   it("« annuler » ferme le comptoir, et ne cree rien", () => {

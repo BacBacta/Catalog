@@ -28,6 +28,12 @@ export interface CommandePourRelance {
   amountPaidXaf: number;
   annuleeA: Date | null;
   creeeA: Date;
+  /**
+   * L'acompte FIGE a la creation — ADR 0094 (constat A4). La relance redit
+   * alors le montant que la commande a demande, pas ce que la constante vaut
+   * aujourd'hui. `null` ou absent : commande d'avant la colonne, recalcul.
+   */
+  duAvantXaf?: number | null;
 }
 
 export type DecisionRelance = { relancer: false } | { relancer: true; acompteXaf: number };
@@ -46,7 +52,10 @@ export function decisionRelance(c: CommandePourRelance, maintenant: Date): Decis
   if (c.annuleeA) return { relancer: false };
   const age = maintenant.getTime() - c.creeeA.getTime();
   if (age < 0 || age > RELANCE_FENETRE_MAX_MS) return { relancer: false };
-  return { relancer: true, acompteXaf: planDePaiement(c.totalXaf, "acompte").duAvantXaf };
+  return {
+    relancer: true,
+    acompteXaf: c.duAvantXaf ?? planDePaiement(c.totalXaf, "acompte").duAvantXaf,
+  };
 }
 
 /* ────────────────────── la relance reversement (ADR 0035) ────────────────── */

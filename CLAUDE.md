@@ -69,7 +69,10 @@ manquante, arrête-toi et demande plutôt que d'inventer une valeur plausible.
 ## Tâche en cours
 
 La séquence d'implémentation vit dans `PROMPTS.md` : un lot par session, dans
-l'ordre. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
+l'ordre. **La séquence suivante — la cible premium validée le 15/08/2026 —
+vit dans `PROMPTS-premium.md`** : sa spécification d'expérience est
+`docs/terrain/parcours-premium.html`, et le lot P0 (ADR de cadrage et quatre
+décisions) se fait avant les lots P1 à P7. Faits : lot 0 (bascule v1 sans agrégateur et renommage), lot 2
 (jetons de design et primitives), lot 3 (schéma de preuve et contraintes SQL),
 lot 4 (authentification par téléphone, numéro de reversement, limitation de
 débit, écrans vendeuse), lot 5 (catalogue et chaîne d'images), lot 6 (boutique

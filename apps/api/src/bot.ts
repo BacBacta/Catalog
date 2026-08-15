@@ -55,7 +55,7 @@ import {
   type StatutDerniereCommande,
 } from "./domain/bot/conversation.ts";
 import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
-import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
+import { type EntreeBot, lireEntreesBot, lireStatutsEnvoi } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import {
   genreDuJeton,
@@ -72,6 +72,7 @@ import {
   messageArticlePublie,
   messageBoutiqueCreee,
   messageOnboarding,
+  messageRafalePubliee,
   normaliserEtatVendeuse,
   PREMIERE_QUESTION,
   questionDeLEtat,
@@ -96,6 +97,7 @@ import { consigneDuPack, packStatut } from "./domain/bot/pack-statut.ts";
 import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
+import type { PhotoIndisponible } from "./domain/image.ts";
 import {
   avancerEtape,
   type CommandePourCycle,
@@ -115,8 +117,13 @@ import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
 import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
-import type { ChargeRelance } from "./jobs/relance-acompte.ts";
-import { mesurerEtatPreuve, mesurerTransitionBot } from "./observabilite/mesures.ts";
+import type { ChargeExpiration, ChargeRelance } from "./jobs/relance-acompte.ts";
+import {
+  mesurerEtatPreuve,
+  mesurerMediaBot,
+  mesurerStatutEnvoiBot,
+  mesurerTransitionBot,
+} from "./observabilite/mesures.ts";
 import { avecSpan, PARCOURS, poser } from "./observabilite/traces.ts";
 import { soumettrePreuve } from "./preuve-service.ts";
 import { basculerConges, slugifier, slugLibre } from "./routes/seller.ts";
@@ -168,6 +175,19 @@ export interface BotDeps {
    * Meme regle : absente, la boutique vit sans rappel.
    */
   planifierRelanceReversement?: (charge: { sellerId: string; phone: string }) => Promise<void>;
+  /**
+   * L'expiration a l'echeance de la fenetre de 48 h (ADR 0090). Absente : la
+   * commande vit sans echeance — et la relance ne doit alors PAS promettre
+   * l'expiration... elle la promet ; c'est ce que ce branchement repare.
+   */
+  planifierExpiration?: (charge: ChargeExpiration) => Promise<void>;
+  /**
+   * La carte recapitulative de la RAFALE, a la fermeture de la fenetre de
+   * regroupement (ADR 0096). Absente : la carte ne part pas d'elle-meme —
+   * le premier geste de la vendeuse (bouton perime, texte) la fait surgir,
+   * le parcours reste entier.
+   */
+  planifierRafale?: (charge: { phone: string; vers: string }) => Promise<void>;
   /**
    * La configuration de la rampe (lot 9) : le bloc paiement du fil en lit le
    * nom d'operateur et le code d'entree — jamais une constante (AGENTS.md).
@@ -275,6 +295,23 @@ async function reclamer(deps: BotDeps, messageId: string, maintenant: Date): Pro
 
 export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
+
+  /**
+   * Les statuts d'envoi, cueillis AVANT les messages — ADR 0091, constat B4.
+   * Un envoi accepte en HTTP 200 peut mourir apres coup (numero bloque,
+   * fenetre fermee cote Meta) : sans cette lecture, la panne etait invisible.
+   * On VOIT, on ne reagit pas — reagir serait une autre decision. Les failed
+   * se nomment au journal par leur seul code entier : jamais de contenu,
+   * jamais de numero.
+   */
+  for (const statut of lireStatutsEnvoi(corps)) {
+    mesurerStatutEnvoiBot(statut.statut, statut.codes[0]);
+    if (statut.statut === "failed") {
+      const codes = statut.codes.length ? statut.codes.join(", ") : "aucun code";
+      console.warn(`bot : envoi signale failed par Meta (${codes})`);
+    }
+  }
+
   for (const entree of lireEntreesBot(corps)) {
     /* Un message qui porte un code de defi (AAAA-BB) appartient a la
        connexion WhatsApp (ADR 0027), deja traitee par `surMessage` : le bot
@@ -287,7 +324,19 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
      * justement a rejouer un scenario a l'identique.
      */
     if (entree.messageId) {
-      const aTraiter = await reclamer(deps, entree.messageId, maintenant).catch(() => true);
+      /**
+       * Une panne de base pendant la reclamation vaut « ne pas traiter »,
+       * et se DIT — constat B3 de l'audit 2026-08. L'ancien
+       * `.catch(() => true)` etait un fail-open muet qui contredisait le
+       * compromis ecrit de l'ADR 0040 : « on prefere perdre un message
+       * plutot que d'en traiter un deux fois. Un double traitement, lui,
+       * corrompt un etat que personne ne repare. » Meta relivrera ; si la
+       * base va mieux, la relivraison sera reclamee normalement.
+       */
+      const aTraiter = await reclamer(deps, entree.messageId, maintenant).catch((e) => {
+        console.warn(`bot : reclamation impossible, message non traite (${resumerErreur(e)})`);
+        return false;
+      });
       if (!aTraiter) continue;
     }
 
@@ -813,6 +862,13 @@ async function filInscription(
     etatSuivant = ETAT_INITIAL;
   }
 
+  if (reaction.effet?.type === "publier_rafale" && sellerId) {
+    /* La salve confirmee — ADR 0096 : chaque brouillon passe par le MEME
+       chemin que l'article unitaire, la carte de retour est UNE. */
+    messages.push(...(await publierRafale(deps, sellerId, entree.de, reaction.effet.brouillons)));
+    etatSuivant = ETAT_INITIAL;
+  }
+
   /* L'ENTREE dans « nom de l'article » — d'ou qu'elle vienne : bouton
      « Premier article », « ajouter », « corriger » au recapitulatif. Le
      formulaire s'insere AVANT les messages de la machine : la question de la
@@ -837,7 +893,94 @@ async function filInscription(
     );
   }
   await poserEtat(deps, phone, etatSuivant);
+  /**
+   * La rafale vient de grossir : la carte recapitulative se (re)planifie a
+   * la fermeture de la fenetre — chaque photo REPLANIFIE, et le travail qui
+   * se reveille verifie sur l'etat reel que la fenetre est bien echue
+   * (ADR 0096, meme patron de reprise que la relance).
+   */
+  if (
+    typeof etatSuivant === "object" &&
+    etatSuivant.nom === "rafale" &&
+    !etatSuivant.annonce &&
+    deps.planifierRafale
+  ) {
+    await deps
+      .planifierRafale({ phone, vers: entree.de })
+      .catch(() => console.warn("bot : recap de rafale non planifie (details retenus)"));
+  }
   await envoyerSequence(deps, messages);
+}
+
+/**
+ * La publication d'une SALVE — ADR 0096. Chaque brouillon entre par
+ * `creerArticleDepuisFil` (re-encodage, compteurs media, cause de photo —
+ * ADR 0092) ; la reconstruction de la boutique est demandee UNE fois, la
+ * carte de retour est UNE. Le mode d'emploi du premier article part comme
+ * pour l'article unitaire : c'est l'instant ou la boutique devient reelle.
+ */
+async function publierRafale(
+  deps: BotDeps,
+  sellerId: string,
+  vers: string,
+  brouillons: ReadonlyArray<{ nom: string; prixXaf: number; mediaId: string }>,
+): Promise<MessageSortant[]> {
+  const avant = await deps.prisma.product.count({ where: { sellerId, archivedAt: null } });
+  let publies = 0;
+  let rates = 0;
+  const photosRefusees: Array<{ n: number; refus: PhotoIndisponible }> = [];
+  for (const [i, b] of brouillons.entries()) {
+    const article = await creerArticleDepuisFil(deps, sellerId, b);
+    if (!article) {
+      rates += 1;
+      continue;
+    }
+    publies += 1;
+    if (article.photoRefus) photosRefusees.push({ n: i + 1, refus: article.photoRefus });
+  }
+
+  const enConges =
+    (
+      await deps.prisma.seller.findUnique({
+        where: { id: sellerId },
+        select: { congesDepuis: true },
+      })
+    )?.congesDepuis != null;
+  const pageWebDansMinutes =
+    publies > 0 && (await deps.reconstruction?.demander("article_publie"))
+      ? ATTENTE_ANNONCEE_MIN
+      : null;
+
+  const messages: MessageSortant[] = [
+    messageRafalePubliee(vers, {
+      publies,
+      totalArticles: avant + publies,
+      photosRefusees,
+      rates,
+      enConges,
+      pageWebDansMinutes,
+    }),
+  ];
+  /* La carte entretenue — lot P2, decision P0-c : au plus UNE par salve,
+     apres la carte de retour, echec silencieux, jamais de gabarit. */
+  if (publies > 0) {
+    messages.push(...(await carteVitrine(deps, sellerId, "poussee").catch(() => [])));
+  }
+  /* Le mode d'emploi au PREMIER article (tache #62) — la salve qui fait
+     naitre le catalogue le merite autant que l'article unitaire. */
+  if (avant === 0 && publies > 0) {
+    const profil = await deps.prisma.seller.findUnique({
+      where: { id: sellerId },
+      select: { slug: true },
+    });
+    messages.push(
+      messageOnboarding(vers, {
+        lienBoutique: profil && deps.baseBoutique ? `${deps.baseBoutique}/${profil.slug}` : null,
+        lienEspace: deps.baseApp ?? null,
+      }),
+    );
+  }
+  return messages;
 }
 
 /**
@@ -1162,22 +1305,29 @@ async function publierArticleDepuisFil(
     ]);
   }
   /**
-   * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
-   * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
-   * sans article ne donne envie a personne — et pas aux suivants, ce serait
-   * du bruit ; « ma carte » la redonne quand on veut.
+   * La carte-vitrine accompagne CHAQUE publication depuis le lot P2
+   * (ADR 0095, decision c) — regeneree, une seule image, jamais avant la
+   * confirmation. Pas a la creation de la boutique : une carte sans article
+   * ne donne envie a personne (ADR 0037) ; « ma carte » la redonne quand on
+   * veut, inchangee.
    */
   if (article) {
     const nb = await deps.prisma.product.count({
       where: { sellerId, archivedAt: null },
     });
     /**
-     * La carte-vitrine ne part plus toute seule non plus — meme banc, meme
-     * raison. Avec UN article, elle disait presque la meme chose que le pack
-     * statut ; les deux ensemble faisaient quatre images au moment ou la
-     * vendeuse cherche simplement a savoir si son article est en ligne.
-     * Le mode d'emploi lui apprend « ma carte », et le bouton la donne.
+     * La carte-vitrine ENTRETENUE — lot P2, decision P0-c (ADR 0095).
+     *
+     * Elle est REGENEREE et poussee apres chaque publication : le service
+     * rendu avant d'etre demande. Le banc du 13/08 avait retire la poussee
+     * parce qu'elle etait TROIS messages parmi sept ; elle revient en UNE
+     * image, apres la confirmation (l'essentiel est deja parti), et son
+     * echec vaut silence — jamais une excuse non sollicitee. Une salve
+     * (ADR 0096) n'en pousse qu'UNE, par construction : `publierRafale` a
+     * son propre appel. Jamais de gabarit : on ne pousse qu'en reponse a un
+     * entrant, la fenetre est ouverte par construction.
      */
+    messages.push(...(await carteVitrine(deps, sellerId, "poussee").catch(() => [])));
     /**
      * Le pack statut ne part plus TOUT SEUL — banc du 13/08/2026.
      *
@@ -1236,6 +1386,8 @@ async function creerArticleDepuisFil(
   prixXaf: number;
   avecPhoto: boolean;
   imageKey: string | null;
+  /** Pourquoi la photo DEMANDEE manque — `null` si elle est la, ou si rien n'etait demande. */
+  photoRefus: PhotoIndisponible | null;
 } | null> {
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
 
@@ -1245,20 +1397,35 @@ async function creerArticleDepuisFil(
     hauteur: number;
     octets: number;
   } | null = null;
+  let photoRefus: PhotoIndisponible | null = null;
 
-  if ((demande.mediaId || demande.photoCdn) && deps.media && deps.storage) {
+  if (demande.mediaId || demande.photoCdn) {
     /* Les deux formes documentees du media d'un Flow (tache #72) : le
        `media_id` classique, ou le fichier chiffre sur le CDN dont les cles
        voyagent dans la reponse. Meme pipeline ensuite — le re-encodage
        revalide la signature binaire quoi qu'annonce le transport. */
-    const media = demande.mediaId
-      ? await deps.media.lire(demande.mediaId)
-      : demande.photoCdn && deps.media.lireCdn
-        ? await deps.media.lireCdn(demande.photoCdn)
+    const media =
+      deps.media && deps.storage
+        ? demande.mediaId
+          ? await deps.media.lire(demande.mediaId)
+          : demande.photoCdn && deps.media.lireCdn
+            ? await deps.media.lireCdn(demande.photoCdn)
+            : null
         : null;
-    if (media) {
-      const resultat = await reencoderImage(media.octets);
-      if (resultat.ok) {
+    if (media && deps.storage) {
+      /**
+       * Un corps corrompu a signature valide (JPEG tronque par un
+       * telechargement CDN interrompu) fait LEVER sharp — et cette levee
+       * interrompait toute la publication : pas d'article, « panne
+       * passagere », le nom et le prix reperdus. C'etait contraire a
+       * l'invariant ecrit plus haut (« une photo illisible ne fait pas
+       * echouer l'article ») et sans la parite du chemin HTTP
+       * (products.ts), qui a ce .catch depuis le lot 5. Constat D2 de
+       * l'audit 2026-08. La CAUSE, elle, se garde et se dit — constat D3.
+       */
+      const resultat = await reencoderImage(media.octets).catch(() => null);
+      if (resultat?.ok) {
+        mesurerMediaBot("reencodage", "ok");
         const base = cleOpaque(alea);
         const d = declinaisons(base);
         await Promise.all([
@@ -1272,7 +1439,15 @@ async function creerArticleDepuisFil(
           hauteur: resultat.image.hauteur,
           octets: resultat.image.avif.length,
         };
+      } else {
+        photoRefus = resultat === null ? "illisible" : resultat.verdict.raison;
+        mesurerMediaBot("reencodage", photoRefus);
       }
+    } else {
+      /* Media non fourni : expire chez Meta, panne CDN, ou lecteur absent
+         (le sandbox n'a pas de medias). La lecture elle-meme s'est deja
+         comptee dans l'adaptateur ; ici on retient la cause pour le fil. */
+      photoRefus = "introuvable";
     }
   }
 
@@ -1313,6 +1488,7 @@ async function creerArticleDepuisFil(
         /* La cle sert au pack statut (rang 3a) : la photo se recompose sur la
            carte, elle ne se re-telecharge pas depuis WhatsApp. */
         imageKey: image?.cle ?? null,
+        photoRefus,
       }
     : null;
 }
@@ -1524,6 +1700,13 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
           .planifierRelance({ commandeId: commande.id, phone: entree.de, langue })
           .catch(() => console.warn("bot : relance non planifiee (details retenus)"));
       }
+      /* L'expiration — meme condition que la relance : un acompte est
+         attendu. La decision sera reprise sur l'etat reel (ADR 0090). */
+      if (deps.planifierExpiration) {
+        await deps
+          .planifierExpiration({ commandeId: commande.id })
+          .catch(() => console.warn("bot : expiration non planifiee (details retenus)"));
+      }
     }
   }
 
@@ -1652,7 +1835,23 @@ async function packStatutArticle(
   return [...carte, texte(a, pack.legende)];
 }
 
-async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSortant[]> {
+/**
+ * La carte-vitrine, DEMANDEE (« ma carte ») ou POUSSEE apres une publication
+ * (lot P2, decision P0-c de l'ADR 0095). Les deux modes rendent la MEME
+ * carte ; ils different sur l'echec et la copie :
+ *
+ * - `demandee` : un echec s'explique — la vendeuse attend une reponse ;
+ * - `poussee` : un echec vaut SILENCE — la carte est un service rendu avant
+ *   d'etre demande, et une excuse non sollicitee serait du bruit. La carte
+ *   ne passe JAMAIS par un gabarit : elle n'est poussee qu'en reponse a un
+ *   entrant, donc dans la fenetre ouverte par construction ; le cas limite
+ *   qui la trouverait fermee attend le prochain entrant (« ma carte »).
+ */
+async function carteVitrine(
+  deps: BotDeps,
+  sellerId: string,
+  mode: "demandee" | "poussee" = "demandee",
+): Promise<MessageSortant[]> {
   const vers = (phone: string) => phone.replace(/^\+/, "");
   const seller = await deps.prisma.seller.findUnique({
     where: { id: sellerId },
@@ -1674,6 +1873,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
   const a = vers(seller.phone ?? "");
 
   if (seller.products.length === 0) {
+    if (mode === "poussee") return [];
     return [
       boutonsMessage(a, "Votre carte a besoin d'au moins un article à montrer.", [
         { id: "article", titre: "Ajouter un article" },
@@ -1682,6 +1882,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
   }
   const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
   if (!chiffres || !deps.storage) {
+    if (mode === "poussee") return [];
     return [
       texte(
         a,
@@ -1704,7 +1905,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
 
   const rep = reputation(seller.reviews.map((r) => ({ note: r.rating, verifie: r.verified })));
   const motCle = `boutique ${seller.slug}`;
-  return carteEnMessage(
+  const messages = await carteEnMessage(
     deps,
     {
       nomBoutique: seller.businessName,
@@ -1722,8 +1923,16 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
     },
     photos,
     a,
-    `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
+    mode === "poussee"
+      ? "Votre affiche est prête — je la referai à chaque changement, sans que vous la demandiez. Postez-la en Statut : vos clientes touchent, votre boutique s'ouvre."
+      : `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
   );
+  /* Une carte poussee qui a echoue a se fabriquer vaut SILENCE : les textes
+     d'excuse de `carteEnMessage` ne valent que pour une carte demandee. */
+  if (mode === "poussee" && !messages.some((m) => (m as { type?: string }).type === "image")) {
+    return [];
+  }
+  return messages;
 }
 
 /**
@@ -2264,6 +2473,9 @@ async function creerCommande(
             totalXaf,
             amountPaidXaf: 0,
             balanceXaf: totalXaf,
+            /* L'acompte du se FIGE ici — ADR 0094. Recalcule a la lecture, il
+               changerait retroactivement avec la constante (constat A4). */
+            dueBeforeXaf: plan.duAvantXaf,
             payMode: mode,
             delivery: livraisonJson,
             verificationCode: generateVerificationCode(alea),
@@ -2608,6 +2820,7 @@ async function verdictDansLeFil(
         createdAt: true,
         buyerPhone: true,
         proofState: true,
+        dueBeforeXaf: true,
       },
     }),
     deps.prisma.seller.findUnique({
@@ -2639,11 +2852,24 @@ async function verdictDansLeFil(
      contredire l'accuse ✅ deja pose. */
   if (resultat.issue === "non_reconnue") return;
 
+  /* La commande a change entre la lecture et l'ecriture (constat A1) : rien
+     n'est ecrit, l'identifiant reste libre — on le dit, recoller suffit. */
+  if (resultat.issue === "commande_modifiee") {
+    await envoyerSequence(deps, [
+      texte(
+        vers,
+        "La commande a changé pendant la vérification — un autre versement ou une contestation est passé. Recollez le SMS : rien n'a été perdu.",
+      ),
+    ]);
+    return;
+  }
+
   if (resultat.issue === "acceptee" || resultat.issue === "acceptee_sous_reserve") {
     await envoyerSequence(deps, [
       messageVerdict(vers, {
         verdict: resultat.issue === "acceptee" ? "accepte" : "accepte_sous_reserve",
         reference: cible.reference,
+        avancee: resultat.transitionOk,
       }),
     ]);
     /* La notification de l'acheteuse — apres l'envoi du verdict, jamais avant

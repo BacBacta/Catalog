@@ -30,6 +30,26 @@ export interface WhatsappBotConfig {
   /** Exige par Meta seul : le numero emetteur y est un segment d'URL. */
   phoneNumberId?: string | undefined;
   fetchImpl?: typeof fetch | undefined;
+  /** Pause avant l'unique reessai (ADR 0093). Les tests passent 0. */
+  delaiReessaiMs?: number | undefined;
+}
+
+/** La pause par defaut avant le reessai : courte — l'acheteuse attend sa bulle. */
+const DELAI_REESSAI_MS = 400;
+
+/**
+ * Un refus d'envoi, avec ce qu'il faut pour decider du reessai — ADR 0093.
+ * `transitoire` : vrai sur un 5xx (l'etat de Meta, pas le notre), faux sur un
+ * 4xx (le meme corps echouera pareil) et sur un 200 sans identifiant (le
+ * message est peut-etre PARTI : reessayer risquerait la bulle en double).
+ */
+class ErreurEnvoi extends Error {
+  readonly transitoire: boolean;
+  constructor(message: string, transitoire: boolean) {
+    super(message);
+    this.name = "ErreurEnvoi";
+    this.transitoire = transitoire;
+  }
 }
 
 export class EnvoyeurWhatsappBot implements EnvoyeurBot {
@@ -103,7 +123,38 @@ export class EnvoyeurWhatsappBot implements EnvoyeurBot {
     }
   }
 
+  /**
+   * L'envoi, avec UN reessai sur echec transitoire — ADR 0093, constat B5 de
+   * l'audit 2026-08 : un 5xx Meta passager perdait definitivement une reponse
+   * de conversation, et `termineLe` (ADR 0040) interdit — a raison — le
+   * rattrapage par relivraison. Le reessai vit donc ICI, dans l'adaptateur,
+   * ou l'on sait distinguer le transitoire du definitif.
+   *
+   * Un seul reessai, et sur transitoire seulement : un 4xx rejouerait le meme
+   * refus, et une file de reessais differerait des bulles de conversation qui
+   * n'ont de sens que tout de suite. Le reessai apres une panne RESEAU peut,
+   * rarement, doubler une bulle deja partie — accepte et documente : une
+   * bulle en double gene, un bot muet fait fuir.
+   */
   async envoyer(message: MessageSortant): Promise<void> {
+    try {
+      return await this.#tenter(message);
+    } catch (cause) {
+      const transitoire = cause instanceof ErreurEnvoi ? cause.transitoire : true;
+      if (!transitoire) throw cause;
+      /* La raison se nomme : sans cette ligne, un reessai qui repare a chaque
+         fois masquerait une degradation de Meta jusqu'a la panne complete. */
+      console.warn(
+        `envoi bot : reessai apres echec transitoire (${
+          cause instanceof Error ? cause.message : "panne reseau"
+        })`,
+      );
+      await new Promise((r) => setTimeout(r, this.#cfg.delaiReessaiMs ?? DELAI_REESSAI_MS));
+      return await this.#tenter(message);
+    }
+  }
+
+  async #tenter(message: MessageSortant): Promise<void> {
     const base = this.#cfg.baseUrl.replace(/\/$/, "");
     const url =
       this.#cfg.transport === "meta"
@@ -133,17 +184,18 @@ export class EnvoyeurWhatsappBot implements EnvoyeurBot {
       const code = (
         (await reponse.json().catch(() => null)) as { error?: { code?: unknown } } | null
       )?.error?.code;
-      throw new Error(
+      throw new ErreurEnvoi(
         `envoi bot refuse : HTTP ${reponse.status}${
           typeof code === "number" ? `, code Meta ${code}` : ""
         }`,
+        reponse.status >= 500,
       );
     }
     const corps = (await reponse.json().catch(() => null)) as {
       messages?: Array<{ id?: unknown }>;
     } | null;
     if (typeof corps?.messages?.[0]?.id !== "string") {
-      throw new Error("envoi bot sans identifiant de message : non confirme");
+      throw new ErreurEnvoi("envoi bot sans identifiant de message : non confirme", false);
     }
   }
 }

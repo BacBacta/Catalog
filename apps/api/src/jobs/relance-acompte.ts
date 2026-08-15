@@ -3,7 +3,9 @@ import type { PrismaClient } from "@catalog/db";
 import { type Job, PgBoss } from "pg-boss";
 import { notifier } from "../bot-notifications.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
+import { normaliserEtatVendeuse } from "../domain/bot/inscription.ts";
 import { texte } from "../domain/bot/messages.ts";
+import { carteRafale, FENETRE_RAFALE_MS } from "../domain/bot/rafale.ts";
 import {
   decisionRelance,
   decisionRelanceReversement,
@@ -11,6 +13,7 @@ import {
   RELANCE_REVERSEMENT_APRES_S,
 } from "../domain/bot/relance.ts";
 import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
+import { etatExpiration, FENETRE_EXPIRATION_MS } from "../domain/order/expiration.ts";
 
 /**
  * La relance d'acompte, portee par pg-boss — ADR 0033.
@@ -29,6 +32,10 @@ import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
 
 export const FILE_RELANCE = "bot-relance-acompte";
 export const FILE_RELANCE_REVERSEMENT = "bot-relance-reversement";
+/** L'expiration d'une commande a acompte impaye — ADR 0090. */
+export const FILE_EXPIRATION = "bot-expiration-commande";
+/** La carte recapitulative de la rafale, a la fermeture de la fenetre — ADR 0096. */
+export const FILE_RAFALE = "bot-rafale-recap";
 
 export interface ChargeRelance {
   commandeId: string;
@@ -64,7 +71,23 @@ export interface JobsBotDeps extends RelanceDeps {
 export interface JobsBot {
   planifierRelance: (charge: ChargeRelance) => Promise<void>;
   planifierRelanceReversement: (charge: ChargeRelanceReversement) => Promise<void>;
+  planifierExpiration: (charge: ChargeExpiration) => Promise<void>;
+  planifierRafale: (charge: ChargeRafale) => Promise<void>;
   arreter: () => Promise<void>;
+}
+
+/** L'expiration ne porte que l'identifiant : tout le reste se relit frais. */
+export interface ChargeExpiration {
+  commandeId: string;
+}
+
+/**
+ * La rafale — ADR 0096. `phone` est la cle de conversation (normalisee),
+ * `vers` l'adresse WhatsApp d'envoi telle que Meta l'a donnee.
+ */
+export interface ChargeRafale {
+  phone: string;
+  vers: string;
 }
 
 export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
@@ -75,6 +98,7 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
   await boss.start();
   await boss.createQueue(FILE_RELANCE);
   await boss.createQueue(FILE_RELANCE_REVERSEMENT);
+  await boss.createQueue(FILE_EXPIRATION);
 
   await boss.work<ChargeRelance>(FILE_RELANCE, async (jobs: Job<ChargeRelance>[]) => {
     for (const job of jobs) {
@@ -91,6 +115,18 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
     },
   );
 
+  await boss.work<ChargeExpiration>(FILE_EXPIRATION, async (jobs: Job<ChargeExpiration>[]) => {
+    for (const job of jobs) {
+      await executerExpirationCommande(deps, job.data);
+    }
+  });
+
+  await boss.work<ChargeRafale>(FILE_RAFALE, async (jobs: Job<ChargeRafale>[]) => {
+    for (const job of jobs) {
+      await executerRecapRafale(deps, job.data);
+    }
+  });
+
   return {
     planifierRelance: async (charge) => {
       await boss.sendAfter(FILE_RELANCE, charge, null, RELANCE_APRES_S);
@@ -98,8 +134,48 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
     planifierRelanceReversement: async (charge) => {
       await boss.sendAfter(FILE_RELANCE_REVERSEMENT, charge, null, RELANCE_REVERSEMENT_APRES_S);
     },
+    planifierExpiration: async (charge) => {
+      /* A l'echeance de la fenetre — la decision sera REPRISE sur l'etat
+         reel : un acompte arrive entre-temps vaut silence (ADR 0090). */
+      await boss.sendAfter(FILE_EXPIRATION, charge, null, FENETRE_EXPIRATION_MS / 1000);
+    },
+    planifierRafale: async (charge) => {
+      /* Chaque photo REPLANIFIE : le travail qui se reveille trop tot voit
+         un etat plus frais que la fenetre et se tait — le suivant parlera. */
+      await boss.sendAfter(FILE_RAFALE, charge, null, FENETRE_RAFALE_MS / 1000);
+    },
     arreter: () => boss.stop(),
   };
+}
+
+/**
+ * La carte recapitulative de la rafale — ADR 0096. Le travail est DEBORDE
+ * par conception : chaque photo en planifie un, et seul celui qui trouve la
+ * fenetre echue ET la carte non envoyee parle. Tout se decide sur l'etat
+ * RELU, jamais sur la charge.
+ */
+export async function executerRecapRafale(deps: RelanceDeps, charge: ChargeRafale): Promise<void> {
+  const enregistrement = await deps.prisma.botConversation.findUnique({
+    where: { phone: charge.phone },
+    select: { etat: true, updatedAt: true },
+  });
+  if (!enregistrement) return;
+  const etat = normaliserEtatVendeuse(enregistrement.etat);
+  if (etat?.nom !== "rafale" || etat.annonce) return;
+  const maintenant = deps.maintenant?.() ?? new Date();
+  /* Une photo plus recente a replanifie : ce reveil-ci est perime. La marge
+     de 2 s absorbe la latence de la file, pas plus. */
+  if (maintenant.getTime() - enregistrement.updatedAt.getTime() < FENETRE_RAFALE_MS - 2000) {
+    return;
+  }
+  /* `annonce` se pose AVANT l'envoi : deux travaux qui se reveilleraient
+     ensemble prefereront une carte perdue a une carte en double — le meme
+     compromis que l'ADR 0040. */
+  await deps.prisma.botConversation.update({
+    where: { phone: charge.phone },
+    data: { etat: { ...etat, annonce: true } as unknown as object },
+  });
+  await deps.envoyeur.envoyer(carteRafale(charge.vers, etat.brouillons));
 }
 
 /**
@@ -120,6 +196,7 @@ export async function executerRelanceAcompte(
       amountPaidXaf: true,
       cancelledAt: true,
       createdAt: true,
+      dueBeforeXaf: true,
     },
   });
   if (!commande) return;
@@ -131,6 +208,9 @@ export async function executerRelanceAcompte(
       amountPaidXaf: commande.amountPaidXaf,
       annuleeA: commande.cancelledAt,
       creeeA: commande.createdAt,
+      /* Le montant FIGE a la creation — ADR 0094 : la relance redit ce que
+         la commande a demande, pas ce que la constante vaut aujourd'hui. */
+      duAvantXaf: commande.dueBeforeXaf,
     },
     deps.maintenant?.() ?? new Date(),
   );
@@ -203,4 +283,68 @@ export async function executerRelanceReversement(
     undefined,
     { sujet: "reversement_absent", parametres: [seller.businessName], langue: "fr" },
   );
+}
+
+/**
+ * L'expiration d'une commande — ADR 0090. Le domaine decide
+ * (`etatExpiration`, ecrit et teste au lot 7, jamais branche jusqu'ici) ;
+ * l'ecriture est une ANNULATION DATEE avec sa cause au journal, et elle est
+ * GARDEE (patron de l'ADR 0089) : un versement arrive pendant que le job
+ * court gagne, silencieusement et correctement.
+ *
+ * Perimetre (ADR 0090, decision 2) : seul l'acompte attendu dont AUCUN franc
+ * n'est arrive expire. Une commande sans prepaiement vit impayee jusqu'a la
+ * remise ; un franc verse sauve la commande.
+ */
+export async function executerExpirationCommande(
+  deps: RelanceDeps,
+  charge: ChargeExpiration,
+): Promise<void> {
+  const commande = await deps.prisma.order.findUnique({
+    where: { id: charge.commandeId },
+    select: {
+      id: true,
+      sellerId: true,
+      payMode: true,
+      amountPaidXaf: true,
+      cancelledAt: true,
+      createdAt: true,
+    },
+  });
+  if (!commande) return;
+  if (commande.payMode !== "acompte") return;
+
+  const maintenant = deps.maintenant?.() ?? new Date();
+  const etat = etatExpiration(
+    {
+      creeA: commande.createdAt,
+      /* Un franc verse sauve la commande — lecture de l'ADR 0090, plus
+         genereuse que « total couvert » : le solde se regle a la remise. */
+      soldeRegle: commande.amountPaidXaf > 0,
+      annuleeA: commande.cancelledAt,
+      rappelsEnvoyes: [],
+    },
+    maintenant,
+  );
+  if (etat.etat !== "expiree") return;
+
+  await deps.prisma.$transaction(async (tx) => {
+    const maj = await tx.order.updateMany({
+      where: { id: commande.id, cancelledAt: null, amountPaidXaf: 0 },
+      data: { cancelledAt: maintenant },
+    });
+    /* Un versement ou une annulation est passe entre la lecture et ici :
+       rien a faire, et surtout pas de journal d'expiration mensonger. */
+    if (maj.count === 0) return;
+    await tx.orderEvent.create({
+      data: {
+        orderId: commande.id,
+        sellerId: commande.sellerId,
+        kind: "commande_expiree",
+        actor: "systeme",
+        at: maintenant,
+        payload: { echeance: etat.echeance.toISOString() },
+      },
+    });
+  });
 }

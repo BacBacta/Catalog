@@ -142,6 +142,9 @@ describeDb("le comptoir vendeuse, de bout en bout (ADR 0069)", () => {
     /* Reversement pose : l'acompte est le MEME plan que le comptoir acheteuse
        — floor sur l'acompte, le reste au solde, total preserve. */
     expect(commande.payMode).toBe("acompte");
+    /* L'acompte du est FIGE a la creation — ADR 0094 (constat A4) : le
+       controle n° 2 comparera a CE montant, pas a la constante du jour. */
+    expect(commande.dueBeforeXaf).toBe(6250);
     expect(commande.buyerPhone).toBe("+237677001122");
     expect(commande.delivery).toMatchObject({ mode: "retrait", pickupPoint: "Carrefour Warda" });
     /* Le journal dit QUI a cree, et par quelle porte. */
@@ -180,6 +183,8 @@ describeDb("le comptoir vendeuse, de bout en bout (ADR 0069)", () => {
 
     const commande = await prisma.order.findFirstOrThrow({ where: { sellerId: s.sellerId } });
     expect(commande.payMode).toBe("sans_prepaiement");
+    /* Rien n'est du d'avance, et c'est FIGE aussi : zero, pas nul. */
+    expect(commande.dueBeforeXaf).toBe(0);
     const transferable = s.envoyeur.envoyes.map(corps).find((c) => c.includes("— commande"));
     expect(transferable).toMatch(/se règle à la remise/);
     expect(transferable).not.toMatch(/payer maintenant/i);

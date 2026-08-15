@@ -1,3 +1,4 @@
+import { normalizePhone } from "@catalog/contracts/phone";
 import type { OperateurRampe, RampeConfig } from "@catalog/contracts/ussd";
 import { operateurParId } from "@catalog/contracts/ussd";
 import { useEffect, useState } from "preact/hooks";
@@ -54,6 +55,12 @@ export function lireParametres(recherche: string): Parametres | null {
   const numero = p.get("numero")?.trim();
   const brut = p.get("montant")?.trim();
   if (!numero || !brut || !/^\d+$/.test(brut)) return null;
+  /* Un numero que `numeroLocal` ne saurait pas normaliser FERAIT LEVER la
+     construction des chemins USSD au premier rendu — l'ilot mourait sans un
+     mot (constat D5 de l'audit 2026-08 : URL editee a la main, ou commande
+     d'un vendeur du banc d'essai dont le reversement est etranger, ADR 0080).
+     On le refuse ICI, ou l'ecran « lien incomplet » sait deja le dire. */
+  if (!normalizePhone(numero)) return null;
   const montantXaf = Number(brut);
   if (!Number.isSafeInteger(montantXaf) || montantXaf <= 0) return null;
   return {

@@ -137,6 +137,8 @@ utilisateur virtuel, et signale en clair toute réponse 429.
 | 4.12 | Un code reçu sur un numéro **MTN** et sur un numéro **Orange** | ❌ | la première preuve de couverture réelle |
 | 4.13 | `SMS_ACCUSE_SECRET` et `SMS_ACCUSE_URL` posés, URL inscrite chez Orange | ❌ | HTTPS/443, certificat valide, formulaire de liste blanche |
 | 4.14 | Le compteur `catalog.sms.livraison` reçoit des points pour **les deux** opérateurs | ❌ | la couverture, surveillée en continu |
+| 4.15 | Le **cron de sauvegarde est posé** et une exécution réelle a produit un fichier daté | ❌ | la ligne cron est prête dans [restauration-sauvegarde.md](restauration-sauvegarde.md) ; y noter la **durée réellement constatée** |
+| 4.16 | `/api/statut` répond `garantiesSql: "posees"` sur la base de production | ❌ | la sonde constate les CHECK et triggers du lot 3 (résidu A3, audit 2026-08) |
 
 > **4.9 a déjà échoué une fois, en silence.** Le fichier était écrit à la racine
 > du paquet alors que le déploiement envoie `apps/shop/dist` — Vercel lit sa

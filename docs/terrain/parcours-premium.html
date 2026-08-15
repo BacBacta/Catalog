@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalog premium — le fil qui devient une application</title>
+</head>
+<body>
+
+<style>
+  /* ─────────────────────────────── jetons ───────────────────────────────
+     Palette héritée de packages/ui/src/tokens.css — la marque #0e7a5f, la
+     pile système, le rayon 16px (ADR 0030). Le téléphone garde les couleurs
+     de WhatsApp : c'est un objet, pas une carte de la page.               */
+  :root {
+    --ground: #eff3f1;
+    --surface: #ffffff;
+    --encre: #101c18;
+    --encre-2: #4f605a;
+    --muted: #6d7b76;
+    --filet: #dde5e1;
+    --filet-fin: #e7edea;
+    --marque: #0e7a5f;
+    --marque-vif: #10906f;
+    --marque-doux: #e3f1ec;
+    --ambre: #8f5c13;
+    --ambre-doux: #fdf4e4;
+    --or: #b98a1c;
+
+    --fil-fond: #e5ddd5;
+    --fil-entrant: #ffffff;
+    --fil-sortant: #d9fdd3;
+    --fil-encre: #111b21;
+    --fil-encre-2: #667781;
+    --fil-barre: #f0f2f5;
+    --fil-lien: #027eb5;
+    --fil-ombre: rgba(11, 20, 26, 0.13);
+
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --t-titre: clamp(1.9rem, 1.2rem + 2.6vw, 3rem);
+    --r: 16px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0b100e;
+      --surface: #141b18;
+      --encre: #f2f6f4;
+      --encre-2: #a9b8b2;
+      --muted: #8b9a94;
+      --filet: #26302c;
+      --filet-fin: #1c2421;
+      --marque: #17a37f;
+      --marque-vif: #1cbb92;
+      --marque-doux: #10241f;
+      --ambre: #eda100;
+      --ambre-doux: #2a2110;
+      --or: #e2b74e;
+
+      --fil-fond: #0b141a;
+      --fil-entrant: #202c33;
+      --fil-sortant: #005c4b;
+      --fil-encre: #e9edef;
+      --fil-encre-2: #8696a0;
+      --fil-barre: #202c33;
+      --fil-lien: #53bdeb;
+      --fil-ombre: rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0b100e;
+    --surface: #141b18;
+    --encre: #f2f6f4;
+    --encre-2: #a9b8b2;
+    --muted: #8b9a94;
+    --filet: #26302c;
+    --filet-fin: #1c2421;
+    --marque: #17a37f;
+    --marque-vif: #1cbb92;
+    --marque-doux: #10241f;
+    --ambre: #eda100;
+    --ambre-doux: #2a2110;
+    --or: #e2b74e;
+
+    --fil-fond: #0b141a;
+    --fil-entrant: #202c33;
+    --fil-sortant: #005c4b;
+    --fil-encre: #e9edef;
+    --fil-encre-2: #8696a0;
+    --fil-barre: #202c33;
+    --fil-lien: #53bdeb;
+    --fil-ombre: rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--encre);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .enveloppe {
+    width: 100%;
+    max-width: 1280px;
+    margin-inline: auto;
+    padding-inline: clamp(1rem, 0.5rem + 2.4vw, 2.5rem);
+  }
+
+  /* ─────────────────────────────── en-tête ──────────────────────────────── */
+
+  header { padding-block: clamp(2.2rem, 1.4rem + 3.6vw, 4rem) 1rem; }
+  .jalon {
+    display: flex; align-items: center; gap: 0.7rem; margin: 0 0 1.1rem;
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--encre-2);
+  }
+  .jalon::before { content: ""; width: 2.4rem; height: 2px; background: var(--marque); flex: none; }
+
+  h1 { margin: 0 0 0.9rem; font-size: var(--t-titre); line-height: 1.08; letter-spacing: -0.022em; font-weight: 700; max-width: 22ch; }
+  h1 em { font-style: normal; color: var(--marque); }
+  .chapeau { max-width: 64ch; margin: 0 0 1.4rem; font-size: 1.02rem; color: var(--encre-2); }
+  .chapeau strong { color: var(--encre); font-weight: 600; }
+
+  .principes { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.4rem; }
+  .principe {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    padding: 0.4rem 0.85rem; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--filet);
+    font-size: 0.82rem; color: var(--encre-2);
+  }
+  .principe b { color: var(--encre); font-weight: 600; }
+
+  /* ───────────────────────────── personas ─────────────────────────────── */
+
+  .personas { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 1.6rem; }
+  .persona {
+    flex: 1 1 260px;
+    display: flex; align-items: center; gap: 0.8rem; text-align: left;
+    padding: 0.9rem 1.1rem; border-radius: var(--r);
+    border: 1px solid var(--filet); background: var(--surface);
+    font: inherit; cursor: pointer;
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  .persona:hover { border-color: var(--marque); }
+  .persona[aria-selected="true"] {
+    border-color: var(--marque);
+    box-shadow: inset 0 0 0 1px var(--marque), 0 8px 24px -12px rgba(14, 122, 95, 0.45);
+  }
+  .persona__emoji {
+    width: 46px; height: 46px; border-radius: 14px; flex: none;
+    display: grid; place-items: center; font-size: 1.4rem;
+    background: var(--marque-doux);
+  }
+  .persona__nom { font-weight: 700; font-size: 0.98rem; color: var(--encre); }
+  .persona__note { font-size: 0.78rem; color: var(--muted); }
+
+  /* ───────────────────────────── l'établi ─────────────────────────────── */
+
+  .etabli { display: grid; grid-template-columns: 1fr; gap: 2rem; padding-bottom: 3rem; align-items: start; }
+  @media (min-width: 900px) { .etabli { grid-template-columns: 350px 1fr; } }
+  .titre-colonne {
+    margin: 0 0 0.7rem; font-family: var(--mono); font-size: 0.68rem;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted);
+  }
+  .colonne { position: sticky; top: 1rem; }
+  @media (max-width: 899px) { .colonne { position: static; } }
+
+  /* ───────────────────────────── téléphone ────────────────────────────── */
+
+  .tel {
+    position: relative;
+    border-radius: 26px;
+    overflow: hidden;
+    background: var(--fil-barre);
+    box-shadow: 0 1px 2px var(--fil-ombre), 0 24px 60px -22px rgba(11, 20, 26, 0.5);
+    border: 1px solid var(--filet);
+  }
+  .tel__barre {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.6rem 0.85rem;
+    background: var(--fil-barre);
+    border-bottom: 1px solid var(--filet-fin);
+  }
+  .tel__pastille {
+    width: 36px; height: 36px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-size: 1.05rem;
+    background: linear-gradient(135deg, var(--marque), var(--marque-vif));
+    color: #fff;
+  }
+  .tel__nom { font-size: 0.88rem; font-weight: 700; color: var(--fil-encre); line-height: 1.2; }
+  .tel__nom .verifie { color: var(--marque-vif); font-size: 0.8rem; }
+  .tel__sous { font-size: 0.7rem; color: var(--fil-encre-2); }
+
+  .fil {
+    height: 470px; overflow-y: auto;
+    padding: 0.8rem 0.7rem 1rem;
+    background: var(--fil-fond);
+    display: flex; flex-direction: column; gap: 0.45rem;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) { .fil { scroll-behavior: auto; } }
+
+  .bulle {
+    max-width: 88%;
+    padding: 0.45rem 0.6rem 0.3rem;
+    border-radius: 10px;
+    background: var(--fil-entrant); color: var(--fil-encre);
+    font-size: 0.82rem; line-height: 1.45;
+    box-shadow: 0 1px 0.5px var(--fil-ombre);
+    white-space: pre-wrap; word-break: break-word;
+    animation: pose 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @keyframes pose { from { transform: translateY(6px); opacity: 0.001; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .bulle { animation: none; } }
+  .bulle--moi { align-self: flex-end; background: var(--fil-sortant); }
+  .bulle--bot { align-self: flex-start; }
+  .bulle__heure { display: block; text-align: right; font-size: 0.62rem; color: var(--fil-encre-2); margin-top: 0.15rem; }
+
+  /* l'en-tête coloré d'une carte riche */
+  .carte-tete {
+    margin: -0.45rem -0.6rem 0.45rem;
+    padding: 0.55rem 0.6rem;
+    border-radius: 10px 10px 0 0;
+    background: linear-gradient(135deg, var(--marque), var(--marque-vif));
+    color: #fff;
+  }
+  .carte-tete small { display: block; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.85; }
+  .carte-tete b { font-size: 0.98rem; }
+
+  .bulle__actions { margin: 0.45rem -0.6rem -0.3rem; border-top: 1px solid var(--filet-fin); }
+  .bulle__action {
+    display: block; width: 100%;
+    padding: 0.55rem; border: 0; border-top: 1px solid var(--filet-fin);
+    background: transparent; color: var(--fil-lien);
+    font: inherit; font-size: 0.82rem; font-weight: 600; text-align: center;
+    cursor: default;
+  }
+  .bulle__action:first-child { border-top: 0; }
+  .bulle__action[data-actif] {
+    color: var(--marque-vif);
+    cursor: pointer;
+    animation: appel 1.6s ease-in-out infinite;
+  }
+  @keyframes appel { 0%, 100% { background: transparent; } 50% { background: rgba(16, 144, 111, 0.12); } }
+  @media (prefers-reduced-motion: reduce) {
+    .bulle__action[data-actif] { animation: none; background: rgba(16, 144, 111, 0.12); }
+  }
+
+  .bulle__liste { margin: 0.5rem 0 0; border-top: 1px solid var(--filet-fin); padding-top: 0.4rem; }
+  .liste-ligne { display: flex; gap: 0.55rem; align-items: center; padding: 0.35rem 0; border-bottom: 1px solid var(--filet-fin); }
+  .liste-ligne:last-child { border-bottom: 0; }
+  .liste-ligne .em { font-size: 1.05rem; flex: none; }
+  .liste-ligne b { display: block; font-weight: 600; }
+  .liste-ligne span { font-size: 0.72rem; color: var(--fil-encre-2); }
+
+  /* produits : l'emoji est l'asset — net, léger, et il tient dans un fichier autonome */
+  .produits { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0.45rem 0 0.2rem; }
+  .produit {
+    border: 1px solid var(--filet-fin); border-radius: 10px; overflow: hidden;
+    background: var(--fil-entrant); font: inherit; padding: 0; text-align: left; cursor: default;
+  }
+  .produit__photo {
+    aspect-ratio: 1.15; display: grid; place-items: center; font-size: 2rem;
+    background: linear-gradient(135deg, #e8f4ef, #cfe6dc);
+  }
+  :root[data-theme="dark"] .produit__photo { background: linear-gradient(135deg, #17322a, #0f241e); }
+  .produit__nom { padding: 0.3rem 0.45rem 0; font-size: 0.72rem; font-weight: 600; color: var(--fil-encre); }
+  .produit__prix { padding: 0 0.45rem 0.35rem; font-size: 0.74rem; font-weight: 700; color: var(--marque-vif); font-variant-numeric: tabular-nums; }
+  .produit[data-actif] { cursor: pointer; animation: appel 1.6s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .produit[data-actif] { animation: none; box-shadow: inset 0 0 0 2px var(--marque-vif); } }
+
+  .photo-hero {
+    aspect-ratio: 1.5; border-radius: 8px; margin-bottom: 0.4rem;
+    display: grid; place-items: center; font-size: 3rem;
+    background: linear-gradient(135deg, #e8f4ef, #cfe6dc);
+  }
+  :root[data-theme="dark"] .photo-hero { background: linear-gradient(135deg, #17322a, #0f241e); }
+
+  .rangee-prix { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.15rem 0; font-size: 0.8rem; }
+  .rangee-prix b { font-variant-numeric: tabular-nums; }
+  .rangee-prix--total { border-top: 1px solid var(--filet-fin); margin-top: 0.2rem; padding-top: 0.35rem; font-weight: 700; }
+
+  .affiche {
+    min-height: 190px; border-radius: 8px; margin-bottom: 0.35rem;
+    background: linear-gradient(160deg, var(--marque) 0%, #0a5c48 100%);
+    color: #fff; padding: 0.7rem;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 0.5rem;
+    font-size: 0.68rem;
+  }
+  .affiche b { font-size: 1.05rem; }
+  .affiche .vignettes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+  .affiche .vignettes div {
+    aspect-ratio: 1.1; background: rgba(255, 255, 255, 0.2); border-radius: 5px;
+    display: grid; place-items: center; font-size: 1.25rem;
+  }
+  .affiche .qr { width: 34px; height: 34px; background: #fff; border-radius: 4px; flex: none; }
+  .affiche .pied { display: flex; justify-content: space-between; align-items: flex-end; gap: 0.5rem; }
+
+  .timeline { margin: 0.45rem 0 0.1rem; padding: 0; list-style: none; }
+  .timeline li { display: flex; gap: 0.55rem; align-items: baseline; padding: 0.18rem 0; font-size: 0.78rem; }
+  .timeline .puce { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 0.62rem; border: 1.5px solid var(--fil-encre-2); color: var(--fil-encre-2); }
+  .timeline li[data-fait] .puce { background: var(--marque-vif); border-color: var(--marque-vif); color: #fff; }
+  .timeline li[data-encours] .puce { border-color: var(--marque-vif); color: var(--marque-vif); }
+
+  .etoiles { color: var(--or); letter-spacing: 0.1em; }
+
+  .systeme {
+    align-self: center; max-width: 92%;
+    padding: 0.3rem 0.65rem; border-radius: 8px;
+    background: rgba(255, 255, 255, 0.65); color: var(--fil-encre-2);
+    font-size: 0.68rem; font-family: var(--mono); text-align: center;
+  }
+  :root[data-theme="dark"] .systeme,
+  :root:not([data-theme="light"]) .systeme { background: rgba(255, 255, 255, 0.09); color: #c6d2d7; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .systeme { background: rgba(255, 255, 255, 0.65); color: var(--fil-encre-2); }
+  }
+
+  /* ─────────────────────── barre de saisie ────────────────────────────── */
+
+  .saisie-barre {
+    display: flex; gap: 0.5rem; align-items: center;
+    padding: 0.65rem 0.7rem;
+    background: var(--fil-barre); border-top: 1px solid var(--filet-fin);
+    min-height: 60px;
+  }
+  .saisie-fantome {
+    flex: 1; padding: 0.55rem 0.85rem; border-radius: 999px;
+    background: var(--fil-entrant); color: var(--fil-encre-2);
+    font-size: 0.8rem; border: 1px solid var(--filet-fin);
+  }
+  .chip {
+    flex: 1; min-height: 44px;
+    padding: 0.55rem 0.85rem; border-radius: 999px; border: 0;
+    background: linear-gradient(135deg, var(--marque), var(--marque-vif)); color: #fff;
+    font: inherit; font-size: 0.84rem; font-weight: 700; cursor: pointer;
+    animation: appel 1.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .chip { animation: none; } }
+  .rejouer {
+    flex: none; width: 44px; height: 44px;
+    border: 1px solid var(--filet); border-radius: 50%;
+    background: var(--surface); color: var(--encre-2);
+    font: inherit; font-size: 0.9rem; cursor: pointer;
+  }
+  .rejouer:hover { background: var(--marque-doux); color: var(--marque); }
+
+  .indice { margin: 0.6rem 0 0; font-size: 0.8rem; color: var(--muted); min-height: 2.6em; }
+  .indice b { color: var(--marque); }
+
+  /* ───────────────────── le tiroir Flow (Meta) ────────────────────────── */
+
+  .voile {
+    position: absolute; inset: 0; z-index: 5;
+    background: rgba(11, 20, 26, 0.45);
+    opacity: 0; pointer-events: none;
+    transition: opacity 200ms;
+  }
+  .tel[data-tiroir] .voile { opacity: 1; pointer-events: auto; }
+  .tiroir {
+    position: absolute; z-index: 6; inset-inline: 0; bottom: 0;
+    max-height: 88%;
+    background: var(--surface); color: var(--encre);
+    border-radius: 18px 18px 0 0;
+    transform: translateY(102%);
+    transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    display: flex; flex-direction: column;
+    box-shadow: 0 -8px 32px rgba(11, 20, 26, 0.28);
+  }
+  @media (prefers-reduced-motion: reduce) { .tiroir, .voile { transition: none; } }
+  .tel[data-tiroir] .tiroir { transform: none; }
+  .tiroir__tete {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+    padding: 0.75rem 0.9rem 0.5rem;
+  }
+  .tiroir__tete b { font-size: 0.92rem; }
+  .tiroir__tete small { display: block; font-size: 0.68rem; color: var(--muted); font-weight: 400; }
+  .tiroir__fermer { border: 0; background: none; font-size: 1rem; color: var(--muted); cursor: pointer; padding: 0.3rem; }
+  .tiroir__corps { padding: 0.2rem 0.9rem 0.5rem; overflow-y: auto; }
+  .champ { margin-bottom: 0.65rem; }
+  .champ label { display: block; font-size: 0.7rem; color: var(--encre-2); margin-bottom: 0.2rem; }
+  .champ .valeur {
+    padding: 0.55rem 0.7rem; border: 1px solid var(--filet); border-radius: 12px;
+    background: var(--ground); font-size: 0.84rem; min-height: 44px; display: flex; align-items: center;
+  }
+  .champ .valeur.vide { color: var(--muted); }
+  .seg { display: flex; gap: 0.4rem; }
+  .seg span {
+    flex: 1; text-align: center; padding: 0.5rem 0.4rem; min-height: 44px;
+    border: 1px solid var(--filet); border-radius: 12px; font-size: 0.8rem;
+    display: grid; place-items: center;
+  }
+  .seg span[data-choisi] { border-color: var(--marque); background: var(--marque-doux); color: var(--marque); font-weight: 700; }
+  .tiroir__pied { padding: 0.6rem 0.9rem calc(0.8rem + env(safe-area-inset-bottom)); border-top: 1px solid var(--filet-fin); }
+  .tiroir__cta {
+    width: 100%; min-height: 46px;
+    border: 0; border-radius: 999px;
+    background: linear-gradient(135deg, var(--marque), var(--marque-vif)); color: #fff;
+    font: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer;
+  }
+  .tiroir__note { margin: 0.45rem 0 0; font-size: 0.68rem; color: var(--muted); text-align: center; }
+  .tiroir__pas { display: flex; gap: 4px; justify-content: center; margin-top: 0.4rem; }
+  .tiroir__pas i { width: 18px; height: 3px; border-radius: 2px; background: var(--filet); }
+  .tiroir__pas i[data-fait] { background: var(--marque); }
+
+  /* ───────────────────────── la colonne de droite ─────────────────────── */
+
+  .compteur {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .compteur > div {
+    padding: 0.7rem 0.6rem; border-radius: var(--r);
+    background: var(--surface); border: 1px solid var(--filet);
+    text-align: center;
+  }
+  .compteur b { display: block; font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .compteur small { font-size: 0.68rem; color: var(--muted); }
+  .compteur .accent b { color: var(--marque); }
+
+  .trace { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+  .trace li {
+    padding: 0.75rem 0.9rem;
+    background: var(--surface); border: 1px solid var(--filet);
+    border-left: 3px solid var(--marque); border-radius: var(--r);
+    animation: pose 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) { .trace li { animation: none; } }
+  .trace li[data-etat="cible"] { border-left-color: var(--ambre); }
+  .trace li[data-etat="etage"] { border-left-color: var(--or); }
+  .trace__tete { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.15rem; }
+  .trace__quoi { font-weight: 600; font-size: 0.9rem; }
+  .trace__note { margin: 0.2rem 0 0; font-size: 0.8rem; color: var(--encre-2); }
+  .trace__src { font-family: var(--mono); font-size: 0.68rem; color: var(--marque); word-break: break-word; }
+  .vide-trace { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+
+  .etat {
+    display: inline-flex; align-items: center;
+    padding: 0.08rem 0.5rem; border-radius: 999px;
+    font-size: 0.68rem; font-weight: 600; white-space: nowrap;
+  }
+  .etat--place { background: var(--marque-doux); color: var(--marque); }
+  .etat--cible { background: var(--ambre-doux); color: var(--ambre); }
+  .etat--etage { background: transparent; border: 1px solid var(--or); color: var(--or); }
+
+  h2 { font-size: clamp(1.35rem, 1rem + 1.4vw, 1.9rem); letter-spacing: -0.015em; margin: 0 0 0.8rem; }
+  .intro-parcours { max-width: 68ch; margin: 0 0 1.2rem; color: var(--encre-2); font-size: 0.93rem; }
+
+  .socle { border-top: 1px solid var(--filet); background: var(--surface); padding-block: clamp(2rem, 1.4rem + 2.6vw, 3.4rem); }
+  .grille { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); }
+  .fiche { padding: 1.1rem; border: 1px solid var(--filet); border-radius: var(--r); background: var(--ground); }
+  .fiche h3 { font-size: 1rem; margin: 0 0 0.35rem; }
+  .fiche p { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--encre-2); }
+  .fiche .em { font-size: 1.5rem; }
+
+  footer { padding-block: 2rem 3rem; color: var(--muted); font-size: 0.82rem; }
+  footer code { font-family: var(--mono); }
+  :focus-visible { outline: 2px solid var(--marque); outline-offset: 2px; }
+</style>
+
+<header>
+  <div class="enveloppe">
+    <p class="jalon">docs/terrain · maquette cliquable · la cible premium</p>
+    <h1>D'un bot à une <em>application dans le fil</em>.</h1>
+    <p class="chapeau">
+      Personne ne devine rien : chaque étape <strong>éclaire le seul geste qui compte</strong> —
+      un bouton qui appelle, un formulaire Meta qui glisse, jamais une question ouverte. La
+      conversation devient l'exception : on tape un message quand on n'a pas pu faire autrement,
+      et le compteur à droite en fait la preuve.
+    </p>
+    <div class="principes">
+      <span class="principe">📋 <b>Flows Meta</b> — un formulaire remplace dix questions</span>
+      <span class="principe">🤖 <b>Le produit parle en premier</b> — jamais muet, jamais bavard</span>
+      <span class="principe">🛍️ <b>Un catalogue à chaque vendeuse</b> — pas un menu générique</span>
+      <span class="principe">✨ <b>Un seul geste actif à la fois</b> — il s'illumine</span>
+    </div>
+    <div class="personas" role="tablist" aria-label="Choisir un parcours">
+      <button class="persona" id="p-vendeuse" role="tab" type="button">
+        <span class="persona__emoji" aria-hidden="true">🧵</span>
+        <span><span class="persona__nom">Bintou — vendeuse</span><br>
+        <span class="persona__note">De zéro à la première vente prouvée, sans taper un seul message métier.</span></span>
+      </button>
+      <button class="persona" id="p-acheteuse" role="tab" type="button">
+        <span class="persona__emoji" aria-hidden="true">🛍️</span>
+        <span><span class="persona__nom">Marie — acheteuse</span><br>
+        <span class="persona__note">Du Statut WhatsApp au reçu vérifiable, assistée jusqu'au suivi.</span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="enveloppe">
+  <h2 id="titre-parcours">—</h2>
+  <p class="intro-parcours" id="intro-parcours"></p>
+
+  <div class="etabli">
+    <div class="colonne">
+      <p class="titre-colonne">Le fil WhatsApp — jouez-le</p>
+      <div class="tel" id="tel">
+        <div class="tel__barre">
+          <div class="tel__pastille" aria-hidden="true" id="tel-emoji">🛍️</div>
+          <div>
+            <div class="tel__nom" id="tel-nom">Catalog <span class="verifie">✓</span></div>
+            <div class="tel__sous" id="tel-sous">Service automatisé — répond en quelques secondes</div>
+          </div>
+        </div>
+        <div class="fil" id="fil" role="log" aria-live="polite" aria-label="Conversation"></div>
+        <div class="saisie-barre" id="saisie-barre">
+          <div class="saisie-fantome" id="saisie-fantome">Écrire…</div>
+          <button class="rejouer" id="rejouer" type="button" aria-label="Rejouer le parcours">↺</button>
+        </div>
+        <div class="voile" id="voile"></div>
+        <div class="tiroir" id="tiroir" role="dialog" aria-modal="true" aria-label="Formulaire"></div>
+      </div>
+      <p class="indice" id="indice" aria-live="polite"></p>
+    </div>
+
+    <div>
+      <p class="titre-colonne">L'automatisation, comptée en direct</p>
+      <div class="compteur">
+        <div class="accent"><b id="c-auto">0</b><small>services rendus sans qu'on demande</small></div>
+        <div><b id="c-touches">0</b><small>touches (bouton, formulaire)</small></div>
+        <div><b id="c-tapes">0</b><small>messages tapés à la main</small></div>
+      </div>
+      <p class="titre-colonne">Sous le capot</p>
+      <ol class="trace" id="trace"></ol>
+      <p class="vide-trace" id="vide-trace">Choisissez un parcours, puis suivez le geste qui s'illumine.</p>
+    </div>
+  </div>
+</main>
+
+<section class="socle">
+  <div class="enveloppe">
+    <h2>Les quatre règles de la cible</h2>
+    <div class="grille">
+      <div class="fiche">
+        <span class="em" aria-hidden="true">💡</span>
+        <h3>Jamais muette, jamais bavarde</h3>
+        <p>Le produit parle en premier — accueil, notification, verdict, résumé du matin — mais
+        chaque prise de parole est UNE carte qui se suffit : le fait, le montant, le geste
+        suivant. Deux messages de suite sans geste entre eux, c'est un défaut (ADR 0086/0088).</p>
+      </div>
+      <div class="fiche">
+        <span class="em" aria-hidden="true">📋</span>
+        <h3>Le Flow remplace l'interrogatoire</h3>
+        <p>Tout ce qui a plus de deux champs devient un formulaire Meta : ouverture de boutique,
+        article, livraison, reversement, avis. La réponse arrive en un bloc, validée écran par
+        écran — et le fil reste propre : une bulle sortante, pas dix.</p>
+      </div>
+      <div class="fiche">
+        <span class="em" aria-hidden="true">🧾</span>
+        <h3>La preuve reste le cœur</h3>
+        <p>Le seul message que la vendeuse tape est le SMS collé — parce que c'est la preuve, et
+        qu'elle ne peut venir que de son téléphone. Tout le reste s'automatise autour : l'annonce
+        du SMS attendu, le verdict aux deux, le reçu, la demande d'avis.</p>
+      </div>
+      <div class="fiche">
+        <span class="em" aria-hidden="true">🪜</span>
+        <h3>Le premium par étages</h3>
+        <p>Étage 1 : le fil partagé, tout ce que cette page joue. Étage 2 : le catalogue natif
+        Meta — la grille de produits DANS WhatsApp, 500 articles à elle. Étage 3 : un numéro à
+        son nom sous le WABA Catalog. Cumulatif, et le pricing est un ADR du porteur du produit.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="enveloppe">
+    Fichier autonome — aucune dépendance, aucun réseau. Les états « en place / cible / étage 2 »
+    de la colonne de droite disent ce qui répond déjà et ce qui reste à construire ; l'inventaire
+    détaillé des écarts vit dans <code>parcours-vendeur-v2.html</code>, et les messages « en
+    place » sont recopiés des sources.
+  </div>
+</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const LIEN = "https://boutique.catalog.cm/chez-bintou";
+  const ESPACE = "https://app.catalog.cm";
+  const RECU = "https://boutique.catalog.cm/v/?c=8F3K2";
+
+  /* ────────────────────────────── scénarios ──────────────────────────────
+     Chaque pas rend UNE bulle (ou un aparté), puis dit comment on avance :
+     - rien           → le pas suivant se joue tout seul (c'est l'automatisation)
+     - attend:"tap"   → un bouton de la bulle porte data-suite et s'illumine
+     - attend:"chip"  → la barre de saisie propose LE geste (photo, collage…)
+     - flow:{…}       → le bouton ouvre un tiroir Meta ; son CTA avance
+     compte : "auto" | "touche" | "tape" — le compteur de la colonne droite. */
+
+  const FLOW_OUVERTURE = {
+    titre: "Ouvrir ma boutique",
+    sous: "Catalog · formulaire sécurisé",
+    ecrans: [
+      {
+        titre: "Votre boutique",
+        champs: [
+          { label: "Nom de la boutique", valeur: "Chez Bintou" },
+          { label: "Ville", valeur: "Douala" },
+          { label: "Quartier", valeur: "Deïdo" },
+          { label: "Photo de votre étal (facultative)", valeur: "📸 étal-bintou.jpg" },
+        ],
+        cta: "Continuer",
+      },
+      {
+        titre: "Votre premier article",
+        note: "Facultatif — la boutique s'ouvre même sans lui.",
+        champs: [
+          { label: "Article", valeur: "Sac tressé" },
+          { label: "Prix", valeur: "8 500 FCFA" },
+          { label: "En stock", valeur: "4" },
+          { label: "Photo", valeur: "📸 sac-tresse.jpg" },
+        ],
+        cta: "Ouvrir ma boutique",
+      },
+    ],
+  };
+
+  const FLOW_REVERSEMENT = {
+    titre: "Être payée d'avance",
+    sous: "Catalog · vérifié par code, une seule fois",
+    ecrans: [
+      {
+        titre: "Où l'argent arrive",
+        note: "Votre numéro Mobile Money — pas forcément celui-ci : la double SIM est la norme.",
+        champs: [
+          { label: "Numéro de reversement", valeur: "6 99 88 77 12" },
+          { label: "Opérateur", seg: ["Orange Money", "MTN MoMo"], choisi: 0 },
+        ],
+        cta: "Recevoir le code",
+      },
+      {
+        titre: "Le code reçu par SMS",
+        note: "Le collage n'est jamais bloqué — collez-le tel quel.",
+        champs: [{ label: "Code à 6 chiffres", valeur: "4 8 2 9 1 0" }],
+        cta: "Vérifier",
+      },
+    ],
+  };
+
+  const FLOW_LIVRAISON = {
+    titre: "Où livrer ?",
+    sous: "Chez Bintou · un seul écran",
+    ecrans: [
+      {
+        titre: "Votre livraison",
+        note: "Pas d'adresse au Cameroun : un quartier et un repère suffisent.",
+        champs: [
+          { label: "Mode", seg: ["🛵 Livraison", "🤝 Point de retrait"], choisi: 0 },
+          { label: "Ville", valeur: "Douala" },
+          { label: "Quartier", valeur: "Bonapriso" },
+          { label: "Repère", valeur: "Près de la pharmacie du Rail" },
+          { label: "Téléphone", valeur: "6 52 00 00 01" },
+        ],
+        cta: "Confirmer ma commande",
+      },
+    ],
+  };
+
+  const FLOW_AVIS = {
+    titre: "Votre avis",
+    sous: "Chez Bintou · avis vérifié — commande CT-104312",
+    ecrans: [
+      {
+        titre: "Comment c'était ?",
+        champs: [
+          { label: "Note", valeur: "⭐⭐⭐⭐⭐" },
+          { label: "Un mot (facultatif)", valeur: "Sac solide, livraison rapide" },
+        ],
+        cta: "Publier mon avis",
+      },
+    ],
+  };
+
+  const VENDEUSE = {
+    emoji: "🛍️",
+    nom: 'Catalog <span class="verifie">✓</span>',
+    sous: "Service automatisé — répond en quelques secondes",
+    titre: "Bintou ouvre boutique — et ne tape qu'un seul message",
+    intro:
+      "L'onboarding tient en un formulaire ; le catalogue se remplit par photos ; la carte, le " +
+      "reversement, la commande, le verdict et l'avis arrivent tout seuls. Le SEUL message " +
+      "tapé du parcours est le SMS collé — parce que c'est la preuve, et qu'elle ne peut venir " +
+      "que d'elle.",
+    pas: [
+      {
+        de: "systeme", compte: "touche",
+        attend: "chip", chip: "🪧 Toucher la carte d'Amina",
+        texte: "Bintou touche « vendre avec Catalog » sur la carte-vitrine d'Amina — WhatsApp s'ouvre, le message est prérempli",
+        quoi: "La découverte : une carte qui circule, zéro frappe",
+        etat: "place", src: "wa.me prérempli · parrainage ADR 0034 (attribution seule)",
+        note: "L'acquisition passe par les vendeuses elles-mêmes : la carte d'une consœur porte le lien « vendre avec elle ». Le champ parrainId existe en base — attribution seule, aucune récompense inventée.",
+      },
+      {
+        de: "moi", texte: "vendre avec amina", compte: "auto",
+        quoi: "Le message prérempli part tel quel",
+        etat: "place", src: "aiguillage.ts · le geste décide, pas l'identité",
+        note: "Pas de mot de passe d'entrée : ce texte attribue le parrainage et ouvre le parcours vendeuse. Un lien de boutique, lui, ouvrirait le parcours acheteuse.",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Bienvenue — parrainée par Chez Amina 💚", b: "Votre boutique WhatsApp, ouverte en 1 minute ✨" },
+        texte: "Un formulaire, deux écrans — et vos clientes commandent, paient d'avance, reçoivent un reçu vérifiable. 0 % de commission : Catalog n'encaisse jamais.",
+        actions: [{ l: "🛍️ Ouvrir ma boutique", flow: FLOW_OUVERTURE }],
+        quoi: "L'accueil — la valeur, puis UN geste",
+        etat: "place", src: "inscription.ts + flux.ts (ADR 0087)",
+        note: "Le formulaire s'ajoute à la question, il ne la remplace pas : celle qui préfère répondre en texte le peut. Mais le chemin lumineux, c'est le Flow.",
+      },
+      {
+        de: "moi", compte: "touche",
+        texte: "📋 Ouvrir ma boutique\nChez Bintou · Douala · Deïdo\nSac tressé — 8 500 FCFA · 4 en stock",
+        quoi: "La réponse du Flow — sept champs, une bulle",
+        etat: "place", src: "flux.ts · nfm_reply (ADR 0087)",
+        note: "Une réponse de Flow porte tous les champs d'un coup : elle saute les états intermédiaires de la machine. Sept questions évitées.",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Boutique ouverte · 41 s", b: "Chez Bintou 🎉" },
+        texte: "*Sac tressé* — 8 500 FCFA est en ligne.\n\nVotre lien à partager — mettez-le en statut WhatsApp :\n" + LIEN,
+        liste: {
+          bouton: "☰ Que faire ?",
+          lignes: [
+            { em: "📸", nom: "Ajouter des articles", desc: "Envoyez des photos légendées « nom prix », en rafale" },
+            { em: "🖼️", nom: "Ma carte à poster", desc: "L'affiche de votre boutique, pour votre Statut" },
+            { em: "💳", nom: "Être payée d'avance", desc: "Posez votre numéro Mobile Money, une fois" },
+            { em: "🏪", nom: "Ma boutique", desc: "Lien, soldes, congés, réglages" },
+          ],
+        },
+        quoi: "UNE bulle : confirmation, lien, menu natif",
+        etat: "place", src: "inscription.ts · messageBoutiqueCreee (ADR 0088)",
+        note: "Le lien reste du texte : elle doit le COPIER pour son Statut — un bouton l'ouvrirait au lieu de le donner. Le menu liste range tout sans rien pousser.",
+      },
+      {
+        de: "bot", compte: "auto",
+        affiche: { haut: "Boutique vérifiée Catalog", nom: "Chez Bintou", produits: ["👜"], pied: "boutique.catalog.cm/chez-bintou · 1 article" },
+        texte: "Votre affiche est prête — je la referai à chaque changement, sans que vous la demandiez. Postez-la en Statut : vos clientes touchent, votre boutique s'ouvre.",
+        quoi: "La carte-vitrine, générée ET entretenue",
+        etat: "place", src: "bot.ts · carteVitrine(poussee) — lot P2, ADR 0095-c",
+        note: "Elle arrive d'elle-même après chaque publication : une par salve, dans la fenêtre ouverte seulement, jamais par gabarit, échec silencieux. « Ma carte » reste, inchangée.",
+      },
+      {
+        de: "moi", compte: "touche",
+        attend: "chip", chip: "📸 Envoyer 3 photos légendées",
+        photos: ["🧵", "🫒", "📿"],
+        texte: "Pagne wax 6 yards 15 000 · Huile 5 L 4 500 · Bijoux perles 3 000",
+        quoi: "La rafale — le geste du Statut, tel quel",
+        etat: "place", src: "rafale.ts + inscription.ts (ADR 0096) · lireLegendeArticle (ADR 0035)",
+        note: "La légende fait tout : le prix est le dernier groupe de chiffres, le nom est le reste. Les photos s'accumulent en brouillons ; chaque photo reçoit un 👍, la carte arrive à la fermeture de la fenêtre (30 s).",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Lu dans vos légendes", b: "3 articles prêts à publier" },
+        prix: [
+          { l: "🧵 Pagne wax 6 yards", v: "15 000 F" },
+          { l: "🫒 Huile de palme 5 L", v: "4 500 F" },
+          { l: "📿 Bijoux perles", v: "3 000 F" },
+        ],
+        texte: "Rien ne se publie sans vous. Pour corriger : écrivez « corriger le 2 ».",
+        actions: [{ l: "✅ Tout publier", suite: true }, { l: "✏️ Corriger le 3" }],
+        attend: "tap",
+        quoi: "n photos → UNE confirmation",
+        etat: "place", src: "rafale.ts · carteRafale (ADR 0096)",
+        note: "La correction est adressable par numéro — « corriger le 2 » tapé vise n'importe quel brouillon, le bouton vise le premier sans nom ou le dernier ajouté. Une question, pas un formulaire rejoué.",
+      },
+      {
+        de: "systeme", compte: "auto",
+        texte: "✅ publiés · boutique à 4 articles · affiche régénérée · 0 question posée",
+        quoi: "La boutique se reconstruit par la porte",
+        etat: "place", src: "ADR 0065/0068 · le regroupement absorbe la rafale",
+      },
+      {
+        de: "bot", compte: "auto",
+        texte: "💡 Un dernier réglage et vos clientes paient *d'avance* : posez le numéro où l'argent arrive. Une fois, vérifié par code — c'est le champ qu'un fraudeur viserait, alors on le protège.",
+        actions: [{ l: "💳 Être payée d'avance", flow: FLOW_REVERSEMENT }],
+        quoi: "Le reversement, au moment où il coûte le moins",
+        etat: "cible", src: "l'OTP existe (lot 4, app) · le Flow dans le fil est à construire",
+        note: "Aujourd'hui ce réglage vit dans l'espace web. La cible le ramène dans le fil, en deux écrans — numéro, puis code — sans jamais bloquer le collage.",
+      },
+      {
+        de: "systeme", compte: "touche",
+        texte: "💳 6 99 88 77 12 vérifié — Orange Money · vos clientes paient d'avance",
+        quoi: "L'onboarding est fini : profil, articles, carte, reversement",
+        etat: "place", src: "payout.ts · l'OTP prouve la main sur la puce",
+      },
+      {
+        de: "systeme", compte: "auto",
+        texte: "— le lendemain, 10:14 —",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Nouvelle commande 🛒", b: "CT-104312 · 21 500 FCFA" },
+        prix: [
+          { l: "👜 Sac tressé × 2", v: "17 000 F" },
+          { l: "🫒 Huile de palme × 1", v: "4 500 F" },
+          { l: "Acompte payé d'avance ⏳", v: "10 750 F" },
+        ],
+        texte: "📍 Bonapriso, près de la pharmacie du Rail\n📞 6 52 00 00 01 (Marie)\n\n📲 Un SMS de *10 750 FCFA* devrait arriver de votre opérateur — collez-le ici : il devient le reçu.",
+        actions: [{ l: "🧺 Marquer préparée", suite: true }, { l: "💬 Écrire à Marie" }],
+        attend: "tap",
+        quoi: "La commande arrive seule — et le SMS est ANNONCÉ",
+        etat: "place", src: "notifications.ts · corpsNouvelleCommande — le bouton « préparée » est cible",
+        note: "Le rapprochement est préparé : quand le SMS sonnera, le réflexe sera « je le colle dans Catalog ». Le fil ne connaît aujourd'hui que « livrée » — l'étape « préparée » au bouton est la cible.",
+      },
+      {
+        de: "systeme", compte: "touche",
+        texte: "🧺 CT-104312 → préparée · Marie est prévenue automatiquement",
+        quoi: "Chaque étape franchie prévient l'autre côté",
+        etat: "cible", src: "le suivi acheteuse pas-à-pas est à construire",
+      },
+      {
+        de: "moi", compte: "tape", mono: true,
+        attend: "chip", chip: "📋 Coller le SMS de l'opérateur",
+        texte: "Vous avez recu 10750 XAF de MARIE NGONO (237652000001 ) sur votre compte Mobile Money 2026-08-15 10:31:04. Message de l'expediteur:. Votre nouveau solde est de 41250 FCFA. Frais: 0 XAF. Transaction ID: 17600000002.",
+        quoi: "LE message tapé du parcours : la preuve",
+        etat: "place", src: "docs/formats-sms-operateurs.md · MTN réception — le collage n'est jamais bloqué",
+        note: "Le seul geste qui ne peut pas s'automatiser, par décision de plateforme : READ_SMS est fermé, et c'est documenté. Son solde est dans ce message — il ne va dans aucune trace.",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "7 contrôles passés ✓", b: "Paiement prouvé ✅" },
+        texte: "Acompte de *10 750 FCFA* confirmé pour CT-104312.\n🧾 Marie vient de recevoir son reçu vérifiable — et vous, votre premier paiement prouvé.",
+        quoi: "Le verdict, poussé AUX DEUX",
+        etat: "place", src: "conversation.ts · messageVerdict (ADR 0083) · reçu ADR 0021",
+        note: "Identifiant opérateur unique sur tout le réseau, horodatage, contrepartie, format : les sept contrôles du produit, dits en langue simple.",
+      },
+      {
+        de: "bot", compte: "auto",
+        texte: "🛵 Remise prévue aujourd'hui. Quand c'est fait, un geste suffit :",
+        actions: [{ l: "📦 Remise faite — commande livrée", suite: true }],
+        attend: "tap",
+        quoi: "La remise en un bouton, plus un mot-clé à retenir",
+        etat: "cible", src: "« livrée CT-… » tapé est en place · le bouton contextuel est la cible",
+        note: "Le mot-clé reste — il marche depuis n'importe où. Mais au moment probable de la remise, le bouton est là : personne ne devine une syntaxe.",
+      },
+      {
+        de: "bot", compte: "touche",
+        texte: "📦 *CT-104312 livrée.* Marie est prévenue — et invitée à laisser un avis vérifié, qui paraîtra sur votre boutique et sur *Sac tressé*.",
+        quoi: "L'après-vente démarre tout seul",
+        etat: "place", src: "notifications.ts · carte-avis.ts (ADR 0076)",
+      },
+      {
+        de: "systeme", compte: "auto",
+        texte: "— le lendemain, 07:30 —",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Votre matin · samedi 16 août ☀️", b: "Bonjour Bintou — hier chez vous :" },
+        prix: [
+          { l: "🛒 Commandes", v: "2" },
+          { l: "✅ Paiement prouvé", v: "1" },
+          { l: "👀 Visites de la boutique", v: "340" },
+          { l: "⭐ Avis reçu", v: "« Sac solide, livraison rapide »" },
+        ],
+        texte: "À faire aujourd'hui : préparer CT-104305. Bonne journée 🌞",
+        quoi: "Le résumé du matin — le service qu'on ne demande jamais",
+        etat: "cible", src: "ADR à écrire · gabarit utilitaire (ADR 0054) · TZ Africa/Douala",
+        note: "Zéro message de la vendeuse : la journée démarre par les faits et l'action suivante. Un matin sans rien à dire n'envoie rien — le silence fait partie du service.",
+      },
+    ],
+  };
+
+  const ACHETEUSE = {
+    emoji: "🧵",
+    nom: 'Chez Bintou <span class="verifie">✓</span>',
+    sous: "via Catalog · réponses automatiques + la vendeuse",
+    titre: "Marie achète — assistée du Statut jusqu'au reçu",
+    intro:
+      "Elle touche un Statut, et tout le reste lui est proposé : le catalogue en vitrine, le " +
+      "panier, la livraison en un formulaire, le paiement pré-composé, le reçu, le suivi, " +
+      "l'avis. Elle ne tape pas un seul message — et à aucun moment elle ne se demande « et " +
+      "maintenant ? ».",
+    pas: [
+      {
+        de: "systeme", compte: "touche",
+        texte: "Marie touche l'affiche « Chez Bintou » dans un Statut WhatsApp",
+        quoi: "L'entrée : le Statut, canal de vente n° 1",
+        etat: "place", src: "entree-boutique.ts · le canal est mesuré (statut, carte, chaîne…)",
+      },
+      {
+        de: "moi", compte: "auto", texte: "boutique chez-bintou",
+        quoi: "Le lien ouvre le fil — le geste décide",
+        etat: "place", src: "aiguillage.ts · règle 4 → fil acheteuse",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Boutique vérifiée Catalog ✓", b: "Chez Bintou" },
+        texte: "Deïdo, Douala · ⭐ 4,8 · 8 ventes prouvées\nCommandez ici — chaque paiement prouvé donne un *reçu vérifiable*. Bintou vous répond sur son WhatsApp.",
+        actions: [
+          { l: "🛍️ Voir la vitrine", suite: true },
+          { l: "📦 Suivre ma commande" },
+          { l: "💬 Parler à Bintou" },
+        ],
+        attend: "tap",
+        quoi: "L'accueil : l'identité, la confiance, trois portes",
+        etat: "place", src: "conversation.ts · accueilBoutique()",
+        note: "La réputation ne s'affiche qu'à partir d'une vente prouvée : un compteur à zéro ne rassure personne. Trois boutons — la limite de l'API, et c'est assez.",
+      },
+      {
+        de: "bot", compte: "touche",
+        tete: { small: "La vitrine de Bintou 🧵", b: "4 articles" },
+        produits: [
+          { em: "👜", nom: "Sac tressé", prix: "8 500 F", suite: true },
+          { em: "🧵", nom: "Pagne wax 6 yards", prix: "15 000 F" },
+          { em: "🫒", nom: "Huile de palme 5 L", prix: "4 500 F" },
+          { em: "📿", nom: "Bijoux perles", prix: "3 000 F" },
+        ],
+        texte: "Touchez un article pour le voir de près.",
+        attend: "tap",
+        quoi: "LE catalogue de cette vendeuse — pas un menu générique",
+        etat: "etage", src: "étage 2 · catalogue natif Meta (MPM) — l'étage 1 sert une liste native",
+        note: "La grille d'images dans WhatsApp, c'est le catalogue Meta : 500 produits à elle, natif. L'étage 1 rend la même chose en message liste — même structure, moins de pixels.",
+      },
+      {
+        de: "bot", compte: "touche",
+        heroEmoji: "👜",
+        tete: { small: "Chez Bintou", b: "Sac tressé — 8 500 FCFA" },
+        texte: "Raphia tressé main, doublure coton. Plus que 2 disponibles.",
+        actions: [{ l: "🛒 Ajouter au panier", suite: true }, { l: "↩️ Retour à la vitrine" }],
+        attend: "tap",
+        quoi: "La fiche : photo d'abord, l'action ensuite",
+        etat: "place", src: "conversation.ts · ficheArticle() · stock ADR 0038",
+        note: "« Plus que 2 » n'apparaît que sous 3 : le stock ne se décompte pas tout seul, on ne fabrique pas d'urgence.",
+      },
+      {
+        de: "bot", compte: "touche",
+        texte: "Combien de *Sac tressé* ? (2 disponibles)",
+        actions: [{ l: "1" }, { l: "2", suite: true }],
+        attend: "tap",
+        quoi: "La quantité — deux boutons, pas une question ouverte",
+        etat: "place", src: "conversation.ts · état « quantite »",
+      },
+      {
+        de: "bot", compte: "touche",
+        tete: { small: "Votre panier 🛒", b: "21 500 FCFA" },
+        prix: [
+          { l: "👜 Sac tressé × 2", v: "17 000 F" },
+          { l: "🫒 Huile de palme × 1", v: "4 500 F" },
+        ],
+        texte: "Livraison en sus — la course se convient avec Bintou.",
+        actions: [{ l: "📍 Commander", flow: FLOW_LIVRAISON }, { l: "➕ Ajouter un article" }],
+        quoi: "Le panier multi-articles, et le périmètre du total DIT",
+        etat: "place", src: "panier ADR 0038 · « hors livraison » ferme la source de litige n° 1",
+        note: "L'huile a été ajoutée du même geste — le panier tient plusieurs articles. « Commander » ouvre le Flow de livraison : un écran, cinq champs, zéro interrogatoire.",
+      },
+      {
+        de: "moi", compte: "touche",
+        texte: "📍 Livraison — Douala, Bonapriso\nPrès de la pharmacie du Rail · 6 52 00 00 01",
+        quoi: "La livraison en UN bloc — pas d'adresse, un repère",
+        etat: "place", src: "lireReponseFlux (ADR 0055) · quartier + repère obligatoires (ADR 0005)",
+        note: "La réponse du Flow saute tous les états intermédiaires de la machine. Il n'existe pas d'adresse au Cameroun : le formulaire ne demande que ce qui existe.",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Commande créée ✓", b: "CT-104312 · 21 500 FCFA" },
+        texte: "Acompte pour réserver : *10 750 FCFA* — le solde à la remise.\nCode de vérification : *8F3K2* (gardez-le, il ouvre votre reçu).",
+        actions: [{ l: "💰 Payer l'acompte", suite: true }],
+        attend: "tap",
+        quoi: "Le récapitulatif : référence, code, montants exacts",
+        etat: "place", src: "splitDeposit · floor sur l'acompte, le total préservé au franc près",
+        note: "10 750 + 10 750 = 21 500 : l'invariant est garanti par une contrainte de base, pas par le code. Le message est autosuffisant en texte brut — le lien n'est qu'un confort.",
+      },
+      {
+        de: "bot", compte: "touche",
+        tete: { small: "Payer à Bintou — MTN MoMo détecté", b: "10 750 FCFA 📲" },
+        texte: "Touchez : votre composeur s'ouvre déjà rempli. Votre code secret se tape chez l'opérateur — Catalog ne le voit jamais, et l'argent va *directement* à Bintou.",
+        actions: [{ l: "📞 Composer *126# et payer", suite: true }, { l: "🔢 Voir le menu manuel" }],
+        attend: "tap",
+        quoi: "La rampe : le clavier pré-rempli, jamais l'argent",
+        etat: "place", src: "domain/ramp (ADR 0020) · tel: avec %23 · le code vit en config",
+        note: "Catalog n'encaisse rien — dépôt direct, de son portefeuille à celui de Bintou. Le raccourci non vérifié sur téléphone réel garde le menu manuel à côté.",
+      },
+      {
+        de: "systeme", compte: "auto",
+        texte: "💸 paiement dans la session de l'opérateur — Catalog n'en voit rien, et c'est l'architecture",
+        quoi: "L'invariant ADR 0009, visible dans le parcours",
+        etat: "place", src: "les fonds ne transitent jamais par un compte Catalog",
+      },
+      {
+        de: "bot", compte: "auto",
+        tete: { small: "Reçu vérifiable 🧾", b: "Acompte prouvé — 10 750 FCFA" },
+        texte: "Bintou a collé le SMS de son opérateur : les 7 contrôles passent, l'identifiant de transaction est unique sur tout le réseau.\n" + RECU + "\n\nUn dernier geste — dites que c'est bien vous :",
+        actions: [{ l: "✍️ C'est bien moi qui ai payé", suite: true }],
+        attend: "tap",
+        quoi: "Le reçu poussé, et la contre-signature invitée",
+        etat: "place", src: "ADR 0021 · deux clés, deux pouvoirs · ADR 0036 · sans quitter WhatsApp",
+        note: "Le moment le plus anxieux du parcours — « mon argent est parti » — n'est plus muet. La contre-signature ferme la collusion à une seule voix : la vente devient prouvée à deux voix.",
+      },
+      {
+        de: "bot", compte: "touche",
+        texte: "🤝 Merci ! Votre paiement est *prouvé à deux voix*. Voici votre suivi — il se mettra à jour tout seul :",
+        timeline: [
+          { l: "Acompte prouvé — 10 750 F", fait: true },
+          { l: "En préparation chez Bintou", encours: true },
+          { l: "Remise & solde — 10 750 F" },
+          { l: "Avis vérifié" },
+        ],
+        quoi: "Le suivi vivant — plus jamais « et maintenant ? »",
+        etat: "cible", src: "les jalons existent en base · la timeline poussée pas-à-pas est à construire",
+        note: "Chaque étape franchie par Bintou met la timeline à jour chez Marie. Aujourd'hui la page de suivi existe ; la pousser dans le fil est la cible.",
+      },
+      {
+        de: "systeme", compte: "auto",
+        texte: "— le lendemain — 🛵 Bintou touche « Remise faite »",
+      },
+      {
+        de: "bot", compte: "auto",
+        texte: "📦 *Livrée !* Le solde de 10 750 FCFA s'est réglé à la remise.\nUn mot sur votre achat ? Votre avis sera *vérifié* — il suit un paiement prouvé.",
+        actions: [{ l: "⭐ Laisser un avis", flow: FLOW_AVIS }],
+        quoi: "L'avis demandé au bon moment, jamais avant",
+        etat: "place", src: "carte-avis.ts (ADR 0076) · l'avis suit la commande prouvée",
+      },
+      {
+        de: "moi", compte: "touche",
+        texte: "⭐⭐⭐⭐⭐ « Sac solide, livraison rapide »",
+        quoi: "L'avis en un formulaire — pas un dialogue",
+        etat: "cible", src: "la note dans le fil est en place · le Flow d'avis est la cible",
+      },
+      {
+        de: "bot", compte: "auto",
+        texte: "Merci Marie 💚 Votre avis est publié sur la boutique et sur *Sac tressé*.\nVotre reçu reste vérifiable à tout moment : " + RECU,
+        quoi: "La boucle est bouclée — et la réputation de Bintou grandit",
+        etat: "place", src: "distribution ADR 0076 · le reçu ADR 0021",
+        note: "L'avis nourrit la carte-vitrine (« 8 ventes prouvées · ⭐ 4,8 ») : la confiance qui fait vendre au prochain Statut. Le produit travaille en boucle.",
+      },
+    ],
+  };
+
+  /* ─────────────────────────────── moteur ───────────────────────────────── */
+
+  const $ = (id) => document.getElementById(id);
+  const filEl = $("fil"), traceEl = $("trace"), telEl = $("tel"),
+        tiroirEl = $("tiroir"), videEl = $("vide-trace"),
+        barreEl = $("saisie-barre"), fantomeEl = $("saisie-fantome");
+
+  const echapper = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const gras = (s) => echapper(s).replace(/\*([^*\n]+)\*/g, "<strong>$1</strong>");
+
+  const ETIQUETTE = {
+    place: ["etat--place", "en place"],
+    cible: ["etat--cible", "cible"],
+    etage: ["etat--etage", "étage 2 · premium"],
+  };
+  const HEURES = ["09:41", "09:42", "09:44", "09:47", "10:14", "10:31", "10:32", "12:05", "18:20", "07:30"];
+
+  let SCEN = VENDEUSE, curseur = 0, minuterie = null, chipEl = null;
+  const compte = { auto: 0, touche: 0, tape: 0 };
+  const REDUIT = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function bulleDe(pas, i) {
+    if (pas.de === "systeme") {
+      const el = document.createElement("div");
+      el.className = "systeme";
+      el.textContent = pas.texte;
+      return el;
+    }
+    const el = document.createElement("div");
+    el.className = "bulle bulle--" + (pas.de === "moi" ? "moi" : "bot");
+    let html = "";
+
+    if (pas.tete) html += '<div class="carte-tete"><small>' + echapper(pas.tete.small) + "</small><b>" + echapper(pas.tete.b) + "</b></div>";
+    if (pas.heroEmoji) html += '<div class="photo-hero" aria-hidden="true">' + pas.heroEmoji + "</div>";
+    if (pas.photos) html += '<div class="photos produits" style="grid-template-columns:repeat(3,1fr)">' + pas.photos.map((p) => '<div class="produit"><div class="produit__photo">' + p + "</div></div>").join("") + "</div>";
+    if (pas.affiche) {
+      html += '<div class="affiche"><div style="display:flex;justify-content:space-between;gap:.5rem"><div><div style="opacity:.85;letter-spacing:.1em;text-transform:uppercase;font-size:.58rem">' +
+        echapper(pas.affiche.haut) + "</div><b>" + echapper(pas.affiche.nom) + "</b></div></div>" +
+        '<div class="vignettes">' + pas.affiche.produits.map((p) => "<div>" + p + "</div>").join("") + "</div>" +
+        '<div class="pied"><span style="opacity:.9">' + echapper(pas.affiche.pied) + '</span><span class="qr" aria-hidden="true"></span></div></div>';
+    }
+    if (pas.produits) {
+      html += '<div class="produits">' + pas.produits.map((p) =>
+        '<button type="button" class="produit" tabindex="-1"' + (p.suite ? ' data-suite data-cible="produit"' : "") + '><div class="produit__photo">' + p.em + '</div><div class="produit__nom">' + echapper(p.nom) + '</div><div class="produit__prix">' + echapper(p.prix) + "</div></button>").join("") + "</div>";
+    }
+    if (pas.prix) {
+      html += pas.prix.map((r) => '<div class="rangee-prix"><span>' + echapper(r.l) + "</span><b>" + echapper(r.v) + "</b></div>").join("");
+    }
+    if (pas.timeline) {
+      html += '<ul class="timeline">' + pas.timeline.map((j) =>
+        "<li" + (j.fait ? " data-fait" : "") + (j.encours ? " data-encours" : "") + '><span class="puce">' + (j.fait ? "✓" : "•") + "</span><span>" + echapper(j.l) + "</span></li>").join("") + "</ul>";
+    }
+    if (pas.texte) {
+      html += pas.mono
+        ? '<span style="font-family:var(--mono);font-size:.72rem">' + echapper(pas.texte) + "</span>"
+        : gras(pas.texte);
+    }
+    html += '<span class="bulle__heure">' + HEURES[i % HEURES.length] + (pas.de === "moi" ? " ✓✓" : "") + "</span>";
+    if (pas.liste) {
+      html += '<div class="bulle__liste">' + pas.liste.lignes.map((l) =>
+        '<div class="liste-ligne"><span class="em" aria-hidden="true">' + l.em + "</span><span><b>" + echapper(l.nom) + "</b><span>" + echapper(l.desc) + "</span></span></div>").join("") + "</div>" +
+        '<div class="bulle__actions"><button class="bulle__action" type="button" tabindex="-1">' + echapper(pas.liste.bouton) + "</button></div>";
+    }
+    if (pas.actions) {
+      html += '<div class="bulle__actions">' + pas.actions.map((a, j) =>
+        '<button class="bulle__action" type="button"' + (a.suite || a.flow ? ' data-suite data-flow="' + (a.flow ? j : "") + '"' : " tabindex='-1'") + ">" + echapper(a.l) + "</button>").join("") + "</div>";
+    }
+    el.innerHTML = html;
+    return el;
+  }
+
+  function ligneTrace(pas, no) {
+    if (!pas.quoi) return null;
+    const li = document.createElement("li");
+    li.dataset.etat = pas.etat || "place";
+    const [cls, mot] = ETIQUETTE[pas.etat || "place"];
+    li.innerHTML =
+      '<div class="trace__tete"><span class="trace__quoi">' + no + ". " + echapper(pas.quoi) +
+      '</span><span class="etat ' + cls + '">' + mot + "</span></div>" +
+      (pas.src ? '<div class="trace__src">' + echapper(pas.src) + "</div>" : "") +
+      (pas.note ? '<p class="trace__note">' + echapper(pas.note) + "</p>" : "");
+    return li;
+  }
+
+  function majCompteur(genre) {
+    compte[genre] += 1;
+    $("c-auto").textContent = compte.auto;
+    $("c-touches").textContent = compte.touche;
+    $("c-tapes").textContent = compte.tape;
+  }
+
+  function poserChip(libelle, action) {
+    retirerChip();
+    fantomeEl.hidden = true;
+    chipEl = document.createElement("button");
+    chipEl.className = "chip";
+    chipEl.type = "button";
+    chipEl.textContent = libelle;
+    chipEl.addEventListener("click", action, { once: true });
+    barreEl.insertBefore(chipEl, barreEl.firstChild);
+  }
+  function retirerChip() {
+    if (chipEl) { chipEl.remove(); chipEl = null; }
+    fantomeEl.hidden = false;
+  }
+
+  function ouvrirTiroir(flow, apres) {
+    let ecran = 0;
+    const rendre = () => {
+      const e = flow.ecrans[ecran];
+      tiroirEl.innerHTML =
+        '<div class="tiroir__tete"><div><b>' + echapper(e.titre) + "</b><small>" + echapper(flow.sous) + "</small></div>" +
+        '<button class="tiroir__fermer" type="button" aria-label="Fermer">✕</button></div>' +
+        '<div class="tiroir__corps">' +
+        (e.note ? '<p style="margin:0 0 .6rem;font-size:.74rem;color:var(--muted)">' + echapper(e.note) + "</p>" : "") +
+        e.champs.map((c) => {
+          if (c.seg) return '<div class="champ"><label>' + echapper(c.label) + '</label><div class="seg">' +
+            c.seg.map((s, i) => "<span" + (i === c.choisi ? " data-choisi" : "") + ">" + echapper(s) + "</span>").join("") + "</div></div>";
+          return '<div class="champ"><label>' + echapper(c.label) + '</label><div class="valeur">' + echapper(c.valeur) + "</div></div>";
+        }).join("") +
+        "</div>" +
+        '<div class="tiroir__pied"><button class="tiroir__cta" type="button">' + echapper(e.cta) + "</button>" +
+        (flow.ecrans.length > 1
+          ? '<div class="tiroir__pas">' + flow.ecrans.map((_, i) => "<i" + (i <= ecran ? " data-fait" : "") + "></i>").join("") + "</div>"
+          : "") +
+        '<p class="tiroir__note">🔒 Géré par Catalog · vos réponses partent en un seul message</p></div>';
+      tiroirEl.querySelector(".tiroir__fermer").addEventListener("click", fermer);
+      tiroirEl.querySelector(".tiroir__cta").addEventListener("click", () => {
+        if (ecran < flow.ecrans.length - 1) { ecran += 1; rendre(); }
+        else { fermer(); apres(); }
+      });
+    };
+    const fermer = () => { delete telEl.dataset.tiroir; };
+    rendre();
+    telEl.dataset.tiroir = "1";
+    tiroirEl.querySelector(".tiroir__cta").focus?.();
+  }
+  $("voile").addEventListener("click", () => { delete telEl.dataset.tiroir; });
+
+  function jouer(i) {
+    if (i >= SCEN.pas.length) { fin(); return; }
+    curseur = i;
+    const pas = SCEN.pas[i];
+
+    const rendreEtContinuer = () => {
+      filEl.appendChild(bulleDe(pas, i));
+      filEl.scrollTop = filEl.scrollHeight;
+      const li = ligneTrace(pas, traceEl.children.length + 1);
+      if (li) { videEl.hidden = true; traceEl.appendChild(li); }
+      majCompteur(pas.compte || "auto");
+      const suivant = i + 1;
+      const p = SCEN.pas[i];
+      /* Si CETTE bulle attend un tap, armer ses boutons ; sinon enchaîner. */
+      if (p.attend === "tap") armerTaps(p, suivant);
+      else planifier(suivant);
+    };
+
+    if (pas.attend === "chip") {
+      $("indice").innerHTML = "👉 Touchez <b>" + echapper(pas.chip) + "</b> dans la barre du bas.";
+      poserChip(pas.chip, () => { retirerChip(); rendreEtContinuer(); });
+    } else {
+      rendreEtContinuer();
+    }
+  }
+
+  function armerTaps(pas, suivant) {
+    const derniere = filEl.lastElementChild;
+    const cibles = derniere.querySelectorAll("[data-suite]");
+    let fait = false;
+    const avancer = () => {
+      if (fait) return;
+      fait = true;
+      cibles.forEach((b) => { delete b.dataset.actif; b.tabIndex = -1; });
+      $("indice").textContent = "";
+      jouer(suivant);
+    };
+    let libelle = "";
+    cibles.forEach((b) => {
+      b.dataset.actif = "1";
+      b.tabIndex = 0;
+      if (b.dataset.flow !== "" && b.dataset.flow !== undefined && pas.actions?.[b.dataset.flow]?.flow) {
+        const flow = pas.actions[b.dataset.flow].flow;
+        b.addEventListener("click", () => { if (!fait) ouvrirTiroir(flow, avancer); });
+      } else {
+        b.addEventListener("click", avancer, { once: true });
+      }
+      libelle = libelle || (b.querySelector(".produit__nom")?.textContent ?? b.textContent).trim();
+    });
+    if (cibles.length) $("indice").innerHTML = "👉 Touchez <b>" + echapper(libelle) + "</b> — le geste qui s'illumine.";
+    else planifier(suivant);
+  }
+
+  function planifier(suivant) {
+    if (suivant >= SCEN.pas.length) { fin(); return; }
+    const p = SCEN.pas[suivant];
+    /* Une bulle avec un bouton-flow mais sans attend:"tap" : on l'affiche puis
+       on attend le tap du flow (cas : accueil → Ouvrir ma boutique). */
+    const delai = REDUIT ? 40 : 620;
+    if (p.actions?.some((a) => a.flow) && p.attend !== "tap") {
+      clearTimeout(minuterie);
+      minuterie = setTimeout(() => {
+        curseur = suivant;
+        filEl.appendChild(bulleDe(p, suivant));
+        filEl.scrollTop = filEl.scrollHeight;
+        const li = ligneTrace(p, traceEl.children.length + 1);
+        if (li) { videEl.hidden = true; traceEl.appendChild(li); }
+        majCompteur(p.compte || "auto");
+        armerTaps(p, suivant + 1);
+      }, delai);
+      return;
+    }
+    clearTimeout(minuterie);
+    minuterie = setTimeout(() => jouer(suivant), delai);
+  }
+
+  function fin() {
+    $("indice").innerHTML =
+      "🏁 Parcours terminé — <b>" + compte.tape + " message" + (compte.tape > 1 ? "s" : "") +
+      " tapé" + (compte.tape > 1 ? "s" : "") + "</b>, " + compte.touche + " touches, " +
+      compte.auto + " services rendus sans être demandés. ↺ pour rejouer, ou changez de persona.";
+  }
+
+  function ouvrir(scen, bouton) {
+    clearTimeout(minuterie);
+    retirerChip();
+    delete telEl.dataset.tiroir;
+    SCEN = scen; curseur = 0;
+    compte.auto = 0; compte.touche = 0; compte.tape = 0;
+    $("c-auto").textContent = "0"; $("c-touches").textContent = "0"; $("c-tapes").textContent = "0";
+    filEl.textContent = ""; traceEl.textContent = ""; videEl.hidden = false;
+    $("titre-parcours").textContent = scen.titre;
+    $("intro-parcours").textContent = scen.intro;
+    $("tel-emoji").textContent = scen.emoji;
+    $("tel-nom").innerHTML = scen.nom;
+    $("tel-sous").textContent = scen.sous;
+    $("p-vendeuse").setAttribute("aria-selected", String(scen === VENDEUSE));
+    $("p-acheteuse").setAttribute("aria-selected", String(scen === ACHETEUSE));
+    $("indice").textContent = "";
+    jouer(0);
+  }
+
+  $("p-vendeuse").addEventListener("click", () => ouvrir(VENDEUSE));
+  $("p-acheteuse").addEventListener("click", () => ouvrir(ACHETEUSE));
+  $("rejouer").addEventListener("click", () => ouvrir(SCEN));
+
+  ouvrir(VENDEUSE);
+})();
+</script>
+
+</body>
+</html>

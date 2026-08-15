@@ -295,8 +295,18 @@ jobs:
         run: |
           set -euo pipefail
           base="${{ vars.SHOP_BASE_URL }}"
+          environnement="${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}"
           if [ -z "$base" ]; then
-            echo "SHOP_BASE_URL non renseignee : verification sautee."
+            # En PRODUCTION, l'absence de la variable n'est pas un etat neutre :
+            # ce pas resterait vert a perpetuite sans jamais rien verifier
+            # (audit 2026-08, residu B6). Ailleurs, sauter reste legitime.
+            if [ "$environnement" = "production" ]; then
+              echo "SHOP_BASE_URL est EXIGEE en production : sans elle, cette verification"
+              echo "ne verifie rien. La poser dans l'environnement GitHub « production » —"
+              echo "voir docs/runbooks/deploiement.md."
+              exit 1
+            fi
+            echo "SHOP_BASE_URL non renseignee : verification sautee (hors production)."
             echo "La poser rend ce pas utile — voir docs/runbooks/deploiement.md."
             exit 0
           fi

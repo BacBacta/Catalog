@@ -57,6 +57,13 @@ interface Reponse {
   verdict: "accepte" | "accepte_sous_reserve" | "refuse";
   checks: Controle[];
   resume?: { operateur: string; operatorTxId: string; montantXaf: number; aConfirmer: boolean };
+  /**
+   * La commande a-t-elle AVANCE ? `false` avec un verdict « accepte » : les
+   * controles passent mais la machine a refuse (litige en cours). Avant ce
+   * champ, l'ecran disait « le reçu peut être émis » alors que l'emission est
+   * refusee sur une commande contestee (constat A5 de l'audit 2026-08).
+   */
+  transitionOk?: boolean;
 }
 
 /**
@@ -287,7 +294,9 @@ function Ecrans() {
         {reponse ? (
           <CardNote data-testid="verdict">
             {reponse.verdict === "accepte"
-              ? "Paiement prouvé. Le reçu peut être émis."
+              ? reponse.transitionOk === false
+                ? "Les contrôles passent, mais la commande est en litige : rien n'a avancé et le reçu n'est pas émis."
+                : "Paiement prouvé. Le reçu peut être émis."
               : reponse.verdict === "accepte_sous_reserve"
                 ? "Accepté sous réserve : il manque une confirmation pour que le reçu soit émis."
                 : "Ce paiement n'est pas prouvé. Voyez ci-dessous ce qui bloque."}

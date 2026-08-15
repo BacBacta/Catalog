@@ -203,6 +203,14 @@ model Order {
   amountPaidXaf Int @default(0) @map("amount_paid_xaf")
   balanceXaf    Int @map("balance_xaf")
 
+  /// Ce que l'acheteuse doit payer AVANT la remise, FIGE a la creation —
+  /// ADR 0094 (constat A4 de l'audit 2026-08). Recalcule a la lecture depuis
+  /// POURCENT_ACOMPTE_DEFAUT, il changerait RETROACTIVEMENT avec un commit :
+  /// un SMS de 50 % en route serait refuse par le controle n° 2. Nullable :
+  /// migration en expand — les commandes anterieures n'en ont pas, et la
+  /// lecture recalcule pour elles seules.
+  dueBeforeXaf Int? @map("due_before_xaf")
+
   payMode    PayMode    @map("pay_mode")
   step       OrderStep  @default(recue)
   proofState ProofState @default(attendu) @map("proof_state")

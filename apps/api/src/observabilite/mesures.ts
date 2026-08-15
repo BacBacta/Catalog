@@ -212,6 +212,64 @@ export function mesurerTransitionBot(de: string, vers: string, effet?: string): 
   transitionsBot().add(1, { de, vers, ...(effet ? { effet } : {}) });
 }
 
+/* ────────────────────────── 7. statuts d'envoi du bot ────────────────────────── */
+
+const statutsEnvoiBot = () =>
+  metre().createCounter("catalog.bot.envoi_statut", {
+    description:
+      "Statuts de livraison des messages sortants du bot, renvoyes par Meta. Les failed portent leur code.",
+  });
+
+/**
+ * Un statut d'envoi renvoye par Meta — ADR 0091, constat B4 de l'audit 2026-08.
+ *
+ * Un envoi accepte en HTTP 200 peut echouer APRES COUP : numero qui a bloque
+ * le bot, fenetre de 24 h fermee constatee cote Meta (code 131047), compte en
+ * degradation. Sans ce compteur, la panne du bot est invisible tant qu'une
+ * vendeuse ne s'en plaint pas — et sur WhatsApp, personne ne se plaint a un
+ * numero qui ne repond plus.
+ *
+ * **Les etiquettes sont fermees.** `statut` prend quatre valeurs (`sent`,
+ * `delivered`, `read`, `failed`), gardees par le parseur. `code` est l'entier
+ * de Meta, present sur les seuls `failed` : sa cardinalite est celle du
+ * catalogue d'erreurs de Meta, bornee et publique. Aucun texte d'erreur, aucun
+ * numero, aucun wamid : meme regle que toutes les mesures de ce fichier.
+ */
+export function mesurerStatutEnvoiBot(statut: string, code?: number): void {
+  statutsEnvoiBot().add(1, { statut, ...(code === undefined ? {} : { code }) });
+}
+
+/* ────────────────────────── 8. la chaine media du bot ────────────────────────── */
+
+const mediaBot = () =>
+  metre().createCounter("catalog.bot.media", {
+    description:
+      "Chaque etape de la chaine media du bot (lecture, dechiffrement, re-encodage), par issue.",
+  });
+
+/** Les etapes de la chaine, fermees : une etape nouvelle s'ajoute ICI, pas en chaine libre. */
+export type EtapeMediaBot = "lecture" | "lecture_cdn" | "dechiffrement" | "reencodage";
+
+/**
+ * Une etape de la chaine media, reussie ou non — ADR 0092, constat D4 de
+ * l'audit 2026-08.
+ *
+ * La chaine media etait la SEULE couche du bot sans aucun signal : une panne
+ * du CDN Meta produit des articles sans photo en serie, et l'agregat ne
+ * distingue pas cette panne de vendeuses qui n'envoient simplement pas de
+ * photos. Ce compteur fait la difference : `lecture` en echec en serie est
+ * une panne de notre cote ou de celui de Meta ; `reencodage` en echec dit
+ * pourquoi (fichier vide, trop gros, format refuse, corps corrompu).
+ *
+ * **Les etiquettes sont fermees.** `etape` est un type ferme ; `issue` vaut
+ * `ok`, `echec`, ou une raison de `RefusImage` (quatre valeurs) plus
+ * `illisible` — jamais un message, jamais un identifiant de media, jamais
+ * un octet du fichier.
+ */
+export function mesurerMediaBot(etape: EtapeMediaBot, issue: string): void {
+  mediaBot().add(1, { etape, issue });
+}
+
 /* ────────────────────────── le filet, en metrique ────────────────────────── */
 
 /**

@@ -137,6 +137,11 @@ export interface TextesAcheteuse {
    * de faire.
    */
   positionApresFormulaire: string;
+  /**
+   * Une reponse de formulaire livraison arrivee HORS des etats qui la lisent
+   * — constat C-07 de l'audit 2026-08. Elle se DIT au lieu de se perdre.
+   */
+  formulaireTardif: string;
   aideSansTelephone: string;
   aideSansLieu: string;
   aideSansRepere: string;
@@ -351,6 +356,8 @@ const fr: TextesAcheteuse = {
   positionRecue: (question) => `📍 Position bien reçue, merci.\n${question}`,
   positionApresFormulaire:
     "Vous avez demandé à envoyer votre position — c'est le moment. Le livreur vous trouvera plus vite.",
+  formulaireTardif:
+    "Ce formulaire de livraison n'est plus actif — la commande a avancé depuis. Reprenez là où nous étions, rien n'est perdu.",
   aideSansTelephone:
     "Il me manque le numéro à appeler, à la fin du message. Exemple : Bonapriso, en face de la pharmacie, 690 11 22 33",
   aideSansLieu: "Dites-moi où se retrouver (ex. : Marché central, entrée B), puis le numéro.",
@@ -570,6 +577,8 @@ const en: TextesAcheteuse = {
   positionRecue: (question) => `📍 Location received, thank you.\n${question}`,
   positionApresFormulaire:
     "You asked to share your location — now is the moment. The courier will find you faster.",
+  formulaireTardif:
+    "That delivery form is no longer active — the order has moved on since. Pick up where we were, nothing is lost.",
   aideSansTelephone:
     "I am missing the phone number to call, at the end of the message. Example: Bonapriso, opposite the pharmacy, 690 11 22 33",
   aideSansLieu: "Tell me where to meet (e.g.: Central market, entrance B), then the number.",
@@ -782,6 +791,8 @@ const wes: TextesAcheteuse = {
   questionDetailsRetrait:
     "Na for weti place wi go meet, an na which nomba wi go call?\nExample: March\u00e9 central, entrance B, 690 11 22 33",
   detailsParTexte: "Write-am for one message, like for di example.",
+  formulaireTardif:
+    "Dat delivery form don pass \u2014 di order don move since. Make wi continue for weh wi bin stop, notin don lost.",
   aideSansTelephone:
     "Di nomba for call di miss for di end of di message. Example: Bonapriso, for front of di farmasi, 690 11 22 33",
   aideSansLieu:

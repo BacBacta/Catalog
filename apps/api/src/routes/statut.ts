@@ -35,6 +35,15 @@ import type { PositionDInterrupteur } from "../domain/deploiement/ouverture.ts";
 export interface StatutDeps {
   /** Sonde de base. Doit rendre `false` plutot que lever. */
   baseJoignable: () => Promise<boolean>;
+  /**
+   * Les garanties SQL du lot 3 sont-elles POSEES ? — residu A3 de l'audit
+   * 2026-08. Les CHECK et les triggers vivent hors des migrations Prisma
+   * (`sql/0001_constraints.sql`, ADR 0014) : tous les chemins de deploiement
+   * les appliquent, mais rien ne VERIFIAIT en production qu'ils y sont — or
+   * c'est eux qui tiennent l'invariant d'argent et le controle n° 5. Vrai =
+   * presentes ; faux = il en manque ; lever vaut « on ne sait pas ».
+   */
+  garantiesSql?: () => Promise<boolean>;
   position: () => PositionDInterrupteur;
   /** Message d'incident ecrit a la main par l'exploitant. */
   message?: () => string | null;
@@ -61,6 +70,7 @@ export function niveauDe(position: PositionDInterrupteur, baseJoignable: boolean
 export function statutRoutes(deps: StatutDeps) {
   const cacheMs = deps.cacheMs ?? 5_000;
   let sonde: { a: number; joignable: boolean } | null = null;
+  let sondeGaranties: { a: number; etat: "posees" | "manquantes" | null } | null = null;
 
   async function baseJoignable(now: Date): Promise<boolean> {
     if (sonde && now.getTime() - sonde.a < cacheMs) return sonde.joignable;
@@ -69,11 +79,28 @@ export function statutRoutes(deps: StatutDeps) {
     return joignable;
   }
 
+  /**
+   * La sonde des garanties, avec le meme cache — et `null` quand elle LEVE :
+   * « la base ne repond pas » n'est pas « les triggers manquent », et le
+   * confondre ferait crier la mauvaise alerte.
+   */
+  async function garantiesSql(now: Date): Promise<"posees" | "manquantes" | null> {
+    if (!deps.garantiesSql) return null;
+    if (sondeGaranties && now.getTime() - sondeGaranties.a < cacheMs) return sondeGaranties.etat;
+    const etat = await deps.garantiesSql().then(
+      (posees) => (posees ? ("posees" as const) : ("manquantes" as const)),
+      () => null,
+    );
+    sondeGaranties = { a: now.getTime(), etat };
+    return etat;
+  }
+
   return new Hono().get("/", async (c) => {
     const now = deps.maintenant?.() ?? new Date();
     const position = deps.position();
     const joignable = await baseJoignable(now);
     const niveau = niveauDe(position, joignable);
+    const garanties = await garantiesSql(now);
 
     c.header("Access-Control-Allow-Origin", "*");
     // Cinq secondes : une page de statut perimee est pire qu'inutile, mais sans
@@ -93,6 +120,13 @@ export function statutRoutes(deps: StatutDeps) {
         recusConsultables: niveau !== "interrompu",
         /** Les ecritures : payer, contresigner, coller un SMS. */
         operationsPossibles: niveau === "ok",
+        /**
+         * Les CHECK et triggers du lot 3, constates dans la base REELLE. Une
+         * supervision qui voit « manquantes » sait que l'invariant d'argent
+         * n'est plus tenu que par le code applicatif — a traiter comme un
+         * incident, pas comme un detail.
+         */
+        garantiesSql: garanties,
         message: deps.message?.() ?? null,
         version: deps.version ?? null,
         a: now.toISOString(),
