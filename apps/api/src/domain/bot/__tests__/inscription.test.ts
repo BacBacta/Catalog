@@ -224,6 +224,55 @@ describe("les messages de publication", () => {
   });
 
   /**
+   * La CAUSE d'une photo manquante se dit dans la bulle d'ouverture — ADR 0102.
+   *
+   * Le defaut mesure le 15/08/2026 : `avecPhoto` etait calcule sur la reponse
+   * du FORMULAIRE (« le PhotoPicker portait une photo »), pas sur le resultat
+   * du pipeline. Quand le telechargement CDN, le dechiffrement ou le
+   * re-encodage echouait, la bulle disait « en ligne » sans un mot, et la
+   * boutique publique affichait un cadre vide. La vendeuse renvoyait la meme
+   * photo, echouait pareil, et concluait que ca ne marche pas — c'est
+   * exactement le constat D3 de l'audit 2026-08, rouvert par le chemin
+   * d'ouverture en deux ecrans.
+   */
+  it("l'ouverture DIT pourquoi la photo manque, et reste UNE bulle", () => {
+    const messages = messageBoutiqueCreee(VERS, MESSAGERIE, {
+      nom: "Chaussures",
+      prixXaf: 1000,
+      avecPhoto: false,
+      photoRefus: "introuvable",
+    });
+    /* La regle d'ADR 0088 ne bouge pas : un formulaire rempli, une bulle. */
+    expect(messages).toHaveLength(1);
+    /* La cause, avec ce qu'il faut faire — les MEMES mots que le chemin
+       normal (`phrasePhotoAbsente`), jamais une seconde formulation. */
+    expect(corps(messages[0])).toContain("WhatsApp ne l'a pas fournie");
+    /* La phrase generique ne doit PAS coexister avec la cause : elle dirait
+       « envoyez-la quand vous voulez » a qui vient d'essayer. */
+    expect(corps(messages[0])).not.toMatch(/envoyez-la quand vous voulez/);
+  });
+
+  it("sans cause connue, l'ouverture garde l'invitation — rien n'a ete tente", () => {
+    const messages = messageBoutiqueCreee(VERS, MESSAGERIE, {
+      nom: "Chaussures",
+      prixXaf: 1000,
+      avecPhoto: false,
+      photoRefus: null,
+    });
+    expect(corps(messages[0])).toMatch(/envoyez-la quand vous voulez/);
+  });
+
+  it("photo enregistree : la bulle n'en parle pas du tout", () => {
+    const messages = messageBoutiqueCreee(VERS, MESSAGERIE, {
+      nom: "Chaussures",
+      prixXaf: 1000,
+      avecPhoto: true,
+      photoRefus: null,
+    });
+    expect(corps(messages[0])).not.toMatch(/photo/i);
+  });
+
+  /**
    * Le lien de boutique reste du TEXTE, meme si `cta_url` est accepte depuis
    * la mesure du 13/08 (ADR 0087). Elle doit le COPIER pour son Statut : un
    * bouton l'ouvrirait au lieu de le donner.

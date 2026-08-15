@@ -790,21 +790,41 @@ async function filInscription(
       ...(parrain ? { parrain } : {}),
     });
     /**
+     * L'article de l'ecran 2 naît AVANT sa confirmation — ADR 0102.
+     *
+     * Il naissait apres, et la bulle annoncait la photo sur la foi du
+     * formulaire (`mediaId ?? photoCdn`) : l'INTENTION, jamais le resultat.
+     * Un telechargement CDN, un dechiffrement ou un re-encodage qui echoue
+     * laissait donc « en ligne » sans un mot, et la boutique publique un
+     * cadre vide. Le verdict n'existe qu'une fois le pipeline passe : il
+     * faut donc le passer d'abord.
+     *
+     * Ce que cela coute est BORNE et delimite : `fetchBorne` plafonne les
+     * appels reseau du media, et rien d'autre ne s'intercale. La regle du
+     * banc du 13/08 tient toujours — la DECORATION (carte-vitrine, pack,
+     * mode d'emploi) reste apres la confirmation, et c'est elle qui avait
+     * suspendu le fil, pas la creation.
+     */
+    const articleCree =
+      cree.ok && ouverture?.article
+        ? await creerArticleDepuisFil(deps, cree.id, ouverture.article)
+        : null;
+    /**
      * La confirmation FUSIONNE l'article de l'ecran 2 — ADR 0088. Un seul
      * formulaire rempli doit rendre un seul accuse : c'est la meme minute,
      * le meme geste, et deux bulles pour un geste unique sont deja du bruit.
-     * L'article est cree PLUS BAS ; ce message n'en parle que s'il existe.
      */
     const suite: MessageSortant[] = cree.ok
       ? messageBoutiqueCreee(
           entree.de,
           cree.messagerie,
-          ...(ouverture?.article
+          ...(articleCree
             ? ([
                 {
-                  nom: ouverture.article.nom,
-                  prixXaf: ouverture.article.prixXaf,
-                  avecPhoto: Boolean(ouverture.article.mediaId ?? ouverture.article.photoCdn),
+                  nom: articleCree.nom,
+                  prixXaf: articleCree.prixXaf,
+                  avecPhoto: articleCree.avecPhoto,
+                  photoRefus: articleCree.photoRefus,
                 },
               ] as const)
             : []),
@@ -848,12 +868,24 @@ async function filInscription(
        * emprunte le meme chemin que partout (`publierArticleDepuisFil`) :
        * une seule fonction decide de ce qui accompagne une publication, et
        * la confirmation y part d'abord (ADR 0085).
+       *
+       * Il est deja CREE (ADR 0102) : on le passe, sinon il naitrait deux
+       * fois. `articleCree` a `null` reste un cas legitime — la creation a
+       * echoue —, et c'est `publierArticleDepuisFil` qui le dit, comme sur
+       * tous les autres chemins.
        */
       if (ouverture?.article) {
         await envoyerSequence(deps, suite);
         await envoyerSequence(
           deps,
-          await publierArticleDepuisFil(deps, cree.id, entree.de, ouverture.article, "deja_dite"),
+          await publierArticleDepuisFil(
+            deps,
+            cree.id,
+            entree.de,
+            ouverture.article,
+            "deja_dite",
+            articleCree,
+          ),
         );
         await poserEtat(deps, phone, ETAT_INITIAL);
         return;
@@ -1598,9 +1630,22 @@ async function publierArticleDepuisFil(
    * dedouble — le defaut que ce lot corrige.
    */
   annonce: "ici" | "deja_dite" = "ici",
+  /**
+   * L'article DEJA cree, quand l'appelant avait besoin de son verdict avant
+   * de composer sa bulle — ADR 0102. C'est le cas de l'ouverture en deux
+   * ecrans : sa confirmation nomme la photo, donc elle ne peut pas partir
+   * avant que la photo soit passee par le pipeline.
+   *
+   * Present, il REMPLACE la creation : sans cela l'article naitrait deux
+   * fois. Absent, rien ne change — c'est le chemin de tous les autres
+   * appelants, et la liste de ce qui accompagne une publication reste
+   * ecrite une seule fois (l'invariant de cette fonction).
+   */
+  dejaCree?: ArticleCree | null,
 ): Promise<MessageSortant[]> {
   const messages: MessageSortant[] = [];
-  const article = await creerArticleDepuisFil(deps, sellerId, demande);
+  const article =
+    dejaCree !== undefined ? dejaCree : await creerArticleDepuisFil(deps, sellerId, demande);
   /* L'etat de conges se relit ICI, dans la base — ADR 0057. Elle a pu
      fermer depuis un autre appareil, ou depuis l'app, entre deux messages :
      c'est le meme principe que le verrou de creation de commande. */
@@ -1721,6 +1766,21 @@ async function publierArticleDepuisFil(
   return messages;
 }
 
+/**
+ * Ce qu'une creation d'article rend — nomme depuis l'ADR 0102, parce que
+ * l'ouverture a besoin de ce verdict AVANT de composer sa bulle et qu'un
+ * type anonyme recopie a deux endroits diverge au premier lot venu.
+ */
+interface ArticleCree {
+  id: string;
+  nom: string;
+  prixXaf: number;
+  avecPhoto: boolean;
+  imageKey: string | null;
+  /** Pourquoi la photo DEMANDEE manque — `null` si elle est la, ou si rien n'etait demande. */
+  photoRefus: PhotoIndisponible | null;
+}
+
 async function creerArticleDepuisFil(
   deps: BotDeps,
   sellerId: string,
@@ -1731,15 +1791,7 @@ async function creerArticleDepuisFil(
     photoCdn?: PhotoCdnChiffree;
     stock?: number;
   },
-): Promise<{
-  id: string;
-  nom: string;
-  prixXaf: number;
-  avecPhoto: boolean;
-  imageKey: string | null;
-  /** Pourquoi la photo DEMANDEE manque — `null` si elle est la, ou si rien n'etait demande. */
-  photoRefus: PhotoIndisponible | null;
-} | null> {
+): Promise<ArticleCree | null> {
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
 
   let image: {
