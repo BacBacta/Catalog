@@ -86,6 +86,32 @@ canaux du code de connexion et passerelle MboaSMS (0025–0027), architecture
 d'authentification cible et cérémonie Google (0028–0029), refonte UI vendeuse
 (0030), et le bot WhatsApp (0031 à 0039).
 
+### Les photos, et la leçon qui vaut au-delà d'elles
+
+Les ADR **0102 à 0107** ferment une chaîne de pannes muettes sur les photos.
+Trois choses en restent, et elles se relisent avant de toucher au bot :
+
+- **Le désaccord de tranche** (0105). Trois fois le même défaut : le service
+  bornait les articles **illustrés**, le rendu bornait les **premiers**.
+  Identiques jusqu'à la borne, divergents après — et un article neuf prend
+  `position = max + 1`, donc les illustrés sont les **derniers**. La règle est
+  « **on filtre avant de trancher** », des deux côtés, et ce qui manquait
+  n'était pas l'unicité du code mais **un test qui traverse les deux**. Un
+  harnais qui ne dépasse jamais la borne qu'il teste ne teste pas la borne.
+- **Le SDK AWS n'utilise pas `fetch`** (0106), et échappait donc à la borne de
+  `fetch-borne.ts` posée après le banc du 13/08. Ses délais par défaut valent
+  **zéro, c'est-à-dire aucun délai**. Toute nouvelle sortie réseau se demande
+  par quel client elle passe avant de se croire bornée.
+- **Le bucket n'était pas vide** (0105). Un listage tronqué à vingt clés ne
+  montre que `carte/` — S3 rend les clés en ordre alphabétique — et un 403 sur
+  une clé absente est la configuration **voulue**, pas un refus de droits.
+  `pnpm`… non : l'opération `sonde-stockage` d'`operations-preprod.yml`
+  tranche, étape par étape, au lieu de déduire.
+
+Le catalogue vendeuse (0107) est une **liste interactive, pas un Flow** : un
+Flow sert à saisir, pas à consulter. Rien ne s'y corrige — prix, stock et nom
+renvoient à l'espace vendeuse, et c'est un report explicite.
+
 ### Le bot WhatsApp — trois points ouverts, et ils le restent
 
 Le cap du bot est posé par l'ADR 0031, révisé par le 0032 (sprint A —

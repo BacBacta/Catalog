@@ -363,16 +363,40 @@ export function demandeCarteVitrine(texteBrut: string): boolean {
 }
 
 /**
- * « Mes articles » — le catalogue de la VENDEUSE, dans son fil (ADR 0107).
+ * « Mes articles » sous ses formes POSSESSIVES — ADR 0107.
+ *
+ * Ce sont les seules que l'aiguilleur route tot, avant la regle d'achat, et
+ * la raison est celle deja apprise pour « solde » et « ma carte » : le geste
+ * doit traverser un tunnel d'achat, parce qu'une vendeuse qui achete a une
+ * consoeur en a un d'ouvert.
+ *
+ * « mes articles » n'est pas une reponse plausible a « quelle quantite ? ».
+ * « stock » ou « catalogue » tout court, si — d'ou la separation.
+ */
+export function demandeMesArticlesSansAmbiguite(texteBrut: string): boolean {
+  const net = sansAccents(texteBrut.trim().toLowerCase());
+  return /^(?:mes articles|mes stocks|mon catalogue|mon inventaire)$/.test(net);
+}
+
+/**
+ * « Mes articles », formes nues comprises — le catalogue de la VENDEUSE dans
+ * son fil (ADR 0107).
  *
  * Le mot « stock » y entre volontairement : c'est le besoin dit — « consulter
  * ses articles listés et voir les stocks » —, et une vendeuse qui cherche son
  * stock ne pensera pas au mot « articles ». Deux portes, une piece.
+ *
+ * Les formes nues valent DANS le fil vendeuse, ou elles sont sans ambiguite —
+ * une vendeuse au repos qui ecrit « stock » ne peut pas vouloir dire autre
+ * chose. Elles ne sont pas routees tot : voir la fonction ci-dessus.
+ *
+ * L'inclusion est ecrite, pas recopiee : les deux ne peuvent pas diverger.
  */
 export function demandeMesArticles(texteBrut: string): boolean {
   const net = sansAccents(texteBrut.trim().toLowerCase());
-  return /^(?:mes articles|mon catalogue|catalogue|articles|mes stocks|stock|stocks|inventaire)$/.test(
-    net,
+  return (
+    demandeMesArticlesSansAmbiguite(texteBrut) ||
+    /^(?:catalogue|articles|stock|stocks|inventaire)$/.test(net)
   );
 }
 

@@ -7,7 +7,7 @@ import {
   demandeEspaceVendeuse,
   demandeInscription,
   demandeListeCommandes,
-  demandeMesArticles,
+  demandeMesArticlesSansAmbiguite,
   demandeSoldes,
 } from "./inscription.ts";
 import { demandeResume } from "./resume-matin.ts";
@@ -152,7 +152,10 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     if (
       (entree.genre === "bouton" || entree.genre === "liste") &&
       entree.id &&
-      (entree.id === "mes_articles" || entree.id.startsWith("vart:"))
+      /* `vart:` la fiche, `varts:` la page suivante — les deux, et le `?` du
+         motif est la raison pour laquelle ce n'est pas un `startsWith` :
+         « varts:1 » ne commence pas par « vart: ». */
+      (entree.id === "mes_articles" || /^varts?:/.test(entree.id))
     ) {
       return "vendeuse";
     }
@@ -167,7 +170,12 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
        etait ouvert — vu au banc du 10/08/2026, juste apres une commande. */
     if (entree.genre === "texte" && demandeSoldes(t)) return "vendeuse";
     if (entree.genre === "texte" && demandeCarteVitrine(t)) return "vendeuse";
-    if (entree.genre === "texte" && demandeMesArticles(t)) return "vendeuse";
+    /* Les formes POSSESSIVES seulement — ADR 0107. « stock » ou « catalogue »
+       tout court sont des reponses plausibles dans un tunnel d'achat, et une
+       vendeuse qui achete a une consoeur en a un d'ouvert ; les router ici les
+       lui volerait. Nues, elles marchent quand meme : une vendeuse au repos
+       tombe au fil vendeuse par la regle 5, qui les reconnait toutes. */
+    if (entree.genre === "texte" && demandeMesArticlesSansAmbiguite(t)) return "vendeuse";
     /* « commandes » et les boutons d'etape — ADR 0098. Les boutons vivent
        sur une NOTIFICATION, qui peut etre pressee pendant qu'un achat est en
        cours (une vendeuse achete a une consoeur) : sans cette regle, le

@@ -220,3 +220,41 @@ describe("les lignes du menu d'ouverture", () => {
     expect(aiguiller(bouton("ma_boutique"), VENDEUSE)).toBe("vendeuse");
   });
 });
+
+/**
+ * Le catalogue vendeuse — ADR 0107. La ligne de partage est fine et elle a
+ * une raison : une vendeuse qui achete a une consoeur a un tunnel d'achat
+ * ouvert, et « stock » y est une reponse plausible. « mes stocks », non.
+ */
+describe("« mes articles » et le tunnel d'achat", () => {
+  it("les formes POSSESSIVES traversent un achat en cours", () => {
+    for (const mot of ["mes articles", "mes stocks", "mon catalogue", "mon inventaire"]) {
+      expect(aiguiller(txt(mot), { ...VENDEUSE, achatEnCours: true }), mot).toBe("vendeuse");
+    }
+  });
+
+  it("les formes NUES laissent l'achat tranquille — elles lui seraient volees", () => {
+    for (const mot of ["stock", "catalogue", "articles"]) {
+      expect(aiguiller(txt(mot), { ...VENDEUSE, achatEnCours: true }), mot).toBe("acheteuse");
+    }
+  });
+
+  it("mais une vendeuse AU REPOS les retrouve, par la règle 5", () => {
+    for (const mot of ["stock", "catalogue", "articles", "mes articles"]) {
+      expect(aiguiller(txt(mot), VENDEUSE), mot).toBe("vendeuse");
+    }
+  });
+
+  it("une ligne du catalogue vendeuse traverse aussi — elle vient d'un message a nous", () => {
+    expect(aiguiller({ genre: "liste", id: "vart:abc" }, { ...VENDEUSE, achatEnCours: true })).toBe(
+      "vendeuse",
+    );
+    expect(aiguiller({ genre: "liste", id: "varts:1" }, { ...VENDEUSE, achatEnCours: true })).toBe(
+      "vendeuse",
+    );
+    /* Et le prefixe acheteuse reste au fil acheteuse : deux fils, deux prefixes. */
+    expect(aiguiller({ genre: "liste", id: "art:abc" }, { ...VENDEUSE, achatEnCours: true })).toBe(
+      "acheteuse",
+    );
+  });
+});
