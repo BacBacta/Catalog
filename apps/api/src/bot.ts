@@ -115,7 +115,7 @@ import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
 import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
-import type { ChargeRelance } from "./jobs/relance-acompte.ts";
+import type { ChargeExpiration, ChargeRelance } from "./jobs/relance-acompte.ts";
 import { mesurerEtatPreuve, mesurerTransitionBot } from "./observabilite/mesures.ts";
 import { avecSpan, PARCOURS, poser } from "./observabilite/traces.ts";
 import { soumettrePreuve } from "./preuve-service.ts";
@@ -168,6 +168,12 @@ export interface BotDeps {
    * Meme regle : absente, la boutique vit sans rappel.
    */
   planifierRelanceReversement?: (charge: { sellerId: string; phone: string }) => Promise<void>;
+  /**
+   * L'expiration a l'echeance de la fenetre de 48 h (ADR 0090). Absente : la
+   * commande vit sans echeance — et la relance ne doit alors PAS promettre
+   * l'expiration... elle la promet ; c'est ce que ce branchement repare.
+   */
+  planifierExpiration?: (charge: ChargeExpiration) => Promise<void>;
   /**
    * La configuration de la rampe (lot 9) : le bloc paiement du fil en lit le
    * nom d'operateur et le code d'entree — jamais une constante (AGENTS.md).
@@ -1545,6 +1551,13 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
         await deps
           .planifierRelance({ commandeId: commande.id, phone: entree.de, langue })
           .catch(() => console.warn("bot : relance non planifiee (details retenus)"));
+      }
+      /* L'expiration — meme condition que la relance : un acompte est
+         attendu. La decision sera reprise sur l'etat reel (ADR 0090). */
+      if (deps.planifierExpiration) {
+        await deps
+          .planifierExpiration({ commandeId: commande.id })
+          .catch(() => console.warn("bot : expiration non planifiee (details retenus)"));
       }
     }
   }

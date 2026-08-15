@@ -11,6 +11,7 @@ import {
   RELANCE_REVERSEMENT_APRES_S,
 } from "../domain/bot/relance.ts";
 import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
+import { etatExpiration, FENETRE_EXPIRATION_MS } from "../domain/order/expiration.ts";
 
 /**
  * La relance d'acompte, portee par pg-boss — ADR 0033.
@@ -29,6 +30,8 @@ import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
 
 export const FILE_RELANCE = "bot-relance-acompte";
 export const FILE_RELANCE_REVERSEMENT = "bot-relance-reversement";
+/** L'expiration d'une commande a acompte impaye — ADR 0090. */
+export const FILE_EXPIRATION = "bot-expiration-commande";
 
 export interface ChargeRelance {
   commandeId: string;
@@ -64,7 +67,13 @@ export interface JobsBotDeps extends RelanceDeps {
 export interface JobsBot {
   planifierRelance: (charge: ChargeRelance) => Promise<void>;
   planifierRelanceReversement: (charge: ChargeRelanceReversement) => Promise<void>;
+  planifierExpiration: (charge: ChargeExpiration) => Promise<void>;
   arreter: () => Promise<void>;
+}
+
+/** L'expiration ne porte que l'identifiant : tout le reste se relit frais. */
+export interface ChargeExpiration {
+  commandeId: string;
 }
 
 export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
@@ -75,6 +84,7 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
   await boss.start();
   await boss.createQueue(FILE_RELANCE);
   await boss.createQueue(FILE_RELANCE_REVERSEMENT);
+  await boss.createQueue(FILE_EXPIRATION);
 
   await boss.work<ChargeRelance>(FILE_RELANCE, async (jobs: Job<ChargeRelance>[]) => {
     for (const job of jobs) {
@@ -91,12 +101,23 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
     },
   );
 
+  await boss.work<ChargeExpiration>(FILE_EXPIRATION, async (jobs: Job<ChargeExpiration>[]) => {
+    for (const job of jobs) {
+      await executerExpirationCommande(deps, job.data);
+    }
+  });
+
   return {
     planifierRelance: async (charge) => {
       await boss.sendAfter(FILE_RELANCE, charge, null, RELANCE_APRES_S);
     },
     planifierRelanceReversement: async (charge) => {
       await boss.sendAfter(FILE_RELANCE_REVERSEMENT, charge, null, RELANCE_REVERSEMENT_APRES_S);
+    },
+    planifierExpiration: async (charge) => {
+      /* A l'echeance de la fenetre — la decision sera REPRISE sur l'etat
+         reel : un acompte arrive entre-temps vaut silence (ADR 0090). */
+      await boss.sendAfter(FILE_EXPIRATION, charge, null, FENETRE_EXPIRATION_MS / 1000);
     },
     arreter: () => boss.stop(),
   };
@@ -203,4 +224,68 @@ export async function executerRelanceReversement(
     undefined,
     { sujet: "reversement_absent", parametres: [seller.businessName], langue: "fr" },
   );
+}
+
+/**
+ * L'expiration d'une commande — ADR 0090. Le domaine decide
+ * (`etatExpiration`, ecrit et teste au lot 7, jamais branche jusqu'ici) ;
+ * l'ecriture est une ANNULATION DATEE avec sa cause au journal, et elle est
+ * GARDEE (patron de l'ADR 0089) : un versement arrive pendant que le job
+ * court gagne, silencieusement et correctement.
+ *
+ * Perimetre (ADR 0090, decision 2) : seul l'acompte attendu dont AUCUN franc
+ * n'est arrive expire. Une commande sans prepaiement vit impayee jusqu'a la
+ * remise ; un franc verse sauve la commande.
+ */
+export async function executerExpirationCommande(
+  deps: RelanceDeps,
+  charge: ChargeExpiration,
+): Promise<void> {
+  const commande = await deps.prisma.order.findUnique({
+    where: { id: charge.commandeId },
+    select: {
+      id: true,
+      sellerId: true,
+      payMode: true,
+      amountPaidXaf: true,
+      cancelledAt: true,
+      createdAt: true,
+    },
+  });
+  if (!commande) return;
+  if (commande.payMode !== "acompte") return;
+
+  const maintenant = deps.maintenant?.() ?? new Date();
+  const etat = etatExpiration(
+    {
+      creeA: commande.createdAt,
+      /* Un franc verse sauve la commande — lecture de l'ADR 0090, plus
+         genereuse que « total couvert » : le solde se regle a la remise. */
+      soldeRegle: commande.amountPaidXaf > 0,
+      annuleeA: commande.cancelledAt,
+      rappelsEnvoyes: [],
+    },
+    maintenant,
+  );
+  if (etat.etat !== "expiree") return;
+
+  await deps.prisma.$transaction(async (tx) => {
+    const maj = await tx.order.updateMany({
+      where: { id: commande.id, cancelledAt: null, amountPaidXaf: 0 },
+      data: { cancelledAt: maintenant },
+    });
+    /* Un versement ou une annulation est passe entre la lecture et ici :
+       rien a faire, et surtout pas de journal d'expiration mensonger. */
+    if (maj.count === 0) return;
+    await tx.orderEvent.create({
+      data: {
+        orderId: commande.id,
+        sellerId: commande.sellerId,
+        kind: "commande_expiree",
+        actor: "systeme",
+        at: maintenant,
+        payload: { echeance: etat.echeance.toISOString() },
+      },
+    });
+  });
 }
