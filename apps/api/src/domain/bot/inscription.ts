@@ -327,6 +327,17 @@ export function demandeSoldes(texteBrut: string): boolean {
 }
 
 /**
+ * « commandes » — le detail des commandes en cours (ADR 0098). Le mot est
+ * PROMIS par la carte « Pendant votre absence » : une carte qui enseigne un
+ * mot que le bot ne comprend pas serait pire que pas de carte. Meme famille
+ * que « solde » : il doit traverser un achat en cours.
+ */
+export function demandeListeCommandes(texteBrut: string): boolean {
+  const net = sansAccents(texteBrut.trim().toLowerCase());
+  return /^(?:commandes|mes commandes)$/.test(net);
+}
+
+/**
  * Le mode conges — ADR 0039. `true` = fermer, `false` = rouvrir, `null` = ni
  * l'un ni l'autre.
  *
@@ -367,6 +378,7 @@ export function motDuModeDemploi(texteBrut: string): boolean {
     demandeEspaceVendeuse(texteBrut) ||
     demandeInscription(texteBrut) !== null ||
     demandeSoldes(texteBrut) ||
+    demandeListeCommandes(texteBrut) ||
     demandeCarteVitrine(texteBrut) ||
     demandeConges(texteBrut) !== null
   );

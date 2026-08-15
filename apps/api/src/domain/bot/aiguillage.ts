@@ -6,6 +6,7 @@ import {
   demandeConges,
   demandeEspaceVendeuse,
   demandeInscription,
+  demandeListeCommandes,
   demandeSoldes,
 } from "./inscription.ts";
 
@@ -146,6 +147,18 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
        etait ouvert — vu au banc du 10/08/2026, juste apres une commande. */
     if (entree.genre === "texte" && demandeSoldes(t)) return "vendeuse";
     if (entree.genre === "texte" && demandeCarteVitrine(t)) return "vendeuse";
+    /* « commandes » et les boutons d'etape — ADR 0098. Les boutons vivent
+       sur une NOTIFICATION, qui peut etre pressee pendant qu'un achat est en
+       cours (une vendeuse achete a une consoeur) : sans cette regle, le
+       geste partirait au fil acheteuse et la commande n'avancerait pas. */
+    if (entree.genre === "texte" && demandeListeCommandes(t)) return "vendeuse";
+    if (
+      (entree.genre === "bouton" || entree.genre === "liste") &&
+      entree.id &&
+      (entree.id === "commandes" || /^(?:etape|ecrire):/.test(entree.id))
+    ) {
+      return "vendeuse";
+    }
     /* Fermer ou rouvrir sa boutique — ADR 0039. Ce geste doit passer AVANT la
        regle 4 : une vendeuse qui teste sa propre boutique, ou qui achete a une
        consoeur, a un achat en cours, et son « congés » partirait au fil

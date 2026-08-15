@@ -271,6 +271,11 @@ describe("la matrice étape × geste, exercée cellule par cellule", () => {
       ["solde", { genre: "texte", texte: "solde" }],
       ["congés", { genre: "texte", texte: "congés" }],
       ["livrée CT", { genre: "texte", texte: "livrée CT-104312" }],
+      /* Les etapes en boutons — ADR 0098 : un service neuf entre dans la
+         matrice des son lot (regle de l'ADR 0095). */
+      ["commandes", { genre: "texte", texte: "commandes" }],
+      ["bouton étape", { genre: "bouton", id: "etape:preparee:CT-104312" }],
+      ["bouton écrire", { genre: "bouton", id: "ecrire:CT-104312" }],
       ["SMS opérateur", { genre: "texte", texte: SMS_MTN_RECU }],
       ["SMS TRONQUÉ", { genre: "texte", texte: "You have received 650 FCFA of" }],
     ];

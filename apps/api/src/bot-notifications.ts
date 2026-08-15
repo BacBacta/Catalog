@@ -3,7 +3,7 @@ import type { PrismaClient } from "@catalog/db";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import { gabaritPour, type SujetNotification, variablesManquantes } from "./domain/bot/gabarits.ts";
 import { boutons, gabarit, type MessageSortant, texte } from "./domain/bot/messages.ts";
-import { decisionRemise } from "./domain/bot/notifications.ts";
+import { carteAbsence, decisionRemise, lireBoutonEtape } from "./domain/bot/notifications.ts";
 import { TEXTES } from "./domain/bot/textes.ts";
 
 /**
@@ -135,6 +135,17 @@ const REMISES_MAX = 5;
  * Remet les notifications en attente d'un numero — appele au debut de chaque
  * entree traitee : le message entrant vient d'OUVRIR la fenetre, c'est le
  * moment sur. La remise se date ; un envoi rate laisse le reste en place.
+ *
+ * ── L'absence se restitue en UNE carte — ADR 0098, decision 3 ─────────────
+ *
+ * PLUSIEURS notifications de commande en attente se COMPILENT : « Pendant
+ * votre absence — n commandes… ». La reference vit deja dans l'identifiant
+ * du bouton persiste (`etape:preparee:<ref>`) — aucune colonne nouvelle — et
+ * le montant se RELIT de la commande au moment de la remise : la base est la
+ * source de verite, pas un instantane pris a la mise en attente. Les autres
+ * notifications (contestation, relance…) ne se resument pas : elles se
+ * remettent une a une, comme avant. UNE seule commande en attente : la carte
+ * complete habituelle, boutons compris.
  */
 export async function livrerNotificationsEnAttente(
   deps: NotificateurDeps,
@@ -144,9 +155,45 @@ export async function livrerNotificationsEnAttente(
     const enAttente = await deps.prisma.botNotification.findMany({
       where: { phone, remisLe: null },
       orderBy: { creeLe: "asc" },
-      take: REMISES_MAX,
+      /* Toutes : la compilation doit voir la file entiere, pas sa tranche. */
     });
-    for (const n of enAttente) {
+
+    const refDe = (n: (typeof enAttente)[number]): string | null => {
+      for (const b of boutonsPersistes(n.boutons)) {
+        const lu = lireBoutonEtape(b.id);
+        if (lu?.vers === "preparee") return lu.reference;
+      }
+      return null;
+    };
+    const notifsCommande = enAttente.filter((n) => refDe(n) !== null);
+    let restantes = enAttente;
+
+    if (notifsCommande.length >= 2) {
+      const refs = notifsCommande.map(refDe) as string[];
+      const ordres = await deps.prisma.order.findMany({
+        where: { ref: { in: refs } },
+        select: { ref: true, totalXaf: true },
+      });
+      const parRef = new Map(ordres.map((o) => [o.ref, o.totalXaf]));
+      /* Une reference introuvable (commande purgee ?) retombe sur la remise
+         une a une : on ne compile que ce qu'on sait redire juste. */
+      const compilables = notifsCommande.filter((n) => parRef.has(refDe(n) as string));
+      if (compilables.length >= 2) {
+        const resume = compilables.map((n) => ({
+          reference: refDe(n) as string,
+          totalXaf: parRef.get(refDe(n) as string) as number,
+        }));
+        await deps.envoyeur.envoyer(texte(versWhatsapp(phone), carteAbsence(resume)));
+        await deps.prisma.botNotification.updateMany({
+          where: { id: { in: compilables.map((n) => n.id) } },
+          data: { remisLe: deps.maintenant?.() ?? new Date() },
+        });
+        const ids = new Set(compilables.map((n) => n.id));
+        restantes = enAttente.filter((n) => !ids.has(n.id));
+      }
+    }
+
+    for (const n of restantes.slice(0, REMISES_MAX)) {
       await deps.envoyeur.envoyer(messageDe(phone, n.corps, boutonsPersistes(n.boutons)));
       await deps.prisma.botNotification.update({
         where: { id: n.id },

@@ -1,3 +1,4 @@
+import type { OrderStep } from "@catalog/contracts";
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
@@ -14,7 +15,7 @@ import {
   messageFlux,
   veutPositionFlux,
 } from "./flux.ts";
-import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
+import { demandeCarteVitrine, demandeConges, demandeListeCommandes } from "./inscription.ts";
 import {
   boutons,
   demandeLocalisation,
@@ -24,6 +25,7 @@ import {
   reaction,
   texte,
 } from "./messages.ts";
+import { corpsListeCommandes, lireBoutonEcrire, lireBoutonEtape } from "./notifications.ts";
 import {
   type Langue,
   langueDemandee,
@@ -335,6 +337,13 @@ export type EffetBot =
   | { type: "verifier_sms"; texte: string }
   /** « livrée CT-XXXXXX » — la vendeuse marque la remise depuis le fil (ADR 0035). */
   | { type: "marquer_livree"; reference: string }
+  /**
+   * Un bouton d'etape — ADR 0098. LE MEME moteur que l'app (`avancerEtape`),
+   * memes refus, meme journal : le bouton n'est qu'un raccourci contextuel.
+   */
+  | { type: "avancer_etape"; reference: string; vers: "preparee" | "chez_le_livreur" | "livree" }
+  /** « Écrire à la cliente » : le service repond avec le wa.me de livraison. */
+  | { type: "ecrire_cliente"; reference: string }
   /** « ma carte » — la carte-vitrine à poster en Statut (ADR 0037). */
   | { type: "envoyer_carte" }
   /** « congés » / « je reprends » — la boutique se ferme et se rouvre (ADR 0039). */
@@ -1958,6 +1967,13 @@ export interface CommandeOuverte {
   id: string;
   reference: string;
   resteXaf: number;
+  /**
+   * Le total et l'etape — ADR 0098, pour le detail de « commandes ».
+   * FACULTATIFS : un appelant qui ne les charge pas garde les cartes
+   * d'avant, ligne par ligne, sans rien casser.
+   */
+  totalXaf?: number;
+  etape?: OrderStep;
 }
 
 /** Ce que le menu vendeuse montre d'elle-meme — charge par le service. */
@@ -2046,6 +2062,42 @@ export function reagirVendeuse(
 
   const mot = entree.genre === "texte" ? entree.texte.trim().toLowerCase() : "";
   const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+
+  /**
+   * Les boutons d'etape — ADR 0098. La machine LIT l'identifiant ; le
+   * service applique par LE MEME moteur que l'app (`avancerEtape`), memes
+   * refus, meme journal. Un identifiant fabrique qui ne se lit pas retombe
+   * sur le menu, comme tout bouton perime.
+   */
+  if (id) {
+    const etape = lireBoutonEtape(id);
+    if (etape) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [],
+        effet: { type: "avancer_etape", reference: etape.reference, vers: etape.vers },
+      };
+    }
+    const ecrire = lireBoutonEcrire(id);
+    if (ecrire) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [],
+        effet: { type: "ecrire_cliente", reference: ecrire },
+      };
+    }
+  }
+
+  /**
+   * « commandes » — le detail promis par la carte d'absence (ADR 0098,
+   * decision 4). Il lit ce que le service a deja charge ; rien de plus.
+   */
+  if (id === "commandes" || (entree.genre === "texte" && demandeListeCommandes(entree.texte))) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [texte(vers, corpsListeCommandes(contexte.commandesOuvertes))],
+    };
+  }
 
   /* La carte-vitrine (ADR 0037) : le service la fabrique et l'envoie — la
      machine ne sait pas dessiner, elle sait demander. */

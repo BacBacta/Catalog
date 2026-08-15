@@ -279,5 +279,8 @@ vendeuse/(repos) × mot-clé annuler → répond/agit
 vendeuse/(repos) × solde → répond/agit
 vendeuse/(repos) × congés → répond/agit · effet basculer_conges
 vendeuse/(repos) × livrée CT → répond/agit · effet marquer_livree
+vendeuse/(repos) × commandes → répond/agit
+vendeuse/(repos) × bouton étape → répond/agit · effet avancer_etape
+vendeuse/(repos) × bouton écrire → répond/agit · effet ecrire_cliente
 vendeuse/(repos) × SMS opérateur → répond/agit · effet verifier_sms
 vendeuse/(repos) × SMS TRONQUÉ → répond/agit

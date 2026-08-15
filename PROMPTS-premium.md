@@ -30,8 +30,9 @@ tel quel dans une session neuve, précédé du préambule.
 | **P1** | ✅ | ADR 0096 — `domain/bot/rafale.ts`, états `rafale` / `rafale_correction`, file pg-boss `bot-rafale-recap` |
 | **P2** | ✅ | `carteVitrine(deps, sellerId, "poussee")` — décision P0-c |
 | **P3** | ✅ | ADR 0097 — `flux-reversement.json` (UN écran), état `reversement_code`, le code collé dans le fil, vérifié par `changerNumeroDeReversement` tel quel |
-| **P4** | ⏳ | **Le prochain.** |
-| P5 → P7 | ⏳ | Inchangés |
+| **P4** | ✅ | ADR 0098 — la notification à boutons, `avancerDepuisFil` (même moteur que l'app), la garde `solde_ouvert` au bouton près, la carte « Pendant votre absence », le mot-clé « commandes » |
+| **P5** | ⏳ | **Le prochain.** |
+| P6 → P7 | ⏳ | Inchangés |
 
 Ce que P1 et P2 ont ajouté et qui sert aux lots suivants :
 

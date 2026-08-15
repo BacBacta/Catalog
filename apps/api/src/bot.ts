@@ -95,9 +95,15 @@ import {
   texte,
 } from "./domain/bot/messages.ts";
 import {
+  boutonsNouvelleCommande,
+  corpsEtapeFranchie,
   corpsLivraisonMarquee,
   corpsLivraisonRefusee,
   corpsNouvelleCommande,
+  corpsRappelSolde,
+  corpsRefusSoldeOuvert,
+  type EtapeBouton,
+  suiteEtape,
 } from "./domain/bot/notifications.ts";
 import { consigneDuPack, packStatut } from "./domain/bot/pack-statut.ts";
 import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
@@ -2018,7 +2024,11 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
                que la remise. Sans ce lien, la notification est une impasse. */
             lienEspace: deps.baseApp ? `${deps.baseApp}/commandes` : null,
           }),
-          undefined,
+          /* Les gestes SUR la notification — ADR 0098 : « Marquer préparée »
+             appelle le meme moteur que l'app, « Écrire à la cliente » rend le
+             wa.me. Persistes avec la notification, ils reviennent intacts a
+             la reouverture de la fenetre. */
+          boutonsNouvelleCommande(commande.ref),
           /* Hors fenetre, un gabarit ouvre la porte — ADR 0054. C'est LE cas
              qui justifie le palier payant : une commande arrivee a 21 h un
              vendredi n'attend plus que la vendeuse reecrive, alors qu'elle
@@ -2945,7 +2955,8 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
       where: { sellerId: sellerIdent, balanceXaf: { gt: 0 }, cancelledAt: null },
       orderBy: { createdAt: "desc" },
       take: 20,
-      select: { id: true, ref: true, balanceXaf: true },
+      /* `step` et `totalXaf` : le detail de « commandes » (ADR 0098). */
+      select: { id: true, ref: true, balanceXaf: true, step: true, totalXaf: true },
     }),
     deps.prisma.seller.findUnique({
       where: { id: sellerIdent },
@@ -2963,6 +2974,8 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     id: o.id,
     reference: o.ref,
     resteXaf: o.balanceXaf,
+    totalXaf: o.totalXaf,
+    etape: o.step,
   }));
   const soldesXaf = commandesOuvertes.reduce((s, c) => s + c.resteXaf, 0);
 
@@ -2987,7 +3000,42 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
 
   if (reaction.effet?.type === "marquer_livree") {
     messages.push(
-      texte(entree.de, await marquerLivree(deps, sellerIdent, reaction.effet.reference)),
+      ...(await avancerDepuisFil(deps, sellerIdent, "livree", reaction.effet.reference, entree.de)),
+    );
+  }
+
+  /* Le bouton d'etape — ADR 0098 : meme moteur, memes refus, meme journal. */
+  if (reaction.effet?.type === "avancer_etape") {
+    messages.push(
+      ...(await avancerDepuisFil(
+        deps,
+        sellerIdent,
+        reaction.effet.vers,
+        reaction.effet.reference,
+        entree.de,
+      )),
+    );
+  }
+
+  /* « Écrire à la cliente » : le wa.me du numero de LIVRAISON — il est fait
+     pour etre appele, contrairement a la cle de conversation qui ne se
+     re-projette jamais. En texte, pas en cta_url (reserve de l'ADR 0087). */
+  if (reaction.effet?.type === "ecrire_cliente") {
+    const commande = await deps.prisma.order.findFirst({
+      where: { ref: reaction.effet.reference, sellerId: sellerIdent },
+      select: { delivery: true },
+    });
+    const brut = (commande?.delivery as { phone?: string } | null)?.phone ?? "";
+    const chiffres = brut.replace(/\D/g, "");
+    messages.push(
+      texte(
+        entree.de,
+        !commande
+          ? corpsLivraisonRefusee(reaction.effet.reference, "commande_introuvable")
+          : chiffres
+            ? `💬 Écrivez-lui directement : https://wa.me/${chiffres}\nOu appelez : ${formatPhone(brut)}`
+            : "Cette commande ne porte aucun numéro d'acheteuse — c'est inhabituel, regardez-la depuis votre espace vendeuse.",
+      ),
     );
   }
 
@@ -3243,11 +3291,23 @@ async function verdictDansLeFil(
  * decide (`avancerEtape`), le meme journal ecrit, le meme refus se journalise.
  * Deux sources de verite sur une etape seraient pires qu'aucune.
  */
-async function marquerLivree(
+/**
+ * Une etape franchie DEPUIS LE FIL — mot-cle « livrée CT-… » comme boutons
+ * d'etape (ADR 0098). LE MEME moteur que l'app (`avancerEtape`, decision
+ * P0-d) : memes refus, meme journal, dans la meme transaction.
+ *
+ * La carte de retour porte le geste SUIVANT (decision 2) : le bouton de
+ * l'etape d'apres, ou — quand la suivante serait la remise sur un solde
+ * ouvert — le rappel du solde et du collage, sans bouton. « livree » garde
+ * sa carte en place et la notification d'avis (rien ne change pour elle).
+ */
+async function avancerDepuisFil(
   deps: BotDeps,
   sellerIdent: string,
+  vers: EtapeBouton,
   reference: string,
-): Promise<string> {
+  versWa: string,
+): Promise<MessageSortant[]> {
   const commande = await deps.prisma.order.findFirst({
     where: { ref: reference, sellerId: sellerIdent },
     select: {
@@ -3262,7 +3322,9 @@ async function marquerLivree(
       createdAt: true,
     },
   });
-  if (!commande) return corpsLivraisonRefusee(reference, "commande_introuvable");
+  if (!commande) {
+    return [texte(versWa, corpsLivraisonRefusee(reference, "commande_introuvable"))];
+  }
 
   const cycle: CommandePourCycle = {
     etape: commande.step,
@@ -3275,7 +3337,7 @@ async function marquerLivree(
     annuleeA: commande.cancelledAt,
   };
   const maintenant = deps.maintenant?.() ?? new Date();
-  const decision = avancerEtape(cycle, "livree", maintenant);
+  const decision = avancerEtape(cycle, vers, maintenant);
 
   await deps.prisma.$transaction(async (tx) => {
     if (decision.ok) {
@@ -3298,7 +3360,30 @@ async function marquerLivree(
     });
   });
 
-  if (!decision.ok) return corpsLivraisonRefusee(reference, decision.raison);
-  await notifierLivree(deps, commande.id);
-  return corpsLivraisonMarquee(reference);
+  if (!decision.ok) {
+    /* Le refus `solde_ouvert` dit CE QUI MANQUE, pas seulement que ca n'a
+       pas bouge — c'est le produit : pas de remise close sans preuve ou
+       declaration. Les autres refus gardent leurs phrases. */
+    return [
+      texte(
+        versWa,
+        decision.raison === "solde_ouvert"
+          ? corpsRefusSoldeOuvert(reference, cycle.balanceXaf)
+          : corpsLivraisonRefusee(reference, decision.raison),
+      ),
+    ];
+  }
+  if (decision.etape === "livree") {
+    await notifierLivree(deps, commande.id);
+    return [texte(versWa, corpsLivraisonMarquee(reference))];
+  }
+  const suite = suiteEtape({ ...cycle, etape: decision.etape }, reference);
+  const carte = corpsEtapeFranchie(reference, decision.etape);
+  if (suite && "bouton" in suite) {
+    return [boutonsMessage(versWa, carte, [suite.bouton])];
+  }
+  if (suite && "rappelSoldeXaf" in suite) {
+    return [texte(versWa, `${carte}\n${corpsRappelSolde(reference, suite.rappelSoldeXaf)}`)];
+  }
+  return [texte(versWa, carte)];
 }
