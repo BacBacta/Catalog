@@ -81,14 +81,19 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm size
 
 ---
 
-# LOT P0 — L'ADR de cadrage, et les quatre décisions
+# LOT P0 — L'ADR de cadrage : décisions posées, audit intégré
 
-À exécuter en premier. **Ce lot n'écrit aucun code produit.**
+À exécuter en premier. **Ce lot n'écrit aucun code produit.** Il n'attend
+aucun arbitrage : les quatre décisions ci-dessous sont **posées par défaut**
+au nom du porteur du produit — chacune reste réversible par un ADR de
+révision d'une page, et l'ADR le dit.
 
 ```
 La maquette docs/terrain/parcours-premium.html est validée comme cible
-d'expérience. Écris l'ADR qui transforme cette validation en décision
-d'architecture, dans docs/adr/ au prochain numéro libre :
+d'expérience (15/08/2026). Un audit de pipeline de bout en bout est mené en
+parallèle selon docs/audit — son rapport est docs/audit-pipeline-2026-08.md
+et son harnais tourne dans pnpm test. Écris l'ADR qui articule les deux,
+dans docs/adr/ au prochain numéro libre (après ceux que l'audit a produits) :
 
 « La cible premium : le fil comme application »
 
@@ -100,37 +105,44 @@ L'ADR doit :
    conversation libre est l'exception mesurable (1 message tapé côté
    vendeuse — le SMS —, 0 côté acheteuse).
 
-2. LISTER les services à construire et leur ordre (lots P1 à P7 de
-   PROMPTS-premium.md), et redire que le « en place » ne se refait pas.
+2. ORDONNER le travail contre l'audit : les constats CONFIRMÉS de
+   docs/audit-pipeline-2026-08.md de sévérité « dangereux », « muet » ou
+   « faux » se corrigent AVANT tout lot de nouveauté — un parcours premium
+   posé sur un pipeline qui ment n'est pas premium. Puis P1 à P7 dans
+   l'ordre de PROMPTS-premium.md. Le « en place » de la maquette ne se
+   refait pas. Chaque lot P doit laisser le harnais de l'audit vert et
+   étendre sa couverture aux cartes qu'il ajoute — un service neuf entre
+   dans la matrice étape × geste dès son lot.
 
-3. TRANCHER quatre décisions — recommandations ci-dessous, mais c'est l'ADR
-   qui les fixe, et le porteur du produit qui arbitre si tu hésites :
+3. POSER les quatre décisions — par défaut, réversibles par ADR de révision :
 
-   a) La checklist d'onboarding persistante (« 3 étapes pour vendre »).
-      Recommandation : une LIGNE DE PLUS dans la liste native du message
-      d'ouverture (ADR 0088), qui se met à jour à chaque réaffichage — jamais
-      un message de plus. L'ADR 0088 vient de ramener l'ouverture à une
-      bulle ; la checklist ne doit pas la défaire.
+   a) La checklist d'onboarding persistante (« 3 étapes pour vendre ») :
+      une LIGNE DE PLUS dans la liste native du message d'ouverture
+      (ADR 0088), mise à jour à chaque réaffichage — jamais un message de
+      plus. L'ouverture vient d'être ramenée à une bulle ; la checklist ne
+      la défait pas.
 
-   b) La carte-vitrine carrée (1080×1080) en plus du 1080×1920 du Statut
-      (ADR 0037). Recommandation : REPORTER — le Statut est le canal n° 1,
-      le carré attend un besoin constaté (impression, groupes).
+   b) La carte-vitrine carrée (1080×1080) : REPORTÉE. Le Statut (1080×1920,
+      ADR 0037) est le canal n° 1 ; le carré attend un besoin constaté.
 
-   c) La fréquence de poussée de la carte-vitrine (lot P2).
-      Recommandation : au plus UNE poussée par salve de publication, dans la
-      fenêtre ouverte seulement — la carte ne réveille jamais un fil fermé.
+   c) La poussée de la carte-vitrine : au plus UNE par salve de publication,
+      dans la fenêtre ouverte seulement — la carte ne réveille jamais un fil
+      fermé, aucun gabarit pour du confort.
 
-   d) Le verbe « préparée » dans le fil (lot P4). Aujourd'hui le fil ne
-      connaît que « livrée ». Recommandation : le bouton contextuel appelle
-      la MÊME transition que l'app (domain/order/cycle.ts), mêmes refus ;
-      aucun nouveau mot-clé tapé n'est requis ni annoncé.
+   d) Le verbe « préparée » dans le fil : le bouton contextuel appelle la
+      MÊME transition que l'app (domain/order/cycle.ts), mêmes refus —
+      solde_ouvert compris. Aucun nouveau mot-clé tapé n'est requis ni
+      annoncé ; « livrée CT-… » reste.
 
 4. REDIRE ce que la cible ne rouvre PAS : product.variants mort, pidgin non
-   servi, stock non décompté, étages 2 et 3 (catalogue natif Meta, MPM,
-   numéro dédié — ADR pricing du porteur), lecture automatique des SMS.
+   servi (PIDGIN_RELU reste false), stock non décompté, étages 2 et 3
+   (catalogue natif Meta, MPM, numéro dédié — ADR pricing du porteur),
+   lecture automatique des SMS, apps/site intouché.
 
-Définition de terminé : l'ADR est écrit, relu contre AGENTS.md §7.6/§7.7, et
-les quatre décisions y sont fixées noir sur blanc. Rien d'autre ne change.
+Définition de terminé : l'ADR est écrit, relu contre AGENTS.md §7.6/§7.7,
+les quatre décisions y sont posées noir sur blanc avec leur clause de
+réversibilité, et l'ordre audit-d'abord y est explicite. Rien d'autre ne
+change.
 ```
 
 ---
