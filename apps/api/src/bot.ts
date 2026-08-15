@@ -63,12 +63,12 @@ import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
 import { type EntreeBot, lireEntreesBot, lireStatutsEnvoi } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import {
+  formePhotoFlux,
   genreDuJeton,
   invitationReversement,
   jetonFlux,
   lireArticleFlux,
   lireInscriptionFlux,
-  formePhotoFlux,
   lireOuvertureFlux,
   lireReversementFlux,
   messageFlux,
