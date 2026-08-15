@@ -113,11 +113,109 @@ describe("l'envoyeur, selon le transport", () => {
       apiKey: "CLE360",
       baseUrl: PROD_360,
       transport: "360dialog",
+      delaiReessaiMs: 0,
       fetchImpl: async () => new Response("indisponible", { status: 503 }),
     });
     await expect(envoyeur.envoyer({ messaging_product: "whatsapp" } as never)).rejects.toThrowError(
       /envoi bot refuse : HTTP 503$/,
     );
+  });
+
+  /**
+   * Le reessai borne — ADR 0093, non-retour du constat B5 de l'audit
+   * 2026-08 : « un 5xx Meta transitoire perd definitivement une reponse de
+   * conversation ». UN reessai, sur transitoire seulement : le rattrapage par
+   * relivraison est interdit a raison par `termineLe` (ADR 0040).
+   */
+  describe("le reessai borne (ADR 0093)", () => {
+    const REPONSE_OK = () => faussetteJson({ messages: [{ id: "wamid.ok" }] });
+
+    it("un 5xx passager est rejoue UNE fois, et la reponse part", async () => {
+      let appels = 0;
+      const envoyeur = new EnvoyeurWhatsappBot({
+        apiKey: "K",
+        baseUrl: PROD_360,
+        transport: "360dialog",
+        delaiReessaiMs: 0,
+        fetchImpl: async () =>
+          ++appels === 1 ? new Response("indisponible", { status: 503 }) : REPONSE_OK(),
+      });
+      await envoyeur.envoyer({ messaging_product: "whatsapp" } as never);
+      expect(appels).toBe(2);
+    });
+
+    it("une panne RESEAU est rejouee aussi — au risque assume d'une bulle en double", async () => {
+      let appels = 0;
+      const envoyeur = new EnvoyeurWhatsappBot({
+        apiKey: "K",
+        baseUrl: PROD_360,
+        transport: "360dialog",
+        delaiReessaiMs: 0,
+        fetchImpl: async () => {
+          if (++appels === 1) throw new TypeError("fetch failed");
+          return REPONSE_OK();
+        },
+      });
+      await envoyeur.envoyer({ messaging_product: "whatsapp" } as never);
+      expect(appels).toBe(2);
+    });
+
+    it("un 4xx est DEFINITIF : le meme corps echouerait pareil, aucun second appel", async () => {
+      let appels = 0;
+      const envoyeur = new EnvoyeurWhatsappBot({
+        apiKey: "K",
+        baseUrl: PROD_360,
+        transport: "360dialog",
+        delaiReessaiMs: 0,
+        fetchImpl: async () => {
+          appels++;
+          return new Response(JSON.stringify({ error: { code: 131047 } }), {
+            status: 400,
+            headers: { "content-type": "application/json" },
+          });
+        },
+      });
+      await expect(
+        envoyeur.envoyer({ messaging_product: "whatsapp" } as never),
+      ).rejects.toThrowError(/HTTP 400, code Meta 131047$/);
+      expect(appels).toBe(1);
+    });
+
+    it("un 200 SANS identifiant ne se rejoue pas : le message est peut-etre parti", async () => {
+      let appels = 0;
+      const envoyeur = new EnvoyeurWhatsappBot({
+        apiKey: "K",
+        baseUrl: PROD_360,
+        transport: "360dialog",
+        delaiReessaiMs: 0,
+        fetchImpl: async () => {
+          appels++;
+          return faussetteJson({ messages: [] });
+        },
+      });
+      await expect(
+        envoyeur.envoyer({ messaging_product: "whatsapp" } as never),
+      ).rejects.toThrowError(/non confirme/);
+      expect(appels).toBe(1);
+    });
+
+    it("deux 5xx d'affilee : l'echec remonte, il n'y a pas de troisieme tentative", async () => {
+      let appels = 0;
+      const envoyeur = new EnvoyeurWhatsappBot({
+        apiKey: "K",
+        baseUrl: PROD_360,
+        transport: "360dialog",
+        delaiReessaiMs: 0,
+        fetchImpl: async () => {
+          appels++;
+          return new Response("indisponible", { status: 502 });
+        },
+      });
+      await expect(
+        envoyeur.envoyer({ messaging_product: "whatsapp" } as never),
+      ).rejects.toThrowError(/HTTP 502$/);
+      expect(appels).toBe(2);
+    });
   });
 
   it("meta : le numero emetteur est un SEGMENT d'URL, et la cle un jeton porteur", async () => {
