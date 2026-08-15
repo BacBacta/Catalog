@@ -124,6 +124,16 @@ export class Pilote {
   }
 
   /**
+   * Sème un état que seul le SERVICE sait atteindre — `reversement_code` se
+   * pose après une émission d'OTP (base et réseau, hors harnais, ADR 0097).
+   * Le point de départ est semé ; les gestes restent joués par les machines
+   * réelles, comme partout.
+   */
+  poserEtatVendeuse(etat: EtatVendeuse): void {
+    this.vend = etat;
+  }
+
+  /**
    * Joue UN geste. `avanceMs` sépare ce geste du précédent — 60 s par défaut,
    * le rythme d'une conversation ; 25 h rejoue « reprise après la fenêtre ».
    */
@@ -150,6 +160,8 @@ export class Pilote {
         smsReconnu,
         achatEnCours: this.conv.nom !== "accueil",
         formulaireArticle: entree.genre === "flux" && genreDuJeton(entree.reponse) === "article",
+        formulaireReversement:
+          entree.genre === "flux" && genreDuJeton(entree.reponse) === "reversement",
       },
     );
 
@@ -388,6 +400,8 @@ export const ETATS_MACHINE: Record<PasJoue["machine"], readonly string[]> = {
        lot (regle de l'ADR 0095). */
     "rafale",
     "rafale_correction",
+    /* Le code de reversement attendu — ADR 0097, meme regle. */
+    "reversement_code",
   ],
   /* Le fil vendeuse est sans état : une seule ligne, le repos. */
   vendeuse: ["(repos)"],

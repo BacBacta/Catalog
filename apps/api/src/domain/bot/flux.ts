@@ -106,9 +106,22 @@ export function lireReponseFlux(brut: string): LivraisonLue | null {
  * livraison.
  */
 
-export type GenreFlux = "livraison" | "inscription" | "ouverture" | "avis" | "article";
+export type GenreFlux =
+  | "livraison"
+  | "inscription"
+  | "ouverture"
+  | "avis"
+  | "article"
+  | "reversement";
 
-const GENRES: readonly GenreFlux[] = ["livraison", "inscription", "ouverture", "avis", "article"];
+const GENRES: readonly GenreFlux[] = [
+  "livraison",
+  "inscription",
+  "ouverture",
+  "avis",
+  "article",
+  "reversement",
+];
 
 /**
  * Le jeton d'un envoi : le genre, puis une reference facultative.
@@ -309,6 +322,72 @@ export function lireArticleFlux(brut: string): ArticleLu | null {
   /* 0 vaut ABSENT : c'est deja la convention de la base (`stock Int @default(0)`
      = « non annonce »), et « il en annonce zero » ne veut rien dire. */
   return { nom, prixXaf, ...(stock ? { stock } : {}), ...(photo ?? {}) };
+}
+
+/**
+ * Le formulaire de REVERSEMENT — ADR 0097. UN SEUL ecran, et c'est
+ * structurel : un Flow statique n'a aucun aller-retour serveur, donc le code
+ * OTP n'existe pas encore quand l'ecran s'affiche. Il n'y a pas d'ecran
+ * « saisissez le code » — le code part par SMS et se COLLE dans le fil.
+ *
+ * Les noms sont le CONTRAT avec `docs/flux-reversement.json`, tenu par le
+ * test de spec — meme regime que le Flow de livraison (ADR 0055).
+ */
+export const CHAMPS_FLUX_REVERSEMENT = {
+  numero: "numero",
+  operateur: "operateur",
+} as const;
+
+/** Ce que le formulaire de reversement rend, une fois relu. */
+export interface ReversementLu {
+  /**
+   * Le numero TEL QUE SAISI, seulement debrousaille. La normalisation
+   * (`+237`, et les numeros nommes du banc — ADR 0058) appartient au
+   * service : elle n'est pas pure au sens du banc, et c'est LUI qui refuse
+   * avec le meme message que la route.
+   */
+  numeroBrut: string;
+  /**
+   * L'operateur DECLARE. Il ne s'enregistre jamais : l'opérateur retenu est
+   * derive du prefixe par le service existant (`operateurDuNumero`). La
+   * declaration sert de filet a faute de frappe — ADR 0097, decision 4.
+   */
+  operateur: "mtn" | "orange";
+}
+
+/**
+ * Lit la reponse du formulaire de reversement. `null` des qu'un des deux
+ * champs manque ou ne se lit pas : c'est le champ qu'un attaquant vise, on ne
+ * fabrique rien a moitie. La validite du NUMERO, elle, se tranche au service
+ * — meme phrase de refus que la route.
+ */
+export function lireReversementFlux(brut: string): ReversementLu | null {
+  const d = objetDe(brut);
+  if (!d) return null;
+  const numeroBrut = champ(d, CHAMPS_FLUX_REVERSEMENT.numero);
+  const operateur = champ(d, CHAMPS_FLUX_REVERSEMENT.operateur);
+  /* Bornes LARGES : au moins huit chiffres pour ressembler a un numero, pas
+     plus de 25 caracteres pour ecarter le collage accidentel d'un texte. */
+  const chiffres = numeroBrut.replace(/\D/g, "");
+  if (chiffres.length < 8 || numeroBrut.length > 25) return null;
+  if (operateur !== "mtn" && operateur !== "orange") return null;
+  return { numeroBrut, operateur };
+}
+
+/**
+ * La carte d'invitation — copie de la maquette (`parcours-premium.html`).
+ * Elle accompagne une reponse a un geste de la vendeuse ; elle n'est jamais
+ * une bulle poussee seule (ADR 0086), et ne part que si le numero n'est pas
+ * encore pose (ADR 0097, decision 5).
+ */
+export function invitationReversement(vers: string, fluxId: string): MessageFlux {
+  return messageFlux(
+    vers,
+    fluxId,
+    "💳 Être payée d'avance",
+    jetonFlux("reversement"),
+    "💡 Un dernier réglage et vos clientes paient *d'avance* : posez le numéro où l'argent arrive. Une fois, vérifié par code — c'est le champ qu'un fraudeur viserait, alors on le protège.",
+  );
 }
 
 /** Ce que le formulaire d'avis rend. Le mot est facultatif — il l'est partout. */

@@ -19,9 +19,13 @@ import type { RampeConfig } from "@catalog/contracts/ussd";
 import type { PrismaClient } from "@catalog/db";
 import { rendreCarte, rendreCarteAvis } from "./adapters/carte-vitrine.ts";
 import { reencoderImage } from "./adapters/image-pipeline.ts";
+import type { OtpAttemptStore } from "./adapters/otp-attempt-store.ts";
+import { debutDuJour } from "./adapters/otp-attempt-store.ts";
+import type { PayoutOtpStore } from "./adapters/payout-otp-store.ts";
 import type { DeclencheurReconstruction } from "./adapters/reconstruction-boutique.ts";
 import type { ChiffreurSms } from "./adapters/sms-chiffre.ts";
 import { emailTechnique } from "./auth.ts";
+import { envoyerCodeBanc, numeroDuBanc } from "./banc-essai.ts";
 import {
   livrerNotificationsEnAttente,
   notifier,
@@ -59,10 +63,12 @@ import { type EntreeBot, lireEntreesBot, lireStatutsEnvoi } from "./domain/bot/e
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import {
   genreDuJeton,
+  invitationReversement,
   jetonFlux,
   lireArticleFlux,
   lireInscriptionFlux,
   lireOuvertureFlux,
+  lireReversementFlux,
   messageFlux,
 } from "./domain/bot/flux.ts";
 import {
@@ -106,8 +112,10 @@ import {
 } from "./domain/order/cycle.ts";
 import { echeance } from "./domain/order/expiration.ts";
 import { planDePaiement } from "./domain/order/paiement.ts";
+import { operateurDuNumero } from "./domain/payout-phone.ts";
 import { appliquerEvenement, type EvenementPreuve } from "./domain/proof/machine.ts";
 import { analyserSms } from "./domain/proof/motifs.ts";
+import { checkOtpRateLimit, DEFAULT_OTP_LIMITS, type OtpLimits } from "./domain/rate-limit.ts";
 import {
   genererJetonSuivi,
   lienDeSuivi,
@@ -115,9 +123,12 @@ import {
 } from "./domain/receipt/jeton.ts";
 import { droitAuDepot, reputation } from "./domain/review/reputation.ts";
 import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts";
+import type { SmsSender } from "./domain/sms-sender.ts";
+import { texteSms } from "./domain/sms-sender.ts";
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeExpiration, ChargeRelance } from "./jobs/relance-acompte.ts";
+import { MESSAGE_LIMITE } from "./middleware/otp-rate-limit.ts";
 import {
   mesurerEtatPreuve,
   mesurerMediaBot,
@@ -126,6 +137,11 @@ import {
 } from "./observabilite/mesures.ts";
 import { avecSpan, PARCOURS, poser } from "./observabilite/traces.ts";
 import { soumettrePreuve } from "./preuve-service.ts";
+import {
+  changerNumeroDeReversement,
+  MESSAGE_OTP,
+  MESSAGE as MESSAGE_REVERSEMENT,
+} from "./routes/payout.ts";
 import { basculerConges, slugifier, slugLibre } from "./routes/seller.ts";
 
 /**
@@ -225,6 +241,28 @@ export interface BotDeps {
   /** Le formulaire de creation d'article — tache #62. Meme regime : un raccourci
       qui s'AJOUTE aux questions, jamais un passage oblige. */
   fluxArticleId?: string;
+  /**
+   * Le formulaire de REVERSEMENT — ADR 0097. Absent par defaut, et le repli
+   * est ENTIER : pas d'invitation dans le fil, la relance et le rappel
+   * pointent vers l'espace web, exactement le comportement d'hier.
+   */
+  fluxReversementId?: string;
+  /**
+   * La verification du reversement DANS le fil — ADR 0097. Le meme magasin
+   * d'OTP, la meme table de tentatives et le meme envoyeur SMS que la route
+   * (`payoutRoutes`) : les plafonds valent pour la somme des deux surfaces.
+   * Absente, le formulaire ne s'envoie pas et une reponse qui trainerait
+   * renvoie vers l'espace web — jamais un silence.
+   */
+  reversement?: {
+    otp: PayoutOtpStore;
+    tentatives: OtpAttemptStore;
+    sms: SmsSender;
+    /** Plafonds : la configuration de la route, ou les defauts du domaine. */
+    limites?: OtpLimits;
+    /** Le numero du bot, pour l'alerte STOP a l'ancien numero (ADR 0061). */
+    numeroBot?: string;
+  };
   /**
    * Le declencheur de reconstruction de la boutique publique — ADR 0065.
    * ABSENT par defaut : sans lui, aucun deploiement n'est demande et aucun
@@ -531,6 +569,8 @@ async function traiterEntree(deps: BotDeps, entree: EntreeBot): Promise<void> {
       /* Le jeton vit dans la charge utile, que l'aiguillage ne lit pas :
          c'est ICI qu'on le regarde, une fois, pour toutes les regles. */
       formulaireArticle: entree.genre === "flux" && genreDuJeton(entree.reponse) === "article",
+      formulaireReversement:
+        entree.genre === "flux" && genreDuJeton(entree.reponse) === "reversement",
     },
   );
 
@@ -653,6 +693,22 @@ async function filInscription(
     }
     await poserEtat(deps, phone, ETAT_INITIAL);
     await envoyerSequence(deps, await publierArticleDepuisFil(deps, sellerId, entree.de, lu));
+    return;
+  }
+
+  /**
+   * ── La reponse du formulaire de REVERSEMENT — ADR 0097 ────────────────
+   *
+   * Traitee ICI, avant la question directe, comme le formulaire d'article :
+   * le formulaire reste ouvert sur le telephone aussi longtemps qu'on veut,
+   * et sa reponse ne doit jamais etre avalee par « quel est le nom de
+   * l'article ? ». Les gardes de la route se rejouent dans le meme ordre —
+   * gel, numero inchange, limitation de debit — puis le code part par SMS
+   * vers le NOUVEAU numero et l'etat d'attente se pose. Un envoi qui echoue
+   * ne pose AUCUN etat : le fil n'attend jamais un code qui n'est pas parti.
+   */
+  if (sellerId && entree.genre === "flux" && genreDuJeton(entree.reponse) === "reversement") {
+    await emettreCodeReversement(deps, sellerId, phone, entree.de, entree.reponse);
     return;
   }
 
@@ -869,6 +925,24 @@ async function filInscription(
     etatSuivant = ETAT_INITIAL;
   }
 
+  if (
+    reaction.effet?.type === "verifier_code_reversement" &&
+    sellerId &&
+    etat.nom === "reversement_code"
+  ) {
+    /* Le code colle — ADR 0097. La machine a lu ; ici on verifie par LE MEME
+       service que la route et on decide de l'etat suivant selon le verdict. */
+    const verdict = await verifierCodeReversement(
+      deps,
+      sellerId,
+      etat,
+      entree.de,
+      reaction.effet.code,
+    );
+    messages.push(...verdict.messages);
+    etatSuivant = verdict.garderEtat ? etat : ETAT_INITIAL;
+  }
+
   /* L'ENTREE dans « nom de l'article » — d'ou qu'elle vienne : bouton
      « Premier article », « ajouter », « corriger » au recapitulatif. Le
      formulaire s'insere AVANT les messages de la machine : la question de la
@@ -980,7 +1054,268 @@ async function publierRafale(
       }),
     );
   }
+  /* L'invitation au reversement — ADR 0097, decision 5 : jamais dans la
+     salve du premier article, dont le mode d'emploi porte deja la ligne. */
+  if (avant > 0 && publies > 0) {
+    messages.push(...(await inviterReversement(deps, sellerId, vers)));
+  }
   return messages;
+}
+
+/**
+ * La carte d'invitation au reversement — ADR 0097, decision 5. Elle
+ * ACCOMPAGNE la reponse a une publication : jamais une bulle poussee seule
+ * (ADR 0086), jamais quand le numero est deja pose, jamais sans le Flow.
+ * Elle cesse d'elle-meme le jour ou le numero est verifie.
+ */
+async function inviterReversement(
+  deps: BotDeps,
+  sellerId: string,
+  vers: string,
+): Promise<MessageSortant[]> {
+  if (!deps.fluxReversementId || !deps.reversement) return [];
+  const vendeuse = await deps.prisma.seller
+    .findUnique({ where: { id: sellerId }, select: { payoutPhone: true } })
+    .catch(() => null);
+  if (!vendeuse || vendeuse.payoutPhone) return [];
+  return [invitationReversement(vers, deps.fluxReversementId)];
+}
+
+/** Le repli quand le formulaire n'est pas la : l'espace web, chemin complet. */
+function repliEspaceReversement(deps: BotDeps, vers: string): MessageSortant {
+  return texte(
+    vers,
+    deps.baseApp
+      ? `Posez votre numéro Mobile Money dans votre espace vendeuse : ${deps.baseApp}/reversement`
+      : "Posez votre numéro Mobile Money dans votre espace vendeuse.",
+  );
+}
+
+/**
+ * La reponse du formulaire de reversement — ADR 0097, decision 2.
+ *
+ * Les gardes de la route se rejouent dans le MEME ordre : gel, numero
+ * inchange, limitation de debit (meme domaine, meme table, meme etiquette
+ * `otp_reversement` — les plafonds valent pour la somme des deux surfaces),
+ * puis `otp.emettre` et le SMS vers le NOUVEAU numero. **Un envoi qui echoue
+ * ne pose AUCUN etat** : le fil n'attend jamais un code qui n'est pas parti.
+ * Les refus se disent avec les phrases de la route (`MESSAGE`), exportees
+ * pour cela.
+ */
+async function emettreCodeReversement(
+  deps: BotDeps,
+  sellerId: string,
+  phone: string,
+  vers: string,
+  reponse: string,
+): Promise<void> {
+  const r = deps.reversement;
+  if (!r) {
+    /* Une reponse en vol alors que rien n'est cable : le chemin complet,
+       jamais un silence (ADR 0049). */
+    await deps.envoyeur.envoyer(repliEspaceReversement(deps, vers));
+    return;
+  }
+  const lu = lireReversementFlux(reponse);
+  if (!lu) {
+    await envoyerSequence(deps, [
+      texte(vers, "Le formulaire n'a pas pu être lu. Reprenez-le — deux champs, trente secondes."),
+      ...(deps.fluxReversementId ? [invitationReversement(vers, deps.fluxReversementId)] : []),
+    ]);
+    return;
+  }
+  /* La regle +237, elargie aux seuls numeros NOMMES du banc (ADR 0058) —
+     exactement comme la route `/code`. */
+  const banc = numeroDuBanc(lu.numeroBrut);
+  const numero = normalizePhone(lu.numeroBrut) ?? banc;
+  if (!numero) {
+    await deps.envoyeur.envoyer(texte(vers, MESSAGE_REVERSEMENT.numero_invalide ?? ""));
+    return;
+  }
+  /**
+   * Le filet a faute de frappe — ADR 0097, decision 4. L'operateur DECLARE ne
+   * s'enregistre jamais (celui retenu se derive du prefixe, dans le service) ;
+   * il sert UNE chose : un prefixe MTN sous une declaration Orange est une
+   * erreur certaine, de numero ou de choix, et on la dit AVANT d'envoyer un
+   * code. Prefixe indetermine : on n'invente rien, le code part.
+   */
+  const derive = operateurDuNumero(numero);
+  if (derive && derive !== lu.operateur) {
+    const nomOp = (cle: "mtn" | "orange") =>
+      deps.rampe?.operateurs.find((o) => o.id === cle)?.nom ?? cle;
+    await deps.envoyeur.envoyer(
+      texte(
+        vers,
+        `Ce numéro commence comme un numéro ${nomOp(derive)}, pas ${nomOp(lu.operateur)}. Vérifiez le numéro — ou l'opérateur — puis reprenez le formulaire : c'est là que votre argent arrivera.`,
+      ),
+    );
+    return;
+  }
+  const vendeuse = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: { payoutPhone: true, reversementGeleDepuis: true },
+  });
+  if (!vendeuse) return;
+  if (vendeuse.reversementGeleDepuis) {
+    /**
+     * Le gel se constate AVANT d'emettre — la route ne le voit qu'a la
+     * verification, mais envoyer un code a un compte gele serait promettre
+     * un geste qui sera refuse. Le journal passe par LE MEME service que la
+     * route (il re-lit, confirme le gel et journalise son refus) : une
+     * tentative refusee qui ne laisse pas de trace est une attaque invisible.
+     */
+    const resultat = await changerNumeroDeReversement(
+      {
+        prisma: deps.prisma,
+        ...(deps.maintenant ? { maintenant: deps.maintenant } : {}),
+      },
+      { sellerId, nouveauNumero: numero, verification: null, acteur: { role: "vendeuse" } },
+    );
+    const raison = resultat.ok ? "reversement_gele" : resultat.raison;
+    await deps.envoyeur.envoyer(
+      texte(vers, MESSAGE_REVERSEMENT[raison] ?? MESSAGE_REVERSEMENT.reversement_gele ?? ""),
+    );
+    return;
+  }
+  if (numero === vendeuse.payoutPhone) {
+    await deps.envoyeur.envoyer(texte(vers, MESSAGE_REVERSEMENT.numero_inchange ?? ""));
+    return;
+  }
+  const now = deps.maintenant?.() ?? new Date();
+  /* L'« adresse » est stable et nominative : `fil:<numero de connexion>` —
+     le pendant de l'adresse IP de la couche HTTP (acquis du lot P3). */
+  const adresse = `fil:${phone}`;
+  const tentatives = await r.tentatives.depuis(debutDuJour(now));
+  const decision = checkOtpRateLimit(
+    tentatives,
+    { phone: numero, ip: adresse, now },
+    r.limites ?? DEFAULT_OTP_LIMITS,
+  );
+  if (!decision.allowed) {
+    await deps.envoyeur.envoyer(
+      texte(vers, MESSAGE_LIMITE[decision.reason] ?? "Trop de demandes. Réessayez plus tard."),
+    );
+    return;
+  }
+  const { code } = await r.otp.emettre(sellerId, numero, now);
+  try {
+    /* Le code d'un numero du banc part par le WhatsApp du bot — ADR 0058,
+       meme regle que la route : le canal normal ne livre pas hors du pays. */
+    if (banc) {
+      await envoyerCodeBanc(numero, texteSms("otp_reversement", code));
+    } else {
+      await r.sms.send({
+        to: numero,
+        text: texteSms("otp_reversement", code),
+        kind: "otp_reversement",
+        valeur: code,
+      });
+    }
+  } catch {
+    /* AUCUN etat : sinon le fil attend un code qui n'est jamais parti. La
+       ligne d'OTP emise expire seule, la prochaine emission la consomme. */
+    console.warn("bot : code de reversement non envoye (details retenus)");
+    await deps.envoyeur.envoyer(
+      texte(
+        vers,
+        "Le code n'a pas pu être envoyé. Réessayez dans un moment — ou posez le numéro depuis votre espace vendeuse.",
+      ),
+    );
+    return;
+  }
+  await r.tentatives.enregistrer({ phone: numero, ip: adresse, at: now, kind: "otp_reversement" });
+  await poserEtat(deps, phone, { nom: "reversement_code", numero, operateur: lu.operateur });
+  await deps.envoyeur.envoyer(
+    texte(
+      vers,
+      `📲 Le code vient de partir par SMS au ${formatPhone(numero)}.\n*Collez-le ici tel quel* — le collage marche toujours.`,
+    ),
+  );
+}
+
+/**
+ * Le code colle, verifie — ADR 0097, decision 3. LE MEME service que la
+ * route (`changerNumeroDeReversement`) : meme journal d'audit dans la meme
+ * transaction, refus compris, meme alerte SMS a l'ancien numero. La machine
+ * ne voit jamais le code emis ; ici on ne voit jamais l'empreinte.
+ */
+async function verifierCodeReversement(
+  deps: BotDeps,
+  sellerId: string,
+  etat: Extract<EtatVendeuse, { nom: "reversement_code" }>,
+  vers: string,
+  code: string,
+): Promise<{ messages: MessageSortant[]; garderEtat: boolean }> {
+  const r = deps.reversement;
+  if (!r) {
+    return { messages: [repliEspaceReversement(deps, vers)], garderEtat: false };
+  }
+  const now = deps.maintenant?.() ?? new Date();
+  const verdict = await r.otp.verifier(sellerId, code, now);
+  const verification = verdict.ok ? { numero: verdict.numero, verifieA: verdict.verifieA } : null;
+  /* L'appel part dans TOUS les cas — meme regle que la route : un code
+     refuse laisse sa trace (`reversement_refuse`), un code juste change et
+     journalise dans la meme transaction. */
+  const resultat = await changerNumeroDeReversement(
+    {
+      prisma: deps.prisma,
+      sms: r.sms,
+      ...(r.numeroBot ? { numeroBot: r.numeroBot } : {}),
+      ...(deps.maintenant ? { maintenant: deps.maintenant } : {}),
+    },
+    { sellerId, nouveauNumero: etat.numero, verification, acteur: { role: "vendeuse" } },
+  );
+  if (resultat.ok) {
+    /* La copie de la maquette : le fait, l'operateur ENREGISTRE (derive du
+       prefixe — jamais la declaration), et ce que ca change. */
+    const nomOp = resultat.changes.payoutOperator
+      ? (deps.rampe?.operateurs.find((o) => o.id === resultat.changes.payoutOperator)?.nom ?? null)
+      : null;
+    return {
+      messages: [
+        texte(
+          vers,
+          `💳 ${formatPhone(resultat.changes.payoutPhone)} vérifié${nomOp ? ` — ${nomOp}` : ""} · vos clientes paient d'avance`,
+        ),
+      ],
+      garderEtat: false,
+    };
+  }
+  if (!verdict.ok) {
+    /* Quand c'est le code qui a echoue, on le dit precisement — meme regle
+       que la route. Incorrect avec des essais restants : l'etat RESTE, on
+       recolle sans rejouer le formulaire. Expire, brule, deja servi : il
+       faut un nouveau code, donc repasser par le formulaire. */
+    const recolle = verdict.raison === "code_incorrect" && !verdict.bruler;
+    return {
+      messages: [
+        texte(
+          vers,
+          `${MESSAGE_OTP[verdict.raison] ?? "Ce code n'a pas pu être vérifié."}${
+            recolle ? "\nRecollez le code du SMS — il reste valable." : ""
+          }`,
+        ),
+        ...(recolle
+          ? []
+          : deps.fluxReversementId
+            ? [invitationReversement(vers, deps.fluxReversementId)]
+            : [repliEspaceReversement(deps, vers)]),
+      ],
+      garderEtat: recolle,
+    };
+  }
+  /* Le code etait juste et le service a refuse quand meme : gel pose entre
+     temps, numero devenu inchange… Les phrases de la route valent ici. */
+  return {
+    messages: [
+      texte(
+        vers,
+        MESSAGE_REVERSEMENT[resultat.raison] ??
+          "Le changement n'a pas pu être appliqué. Réessayez depuis votre espace vendeuse.",
+      ),
+    ],
+    garderEtat: false,
+  };
 }
 
 /**
@@ -1365,6 +1700,12 @@ async function publierArticleDepuisFil(
           lienEspace: deps.baseApp ?? null,
         }),
       );
+    }
+    /* L'invitation au reversement — ADR 0097, decision 5. Jamais au premier
+       article : sa reponse porte deja le mode d'emploi, dont la ligne 3 dit
+       la meme chose — deux invitations dans une salve seraient du bruit. */
+    if (nb > 1) {
+      messages.push(...(await inviterReversement(deps, sellerId, vers)));
     }
   }
   return messages;

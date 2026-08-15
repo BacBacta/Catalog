@@ -55,6 +55,13 @@ export interface ContexteAiguillage {
    * et son article se perdre.
    */
   formulaireArticle?: boolean;
+  /**
+   * La reponse du formulaire de REVERSEMENT (jeton `reversement`) — ADR 0097.
+   * Meme regle et meme raison que le formulaire d'article : le formulaire
+   * reste ouvert sur le telephone aussi longtemps qu'on veut, et sa reponse
+   * ne doit jamais partir au fil acheteuse parce qu'un panier est ouvert.
+   */
+  formulaireReversement?: boolean;
 }
 
 export interface EntreeAiguillee {
@@ -108,6 +115,9 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     /* La reponse du formulaire d'article — un geste vendeuse s'il en est :
        elle ne peut venir QUE d'un message que le fil inscription a envoye. */
     if (entree.genre === "flux" && ctx.formulaireArticle) return "inscription";
+    /* Celle du formulaire de reversement aussi — ADR 0097 : le fil
+       inscription porte les gardes et l'etat d'attente du code. */
+    if (entree.genre === "flux" && ctx.formulaireReversement) return "inscription";
     /**
      * Le menu d'ouverture est une LISTE — ADR 0088. Une reponse de liste
      * arrive en `genre === "liste"`, pas `"bouton"` : ne router que les

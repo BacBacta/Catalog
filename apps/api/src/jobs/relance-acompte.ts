@@ -3,8 +3,10 @@ import type { PrismaClient } from "@catalog/db";
 import { type Job, PgBoss } from "pg-boss";
 import { notifier } from "../bot-notifications.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
+import { invitationReversement } from "../domain/bot/flux.ts";
 import { normaliserEtatVendeuse } from "../domain/bot/inscription.ts";
 import { texte } from "../domain/bot/messages.ts";
+import { decisionRemise } from "../domain/bot/notifications.ts";
 import { carteRafale, FENETRE_RAFALE_MS } from "../domain/bot/rafale.ts";
 import {
   decisionRelance,
@@ -61,6 +63,12 @@ export interface RelanceDeps {
   envoyeur: EnvoyeurBot;
   /** L'URL de l'espace vendeuse — la relance y pointe. Vide : pas de lien. */
   baseApp?: string;
+  /**
+   * Le formulaire de reversement — ADR 0097. Pose, la relance de ~20 h
+   * devient la carte d'invitation quand la fenetre de service est ouverte ;
+   * absent, elle garde son texte et son lien vers l'espace, comme avant.
+   */
+  fluxReversementId?: string;
   maintenant?: () => Date;
 }
 
@@ -265,6 +273,35 @@ export async function executerRelanceReversement(
     deps.maintenant?.() ?? new Date(),
   );
   if (!decision.relancer) return;
+
+  /**
+   * Le Flow quand le canal le permet — ADR 0097, decision 5. Un message a
+   * formulaire ne peut etre ni un gabarit ni une notification en attente :
+   * il n'a de sens que dans la fenetre de service ouverte. Fenetre sure ET
+   * formulaire pose : la relance EST la carte d'invitation. Sinon — fenetre
+   * incertaine, formulaire absent, envoi refuse — le texte et son lien vers
+   * l'espace reprennent, par la porte de l'ADR 0060, comme avant.
+   */
+  if (deps.fluxReversementId) {
+    const conversation = await deps.prisma.botConversation.findUnique({
+      where: { phone: charge.phone },
+      select: { updatedAt: true },
+    });
+    const remise = decisionRemise(
+      conversation?.updatedAt ?? null,
+      deps.maintenant?.() ?? new Date(),
+    );
+    if (remise === "envoyer") {
+      try {
+        await deps.envoyeur.envoyer(
+          invitationReversement(charge.phone.replace(/^\+/, ""), deps.fluxReversementId),
+        );
+        return;
+      } catch {
+        /* L'envoi a echoue : le texte par la porte, rien n'est perdu. */
+      }
+    }
+  }
 
   const lien = deps.baseApp ? `\nVotre espace vendeuse : ${deps.baseApp}/reversement` : "";
   /**

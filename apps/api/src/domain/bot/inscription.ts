@@ -1,4 +1,5 @@
 import { formatXaf } from "@catalog/contracts/money";
+import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
 import { MESSAGE_REFUS_IMAGE, type PhotoIndisponible } from "../image.ts";
 import {
@@ -110,6 +111,21 @@ export type EtatVendeuse =
       n: number;
       brouillons: BrouillonRafale[];
       enPause?: GesteEnPause;
+    }
+  /**
+   * Le code de reversement attendu — ADR 0097. Le formulaire a rendu un
+   * numero, le service a emis l'OTP et envoye le SMS ; le fil attend le code
+   * COLLE. `numero` est le numero deja normalise auquel le code est parti —
+   * la machine ne voit jamais le code emis, seulement la saisie.
+   *
+   * L'etat ne se pose QU'APRES un envoi de SMS reussi : sinon le fil
+   * attendrait un code qui n'est jamais parti (ADR 0097, decision 2).
+   */
+  | {
+      nom: "reversement_code";
+      numero: string;
+      operateur: "mtn" | "orange";
+      enPause?: GesteEnPause;
     };
 
 /**
@@ -146,7 +162,13 @@ export type EffetVendeuse =
   | {
       type: "publier_rafale";
       brouillons: Array<{ nom: string; prixXaf: number; mediaId: string }>;
-    };
+    }
+  /**
+   * Le code colle pendant `reversement_code` — ADR 0097. La machine LIT la
+   * saisie ; le service verifie (OTP puis `changerNumeroDeReversement`, le
+   * meme chemin que la route) et decide de l'etat suivant selon le verdict.
+   */
+  | { type: "verifier_code_reversement"; code: string };
 
 export interface ReactionVendeuse {
   etat: EtatVendeuse | null;
@@ -230,6 +252,12 @@ export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
         ? { nom: "rafale_correction", n: e.n, brouillons, ...enPause }
         : null;
     }
+    case "reversement_code":
+      return typeof e.numero === "string" &&
+        e.numero.length > 0 &&
+        (e.operateur === "mtn" || e.operateur === "orange")
+        ? { nom: "reversement_code", numero: e.numero, operateur: e.operateur, ...enPause }
+        : null;
     default:
       return null;
   }
@@ -355,6 +383,24 @@ export function lirePrix(texteBrut: string): number | null {
   const n = Number(chiffres);
   if (!Number.isInteger(n) || n <= 0 || n > 100_000_000) return null;
   return n;
+}
+
+/**
+ * Le code OTP colle dans le fil — ADR 0097.
+ *
+ * Trois formes legitimes du meme geste : le code seul (« 482910 »), le code
+ * espace comme le clavier le propose (« 4 8 2 9 1 0 »), et le SMS Catalog
+ * colle EN ENTIER — « collez-le tel quel » l'encourage, et le collage n'est
+ * jamais bloque (critere 3.3.8). On cherche donc LE groupe de six chiffres :
+ * s'il y en a deux, on ne devine pas lequel est le code (§7.7).
+ */
+export function lireCodeOtpColle(texteBrut: string): string | null {
+  /* Les chiffres separes par des espaces ou des points se recollent d'abord :
+     « 4 8 2 9 1 0 » est un seul code, pas six groupes d'un chiffre. */
+  const compacte = texteBrut.replace(/(\d)[\s. -]+(?=\d)/g, "$1");
+  const groupes = compacte.match(/\d+/g) ?? [];
+  const six = groupes.filter((g) => g.length === 6);
+  return six.length === 1 && six[0] ? six[0] : null;
 }
 
 /**
@@ -731,6 +777,8 @@ function travailEnCours(etat: EtatVendeuse): string {
     case "rafale":
     case "rafale_correction":
       return `de publier ${etat.brouillons.length} articles`;
+    case "reversement_code":
+      return "de vérifier votre numéro de reversement";
   }
 }
 
@@ -792,6 +840,13 @@ export function questionDeLEtat(etat: EtatVendeuse, vers: string): MessageSortan
       if (etat.comptoir.pas === "recap") return boutonsRecapComptoir(etat.comptoir, vers);
       if (etat.comptoir.pas === "choix") return listeChoixCorrection(etat.comptoir, vers);
       return texte(vers, `${questionComptoir(etat.comptoir)}${SORTIE_DE_SECOURS}`);
+    case "reversement_code":
+      /* Le collage n'est JAMAIS bloque (critere 3.3.8) — c'est un message de
+         conversation, il n'y a rien a interdire, et la copie le dit. */
+      return texte(
+        vers,
+        `*Collez ici le code à 6 chiffres* reçu par SMS au ${formatPhone(etat.numero)} — tel quel, le collage marche.${SORTIE_DE_SECOURS}`,
+      );
   }
 }
 
@@ -1303,6 +1358,33 @@ export function reagirInscription(
         if (lu) return corrige({ ...courant, nom: lu.nom, prixXaf: lu.prixXaf });
       }
       return { etat, messages: [texte(vers, questionCorrectionRafale(etat.n, courant))] };
+    }
+
+    case "reversement_code": {
+      /**
+       * Le code colle — ADR 0097. La machine LIT ; le service verifie et
+       * decide de l'etat suivant selon le verdict (incorrect : l'etat reste,
+       * on recolle ; expire ou brule : il se ferme, un nouveau code exige de
+       * repasser par le formulaire). Un SMS d'operateur colle pendant cette
+       * attente ne passe JAMAIS ici : la regle 0 de l'aiguillage l'emporte
+       * vers la preuve, et l'etat attend le message suivant.
+       */
+      if (entree.genre === "texte") {
+        const code = lireCodeOtpColle(entree.texte ?? "");
+        if (code) {
+          return { etat, messages: [], effet: { type: "verifier_code_reversement", code } };
+        }
+        return {
+          etat,
+          messages: [
+            texte(vers, "Je n'ai pas trouvé de code à 6 chiffres dans ce message."),
+            questionDeLEtat(etat, vers),
+          ],
+        };
+      }
+      /* Une photo, un bouton perime : la question se re-pose, rien ne se
+         perd — le meme regime que les autres etats. */
+      return { etat, messages: [questionDeLEtat(etat, vers)] };
     }
   }
 }

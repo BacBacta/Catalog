@@ -553,9 +553,10 @@
       <div class="fiche">
         <span class="em" aria-hidden="true">🧾</span>
         <h3>La preuve reste le cœur</h3>
-        <p>Le seul message que la vendeuse tape est le SMS collé — parce que c'est la preuve, et
-        qu'elle ne peut venir que de son téléphone. Tout le reste s'automatise autour : l'annonce
-        du SMS attendu, le verdict aux deux, le reçu, la demande d'avis.</p>
+        <p>Les seuls messages que la vendeuse tape sont deux collages : le code qui vérifie son
+        numéro de reversement, et le SMS de preuve — parce qu'ils arrivent par SMS sur son
+        téléphone et ne peuvent venir que d'elle (ADR 0097). Tout le reste s'automatise autour :
+        l'annonce du SMS attendu, le verdict aux deux, le reçu, la demande d'avis.</p>
       </div>
       <div class="fiche">
         <span class="em" aria-hidden="true">🪜</span>
@@ -624,6 +625,9 @@
   const FLOW_REVERSEMENT = {
     titre: "Être payée d'avance",
     sous: "Catalog · vérifié par code, une seule fois",
+    /* UN SEUL écran — ADR 0097 : un formulaire statique n'a aucun aller-retour
+       serveur, donc le code n'existe pas encore quand l'écran s'affiche. Il
+       part par SMS et se COLLE dans le fil, où le collage n'est jamais bloqué. */
     ecrans: [
       {
         titre: "Où l'argent arrive",
@@ -633,12 +637,6 @@
           { label: "Opérateur", seg: ["Orange Money", "MTN MoMo"], choisi: 0 },
         ],
         cta: "Recevoir le code",
-      },
-      {
-        titre: "Le code reçu par SMS",
-        note: "Le collage n'est jamais bloqué — collez-le tel quel.",
-        champs: [{ label: "Code à 6 chiffres", valeur: "4 8 2 9 1 0" }],
-        cta: "Vérifier",
       },
     ],
   };
@@ -681,12 +679,12 @@
     emoji: "🛍️",
     nom: 'Catalog <span class="verifie">✓</span>',
     sous: "Service automatisé — répond en quelques secondes",
-    titre: "Bintou ouvre boutique — et ne tape qu'un seul message",
+    titre: "Bintou ouvre boutique — et ne tape que deux collages",
     intro:
-      "L'onboarding tient en un formulaire ; le catalogue se remplit par photos ; la carte, le " +
-      "reversement, la commande, le verdict et l'avis arrivent tout seuls. Le SEUL message " +
-      "tapé du parcours est le SMS collé — parce que c'est la preuve, et qu'elle ne peut venir " +
-      "que d'elle.",
+      "L'onboarding tient en un formulaire ; le catalogue se remplit par photos ; la carte, la " +
+      "commande, le verdict et l'avis arrivent tout seuls. Les SEULS messages tapés du parcours " +
+      "sont deux collages — le code qui vérifie le reversement, puis le SMS de preuve — parce " +
+      "qu'ils arrivent par SMS et ne peuvent venir que d'elle (ADR 0097).",
     pas: [
       {
         de: "systeme", compte: "touche",
@@ -778,14 +776,29 @@
         texte: "💡 Un dernier réglage et vos clientes paient *d'avance* : posez le numéro où l'argent arrive. Une fois, vérifié par code — c'est le champ qu'un fraudeur viserait, alors on le protège.",
         actions: [{ l: "💳 Être payée d'avance", flow: FLOW_REVERSEMENT }],
         quoi: "Le reversement, au moment où il coûte le moins",
-        etat: "cible", src: "l'OTP existe (lot 4, app) · le Flow dans le fil est à construire",
-        note: "Aujourd'hui ce réglage vit dans l'espace web. La cible le ramène dans le fil, en deux écrans — numéro, puis code — sans jamais bloquer le collage.",
+        etat: "place", src: "bot.ts · inviterReversement + flux-reversement.json (ADR 0097)",
+        note: "Le formulaire tient en UN écran — un Flow statique ne peut pas vérifier un code (ADR 0097). Le code part par SMS au nouveau numéro et se colle dans le fil. La carte accompagne chaque publication tant que le numéro manque, et la relance de ~20 h la reprend.",
       },
       {
-        de: "systeme", compte: "touche",
+        de: "bot", compte: "auto",
+        texte: "📲 Le code vient de partir par SMS au 6 99 88 77 12.\n*Collez-le ici tel quel* — le collage marche toujours.",
+        quoi: "Les gardes ont accepté : gel, numéro, débit — puis le SMS part",
+        etat: "place", src: "bot.ts · emettreCodeReversement — mêmes gardes que payout.ts (ADR 0097)",
+        note: "Un envoi SMS qui échoue ne pose AUCUN état : le fil n'attend jamais un code qui n'est pas parti. Le code arrive sur la puce du reversement — pas forcément celle de WhatsApp.",
+      },
+      {
+        de: "moi", compte: "tape", mono: true,
+        attend: "chip", chip: "📋 Coller le code reçu par SMS",
+        texte: "4 8 2 9 1 0",
+        quoi: "Le 2e collage du parcours — inautomatisable, comme la preuve",
+        etat: "place", src: "inscription.ts · lireCodeOtpColle → payout.ts (ADR 0097)",
+        note: "Un code incorrect se recolle sans rejouer le formulaire ; expiré ou brûlé, le formulaire se re-propose. Chaque saisie, bonne ou mauvaise, laisse sa trace au journal d'audit — même transaction que le changement.",
+      },
+      {
+        de: "systeme", compte: "auto",
         texte: "💳 6 99 88 77 12 vérifié — Orange Money · vos clientes paient d'avance",
         quoi: "L'onboarding est fini : profil, articles, carte, reversement",
-        etat: "place", src: "payout.ts · l'OTP prouve la main sur la puce",
+        etat: "place", src: "payout.ts · l'OTP prouve la main sur la puce — appelé tel quel par le fil",
       },
       {
         de: "systeme", compte: "auto",

@@ -178,6 +178,17 @@ function amenerInscription(etat: string): Pilote {
       p.jouer({ genre: "texte", texte: "corriger le 2" });
       return p;
     }
+    case "reversement_code": {
+      /* Cet état se pose au SERVICE, après l'émission de l'OTP (ADR 0097) :
+         il se sème, et les gestes restent joués par les machines réelles. */
+      const p = new Pilote(installee);
+      p.poserEtatVendeuse({
+        nom: "reversement_code",
+        numero: "+237699887712",
+        operateur: "orange",
+      });
+      return p;
+    }
     default:
       return new Pilote(installee);
   }

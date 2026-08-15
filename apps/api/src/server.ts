@@ -166,6 +166,25 @@ const bot =
         ...(process.env.WABOT_FLUX_ARTICLE_ID?.trim()
           ? { fluxArticleId: process.env.WABOT_FLUX_ARTICLE_ID.trim() }
           : {}),
+        /* Le formulaire de REVERSEMENT (ADR 0097). Absent : pas d'invitation
+           dans le fil, la relance et le rappel pointent vers l'espace web —
+           le comportement d'hier, entier. */
+        ...(process.env.WABOT_FLUX_REVERSEMENT_ID?.trim()
+          ? { fluxReversementId: process.env.WABOT_FLUX_REVERSEMENT_ID.trim() }
+          : {}),
+        /* La verification du reversement DANS le fil (ADR 0097) : le MEME
+           magasin d'OTP, la meme table de tentatives et le meme envoyeur SMS
+           que `payoutRoutes` — les plafonds valent pour la somme des deux
+           surfaces, et le journal d'audit est le meme. */
+        reversement: {
+          otp: new PayoutOtpStore({ prisma }),
+          tentatives: otpStore,
+          sms,
+          ...(limits ? { limites: limits } : {}),
+          ...(process.env.WHATSAPP_WABA_NUMERO?.trim()
+            ? { numeroBot: process.env.WHATSAPP_WABA_NUMERO.trim() }
+            : {}),
+        },
         /* La reconstruction de la boutique publique — ADR 0065. `null` sans
            SHOP_REBUILD_HOOK_URL, et le fil n'annonce alors aucun delai. */
         reconstruction: declencheurDepuisEnv(),
@@ -321,6 +340,9 @@ if (secretEntrant && secretAppMeta) {
       prisma,
       envoyeur: bot.envoyeur,
       ...(bot.baseApp ? { baseApp: bot.baseApp } : {}),
+      /* La relance de ~20 h devient la carte d'invitation quand la fenetre
+         est ouverte et le formulaire pose — ADR 0097, decision 5. */
+      ...(bot.fluxReversementId ? { fluxReversementId: bot.fluxReversementId } : {}),
     })
       .then((jobs) => {
         const cible = bot as {
