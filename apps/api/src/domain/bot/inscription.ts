@@ -481,7 +481,21 @@ export function messageBoutiqueCreee(
    * Le premier article, quand l'ouverture l'a rendu du meme geste — ADR 0088.
    * Present, il FUSIONNE : une seule confirmation pour un seul formulaire.
    */
-  premierArticle?: { nom: string; prixXaf: number; avecPhoto: boolean },
+  premierArticle?: {
+    nom: string;
+    prixXaf: number;
+    avecPhoto: boolean;
+    /**
+     * Pourquoi la photo DEMANDEE manque — ADR 0102. `null` ou absent quand
+     * rien n'a ete tente : la phrase redevient l'invitation.
+     *
+     * Ce champ existe parce que `avecPhoto` se calculait sur la reponse du
+     * formulaire et non sur le resultat du pipeline : une photo refusee
+     * passait pour enregistree, et le fil se taisait. La cause vit ici, et
+     * elle se dit avec les MEMES mots que le chemin normal.
+     */
+    photoRefus?: PhotoIndisponible | null;
+  },
 ): MessageSortant[] {
   /**
    * UN SEUL message, et c'est une LISTE — banc du 19/28 du 13/08/2026.
@@ -524,9 +538,7 @@ export function messageBoutiqueCreee(
    */
   const article = premierArticle
     ? `\n*${premierArticle.nom}* — ${formatXaf(premierArticle.prixXaf)} est en ligne.${
-        premierArticle.avecPhoto
-          ? ""
-          : "\nSans photo pour l'instant — envoyez-la quand vous voulez."
+        premierArticle.avecPhoto ? "" : `\n${phrasePhotoAbsente(premierArticle.photoRefus)}`
       }`
     : "";
   return [

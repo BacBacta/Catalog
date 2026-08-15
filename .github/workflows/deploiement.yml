@@ -219,6 +219,42 @@ jobs:
             echo "Elle sert aussi a recuperer l'instantane du catalogue (ADR 0070)."
             exit 1
           }
+      # ── La base publique des photos — meme regime, meme raison — ADR 0103 ─
+      #
+      # Constate le 15/08/2026 en preproduction : la variable n'etait posee
+      # NULLE PART, donc `MEDIA_BASE` retombait sur son defaut `/media`, un
+      # chemin RELATIF a l'origine Vercel de la boutique. Or `vercel.json` ne
+      # reecrit que `/v/*` et `/suivi/*` : chaque `<img>` pointait vers une
+      # adresse ou rien ne repond.
+      #
+      # Rien n'echouait — ni le build, ni le budget, ni un test —, exactement
+      # comme le defaut 4.9 de la checklist de lancement. Le seul endroit ou
+      # ca se voyait etait la page d'une acheteuse. On refuse donc de
+      # construire, plutot que de produire un catalogue aux photos mortes.
+      #
+      # Elle est DISTINCTE de `S3_ENDPOINT` : l'endpoint d'API S3 n'est pas
+      # une base de lecture publique (chez R2, notamment, il repond 403). La
+      # valeur est celle du domaine public du bucket ou du CDN devant lui —
+      # voir docs/runbooks/deploiement.md.
+      - name: La base publique des photos est renseignee
+        run: |
+          base="${{ vars.MEDIA_PUBLIC_BASE }}"
+          case "$base" in
+            https://*) ;;
+            "")
+              echo "La variable MEDIA_PUBLIC_BASE est vide pour l'environnement '${{ inputs.environnement || github.event.client_payload.environnement || 'preproduction' }}'."
+              echo "Sans elle, les photos d'articles sont construites sur « /media »,"
+              echo "un chemin relatif a la boutique que rien ne sert : les articles"
+              echo "s'affichent avec un cadre vide (ADR 0017, ADR 0103)."
+              echo "La poser dans l'environnement GitHub — voir docs/runbooks/deploiement.md."
+              exit 1
+              ;;
+            *)
+              echo "MEDIA_PUBLIC_BASE doit etre une origine ABSOLUE en https, pas « $base »."
+              echo "Une base relative produit des photos qui repondent 404 depuis la boutique."
+              exit 1
+              ;;
+          esac
       # ── Sans instantane, AUCUNE page de boutique n'est construite ───────
       #
       # C'est volontaire (lot 6) : la boutique ne parle pas a la base, elle lit
@@ -260,6 +296,16 @@ jobs:
           # Elle n'est donc PAS gardee comme `API_BASE_URL` — son absence est un
           # etat legitime, pas un oubli.
           PUBLIC_BOT_WHATSAPP: ${{ vars.BOT_WHATSAPP }}
+          # ── La base publique des photos — ADR 0017, cablee par l'ADR 0103 ──
+          #
+          # Elle est lue A LA CONSTRUCTION (`MEDIA_BASE` dans
+          # `apps/shop/src/lib/catalogue.ts`) : la boutique est statique, ses
+          # URL d'images sont ecrites dans le HTML une fois pour toutes. Une
+          # valeur posee chez Vercel n'entrerait dans aucun build — meme piege
+          # que `PUBLIC_BOT_WHATSAPP` juste au-dessus.
+          #
+          # Le pas de garde ci-dessus refuse de construire sans elle.
+          MEDIA_PUBLIC_BASE: ${{ vars.MEDIA_PUBLIC_BASE }}
       - name: Budget de poids
         run: pnpm --filter @catalog/shop size
       # ── `--prebuilt` est un DRAPEAU, pas une option a valeur ──────────────

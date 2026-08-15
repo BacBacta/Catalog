@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formePhotoFlux,
   genreDuJeton,
   jetonFlux,
   lireArticleFlux,
@@ -314,13 +315,17 @@ describe("la lecture d'un article — tache #62", () => {
        forme LIVE du tableau n'a que la doc pour elle tant qu'une vraie
        soumission ne l'a pas confirmee : c'est precisement pour cela que
        l'inattendu doit etre un non-evenement. */
+    /* `[{ id: 42 }]` a QUITTE cette liste le 15/08/2026 au soir : la mesure
+       en preproduction (ADR 0104) a montre qu'un vrai telephone livre
+       l'identifiant en NOMBRE. Ce qui etait « inattendu » est devenu la
+       troisieme forme reconnue — exactement le devenir que le commentaire
+       ci-dessus promettait a la doc non confirmee. */
     for (const photo of [
       undefined,
       "",
       "1713578936575692",
       [],
       [{}],
-      [{ id: 42 }],
       [{ id: "des espaces dedans" }],
       { id: "1713578936575692" },
     ]) {
@@ -451,5 +456,116 @@ describe("la lecture d'un article — tache #62", () => {
   it("son jeton se reconnait, et ne se confond avec aucun autre", () => {
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("article") }))).toBe("article");
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("avis") }))).not.toBe("article");
+  });
+});
+
+describe("la forme du champ photo, decrite sans son contenu (ADR 0104)", () => {
+  /**
+   * Le 15/08/2026 au soir, un formulaire d'article rempli AVEC photo a
+   * produit « Sans photo pour l'instant » : `photoDe` n'a pas reconnu la
+   * forme livree par ce telephone. C'est le scenario de l'ADR 0079 — une
+   * forme de plus que la documentation ne decrit pas — et on ne la DEVINE
+   * pas (AGENTS.md §7.7) : on la mesure. Cette fonction rend le SQUELETTE
+   * du champ — types, cles, longueurs — et jamais une valeur : ni
+   * identifiant de media, ni URL de CDN (elle porte les cles de
+   * dechiffrement), ni octets.
+   */
+  it("decrit types, cles et longueurs — jamais les valeurs", () => {
+    expect(formePhotoFlux(reponse({ photo: [{ id: "SECRET-1234567890" }] }))).toBe(
+      "tableau[1]:{ id: chaine(17) }",
+    );
+    const forme = formePhotoFlux(
+      reponse({
+        photo: [
+          {
+            cdn_url: "https://cdn.exemple/tres-secret",
+            encryption_metadata: { encryption_key: "AAAA", hmac_key: "BBBB" },
+          },
+        ],
+      }),
+    );
+    expect(forme).toBe(
+      "tableau[1]:{ cdn_url: chaine(31), encryption_metadata: { encryption_key: chaine(4), hmac_key: chaine(4) } }",
+    );
+    expect(forme).not.toContain("SECRET");
+    expect(forme).not.toContain("cdn.exemple");
+  });
+
+  it("les formes non reconnues se decrivent aussi — c'est leur raison d'etre", () => {
+    /* Un tableau encode en CHAINE : l'hypothese du 15/08, a confirmer par
+       la mesure avant toute tolerance nouvelle. */
+    expect(formePhotoFlux(reponse({ photo: '[{"id":"x"}]' }))).toBe("chaine(12)");
+    expect(formePhotoFlux(reponse({ photo: [] }))).toBe("tableau[0]");
+    expect(formePhotoFlux(reponse({ photo: 42 }))).toBe("nombre");
+    expect(formePhotoFlux(reponse({ photo: { id: "x" } }))).toBe("{ id: chaine(1) }");
+  });
+
+  it("sans champ photo, rien a decrire", () => {
+    expect(formePhotoFlux(reponse({ nom: "Sac", prix: "1000" }))).toBeNull();
+    expect(formePhotoFlux("pas du json")).toBeNull();
+  });
+});
+
+describe("l'identifiant de media NUMERIQUE — la forme mesuree le 15/08 (ADR 0104)", () => {
+  /**
+   * Le squelette rendu par la mesure en preproduction :
+   * `tableau[1]:{ id: nombre, mime_type: chaine(10), sha256: chaine(44),
+   * file_name: chaine(40) }`. Ni la forme classique (`id` en CHAINE), ni la
+   * forme CDN chiffree : ce telephone livre l'identifiant en NOMBRE JSON.
+   * `photoDe` exigeait une chaine, donc la photo etait declaree absente et
+   * la vendeuse lisait « Sans photo pour l'instant » sur un formulaire
+   * qu'elle venait de remplir avec sa photo.
+   */
+  it("un id en nombre est accepte, et rendu en chaine exacte", () => {
+    const lu = lireArticleFlux(
+      reponse({
+        nom: "Sac",
+        prix: "1 000",
+        photo: [
+          {
+            id: 1051742691003203,
+            mime_type: "image/jpeg",
+            sha256: "A".repeat(44),
+            file_name: "IMG-20260815-WA0042.jpg",
+          },
+        ],
+      }),
+    );
+    expect(lu).toMatchObject({ nom: "Sac", prixXaf: 1000, mediaId: "1051742691003203" });
+  });
+
+  /**
+   * Le piege qui interdit la conversion naive : un nombre JSON perd sa
+   * precision au-dela de 2^53. `JSON.parse` rend 27695141573488360 pour
+   * 27695141573488361 — un identifiant FAUX, qui produirait un 404 chez
+   * Meta en ressemblant a un vrai. L'identifiant exact se relit dans le
+   * texte BRUT de la reponse, ou les chiffres sont intacts.
+   */
+  it("un id au-dela de 2^53 est relu dans le brut, jamais converti", () => {
+    const brut =
+      '{"nom":"Sac","prix":"1 000","photo":[{"id":27695141573488361,"mime_type":"image/jpeg"}]}';
+    /* Le parse a DEJA perdu le dernier chiffre — c'est le fait mesure. */
+    expect((JSON.parse(brut) as { photo: [{ id: number }] }).photo[0].id).toBe(27695141573488360);
+    expect(lireArticleFlux(brut)).toMatchObject({ mediaId: "27695141573488361" });
+  });
+
+  it("la forme CHAINE d'hier reste lue telle quelle", () => {
+    const lu = lireArticleFlux(
+      reponse({ nom: "Sac", prix: "1 000", photo: [{ id: "wamid.HBgLMzI0" }] }),
+    );
+    expect(lu).toMatchObject({ mediaId: "wamid.HBgLMzI0" });
+  });
+
+  it("l'ouverture beneficie de la meme tolerance — meme lecteur", () => {
+    const lu = lireOuvertureFlux(
+      reponse({
+        boutique: "Chop",
+        ville: "Douala",
+        nom: "Sac",
+        prix: "1 000",
+        photo: [{ id: 1051742691003203, mime_type: "image/jpeg" }],
+      }),
+    );
+    expect(lu?.article).toMatchObject({ mediaId: "1051742691003203" });
   });
 });

@@ -12,7 +12,7 @@ on:
         description: "Quelle operation"
         required: true
         type: choice
-        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai, sonde-connexion]
+        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai, sonde-connexion, sonde-photos]
       mode:
         description: "Reinitialisation seulement : --voir (lecture seule) ou --vraiment"
         required: true
@@ -88,5 +88,21 @@ jobs:
           flyctl logs --no-tail --app catalog-api-preprod 2>/dev/null \
             | grep -E "non traite|livraison entrante refusee" | tail -8 \
             || echo "(aucun avertissement dans la fenetre de journaux)"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Lecture seule : les photos que le pipeline a REFUSEES, et pourquoi —
+      # ADR 0103. La ligne cherchee ne porte que la cause et le transport
+      # (jamais d'octets, d'identifiant de media ni d'URL de CDN), donc elle
+      # peut atterrir ici, dans un journal lisible par qui a acces au depot.
+      #
+      # La fenetre de `flyctl logs --no-tail` est courte : cette sonde se
+      # lance DANS LES MINUTES qui suivent un essai de photo, pas le lendemain.
+      - name: Sonde des photos refusees
+        if: inputs.quoi == 'sonde-photos'
+        run: |
+          echo "── photos refusees dans la fenetre de journaux ──"
+          flyctl logs --no-tail --app catalog-api-preprod 2>/dev/null \
+            | grep -E "photo non enregistree|photo du formulaire non reconnue" | tail -20 \
+            || echo "(aucune ligne : soit aucun refus recent, soit la fenetre est passee)"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

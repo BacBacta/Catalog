@@ -159,13 +159,49 @@ Côté dépôt GitHub, pour le workflow :
 > `GET /api/instantane`, et l'exécution s'y identifie par le jeton signé que
 > GitHub délivre — **aucun secret à poser, d'aucun côté**.
 
-Et deux variables, pas des secrets — ce sont des URL publiques :
+Et quelques variables, pas des secrets — ce sont des URL publiques :
 
 | Variable | Sert à |
 |---|---|
 | `API_BASE_URL` | `connect-src` de la CSP, et la vérification post-déploiement de l'API. **Le workflow refuse de construire si elle est vide** : sans elle la boutique se déploie au vert sans jamais pouvoir joindre l'API |
+| `MEDIA_PUBLIC_BASE` | la base publique des photos d'articles (ADR 0017). **Le workflow refuse de construire si elle est vide ou relative** — voir ci-dessous |
 | `SHOP_BASE_URL` | vérifier après coup que Vercel sert bien `vercel.json`. Facultative : absente, le pas se saute en le disant |
 | `BOT_WHATSAPP` | le numéro du bot dans la fiche produit (ADR 0066). **Elle se pose ICI, pas chez Vercel** : la boutique est construite dans ce workflow, Vercel ne reçoit que `dist/`. Facultative : absente, la fiche produit reprend le chemin d'avant |
+
+#### `MEDIA_PUBLIC_BASE` — ce qu'elle vaut, et ce qu'elle ne vaut pas
+
+C'est l'origine **publique en lecture** du stockage d'objets, sans barre
+finale : la boutique y ajoute `/<clé>.avif` et `/<clé>.webp`. Exemples de
+formes valides — le domaine public d'un bucket R2, ou le CDN placé devant :
+
+```
+https://media.exemple.cm
+https://pub-xxxxxxxx.r2.dev
+```
+
+**Ce n'est PAS `S3_ENDPOINT`.** L'endpoint de l'API S3 sert à écrire, avec
+signature ; chez R2 il répond `403` en lecture anonyme. Poser l'endpoint ici
+donne un catalogue dont chaque photo échoue — le bucket doit avoir un accès
+public en lecture (ou un CDN devant), et c'est cette adresse-là qu'on pose.
+
+Deux conséquences à connaître, toutes deux dans l'ADR 0017 :
+
+- les photos de catalogue **sont du contenu public** — c'est leur usage
+  entier que d'être montrées à des acheteuses ;
+- **les clés restent opaques** : ni identifiant de vendeuse, ni nom de
+  fichier d'origine. Public ne veut pas dire énumérable, et le bucket ne doit
+  pas autoriser le listage.
+
+Elle est lue **à la construction** : la boutique est statique, ses URL
+d'images sont écrites dans le HTML une fois pour toutes. La changer exige de
+reconstruire la boutique — une valeur posée chez Vercel n'entre dans aucun
+build, même piège que `BOT_WHATSAPP`.
+
+> **Constat du 15/08/2026.** Elle n'était posée nulle part. `MEDIA_BASE`
+> retombait donc sur son défaut `/media`, un chemin relatif à la boutique que
+> `vercel.json` ne réécrit pas : chaque article s'affichait avec un cadre
+> vide, et ni le build, ni le budget, ni un test n'échouaient. C'est le
+> défaut 4.9 dans une autre variable — d'où le garde-fou. Voir l'ADR 0103.
 
 Toutes se posent **par environnement** GitHub, comme `VERCEL_PROJECT_ID` :
 c'est ce qui fait que préproduction et production ne se marchent pas dessus.

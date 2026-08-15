@@ -297,6 +297,7 @@ function photoCdnDe(brut: Record<string, unknown>): PhotoCdnChiffree | undefined
  */
 function photoDe(
   valeur: unknown,
+  reponseBrute: string,
 ): { mediaId: string } | { photoCdn: PhotoCdnChiffree } | undefined {
   if (!Array.isArray(valeur) || valeur.length === 0) return undefined;
   const premier = valeur[0];
@@ -304,8 +305,86 @@ function photoDe(
   const brut = premier as Record<string, unknown>;
   const id = brut.id ?? brut.media_id;
   if (typeof id === "string" && MEDIA_ID_FORME.test(id)) return { mediaId: id };
+  /**
+   * L'identifiant NUMERIQUE — la TROISIEME forme, mesuree le 15/08/2026 au
+   * soir en preproduction (ADR 0104). Le squelette releve :
+   * `tableau[1]:{ id: nombre, mime_type: chaine(10), sha256: chaine(44),
+   * file_name: chaine(40) }`. Ni chaine, ni CDN chiffre : ce client livre
+   * l'identifiant en nombre JSON, et l'exigence `typeof id === "string"`
+   * declarait la photo absente — la vendeuse lisait « Sans photo pour
+   * l'instant » sur un formulaire qu'elle venait de remplir avec sa photo.
+   *
+   * Le piege qui interdit la conversion naive : `JSON.parse` perd la
+   * precision au-dela de 2^53, et un identifiant Meta peut depasser seize
+   * chiffres — 27695141573488361 devient …360, un identifiant FAUX qui
+   * produirait un 404 en ressemblant a un vrai. Au-dela de la zone sure,
+   * l'identifiant exact se RELIT dans le texte brut de la reponse, ou les
+   * chiffres sont intacts. Si cette relecture echoue, la photo vaut
+   * ABSENTE : on ne fabrique jamais un identifiant approximatif.
+   */
+  if (typeof id === "number" && Number.isInteger(id) && id > 0) {
+    if (Number.isSafeInteger(id)) return { mediaId: String(id) };
+    const exact = idNumeriqueDuBrut(reponseBrute);
+    return exact ? { mediaId: exact } : undefined;
+  }
   const cdn = photoCdnDe(brut);
   return cdn ? { photoCdn: cdn } : undefined;
+}
+
+/**
+ * Le premier `"id": <chiffres>` du texte brut. Dans les reponses d'article
+ * et d'ouverture, le SEUL champ numerique nomme `id` (ou `media_id`) est
+ * celui de la photo : `flow_token` et les champs de saisie sont des chaines.
+ * Cette hypothese est structurelle au contrat de champs, tenu par le test
+ * miroir de `flux-spec.test.ts` — un formulaire qui gagnerait un autre `id`
+ * numerique devrait repasser ici.
+ */
+function idNumeriqueDuBrut(reponseBrute: string): string | null {
+  const m = reponseBrute.match(/"(?:id|media_id)"\s*:\s*(\d{1,64})/);
+  return m?.[1] ?? null;
+}
+
+/**
+ * Le SQUELETTE du champ `photo` d'une reponse de formulaire — ADR 0104.
+ *
+ * Le 15/08/2026 au soir, un formulaire d'article rempli AVEC photo a produit
+ * « Sans photo pour l'instant » : `photoDe` n'a pas reconnu la forme livree
+ * par ce telephone. C'est le scenario de l'ADR 0079 — une forme que la
+ * documentation ne decrit pas — et on ne la devine pas (AGENTS.md §7.7) :
+ * on la MESURE, puis on ecrit la tolerance contre la forme reelle.
+ *
+ * Cette description rend types, cles et longueurs, et JAMAIS une valeur :
+ * ni identifiant de media, ni URL de CDN (elle porte les cles de
+ * dechiffrement), ni octets. C'est ce qui l'autorise a atterrir dans un
+ * journal (meme regime que les traces, ADR 0023). Profondeur bornee : un
+ * squelette n'a pas besoin d'etre exhaustif pour dire la forme.
+ */
+export function formePhotoFlux(brut: string): string | null {
+  const d = objetDe(brut);
+  if (!d || !("photo" in d)) return null;
+  return decrire(d.photo, 0);
+}
+
+const PROFONDEUR_MAX = 3;
+
+function decrire(v: unknown, profondeur: number): string {
+  if (v === null) return "null";
+  if (typeof v === "string") return `chaine(${v.length})`;
+  if (typeof v === "number") return "nombre";
+  if (typeof v === "boolean") return "booleen";
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "tableau[0]";
+    if (profondeur >= PROFONDEUR_MAX) return `tableau[${v.length}]`;
+    return `tableau[${v.length}]:${decrire(v[0], profondeur + 1)}`;
+  }
+  if (typeof v === "object") {
+    if (profondeur >= PROFONDEUR_MAX) return "objet";
+    const champs = Object.entries(v as Record<string, unknown>)
+      .slice(0, 8)
+      .map(([k, val]) => `${k}: ${decrire(val, profondeur + 1)}`);
+    return `{ ${champs.join(", ")} }`;
+  }
+  return typeof v;
 }
 
 export function lireArticleFlux(brut: string): ArticleLu | null {
@@ -318,7 +397,7 @@ export function lireArticleFlux(brut: string): ArticleLu | null {
   const brutStock = champ(d, "stock");
   const stock =
     /^\d+$/.test(brutStock) && Number(brutStock) <= STOCK_MAX ? Number(brutStock) : undefined;
-  const photo = photoDe(d.photo);
+  const photo = photoDe(d.photo, brut);
   /* 0 vaut ABSENT : c'est deja la convention de la base (`stock Int @default(0)`
      = « non annonce »), et « il en annonce zero » ne veut rien dire. */
   return { nom, prixXaf, ...(stock ? { stock } : {}), ...(photo ?? {}) };
