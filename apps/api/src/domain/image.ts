@@ -110,6 +110,17 @@ export function validerImage(
   return { ok: false, raison: "format_non_accepte", detecte };
 }
 
+/**
+ * Pourquoi une photo demandee n'accompagne pas l'article — ADR 0092.
+ *
+ * Aux quatre refus de validation s'ajoutent les deux echecs que seul le
+ * canal bot connait : `illisible` (signature valide, corps corrompu — sharp
+ * leve) et `introuvable` (WhatsApp n'a pas fourni le media : expire, sandbox
+ * sans medias, panne CDN). Le fil DIT la cause au lieu d'un « sans photo »
+ * generique — constat D3 de l'audit 2026-08.
+ */
+export type PhotoIndisponible = RefusImage | "illisible" | "introuvable";
+
 /** Messages destines a la vendeuse. Ils disent quoi faire. */
 export const MESSAGE_REFUS_IMAGE: Record<RefusImage, string> = {
   fichier_vide: "Ce fichier est vide. Choisissez une autre photo.",

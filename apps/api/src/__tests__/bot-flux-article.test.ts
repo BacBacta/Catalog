@@ -320,5 +320,43 @@ describeDb("le formulaire de creation d'article (tache #62)", () => {
     expect(article?.imageKey).toBeNull();
     const dits = s.envoyeur.envoyes.map(corps).join("\n");
     expect(dits).not.toContain("panne passagère");
+    /* Et la CAUSE se dit — non-retour D3 (ADR 0092) : « Sans photo pour
+       l'instant » couvrait aussi ce cas, et la vendeuse renvoyait la meme
+       photo pour echouer pareil. */
+    expect(dits).toContain("abîmée");
+    expect(dits).not.toContain("Sans photo pour l'instant");
+  });
+
+  it("un GIF refuse se dit avec le message du refus, comme le chemin HTTP (non-retour D3)", async () => {
+    /* Signature GIF valide : `validerImage` le reconnait pour le REFUSER
+       (`format_non_accepte`), et le fil ressort le meme message que la
+       route HTTP — celui qui dit quoi faire. */
+    const gif = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00]);
+    const s = await scene({ fluxArticleId: FLUX_ID });
+    const { MemoryStorage } = await import("../adapters/storage-s3.ts");
+    s.deps.media = {
+      nom: "memoire-gif",
+      lire: async () => ({ octets: gif, typeAnnonce: "image/gif" }),
+    };
+    s.deps.storage = new MemoryStorage({ NODE_ENV: "test" });
+
+    await traiterLivraisonBot(
+      s.deps,
+      reponseFlux(s.waId, {
+        flow_token: jetonFlux("article"),
+        nom: "Sac raphia",
+        prix: "9000",
+        photo: [{ id: "m-gif" }],
+      }),
+    );
+
+    const article = await prisma.product.findFirst({
+      where: { sellerId: s.sellerId },
+      select: { name: true, imageKey: true },
+    });
+    expect(article?.name).toBe("Sac raphia");
+    expect(article?.imageKey).toBeNull();
+    const dits = s.envoyeur.envoyes.map(corps).join("\n");
+    expect(dits).toContain("format de photo n'est pas accepte");
   });
 });

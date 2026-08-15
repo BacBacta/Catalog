@@ -239,6 +239,37 @@ export function mesurerStatutEnvoiBot(statut: string, code?: number): void {
   statutsEnvoiBot().add(1, { statut, ...(code === undefined ? {} : { code }) });
 }
 
+/* ────────────────────────── 8. la chaine media du bot ────────────────────────── */
+
+const mediaBot = () =>
+  metre().createCounter("catalog.bot.media", {
+    description:
+      "Chaque etape de la chaine media du bot (lecture, dechiffrement, re-encodage), par issue.",
+  });
+
+/** Les etapes de la chaine, fermees : une etape nouvelle s'ajoute ICI, pas en chaine libre. */
+export type EtapeMediaBot = "lecture" | "lecture_cdn" | "dechiffrement" | "reencodage";
+
+/**
+ * Une etape de la chaine media, reussie ou non — ADR 0092, constat D4 de
+ * l'audit 2026-08.
+ *
+ * La chaine media etait la SEULE couche du bot sans aucun signal : une panne
+ * du CDN Meta produit des articles sans photo en serie, et l'agregat ne
+ * distingue pas cette panne de vendeuses qui n'envoient simplement pas de
+ * photos. Ce compteur fait la difference : `lecture` en echec en serie est
+ * une panne de notre cote ou de celui de Meta ; `reencodage` en echec dit
+ * pourquoi (fichier vide, trop gros, format refuse, corps corrompu).
+ *
+ * **Les etiquettes sont fermees.** `etape` est un type ferme ; `issue` vaut
+ * `ok`, `echec`, ou une raison de `RefusImage` (quatre valeurs) plus
+ * `illisible` — jamais un message, jamais un identifiant de media, jamais
+ * un octet du fichier.
+ */
+export function mesurerMediaBot(etape: EtapeMediaBot, issue: string): void {
+  mediaBot().add(1, { etape, issue });
+}
+
 /* ────────────────────────── le filet, en metrique ────────────────────────── */
 
 /**

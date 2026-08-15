@@ -96,6 +96,7 @@ import { consigneDuPack, packStatut } from "./domain/bot/pack-statut.ts";
 import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
+import type { PhotoIndisponible } from "./domain/image.ts";
 import {
   avancerEtape,
   type CommandePourCycle,
@@ -118,6 +119,7 @@ import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeExpiration, ChargeRelance } from "./jobs/relance-acompte.ts";
 import {
   mesurerEtatPreuve,
+  mesurerMediaBot,
   mesurerStatutEnvoiBot,
   mesurerTransitionBot,
 } from "./observabilite/mesures.ts";
@@ -1275,6 +1277,8 @@ async function creerArticleDepuisFil(
   prixXaf: number;
   avecPhoto: boolean;
   imageKey: string | null;
+  /** Pourquoi la photo DEMANDEE manque — `null` si elle est la, ou si rien n'etait demande. */
+  photoRefus: PhotoIndisponible | null;
 } | null> {
   const alea = deps.aleatoire ?? ((n: number) => new Uint8Array(randomBytes(n)));
 
@@ -1284,18 +1288,22 @@ async function creerArticleDepuisFil(
     hauteur: number;
     octets: number;
   } | null = null;
+  let photoRefus: PhotoIndisponible | null = null;
 
-  if ((demande.mediaId || demande.photoCdn) && deps.media && deps.storage) {
+  if (demande.mediaId || demande.photoCdn) {
     /* Les deux formes documentees du media d'un Flow (tache #72) : le
        `media_id` classique, ou le fichier chiffre sur le CDN dont les cles
        voyagent dans la reponse. Meme pipeline ensuite — le re-encodage
        revalide la signature binaire quoi qu'annonce le transport. */
-    const media = demande.mediaId
-      ? await deps.media.lire(demande.mediaId)
-      : demande.photoCdn && deps.media.lireCdn
-        ? await deps.media.lireCdn(demande.photoCdn)
+    const media =
+      deps.media && deps.storage
+        ? demande.mediaId
+          ? await deps.media.lire(demande.mediaId)
+          : demande.photoCdn && deps.media.lireCdn
+            ? await deps.media.lireCdn(demande.photoCdn)
+            : null
         : null;
-    if (media) {
+    if (media && deps.storage) {
       /**
        * Un corps corrompu a signature valide (JPEG tronque par un
        * telechargement CDN interrompu) fait LEVER sharp — et cette levee
@@ -1304,10 +1312,11 @@ async function creerArticleDepuisFil(
        * l'invariant ecrit plus haut (« une photo illisible ne fait pas
        * echouer l'article ») et sans la parite du chemin HTTP
        * (products.ts), qui a ce .catch depuis le lot 5. Constat D2 de
-       * l'audit 2026-08.
+       * l'audit 2026-08. La CAUSE, elle, se garde et se dit — constat D3.
        */
-      const resultat = await reencoderImage(media.octets).catch(() => ({ ok: false }) as const);
-      if (resultat.ok) {
+      const resultat = await reencoderImage(media.octets).catch(() => null);
+      if (resultat?.ok) {
+        mesurerMediaBot("reencodage", "ok");
         const base = cleOpaque(alea);
         const d = declinaisons(base);
         await Promise.all([
@@ -1321,7 +1330,15 @@ async function creerArticleDepuisFil(
           hauteur: resultat.image.hauteur,
           octets: resultat.image.avif.length,
         };
+      } else {
+        photoRefus = resultat === null ? "illisible" : resultat.verdict.raison;
+        mesurerMediaBot("reencodage", photoRefus);
       }
+    } else {
+      /* Media non fourni : expire chez Meta, panne CDN, ou lecteur absent
+         (le sandbox n'a pas de medias). La lecture elle-meme s'est deja
+         comptee dans l'adaptateur ; ici on retient la cause pour le fil. */
+      photoRefus = "introuvable";
     }
   }
 
@@ -1362,6 +1379,7 @@ async function creerArticleDepuisFil(
         /* La cle sert au pack statut (rang 3a) : la photo se recompose sur la
            carte, elle ne se re-telecharge pas depuis WhatsApp. */
         imageKey: image?.cle ?? null,
+        photoRefus,
       }
     : null;
 }

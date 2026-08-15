@@ -1,5 +1,6 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { villeAcceptable } from "@catalog/contracts/villes";
+import { MESSAGE_REFUS_IMAGE, type PhotoIndisponible } from "../image.ts";
 import {
   avancerComptoir,
   type EtatComptoir,
@@ -447,9 +448,29 @@ export function messageOnboarding(
   );
 }
 
+/**
+ * Ce que le fil dit d'une photo qui manque — constat D3 de l'audit 2026-08.
+ *
+ * « Sans photo pour l'instant » etait la seule phrase, que la vendeuse n'ait
+ * rien envoye ou que sa photo ait ete REFUSEE : elle renvoyait la meme photo,
+ * echouait pareil, et concluait que ca ne marche pas. Quand la cause est
+ * connue, elle se DIT — avec les memes messages que le chemin HTTP
+ * (`MESSAGE_REFUS_IMAGE`), qui disent quoi faire.
+ */
+function phrasePhotoAbsente(refus?: PhotoIndisponible | null): string {
+  if (!refus) return "Sans photo pour l'instant — envoyez-la quand vous voulez.";
+  const cause =
+    refus === "illisible"
+      ? "elle est arrivée abîmée et n'a pas pu être lue. Renvoyez-la, ou choisissez-en une autre."
+      : refus === "introuvable"
+        ? "WhatsApp ne l'a pas fournie. Réessayez dans un moment."
+        : MESSAGE_REFUS_IMAGE[refus];
+  return `La photo n'a pas pu être utilisée : ${cause}`;
+}
+
 export function messageArticlePublie(
   vers: string,
-  a: { nom: string; prixXaf: number; avecPhoto: boolean },
+  a: { nom: string; prixXaf: number; avecPhoto: boolean; photoRefus?: PhotoIndisponible | null },
   enConges = false,
   /**
    * Minutes avant que la PAGE WEB de la boutique porte cet article — ADR 0065.
@@ -464,7 +485,7 @@ export function messageArticlePublie(
    */
   pageWebDansMinutes: number | null = null,
 ): MessageSortant {
-  const photo = a.avecPhoto ? "" : "\nSans photo pour l'instant — envoyez-la quand vous voulez.";
+  const photo = a.avecPhoto ? "" : `\n${phrasePhotoAbsente(a.photoRefus)}`;
   /**
    * « En ligne » ne peut pas rester seul sur une boutique fermée — ADR 0057.
    *

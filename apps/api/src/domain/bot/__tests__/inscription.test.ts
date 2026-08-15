@@ -243,6 +243,46 @@ describe("les messages de publication", () => {
        part plus tout seul, il s'obtient d'un appui (banc du 13/08). */
     expect(idsBoutons(sans)).toEqual(["article", "carte"]);
   });
+
+  it("une photo REFUSEE se dit avec sa cause, pas « sans photo » — non-retour D3 (ADR 0092)", () => {
+    /* Avant l'audit 2026-08, « Sans photo pour l'instant » couvrait aussi la
+       photo refusee : la vendeuse renvoyait la meme, echouait pareil, et
+       concluait que ca ne marche pas. La cause vient des memes messages que
+       le chemin HTTP (`MESSAGE_REFUS_IMAGE`). */
+    const lourde = messageArticlePublie(VERS, {
+      nom: "Pagne",
+      prixXaf: 15000,
+      avecPhoto: false,
+      photoRefus: "fichier_trop_gros",
+    });
+    expect(corps(lourde)).toContain("trop lourde");
+    expect(corps(lourde)).not.toMatch(/Sans photo pour l'instant/);
+
+    const abimee = messageArticlePublie(VERS, {
+      nom: "Pagne",
+      prixXaf: 15000,
+      avecPhoto: false,
+      photoRefus: "illisible",
+    });
+    expect(corps(abimee)).toContain("abîmée");
+
+    const perdue = messageArticlePublie(VERS, {
+      nom: "Pagne",
+      prixXaf: 15000,
+      avecPhoto: false,
+      photoRefus: "introuvable",
+    });
+    expect(corps(perdue)).toContain("WhatsApp ne l'a pas fournie");
+
+    /* Aucune photo DEMANDEE : la phrase d'origine, sans reproche. */
+    const aucune = messageArticlePublie(VERS, {
+      nom: "Pagne",
+      prixXaf: 15000,
+      avecPhoto: false,
+      photoRefus: null,
+    });
+    expect(corps(aucune)).toMatch(/Sans photo pour l'instant/);
+  });
 });
 
 describe("normaliserEtatVendeuse", () => {

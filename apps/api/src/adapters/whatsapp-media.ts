@@ -1,4 +1,5 @@
 import type { LecteurMedia, MediaEntrant, PhotoCdnChiffree } from "../domain/bot/media.ts";
+import { mesurerMediaBot } from "../observabilite/mesures.ts";
 import { fetchBorne } from "./fetch-borne.ts";
 import { dechiffrerMediaCdn } from "./media-cdn.ts";
 import { entetesAuth, type TransportWhatsapp } from "./whatsapp-transport.ts";
@@ -85,6 +86,21 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
    * jamais une levee, et rien du corps ne part dans une trace.
    */
   async lireCdn(photo: PhotoCdnChiffree): Promise<MediaEntrant | null> {
+    /* Le compteur `catalog.bot.media` (ADR 0092) sépare le TELECHARGEMENT du
+       DECHIFFREMENT : une serie d'echecs du premier est une panne CDN, du
+       second des cles fausses — deux enquetes qui n'ont rien a voir. */
+    const brut = await this.#telechargerCdn(photo);
+    mesurerMediaBot("lecture_cdn", brut ? "ok" : "echec");
+    if (!brut) return null;
+    const clair = dechiffrerMediaCdn(brut, photo);
+    mesurerMediaBot("dechiffrement", clair ? "ok" : "echec");
+    if (!clair) return null;
+    /* Le type n'est pas annonce par le CDN : le pipeline revalide de toute
+       facon la signature binaire — meme regle que `lire`. */
+    return { octets: clair, typeAnnonce: "application/octet-stream" };
+  }
+
+  async #telechargerCdn(photo: PhotoCdnChiffree): Promise<Uint8Array | null> {
     if (!/^https:\/\//.test(photo.url)) return null;
     try {
       const r = await this.#fetch(photo.url);
@@ -94,17 +110,19 @@ export class LecteurMediaWhatsapp implements LecteurMedia {
       if (annonce > tailleMax) return null;
       const brut = new Uint8Array(await r.arrayBuffer());
       if (brut.length > tailleMax) return null;
-      const clair = dechiffrerMediaCdn(brut, photo);
-      if (!clair) return null;
-      /* Le type n'est pas annonce par le CDN : le pipeline revalide de toute
-         facon la signature binaire — meme regle que `lire`. */
-      return { octets: clair, typeAnnonce: "application/octet-stream" };
+      return brut;
     } catch {
       return null;
     }
   }
 
   async lire(mediaId: string): Promise<MediaEntrant | null> {
+    const media = await this.#lire(mediaId);
+    mesurerMediaBot("lecture", media ? "ok" : "echec");
+    return media;
+  }
+
+  async #lire(mediaId: string): Promise<MediaEntrant | null> {
     if (!/^[\w.-]{1,256}$/.test(mediaId)) return null;
     const base = this.#cfg.baseUrl.replace(/\/$/, "");
     const entetes = entetesAuth(this.#cfg.transport, this.#cfg.apiKey);
