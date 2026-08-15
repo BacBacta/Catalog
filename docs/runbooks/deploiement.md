@@ -241,7 +241,9 @@ Deux secrets à poser **sur l'API**, côté Fly :
 fly launch --no-deploy --copy-config --name catalog-api-preprod --region cdg
 fly postgres create --name catalog-pg-preprod --region cdg   # PostgreSQL 18
 fly postgres attach catalog-pg-preprod --app catalog-api-preprod
-fly deploy
+# `--build-arg` : sans lui, `/api/statut` rend `version: null` et plus rien ne
+# dit quel commit répond. Le workflow le pose tout seul ; à la main, on l'oublie.
+fly deploy --build-arg CATALOG_VERSION=$(git rev-parse HEAD)
 ```
 
 `fly deploy` lance d'abord le `release_command`, qui enchaîne
@@ -343,6 +345,25 @@ fly logs -a catalog-api-preprod --no-tail | tail -30   # si le statut ne répond
 `/api/statut` doit rendre `{"niveau":"ok","base":"joignable",…}`. Un service qui
 répond mais dont la base ne l'est pas rend `niveau: "degrade"` — c'est une
 information différente d'un silence, et c'est pour cela que la page existe.
+
+#### Quel commit répond — la question qu'on oublie de poser
+
+`version` porte le sha du commit déployé, posé en `--build-arg` par le
+workflow. **C'est la seule façon de répondre à « mon correctif est-il en
+ligne ? »**, et l'absence de cette réponse a coûté une soirée le 15/08/2026 :
+un déploiement vert ne dit pas quel commit répond, parce qu'entre les deux il
+y a une machine qui a pu ne pas redémarrer, un déploiement plus récent, ou un
+retour arrière.
+
+```bash
+curl -sS https://api-preprod.catalog.cm/api/statut | jq -r .version
+git log --oneline -1 <le commit attendu>
+```
+
+`version: null` veut dire **image sans `CATALOG_VERSION`** — donc un
+déploiement lancé à la main sans `--build-arg`, ou une image antérieure au
+15/08/2026. Ce n'est pas une panne ; c'est l'absence de réponse, et il faut
+alors passer par `fly releases -a catalog-api-preprod` pour retrouver l'image.
 
 ### La boutique
 
