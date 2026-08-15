@@ -33,7 +33,7 @@ import {
   notifierLivree,
 } from "./bot-notifications.ts";
 import { aiguiller } from "./domain/bot/aiguillage.ts";
-import { ARTICLES_MAX, CARTE_HAUTEUR } from "./domain/bot/carte-vitrine.ts";
+import { ARTICLES_CANDIDATS, CARTE_HAUTEUR, selectionVitrine } from "./domain/bot/carte-vitrine.ts";
 import {
   COMPTOIR_DEPART,
   demandeComptoir,
@@ -42,6 +42,7 @@ import {
 } from "./domain/bot/comptoir-vendeuse.ts";
 import { confianceAuPaiement, type VerdictConfiance } from "./domain/bot/confiance.ts";
 import {
+  ARTICLES_VENDEUSE_MAX,
   type ArticleBot,
   type BoutiqueBot,
   confirmationCommande,
@@ -50,8 +51,10 @@ import {
   type EtatConv,
   etatApresInactivite,
   extraireSlugBoutique,
+  ficheArticleVendeuse,
   type LignePanier,
   lignesSuivi,
+  listeArticlesVendeuse,
   messageVerdict,
   normaliserEtat,
   RAFALE_MAX,
@@ -1703,9 +1706,26 @@ async function publierArticleDepuisFil(
    * lenteur — ne peut plus emporter la seule phrase qui compte.
    */
   if (annonce === "ici" || !article) {
+    /**
+     * La photo revient a la vendeuse, en en-tete de SA confirmation —
+     * ADR 0106. Elle envoyait son image et ne la revoyait jamais.
+     *
+     * L'appel au stockage precede donc bien le premier envoi, ce que le banc
+     * du 13/08 interdisait. Il est desormais BORNE des deux cotes : le
+     * client S3 a ses quinze secondes (`storage-s3.ts`), et
+     * `urlJpegVerifiee` avale ses erreurs en rendant `null`. Le pire cas
+     * n'est plus « le fil s'arrete » mais « la confirmation part en texte,
+     * quinze secondes plus tard » — le comportement d'avant, en retard.
+     */
+    const imageUrl = article?.imageKey ? await urlJpegVerifiee(deps, article.imageKey) : null;
     await envoyerSequence(deps, [
       article
-        ? messageArticlePublie(vers, article, enConges, pageWebDansMinutes)
+        ? messageArticlePublie(
+            vers,
+            { ...article, ...(imageUrl ? { imageUrl } : {}) },
+            enConges,
+            pageWebDansMinutes,
+          )
         : texte(
             vers,
             "Cet article n'a pas pu être enregistré. Réessayez avec « ajouter » — rien n'a été perdu.",
@@ -2312,10 +2332,20 @@ async function carteVitrine(
       slug: true,
       city: true,
       phone: true,
+      /**
+       * On lit LARGE et on choisit ici — troisieme instance du desaccord de
+       * tranche de l'ADR 0105, et la plus visible : `take: ARTICLES_MAX`
+       * prenait les trois PREMIERS articles, donc une boutique dont seuls les
+       * ajouts recents portent une photo se voyait rendre une carte tout en
+       * initiales. C'est ce que le porteur du produit a montre le 15/08.
+       *
+       * Le plafond de lecture est genereux et borne quand meme : une carte ne
+       * montre que trois cartouches, la selection n'a pas besoin de plus.
+       */
       products: {
         where: { archivedAt: null },
         orderBy: { position: "asc" },
-        take: ARTICLES_MAX,
+        take: ARTICLES_CANDIDATS,
         select: { name: true, priceXaf: true, imageKey: true },
       },
       reviews: { select: { rating: true, verified: true } },
@@ -2343,9 +2373,15 @@ async function carteVitrine(
     ];
   }
 
+  /* Les trois cartouches : les ILLUSTRES d'abord (ADR 0106). La regle vit
+     dans le domaine ; le service ne fait que traduire une cle en booleen. */
+  const vitrine = selectionVitrine(
+    seller.products.map((p) => ({ ...p, avecPhoto: p.imageKey !== null })),
+  );
+
   /* Les photos, lues depuis NOS objets pour etre composees sur le gabarit. */
   const photos = await Promise.all(
-    seller.products.map(async (p) =>
+    vitrine.map(async (p) =>
       p.imageKey && deps.storage
         ? await deps.storage
             .lire(`${p.imageKey}.jpg`)
@@ -2367,7 +2403,7 @@ async function carteVitrine(
       lienAffiche: `wa.me/${chiffres}`,
       motCle,
       reputation: { note: rep.note, nbVerifies: rep.nbVerifies },
-      articles: seller.products.map((p, i) => ({
+      articles: vitrine.map((p, i) => ({
         nom: p.name,
         prixXaf: p.priceXaf,
         avecPhoto: photos[i] !== null,
@@ -3237,6 +3273,74 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
      * la carte reste l'objet du geste, le rappel est ce qu'on lit ensuite.
      */
     if (profil?.congesDepuis) messages.push(rappelConges(entree.de));
+  }
+
+  /**
+   * ── « Mes articles » : le catalogue de la vendeuse — ADR 0107 ───────────
+   *
+   * La lecture se fait ICI et pas au chargement du menu : c'est une liste
+   * entiere, et le fil vendeuse en a besoin une fois sur cinquante.
+   *
+   * Le plafond est genereux mais REEL : au-dela, une liste paginee dans
+   * WhatsApp cesse d'etre le bon outil, et l'espace vendeuse existe.
+   */
+  if (reaction.effet?.type === "lister_articles") {
+    const page = reaction.effet.page;
+    const tous = await deps.prisma.product.findMany({
+      where: { sellerId: sellerIdent, archivedAt: null },
+      orderBy: { position: "asc" },
+      take: ARTICLES_VENDEUSE_MAX,
+      select: { id: true, name: true, priceXaf: true, stock: true, imageKey: true },
+    });
+    messages.push(
+      ...listeArticlesVendeuse(
+        entree.de,
+        {
+          nom: profil?.businessName ?? "Votre boutique",
+          articles: tous.map((p) => ({
+            id: p.id,
+            nom: p.name,
+            prixXaf: p.priceXaf,
+            /* Zero vaut NON SUIVI — la convention de la base et de la
+               boutique publique, reprise telle quelle (ADR 0038). */
+            stock: p.stock > 0 ? p.stock : null,
+            avecPhoto: p.imageKey !== null,
+          })),
+        },
+        page,
+      ),
+    );
+  }
+
+  if (reaction.effet?.type === "montrer_article") {
+    const p = await deps.prisma.product.findFirst({
+      /* `sellerId` dans le FILTRE, pas apres : un identifiant fabrique ne
+         doit pas ouvrir la fiche d'une autre vendeuse. */
+      where: { id: reaction.effet.articleId, sellerId: sellerIdent, archivedAt: null },
+      select: { id: true, name: true, priceXaf: true, stock: true, imageKey: true },
+    });
+    if (!p) {
+      messages.push(
+        texte(
+          entree.de,
+          "Cet article n'est plus dans votre catalogue. Écrivez « mes articles » pour voir la liste à jour.",
+        ),
+      );
+    } else {
+      /* L'URL est VERIFIEE — jamais un lien mort, l'API refuserait le message
+         entier. Absente, la fiche part sans image et le dit. */
+      const url = p.imageKey ? await urlJpegVerifiee(deps, p.imageKey) : null;
+      messages.push(
+        ...ficheArticleVendeuse(entree.de, {
+          id: p.id,
+          nom: p.name,
+          prixXaf: p.priceXaf,
+          stock: p.stock > 0 ? p.stock : null,
+          avecPhoto: p.imageKey !== null,
+          ...(url ? { imageUrl: url } : {}),
+        }),
+      );
+    }
   }
 
   if (reaction.effet?.type === "basculer_conges") {

@@ -7,6 +7,7 @@ import {
   composerCarte,
   type DonneesCarte,
   EMPLACEMENTS_PHOTOS,
+  selectionVitrine,
 } from "../carte-vitrine.ts";
 
 /**
@@ -113,5 +114,50 @@ describe("composerCarte", () => {
     const sans = composerCarte(BASE);
     expect(sans).not.toContain("scale(");
     expect(sans).toContain("</svg>");
+  });
+});
+
+/**
+ * Quels articles la carte MONTRE — ADR 0106.
+ *
+ * Mesure du 15/08/2026 : une carte tout en initiales, pour une boutique qui
+ * avait des photos. Elle prenait les trois PREMIERS articles par position, et
+ * un article neuf prend `position = max + 1` — donc les illustres sont les
+ * DERNIERS. Troisieme instance du desaccord de tranche de l'ADR 0105.
+ */
+describe("selectionVitrine", () => {
+  const art = (nom: string, avecPhoto: boolean) => ({ nom, avecPhoto });
+
+  it("met devant les articles illustres, meme places en fin de boutique", () => {
+    const boutique = [
+      ...Array.from({ length: 7 }, (_, i) => art(`Ancien ${i}`, false)),
+      art("Sac neuf", true),
+      art("Pagne neuf", true),
+    ];
+    const choisis = selectionVitrine(boutique);
+    expect(choisis.map((a) => a.nom)).toEqual(["Sac neuf", "Pagne neuf", "Ancien 0"]);
+  });
+
+  it("garde l'ordre de position DANS chaque groupe", () => {
+    const choisis = selectionVitrine([
+      art("A", false),
+      art("B", true),
+      art("C", false),
+      art("D", true),
+    ]);
+    expect(choisis.map((a) => a.nom)).toEqual(["B", "D", "A"]);
+  });
+
+  it("sans aucune photo, rend exactement les trois premiers — le comportement d'avant", () => {
+    const choisis = selectionVitrine(["A", "B", "C", "D"].map((n) => art(n, false)));
+    expect(choisis.map((a) => a.nom)).toEqual(["A", "B", "C"]);
+  });
+
+  it("ne rend jamais plus que la borne, ni moins que ce qu'on lui donne", () => {
+    expect(selectionVitrine(Array.from({ length: 30 }, () => art("x", true)))).toHaveLength(
+      ARTICLES_MAX,
+    );
+    expect(selectionVitrine([art("seul", true)])).toHaveLength(1);
+    expect(selectionVitrine([])).toEqual([]);
   });
 });

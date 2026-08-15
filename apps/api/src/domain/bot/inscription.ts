@@ -363,6 +363,20 @@ export function demandeCarteVitrine(texteBrut: string): boolean {
 }
 
 /**
+ * « Mes articles » — le catalogue de la VENDEUSE, dans son fil (ADR 0107).
+ *
+ * Le mot « stock » y entre volontairement : c'est le besoin dit — « consulter
+ * ses articles listés et voir les stocks » —, et une vendeuse qui cherche son
+ * stock ne pensera pas au mot « articles ». Deux portes, une piece.
+ */
+export function demandeMesArticles(texteBrut: string): boolean {
+  const net = sansAccents(texteBrut.trim().toLowerCase());
+  return /^(?:mes articles|mon catalogue|catalogue|articles|mes stocks|stock|stocks|inventaire)$/.test(
+    net,
+  );
+}
+
+/**
  * Un mot que le MODE D'EMPLOI enseigne — constat C-01 de l'audit 2026-08.
  *
  * « vendu », « ajouter », « ma boutique », « ma carte »… sont annonces par
@@ -381,6 +395,7 @@ export function motDuModeDemploi(texteBrut: string): boolean {
     demandeSoldes(texteBrut) ||
     demandeListeCommandes(texteBrut) ||
     demandeCarteVitrine(texteBrut) ||
+    demandeMesArticles(texteBrut) ||
     demandeConges(texteBrut) !== null ||
     demandeResume(texteBrut) !== null
   );
@@ -632,7 +647,25 @@ function phrasePhotoAbsente(refus?: PhotoIndisponible | null): string {
 
 export function messageArticlePublie(
   vers: string,
-  a: { nom: string; prixXaf: number; avecPhoto: boolean; photoRefus?: PhotoIndisponible | null },
+  a: {
+    nom: string;
+    prixXaf: number;
+    avecPhoto: boolean;
+    photoRefus?: PhotoIndisponible | null;
+    /**
+     * La photo ENREGISTREE, renvoyee en en-tete — ADR 0106.
+     *
+     * La vendeuse envoyait sa photo et ne la revoyait jamais : le fil lui
+     * repondait « c'est dans votre catalogue » en texte, et rien ne lui
+     * montrait ce que l'acheteuse verrait. Une photo cadree de travers, ou
+     * la mauvaise photo, ne se decouvrait qu'en ouvrant la boutique.
+     *
+     * L'URL est VERIFIEE par le service avant d'arriver ici — jamais un lien
+     * mort, l'API refuserait le message entier. Absente, la bulle reste
+     * exactement celle d'avant : c'est un enrichissement, pas une condition.
+     */
+    imageUrl?: string | null;
+  },
   enConges = false,
   /**
    * Minutes avant que la PAGE WEB de la boutique porte cet article — ADR 0065.
@@ -677,6 +710,9 @@ export function messageArticlePublie(
       { id: "article", titre: "Autre article" },
       ...(enConges ? [] : [{ id: "carte", titre: "Ma carte" }]),
     ],
+    /* L'en-tete d'image : la vendeuse revoit CE qu'elle vient de publier,
+       dans la bulle qui le lui confirme — zero message de plus (ADR 0106). */
+    a.imageUrl ? { image: a.imageUrl } : {},
   );
 }
 

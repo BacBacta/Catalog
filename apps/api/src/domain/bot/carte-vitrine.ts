@@ -20,6 +20,51 @@ export const CARTE_HAUTEUR = 1920;
 export const ARTICLES_MAX = 3;
 
 /**
+ * Combien d'articles on LIT pour en choisir trois — ADR 0106.
+ *
+ * La selection prefere les articles illustres, et elle ne peut le faire que
+ * si elle en voit plus de trois. Le plafond reste bas : au-dela, on paie une
+ * lecture pour des articles qui n'entreront jamais dans une carte a trois
+ * cartouches.
+ */
+export const ARTICLES_CANDIDATS = 24;
+
+/**
+ * Quels articles la carte montre — ADR 0106.
+ *
+ * ── Le defaut que cette fonction ferme ────────────────────────────────────
+ *
+ * La carte prenait les trois PREMIERS articles par position. Or un article
+ * neuf prend `position = max + 1` : il arrive en fin de liste. Une vendeuse
+ * qui commence a photographier photographie ses ajouts recents — donc les
+ * derniers. Sa carte lui revenait tout en INITIALES, alors que sa boutique
+ * avait des photos. C'est ce que le porteur du produit a montre le 15/08.
+ *
+ * C'est la troisieme instance du meme desaccord de tranche (ADR 0105), et la
+ * regle est la meme : **on filtre avant de trancher**.
+ *
+ * ── Pourquoi elle vit dans le domaine ─────────────────────────────────────
+ *
+ * Parce que c'est une regle de PRODUIT — « une carte montre ce qui se
+ * montre » — et pas un detail de stockage. Le service lui passe un booleen,
+ * jamais une cle : le domaine n'a pas a savoir ce qu'est un objet S3.
+ *
+ * L'ordre de position est conserve DANS chaque groupe : la carte reste
+ * lisible comme la boutique, elle met simplement devant ce qui se montre.
+ * Une boutique sans aucune photo retombe exactement sur le comportement
+ * d'avant — les trois premiers, en initiales.
+ */
+export function selectionVitrine<T extends { avecPhoto: boolean }>(
+  articles: readonly T[],
+  max = ARTICLES_MAX,
+): T[] {
+  return [...articles.filter((a) => a.avecPhoto), ...articles.filter((a) => !a.avecPhoto)].slice(
+    0,
+    max,
+  );
+}
+
+/**
  * Ou l'adaptateur pose les photos, dans l'ordre des articles fournis.
  *
  * Les hauteurs laissent la place aux DEUX lignes de legende posees dessous —

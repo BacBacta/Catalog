@@ -7,6 +7,13 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { ObjectStorage, ObjetAStocker } from "../domain/storage.ts";
+import { DELAI_RESEAU_MS } from "./fetch-borne.ts";
+
+/**
+ * Etablir une connexion est autrement plus rapide que transferer un objet :
+ * une machine injoignable se declare en cinq secondes, pas en quinze.
+ */
+const DELAI_CONNEXION_MS = 5_000;
 
 /**
  * Stockage S3 — compatible R2 et MinIO.
@@ -37,6 +44,26 @@ export class S3Storage implements ObjectStorage {
       region: cfg.region ?? "auto",
       forcePathStyle: true,
       credentials: { accessKeyId: cfg.accessKey, secretAccessKey: cfg.secretKey },
+      /**
+       * **La regle de `fetch-borne.ts`, appliquee au stockage.**
+       *
+       * Le SDK AWS n'utilise pas `fetch` : il a son propre client HTTP, et il
+       * echappait donc a la borne posee apres le banc du 13/08/2026. Ses
+       * delais par defaut valent ZERO, ce qui veut dire « pas de delai » — un
+       * `HeadObject` vers un endpoint qui accepte la connexion puis se tait
+       * suspend la promesse pour toujours, et la route entrante attend la fin
+       * du traitement avant de rendre son 200. Panne parfaitement muette,
+       * exactement la forme qui avait coute la soiree du 13.
+       *
+       * Le meme raisonnement, donc les memes quinze secondes : la borne ne
+       * borne pas la performance, elle borne l'infini. Un depassement devient
+       * une erreur ordinaire — `taille()` rend `null`, l'article se publie
+       * sans photo — au lieu d'un fil qui s'arrete.
+       */
+      requestHandler: {
+        requestTimeout: DELAI_RESEAU_MS,
+        connectionTimeout: DELAI_CONNEXION_MS,
+      },
     });
   }
 

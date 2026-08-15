@@ -15,7 +15,12 @@ import {
   messageFlux,
   veutPositionFlux,
 } from "./flux.ts";
-import { demandeCarteVitrine, demandeConges, demandeListeCommandes } from "./inscription.ts";
+import {
+  demandeCarteVitrine,
+  demandeConges,
+  demandeListeCommandes,
+  demandeMesArticles,
+} from "./inscription.ts";
 import {
   boutons,
   demandeLocalisation,
@@ -349,6 +354,15 @@ export type EffetBot =
   | { type: "basculer_resume"; stop: boolean }
   /** « ma carte » — la carte-vitrine à poster en Statut (ADR 0037). */
   | { type: "envoyer_carte" }
+  /**
+   * « mes articles » — le catalogue de la VENDEUSE (ADR 0107). C'est un effet
+   * et non des messages : la machine ne connait ni les articles ni les
+   * stocks, et les charger a CHAQUE message du fil pour les montrer une fois
+   * sur cinquante serait une lecture de trop.
+   */
+  | { type: "lister_articles"; page: number }
+  /** Une ligne du catalogue vendeuse : sa fiche, avec sa photo (ADR 0107). */
+  | { type: "montrer_article"; articleId: string }
   /** « congés » / « je reprends » — la boutique se ferme et se rouvre (ADR 0039). */
   | { type: "basculer_conges"; fermer: boolean }
   /**
@@ -2013,6 +2027,30 @@ export interface CommandeOuverte {
 }
 
 /** Ce que le menu vendeuse montre d'elle-meme — charge par le service. */
+/**
+ * Un article vu par SA vendeuse — ADR 0107.
+ *
+ * Ce n'est pas `ArticleBot` : l'acheteuse ne voit ni « non suivi », ni
+ * l'invitation a corriger, et la vendeuse ne voit pas le bouton « commander ».
+ * Deux publics, deux formes — les confondre ferait fuir un jour un detail de
+ * gestion vers une acheteuse.
+ */
+export interface ArticleVendeuse {
+  id: string;
+  nom: string;
+  prixXaf: number;
+  /**
+   * `null` veut dire NON SUIVI, et jamais « zero ». C'est la convention de la
+   * base (`stock Int @default(0)`, zero = absent) et celle de la boutique
+   * publique — la reprendre ici evite qu'un ecran annonce « 0 disponible »
+   * pour un article que la vendeuse n'a simplement jamais compte.
+   */
+  stock: number | null;
+  /** Le service ne renseigne l'URL qu'a l'article DEMANDE, et verifiee. */
+  imageUrl?: string;
+  avecPhoto: boolean;
+}
+
 export interface BoutiqueVendeuse {
   nom: string;
   nbArticles: number;
@@ -2026,6 +2064,125 @@ export interface BoutiqueVendeuse {
    * vendeuse n'en a pas, ce qui est l'etat normal.
    */
   chaine?: string | null;
+  /**
+   * Ses articles, pour « mes articles » — ADR 0107. Absent quand le service
+   * n'a pas eu a les charger : le menu n'en a pas besoin, seul le catalogue
+   * les demande, et une lecture qu'on ne montre pas est une lecture de trop.
+   */
+  articles?: readonly ArticleVendeuse[];
+}
+
+/**
+ * Combien d'articles une liste montre d'un coup. L'API en accepte dix ; la
+ * derniere ligne est prise par « voir la suite », comme le catalogue
+ * acheteuse.
+ */
+const ARTICLES_VENDEUSE_PAR_PAGE = 9;
+
+/**
+ * Le plafond de ce qu'on LIT pour ce catalogue. Genereux, et reel : au-dela,
+ * une liste paginee dans WhatsApp cesse d'etre le bon outil — l'espace
+ * vendeuse existe pour ca, et il sait trier et chercher.
+ */
+export const ARTICLES_VENDEUSE_MAX = 90;
+
+/** « 3 en stock », « stock non suivi » — la meme lecture qu'ailleurs. */
+function ligneStock(stock: number | null): string {
+  if (stock === null) return "stock non suivi";
+  if (stock === 0) return "épuisé";
+  return `${stock} en stock`;
+}
+
+/**
+ * Le catalogue de la VENDEUSE — ADR 0107.
+ *
+ * Une liste interactive : chaque ligne porte le nom, et sa description dit le
+ * prix, le stock et si l'article a une photo. Les trois informations qu'elle
+ * cherche tiennent donc sans qu'elle ouvre quoi que ce soit.
+ *
+ * « pas de photo » est dit EN CLAIR, parce que c'est l'anomalie qu'on veut
+ * qu'elle voie : un article sans photo se vend mal, et jusqu'ici rien ne le
+ * lui signalait dans le fil.
+ */
+export function listeArticlesVendeuse(
+  vers: string,
+  boutique: { nom: string; articles: readonly ArticleVendeuse[] },
+  page = 0,
+): MessageSortant[] {
+  if (boutique.articles.length === 0) {
+    return [
+      boutons(
+        vers,
+        `*${boutique.nom}* n'a encore aucun article.\n\nEnvoyez une photo avec « nom prix » en légende — c'est le chemin le plus court.`,
+        [{ id: "article", titre: "Ajouter un article" }],
+      ),
+    ];
+  }
+  const debut = page * ARTICLES_VENDEUSE_PAR_PAGE;
+  const tranche = boutique.articles.slice(debut, debut + ARTICLES_VENDEUSE_PAR_PAGE);
+  const reste = boutique.articles.length - (debut + tranche.length);
+  const nb = boutique.articles.length;
+  /**
+   * Le stock ne se DECOMPTE pas tout seul, et le dire est une obligation, pas
+   * une politesse (ADR 0038). Un compteur qui ne verrait que les ventes
+   * passees par Catalog serait plus faux que le nombre qu'elle tient
+   * elle-meme — elle vend aussi hors de tout ce que nous voyons.
+   */
+  const corps =
+    `*${boutique.nom}* — ${nb} article${nb > 1 ? "s" : ""}\n` +
+    "Touchez un article pour le voir, avec sa photo.\n\n" +
+    "_Les stocks se corrigent à la main : ils ne se décomptent pas tout seuls._";
+  return [
+    liste(
+      vers,
+      corps,
+      "Voir mes articles",
+      [
+        ...tranche.map((a) => ({
+          id: `vart:${a.id}`,
+          titre: a.nom,
+          description: `${formatXaf(a.prixXaf)} · ${ligneStock(a.stock)}${a.avecPhoto ? "" : " · pas de photo"}`,
+        })),
+        ...(reste > 0
+          ? [
+              {
+                id: `varts:${page + 1}`,
+                titre: "Voir la suite",
+                description: `Encore ${reste} article${reste > 1 ? "s" : ""}`,
+              },
+            ]
+          : []),
+      ],
+      reste > 0 ? undefined : "Pour corriger un prix ou un stock : votre espace vendeuse.",
+    ),
+  ];
+}
+
+/**
+ * La fiche d'UN article, vue par sa vendeuse — ADR 0107.
+ *
+ * Photo d'abord quand elle existe : c'est precisement ce qui manquait, et
+ * c'est ce qu'elle veut verifier — que l'acheteuse verra la bonne image, bien
+ * cadree. Sans photo, la fiche le dit et propose de l'envoyer.
+ */
+export function ficheArticleVendeuse(vers: string, a: ArticleVendeuse): MessageSortant[] {
+  const lignes = [
+    `*${a.nom}*`,
+    formatXaf(a.prixXaf),
+    ligneStock(a.stock) === "stock non suivi" ? "Stock non suivi" : ligneStock(a.stock),
+    ...(a.avecPhoto
+      ? []
+      : ["", "📷 Cet article n'a pas de photo. Envoyez-la ici : elle sera ajoutée à cet article."]),
+  ];
+  const bulle = boutons(vers, lignes.join("\n"), [
+    { id: "mes_articles", titre: "Mes articles" },
+    { id: "article", titre: "Ajouter un article" },
+  ]);
+  /* L'image part SEULE et devant : un en-tete d'image est petit, et cette
+     fiche existe pour qu'elle REGARDE sa photo. */
+  return a.imageUrl
+    ? [image(vers, a.imageUrl, `${a.nom} — ${formatXaf(a.prixXaf)}`), bulle]
+    : [bulle];
 }
 
 /**
@@ -2164,6 +2321,35 @@ export function reagirVendeuse(
   }
 
   /**
+   * ── « Mes articles » : le catalogue de la VENDEUSE — ADR 0107 ──────────
+   *
+   * Le besoin dit le 15/08/2026 : « la boutique n'a pas de catalogue WhatsApp
+   * où [la vendeuse] peut consulter ses articles listés et voir les stocks ».
+   * C'etait exact — le fil vendeuse annoncait « 8 articles en ligne » et
+   * s'arretait la. Pour voir lesquels, il fallait ouvrir la boutique publique
+   * en tant qu'acheteuse, ou l'espace web.
+   *
+   * Une LISTE interactive, pas un Flow : une liste se rend en un message,
+   * elle marche sans WhatsApp recent, et elle n'a rien a deposer chez Meta.
+   * Un Flow serait un formulaire — de quoi SAISIR, pas de quoi consulter.
+   */
+  if (
+    id === "mes_articles" ||
+    id?.startsWith("varts:") ||
+    (entree.genre === "texte" && demandeMesArticles(entree.texte))
+  ) {
+    const page = id?.startsWith("varts:") ? Number(id.slice(6)) || 0 : 0;
+    return { etat: ETAT_INITIAL, messages: [], effet: { type: "lister_articles", page } };
+  }
+  if (id?.startsWith("vart:")) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [],
+      effet: { type: "montrer_article", articleId: id.slice(5) },
+    };
+  }
+
+  /**
    * Le mode conges depuis le fil — ADR 0039. Deux gestes symetriques, en
    * bouton comme au mot tape. La bascule n'est pas confirmee : elle est
    * REVERSIBLE d'un mot, et rien ne se perd — ni commande, ni reputation.
@@ -2259,8 +2445,11 @@ export function reagirVendeuse(
     ...(b.enConges
       ? ["🌴 *En congés* — votre boutique reste en ligne, mais ne prend pas de nouvelle commande."]
       : []),
+    /* Le geste est ANNONCE, sinon il n'existe pas — meme regle que « congés »
+       juste dessous. C'est la ligne qui manquait le 15/08 : le menu disait
+       « 8 articles en ligne » et s'arretait la (ADR 0107). */
     b.nbArticles > 0
-      ? `${b.nbArticles} article${b.nbArticles > 1 ? "s" : ""} en ligne`
+      ? `${b.nbArticles} article${b.nbArticles > 1 ? "s" : ""} en ligne — écrivez « mes articles » pour les voir, avec les stocks.`
       : "Aucun article en ligne pour l'instant — ajoutez le premier !",
     contexte.commandesOuvertes.length > 0
       ? `À encaisser : *${formatXaf(contexte.soldesXaf)}* sur ${contexte.commandesOuvertes.length} commande${contexte.commandesOuvertes.length > 1 ? "s" : ""}`

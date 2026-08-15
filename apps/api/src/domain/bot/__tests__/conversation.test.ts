@@ -1,19 +1,22 @@
 import { formatXaf } from "@catalog/contracts/money";
 import { describe, expect, it } from "vitest";
-import type { BoutiqueBot, ContexteAcheteuse, EtatConv } from "../conversation.ts";
+import type { ArticleVendeuse, BoutiqueBot, ContexteAcheteuse, EtatConv } from "../conversation.ts";
 import {
   confirmationCommande,
   ETAT_INITIAL,
   etatApresInactivite,
   extraireSlugBoutique,
+  ficheArticleVendeuse,
   INACTIVITE_MAX_MS,
   lireDetailsLivraison,
+  listeArticlesVendeuse,
   messageVerdict,
   normaliserEtat,
   RAFALE_MAX,
   reagirAcheteuse,
   reagirVendeuse,
 } from "../conversation.ts";
+import { demandeMesArticles } from "../inscription.ts";
 import type { MessageBoutons, MessageListe, MessageTexte } from "../messages.ts";
 import { TEXTES } from "../textes.ts";
 
@@ -1522,5 +1525,138 @@ describe("l'après-achat dans le fil (ADR 0036)", () => {
       avecCommande({ avisPossible: true }),
     );
     expect(r.effet).toBeUndefined();
+  });
+});
+
+/**
+ * Le catalogue de la VENDEUSE — ADR 0107.
+ *
+ * Le besoin, dit le 15/08/2026 : « la boutique n'a pas de catalogue WhatsApp
+ * où [la vendeuse] peut consulter ses articles listés et voir les stocks ».
+ * Le menu annonçait « 8 articles en ligne » et s'arrêtait là.
+ */
+describe("le catalogue vendeuse (ADR 0107)", () => {
+  const CTX_VENDEUSE: Parameters<typeof reagirVendeuse>[2] = {
+    smsReconnu: false,
+    commandesOuvertes: [],
+    soldesXaf: 0,
+    boutique: {
+      nom: "Chez Béa",
+      nbArticles: 4,
+      lienBoutique: "https://b.test/chez-bea",
+      lienEspace: null,
+    },
+  };
+  const ART = (n: number, sur: Partial<ArticleVendeuse> = {}): ArticleVendeuse => ({
+    id: `p${n}`,
+    nom: `Article ${n}`,
+    prixXaf: 1000 * n,
+    stock: null,
+    avecPhoto: true,
+    ...sur,
+  });
+  const lignesDe = (m: unknown) =>
+    (m as MessageListe).interactive.action.sections[0]?.rows ??
+    ([] as Array<{ id: string; title: string; description?: string }>);
+
+  it("le mot se reconnait sous ses formes, accents et pluriels compris", () => {
+    for (const m of ["mes articles", "Mon catalogue", "STOCK", "mes stocks", "inventaire"]) {
+      expect(demandeMesArticles(m)).toBe(true);
+    }
+    /* Et pas ce qui n'est pas une demande : « stock épuisé » est une phrase. */
+    for (const m of ["stock épuisé", "ajouter", "combien de stock ?", ""]) {
+      expect(demandeMesArticles(m)).toBe(false);
+    }
+  });
+
+  it("chaque ligne porte le prix ET le stock — c'est tout l'objet du geste", () => {
+    const r = listeArticlesVendeuse("237600", {
+      nom: "Chez Béa",
+      articles: [
+        ART(1, { stock: 3 }),
+        ART(2, { stock: null }),
+        ART(3, { stock: 0 }),
+        ART(4, { avecPhoto: false }),
+      ],
+    });
+    const rows = lignesDe(r[0]);
+    expect(rows.map((l) => l.description)).toEqual([
+      `${formatXaf(1000)} · 3 en stock`,
+      `${formatXaf(2000)} · stock non suivi`,
+      `${formatXaf(3000)} · épuisé`,
+      `${formatXaf(4000)} · stock non suivi · pas de photo`,
+    ]);
+    expect(rows.map((l) => l.id)).toEqual(["vart:p1", "vart:p2", "vart:p3", "vart:p4"]);
+  });
+
+  it("dit que le stock ne se décompte pas — jamais une rareté qu'on ne tient pas", () => {
+    const r = listeArticlesVendeuse("237600", {
+      nom: "Chez Béa",
+      articles: [ART(1, { stock: 2 })],
+    });
+    expect(corpsListe(r[0])).toMatch(/ne se décomptent pas/i);
+  });
+
+  it("pagine au-delà de neuf, et la suite reprend là où on s'est arrêté", () => {
+    const boutique = {
+      nom: "Chez Béa",
+      articles: Array.from({ length: 14 }, (_, i) => ART(i + 1)),
+    };
+    const page0 = lignesDe(listeArticlesVendeuse("237600", boutique)[0]);
+    expect(page0).toHaveLength(10);
+    expect(page0.at(-1)).toMatchObject({ id: "varts:1", title: "Voir la suite" });
+
+    const page1 = lignesDe(listeArticlesVendeuse("237600", boutique, 1)[0]);
+    expect(page1).toHaveLength(5);
+    expect(page1[0]?.id).toBe("vart:p10");
+    expect(page1.some((l) => l.id.startsWith("varts:"))).toBe(false);
+  });
+
+  it("sans aucun article, invite à en ajouter au lieu de rendre une liste vide", () => {
+    const r = listeArticlesVendeuse("237600", { nom: "Chez Béa", articles: [] });
+    expect(corpsBoutons(r[0])).toMatch(/aucun article/i);
+    expect((r[0] as MessageBoutons).interactive.action.buttons[0]?.reply.id).toBe("article");
+  });
+
+  it("la fiche met la PHOTO devant — c'est ce qu'elle vient vérifier", () => {
+    const r = ficheArticleVendeuse("237600", {
+      ...ART(1, { stock: 5 }),
+      imageUrl: "https://o/p1.jpg",
+    });
+    expect((r[0] as { type?: string }).type).toBe("image");
+    expect((r[0] as { image: { link: string } }).image.link).toBe("https://o/p1.jpg");
+    expect(corpsBoutons(r[1])).toContain("5 en stock");
+  });
+
+  it("sans photo, la fiche le dit et explique comment en mettre une", () => {
+    const r = ficheArticleVendeuse("237600", ART(1, { avecPhoto: false }));
+    expect(r).toHaveLength(1);
+    expect(corpsBoutons(r[0])).toMatch(/n'a pas de photo/i);
+    expect(corpsBoutons(r[0])).toMatch(/envoyez-la/i);
+  });
+
+  it("« mes articles » et une ligne rendent des EFFETS, jamais des messages devinés", () => {
+    const menu = reagirVendeuse({ genre: "texte", texte: "mes articles" }, "237600", CTX_VENDEUSE);
+    expect(menu.effet).toEqual({ type: "lister_articles", page: 0 });
+    expect(menu.messages).toEqual([]);
+
+    const suite = reagirVendeuse({ genre: "liste", id: "varts:2" }, "237600", CTX_VENDEUSE);
+    expect(suite.effet).toEqual({ type: "lister_articles", page: 2 });
+
+    const fiche = reagirVendeuse({ genre: "liste", id: "vart:abc" }, "237600", CTX_VENDEUSE);
+    expect(fiche.effet).toEqual({ type: "montrer_article", articleId: "abc" });
+  });
+
+  it("le menu ANNONCE le mot : un geste que personne ne connaît n'existe pas", () => {
+    const r = reagirVendeuse({ genre: "texte", texte: "ma boutique" }, "237600", {
+      ...CTX_VENDEUSE,
+      boutique: {
+        nom: "Chez Béa",
+        nbArticles: 8,
+        lienBoutique: "https://b.test/chez-bea",
+        lienEspace: null,
+      },
+    });
+    expect(corpsBoutons(r.messages[0])).toMatch(/« mes articles »/);
   });
 });

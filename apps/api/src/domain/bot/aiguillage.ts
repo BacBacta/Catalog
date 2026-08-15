@@ -7,6 +7,7 @@ import {
   demandeEspaceVendeuse,
   demandeInscription,
   demandeListeCommandes,
+  demandeMesArticles,
   demandeSoldes,
 } from "./inscription.ts";
 import { demandeResume } from "./resume-matin.ts";
@@ -137,6 +138,24 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     if ((entree.genre === "bouton" || entree.genre === "liste") && entree.id === "carte") {
       return "vendeuse";
     }
+    /**
+     * Le catalogue de la VENDEUSE — ADR 0107. Meme regime que « ma carte » :
+     * ni « mes articles » ni le choix d'une ligne `vart:` n'est une reponse
+     * plausible dans un tunnel d'achat, et les laisser filer a la regle 4 les
+     * ferait avaler des qu'un catalogue acheteuse est ouvert.
+     *
+     * Le prefixe `vart:` — et non `art:` — parce que le fil ACHETEUSE utilise
+     * deja `art:` pour sa fiche article. Deux prefixes distincts, deux fils :
+     * un identifiant partage aurait fait ouvrir la fiche acheteuse a la
+     * vendeuse, ou l'inverse, selon l'ordre des regles.
+     */
+    if (
+      (entree.genre === "bouton" || entree.genre === "liste") &&
+      entree.id &&
+      (entree.id === "mes_articles" || entree.id.startsWith("vart:"))
+    ) {
+      return "vendeuse";
+    }
     if (entree.genre === "texte" && demandeAjoutArticle(t)) return "inscription";
     /* « vendu » : le comptoir (rang 1, ADR 0061). Il vit dans la machine
        vendeuse, donc au fil inscription — comme « ajouter ». */
@@ -148,6 +167,7 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
        etait ouvert — vu au banc du 10/08/2026, juste apres une commande. */
     if (entree.genre === "texte" && demandeSoldes(t)) return "vendeuse";
     if (entree.genre === "texte" && demandeCarteVitrine(t)) return "vendeuse";
+    if (entree.genre === "texte" && demandeMesArticles(t)) return "vendeuse";
     /* « commandes » et les boutons d'etape — ADR 0098. Les boutons vivent
        sur une NOTIFICATION, qui peut etre pressee pendant qu'un achat est en
        cours (une vendeuse achete a une consoeur) : sans cette regle, le
