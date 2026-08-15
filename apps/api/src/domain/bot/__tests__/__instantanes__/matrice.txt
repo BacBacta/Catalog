@@ -282,5 +282,7 @@ vendeuse/(repos) × livrée CT → répond/agit · effet marquer_livree
 vendeuse/(repos) × commandes → répond/agit
 vendeuse/(repos) × bouton étape → répond/agit · effet avancer_etape
 vendeuse/(repos) × bouton écrire → répond/agit · effet ecrire_cliente
+vendeuse/(repos) × stop résumé → répond/agit · effet basculer_resume
+vendeuse/(repos) × résumé (reprise) → répond/agit · effet basculer_resume
 vendeuse/(repos) × SMS opérateur → répond/agit · effet verifier_sms
 vendeuse/(repos) × SMS TRONQUÉ → répond/agit

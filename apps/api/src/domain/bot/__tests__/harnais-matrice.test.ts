@@ -276,6 +276,9 @@ describe("la matrice étape × geste, exercée cellule par cellule", () => {
       ["commandes", { genre: "texte", texte: "commandes" }],
       ["bouton étape", { genre: "bouton", id: "etape:preparee:CT-104312" }],
       ["bouton écrire", { genre: "bouton", id: "ecrire:CT-104312" }],
+      /* L'opt-out du matin — ADR 0100, meme regle d'entree en matrice. */
+      ["stop résumé", { genre: "texte", texte: "stop résumé" }],
+      ["résumé (reprise)", { genre: "texte", texte: "résumé" }],
       ["SMS opérateur", { genre: "texte", texte: SMS_MTN_RECU }],
       ["SMS TRONQUÉ", { genre: "texte", texte: "You have received 650 FCFA of" }],
     ];

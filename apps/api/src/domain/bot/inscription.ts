@@ -24,6 +24,7 @@ import {
   lireCorrectionRafale,
   questionCorrectionRafale,
 } from "./rafale.ts";
+import { demandeResume } from "./resume-matin.ts";
 import { TEXTES } from "./textes.ts";
 
 /**
@@ -380,7 +381,8 @@ export function motDuModeDemploi(texteBrut: string): boolean {
     demandeSoldes(texteBrut) ||
     demandeListeCommandes(texteBrut) ||
     demandeCarteVitrine(texteBrut) ||
-    demandeConges(texteBrut) !== null
+    demandeConges(texteBrut) !== null ||
+    demandeResume(texteBrut) !== null
   );
 }
 

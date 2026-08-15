@@ -3075,6 +3075,17 @@ async function filVendeuse(deps: BotDeps, entree: EntreeBot, sellerIdent: string
     );
   }
 
+  /* « stop résumé » / « résumé » — ADR 0100. La machine a deja confirme ;
+     ici on persiste, horodate : on saura dire depuis quand. */
+  if (reaction.effet?.type === "basculer_resume") {
+    await deps.prisma.seller.update({
+      where: { id: sellerIdent },
+      data: {
+        resumeMatinStopA: reaction.effet.stop ? (deps.maintenant?.() ?? new Date()) : null,
+      },
+    });
+  }
+
   /* « Écrire à la cliente » : le wa.me du numero de LIVRAISON — il est fait
      pour etre appele, contrairement a la cle de conversation qui ne se
      re-projette jamais. En texte, pas en cta_url (reserve de l'ADR 0087). */

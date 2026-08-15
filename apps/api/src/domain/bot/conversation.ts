@@ -26,6 +26,7 @@ import {
   texte,
 } from "./messages.ts";
 import { corpsListeCommandes, lireBoutonEcrire, lireBoutonEtape } from "./notifications.ts";
+import { demandeResume } from "./resume-matin.ts";
 import {
   type Langue,
   langueDemandee,
@@ -344,6 +345,8 @@ export type EffetBot =
   | { type: "avancer_etape"; reference: string; vers: "preparee" | "chez_le_livreur" | "livree" }
   /** « Écrire à la cliente » : le service repond avec le wa.me de livraison. */
   | { type: "ecrire_cliente"; reference: string }
+  /** « stop résumé » / « résumé » — l'opt-out du matin, reversible (ADR 0100). */
+  | { type: "basculer_resume"; stop: boolean }
   /** « ma carte » — la carte-vitrine à poster en Statut (ADR 0037). */
   | { type: "envoyer_carte" }
   /** « congés » / « je reprends » — la boutique se ferme et se rouvre (ADR 0039). */
@@ -2107,6 +2110,28 @@ export function reagirVendeuse(
         etat: ETAT_INITIAL,
         messages: [],
         effet: { type: "ecrire_cliente", reference: ecrire },
+      };
+    }
+  }
+
+  /**
+   * « stop résumé » / « résumé » — ADR 0100. La confirmation ANNONCE le mot
+   * inverse : une porte de sortie sans poignee de retour n'en est pas une.
+   */
+  if (entree.genre === "texte") {
+    const bascule = demandeResume(entree.texte);
+    if (bascule !== null) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [
+          texte(
+            vers,
+            bascule
+              ? "C'est noté — plus de résumé du matin. Pour le reprendre un jour : écrivez « résumé »."
+              : "☀️ C'est noté — le résumé du matin reviendra dès qu'il y aura du neuf à raconter.",
+          ),
+        ],
+        effet: { type: "basculer_resume", stop: bascule },
       };
     }
   }

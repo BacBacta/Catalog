@@ -9,6 +9,7 @@ import {
   demandeListeCommandes,
   demandeSoldes,
 } from "./inscription.ts";
+import { demandeResume } from "./resume-matin.ts";
 
 /**
  * Vers quel fil part un message — ADR 0034.
@@ -152,6 +153,9 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
        cours (une vendeuse achete a une consoeur) : sans cette regle, le
        geste partirait au fil acheteuse et la commande n'avancerait pas. */
     if (entree.genre === "texte" && demandeListeCommandes(t)) return "vendeuse";
+    /* « stop résumé » / « résumé » — ADR 0100 : le mot est annonce par la
+       premiere carte, il doit marcher meme pendant un achat. */
+    if (entree.genre === "texte" && demandeResume(t) !== null) return "vendeuse";
     if (
       (entree.genre === "bouton" || entree.genre === "liste") &&
       entree.id &&
