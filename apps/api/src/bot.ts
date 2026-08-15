@@ -55,7 +55,7 @@ import {
   type StatutDerniereCommande,
 } from "./domain/bot/conversation.ts";
 import { texteEntreeBoutique } from "./domain/bot/entree-boutique.ts";
-import { type EntreeBot, lireEntreesBot } from "./domain/bot/entrees.ts";
+import { type EntreeBot, lireEntreesBot, lireStatutsEnvoi } from "./domain/bot/entrees.ts";
 import type { EnvoyeurBot } from "./domain/bot/envoyeur.ts";
 import {
   genreDuJeton,
@@ -116,7 +116,11 @@ import { decisionGel, effetDuGel } from "./domain/securite/alerte-reversement.ts
 import { cleOpaque, declinaisons, type ObjectStorage } from "./domain/storage.ts";
 import { generateVerificationCode } from "./domain/verification-code.ts";
 import type { ChargeExpiration, ChargeRelance } from "./jobs/relance-acompte.ts";
-import { mesurerEtatPreuve, mesurerTransitionBot } from "./observabilite/mesures.ts";
+import {
+  mesurerEtatPreuve,
+  mesurerStatutEnvoiBot,
+  mesurerTransitionBot,
+} from "./observabilite/mesures.ts";
 import { avecSpan, PARCOURS, poser } from "./observabilite/traces.ts";
 import { soumettrePreuve } from "./preuve-service.ts";
 import { basculerConges, slugifier, slugLibre } from "./routes/seller.ts";
@@ -281,6 +285,23 @@ async function reclamer(deps: BotDeps, messageId: string, maintenant: Date): Pro
 
 export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promise<void> {
   const maintenant = deps.maintenant?.() ?? new Date();
+
+  /**
+   * Les statuts d'envoi, cueillis AVANT les messages — ADR 0091, constat B4.
+   * Un envoi accepte en HTTP 200 peut mourir apres coup (numero bloque,
+   * fenetre fermee cote Meta) : sans cette lecture, la panne etait invisible.
+   * On VOIT, on ne reagit pas — reagir serait une autre decision. Les failed
+   * se nomment au journal par leur seul code entier : jamais de contenu,
+   * jamais de numero.
+   */
+  for (const statut of lireStatutsEnvoi(corps)) {
+    mesurerStatutEnvoiBot(statut.statut, statut.codes[0]);
+    if (statut.statut === "failed") {
+      const codes = statut.codes.length ? statut.codes.join(", ") : "aucun code";
+      console.warn(`bot : envoi signale failed par Meta (${codes})`);
+    }
+  }
+
   for (const entree of lireEntreesBot(corps)) {
     /* Un message qui porte un code de defi (AAAA-BB) appartient a la
        connexion WhatsApp (ADR 0027), deja traitee par `surMessage` : le bot

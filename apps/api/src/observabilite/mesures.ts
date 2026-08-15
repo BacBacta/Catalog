@@ -212,6 +212,33 @@ export function mesurerTransitionBot(de: string, vers: string, effet?: string): 
   transitionsBot().add(1, { de, vers, ...(effet ? { effet } : {}) });
 }
 
+/* ────────────────────────── 7. statuts d'envoi du bot ────────────────────────── */
+
+const statutsEnvoiBot = () =>
+  metre().createCounter("catalog.bot.envoi_statut", {
+    description:
+      "Statuts de livraison des messages sortants du bot, renvoyes par Meta. Les failed portent leur code.",
+  });
+
+/**
+ * Un statut d'envoi renvoye par Meta — ADR 0091, constat B4 de l'audit 2026-08.
+ *
+ * Un envoi accepte en HTTP 200 peut echouer APRES COUP : numero qui a bloque
+ * le bot, fenetre de 24 h fermee constatee cote Meta (code 131047), compte en
+ * degradation. Sans ce compteur, la panne du bot est invisible tant qu'une
+ * vendeuse ne s'en plaint pas — et sur WhatsApp, personne ne se plaint a un
+ * numero qui ne repond plus.
+ *
+ * **Les etiquettes sont fermees.** `statut` prend quatre valeurs (`sent`,
+ * `delivered`, `read`, `failed`), gardees par le parseur. `code` est l'entier
+ * de Meta, present sur les seuls `failed` : sa cardinalite est celle du
+ * catalogue d'erreurs de Meta, bornee et publique. Aucun texte d'erreur, aucun
+ * numero, aucun wamid : meme regle que toutes les mesures de ce fichier.
+ */
+export function mesurerStatutEnvoiBot(statut: string, code?: number): void {
+  statutsEnvoiBot().add(1, { statut, ...(code === undefined ? {} : { code }) });
+}
+
 /* ────────────────────────── le filet, en metrique ────────────────────────── */
 
 /**

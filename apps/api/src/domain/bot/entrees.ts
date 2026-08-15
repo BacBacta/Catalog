@@ -202,3 +202,62 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
   }
   return sortie;
 }
+
+/* ────────────────────────── les statuts d'envoi ─────────────────────────── */
+
+/**
+ * Un statut de livraison SORTANTE, renvoye par Meta — ADR 0091.
+ *
+ * `entry[].changes[].value.statuses[]` n'etait cueilli nulle part : un envoi
+ * accepte en HTTP 200 puis refuse APRES COUP (numero bloque, fenetre fermee
+ * constatee cote Meta, code 131047) etait invisible. On LIT, on ne reagit
+ * pas : voir est la decision de la v1 — reagir en serait une autre.
+ *
+ * Meme posture defensive que `lireEntreesBot` : un corps difforme rend une
+ * liste vide, jamais une levee.
+ */
+export interface StatutEnvoi {
+  /** Le wamid du message SORTANT concerne. */
+  messageId: string;
+  statut: "sent" | "delivered" | "read" | "failed";
+  /** Les codes d'erreur Meta, entiers — presents surtout sur `failed`. */
+  codes: number[];
+}
+
+const STATUTS_CONNUS = new Set(["sent", "delivered", "read", "failed"]);
+
+export function lireStatutsEnvoi(corps: unknown): StatutEnvoi[] {
+  const sortie: StatutEnvoi[] = [];
+  const paquets: unknown[] = [];
+  const racine = corps as { entry?: unknown; statuses?: unknown } | null;
+  /* La forme plate du sandbox, par parite avec les messages. */
+  if (Array.isArray(racine?.statuses)) paquets.push(racine.statuses);
+  if (Array.isArray(racine?.entry)) {
+    for (const entree of racine.entry) {
+      const changements = (entree as { changes?: unknown } | null)?.changes;
+      if (!Array.isArray(changements)) continue;
+      for (const changement of changements) {
+        const statuses = (changement as { value?: { statuses?: unknown } } | null)?.value?.statuses;
+        if (Array.isArray(statuses)) paquets.push(statuses);
+      }
+    }
+  }
+  for (const statuses of paquets as unknown[][]) {
+    for (const brut of statuses) {
+      const s = brut as {
+        id?: unknown;
+        status?: unknown;
+        errors?: unknown;
+      } | null;
+      if (!s || typeof s.id !== "string" || typeof s.status !== "string") continue;
+      if (!STATUTS_CONNUS.has(s.status)) continue;
+      const codes = Array.isArray(s.errors)
+        ? s.errors
+            .map((e) => (e as { code?: unknown } | null)?.code)
+            .filter((c): c is number => typeof c === "number" && Number.isInteger(c))
+        : [];
+      sortie.push({ messageId: s.id, statut: s.status as StatutEnvoi["statut"], codes });
+    }
+  }
+  return sortie;
+}

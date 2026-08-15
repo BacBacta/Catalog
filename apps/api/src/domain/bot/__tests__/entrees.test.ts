@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lireEntreesBot } from "../entrees.ts";
+import { lireEntreesBot, lireStatutsEnvoi } from "../entrees.ts";
 
 /**
  * Le parseur des entrees du bot — ADR 0031.
@@ -127,5 +127,93 @@ describe("le wamid entrant (ADR 0035)", () => {
       legende: "Pagne 5000",
       messageId: "wamid.img",
     });
+  });
+});
+
+describe("lireStatutsEnvoi (ADR 0091)", () => {
+  /**
+   * Non-retour du constat B4 de l'audit 2026-08 : `value.statuses` n'etait
+   * cueilli nulle part — un envoi accepte en HTTP 200 puis refuse apres coup
+   * (numero bloque, fenetre fermee, code 131047) etait invisible.
+   */
+  it("lit l'enveloppe Cloud API — entry[].changes[].value.statuses[]", () => {
+    const s = lireStatutsEnvoi({
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                statuses: [
+                  { id: "wamid.s1", status: "sent", timestamp: "1723700000" },
+                  { id: "wamid.s2", status: "delivered" },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    });
+    expect(s).toEqual([
+      { messageId: "wamid.s1", statut: "sent", codes: [] },
+      { messageId: "wamid.s2", statut: "delivered", codes: [] },
+    ]);
+  });
+
+  it("lit la forme PLATE du sandbox — statuses a la racine, par parite avec les messages", () => {
+    const s = lireStatutsEnvoi({ statuses: [{ id: "wamid.s3", status: "read" }] });
+    expect(s).toEqual([{ messageId: "wamid.s3", statut: "read", codes: [] }]);
+  });
+
+  it("extrait les codes ENTIERS d'un failed — le code 131047 est la fenetre fermee", () => {
+    const s = lireStatutsEnvoi({
+      statuses: [
+        {
+          id: "wamid.s4",
+          status: "failed",
+          errors: [
+            { code: 131047, title: "Re-engagement message" },
+            { code: "pas-un-entier" },
+            { code: 1.5 },
+            null,
+          ],
+        },
+      ],
+    });
+    expect(s).toEqual([{ messageId: "wamid.s4", statut: "failed", codes: [131047] }]);
+  });
+
+  it("un statut inconnu de Meta est ignore — les etiquettes de mesure restent fermees", () => {
+    const s = lireStatutsEnvoi({
+      statuses: [
+        { id: "wamid.s5", status: "warmed_up" },
+        { id: "wamid.s6", status: "failed" },
+      ],
+    });
+    expect(s).toEqual([{ messageId: "wamid.s6", statut: "failed", codes: [] }]);
+  });
+
+  it("rend une liste vide sur un corps difforme, jamais une levee", () => {
+    for (const corps of [null, {}, { statuses: "x" }, { entry: [{}] }, { statuses: [null] }, 42]) {
+      expect(lireStatutsEnvoi(corps)).toEqual([]);
+    }
+  });
+
+  it("une livraison de MESSAGES ne produit aucun statut, et inversement", () => {
+    const livraisonMessage = {
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                messages: [{ from: "237", type: "text", text: { body: "menu" } }],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    expect(lireStatutsEnvoi(livraisonMessage)).toEqual([]);
+    const livraisonStatut = { statuses: [{ id: "wamid.s7", status: "sent" }] };
+    expect(lireEntreesBot(livraisonStatut)).toEqual([]);
   });
 });
