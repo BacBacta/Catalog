@@ -139,6 +139,21 @@ ENV TZ=Africa/Douala
 ENV NODE_ENV=production
 ENV PORT=8080
 
+# ── QUEL commit repond ────────────────────────────────────────────────────
+#
+# `/api/statut` rendait `"version": null`, faute que quiconque pose la
+# variable. Le 15/08/2026, une soiree entiere s'est passee a affirmer qu'un
+# correctif etait en preproduction sans pouvoir le MONTRER — et « le
+# deploiement est vert » ne dit pas « ce commit-la repond » : entre les deux
+# il y a une machine qui a pu ne pas redemarrer, un deploiement plus recent,
+# ou un retour arriere.
+#
+# La valeur vient du deploiement (`--build-arg CATALOG_VERSION=<sha>`). Vide,
+# le statut rend `null` comme avant : une construction locale n'a pas de
+# commit a declarer, et inventer « dev » serait une valeur plausible de plus.
+ARG CATALOG_VERSION=""
+ENV CATALOG_VERSION=$CATALOG_VERSION
+
 # ── Le repertoire LUI-MEME, pas seulement son contenu ─────────────────────
 #
 # `WORKDIR /app` cree le repertoire en root, et `COPY --chown` ne change que ce

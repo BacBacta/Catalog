@@ -148,8 +148,22 @@ jobs:
           echo "Le seul fly.toml decrit la preproduction (catalog-api-preprod)."
           echo "Creer fly.production.toml et passer --config avant d'utiliser ce choix."
           exit 1
+      # ── QUEL commit tourne, et la raison pour laquelle c'est ici ─────────
+      #
+      # `/api/statut` rendait `"version": null` : rien ne posait
+      # `CATALOG_VERSION`. Consequence, mesuree le 15/08/2026 au soir — une
+      # soiree entiere passee a affirmer qu'un correctif etait deploye sans
+      # pouvoir le montrer. « Le deploiement est vert » ne dit pas « CE
+      # commit-la repond » : entre les deux il y a une machine qui a pu ne pas
+      # redemarrer, un deploiement plus recent, ou un retour arriere.
+      #
+      # `--build-arg` et non `secrets set` : la valeur appartient a l'IMAGE, et
+      # `secrets set` redemarre les machines une seconde fois pour rien.
       - name: fly deploy
-        run: flyctl deploy --remote-only --wait-timeout 10m --config fly.toml --app catalog-api-preprod
+        run: >-
+          flyctl deploy --remote-only --wait-timeout 10m --config fly.toml
+          --app catalog-api-preprod
+          --build-arg CATALOG_VERSION=${{ github.sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       # Le deploiement est fini quand le service REPOND, pas quand la commande
