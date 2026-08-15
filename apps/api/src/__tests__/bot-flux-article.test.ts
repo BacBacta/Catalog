@@ -278,4 +278,47 @@ describeDb("le formulaire de creation d'article (tache #62)", () => {
     });
     expect(article?.name).toBe("Bijou perle");
   });
+
+  it("un JPEG tronque ne fait pas echouer la publication : l'article nait SANS photo (non-retour D2)", async () => {
+    /* Signature JPEG intacte, corps tronque — le cas reel d'un
+       telechargement CDN interrompu : seul sharp le voit, en LEVANT. Avant
+       le correctif du constat D2 (audit 2026-08), cette levee interrompait
+       toute la publication : pas d'article, « panne passagere », le nom et
+       le prix reperdus — contra l'invariant « une photo illisible ne fait
+       jamais echouer l'article », que le chemin HTTP tenait deja. */
+    const sharp = (await import("sharp")).default;
+    const complete = await sharp({
+      create: { width: 600, height: 400, channels: 3, background: { r: 14, g: 122, b: 95 } },
+    })
+      .jpeg()
+      .toBuffer();
+    const tronquee = new Uint8Array(complete.subarray(0, Math.floor(complete.length / 3)));
+
+    const s = await scene({ fluxArticleId: FLUX_ID });
+    const { MemoryStorage } = await import("../adapters/storage-s3.ts");
+    s.deps.media = {
+      nom: "memoire-corrompue",
+      lire: async () => ({ octets: tronquee, typeAnnonce: "image/jpeg" }),
+    };
+    s.deps.storage = new MemoryStorage({ NODE_ENV: "test" });
+
+    await traiterLivraisonBot(
+      s.deps,
+      reponseFlux(s.waId, {
+        flow_token: jetonFlux("article"),
+        nom: "Pagne wax",
+        prix: "15000",
+        photo: [{ id: "m-corrompu" }],
+      }),
+    );
+
+    const article = await prisma.product.findFirst({
+      where: { sellerId: s.sellerId },
+      select: { name: true, imageKey: true },
+    });
+    expect(article?.name).toBe("Pagne wax");
+    expect(article?.imageKey).toBeNull();
+    const dits = s.envoyeur.envoyes.map(corps).join("\n");
+    expect(dits).not.toContain("panne passagère");
+  });
 });

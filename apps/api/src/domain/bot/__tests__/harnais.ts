@@ -231,9 +231,16 @@ export class Pilote {
         return { messages: [questionDeLEtat(this.vend, VERS)] };
       }
       if (sellerId) {
-        /* Comme bot.ts : l'état est posé et l'entrée CONTINUE vers la
-           machine — une photo légendée est lue immédiatement, pas avalée. */
+        /* Comme bot.ts:614-637 : une vendeuse installée SANS état en cours
+           reçoit la QUESTION et l'entrée s'arrête là — sauf une PHOTO, qui
+           traverse jusqu'à la machine (légendée, c'est déjà l'article).
+           La première version du harnais faisait continuer TOUTE entrée :
+           cette infidélité a produit le faux constat D6 de l'audit, attrapé
+           par la vérification adverse. */
         this.vend = { nom: "article_nom" };
+        if (entree.genre !== "image") {
+          return { messages: [questionDeLEtat(this.vend, VERS)] };
+        }
         const r = reagirInscription(this.vend, entree, VERS);
         this.vend = r.etat;
         return { messages: r.messages, ...(r.effet ? { effet: r.effet } : {}) };

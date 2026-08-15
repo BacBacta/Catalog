@@ -5,6 +5,5 @@ Un mot à ajouter ? Écrivez-le maintenant.
    ⚙ effet: {"type":"deposer_avis","note":5}
    → état: avis_mot
 ── pas 2 · acheteuse/avis_mot ── C-02 · « menu » dans avis_mot
-   ← texte: C'est ajouté. Merci d'avoir pris le temps.
-   ⚙ effet: {"type":"completer_avis","texte":"menu"}
+   ← boutons[vendre]: Je suis Catalog. Ouvrez le lien d'une boutique pour commander — ou ouvrez la vôtre, ici même, en deux minutes.
    → état: accueil

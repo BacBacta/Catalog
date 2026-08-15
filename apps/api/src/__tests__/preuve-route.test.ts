@@ -369,3 +369,87 @@ describe("le chiffrement au repos", () => {
     }
   });
 });
+
+describeDb("l'argent s'écrit sous garde — non-retour du constat A1 (audit 2026-08)", () => {
+  /**
+   * La course reelle (deux surfaces qui collent en meme temps) est rejouee
+   * DETERMINISTIQUEMENT : la seconde soumission porte l'instantane PERIME de
+   * la commande — exactement ce que voit une transaction concurrente avant
+   * son verrou de ligne. Avant le correctif, elle ecrasait le premier
+   * versement en valeur absolue, CHECK comptable satisfait, sans un mot.
+   */
+  it("une soumission sur un instantane perime rend commande_modifiee et n'ecrit RIEN", async () => {
+    const { soumettrePreuve } = await import("../preuve-service.ts");
+    const v = await creerVendeuse((RUN + 24680) % 900000, 26800);
+    const instantane = await prisma.order.findUniqueOrThrow({
+      where: { id: v.orderId },
+      select: {
+        id: true,
+        totalXaf: true,
+        amountPaidXaf: true,
+        balanceXaf: true,
+        payMode: true,
+        createdAt: true,
+        buyerPhone: true,
+        proofState: true,
+      },
+    });
+    const deps = { prisma, chiffreur, maintenant: () => NOW };
+    const vendeuse = { id: v.sellerId, payoutPhone: null };
+
+    const txA = ids.txMtn();
+    const premiere = await soumettrePreuve(deps, {
+      vendeuse,
+      commande: instantane,
+      texteSms: MTN_RECEPTION.replace("17600000002", txA),
+    });
+    expect(premiere.issue).toBe("acceptee");
+
+    /* Le MEME instantane (amountPaidXaf: 0), un AUTRE identifiant. */
+    const txB = ids.txMtn();
+    const seconde = await soumettrePreuve(deps, {
+      vendeuse,
+      commande: instantane,
+      texteSms: MTN_RECEPTION.replace("17600000002", txB),
+    });
+    expect(seconde.issue).toBe("commande_modifiee");
+
+    /* Rien n'est ecrit par la seconde : ni preuve, ni argent ecrase. */
+    const commande = await prisma.order.findUniqueOrThrow({
+      where: { id: v.orderId },
+      select: { amountPaidXaf: true, balanceXaf: true },
+    });
+    expect(commande.amountPaidXaf).toBe(26800);
+    expect(commande.balanceXaf).toBe(0);
+    expect(await comptePour(v)).toBe(1);
+    /* L'identifiant B reste LIBRE : recoller repart d'un etat frais. */
+    const reB = await prisma.paymentProof.count({ where: { operatorTxId: txB } });
+    expect(reB).toBe(0);
+  });
+});
+
+describeDb("litige — les surfaces cessent de dire « le reçu est émis » (non-retour A5)", () => {
+  it("un SMS valide sur une commande contestee rend transitionOk:false et le blocage", async () => {
+    const v = await creerVendeuse((RUN + 97531) % 900000, 26800);
+    await prisma.order.update({ where: { id: v.orderId }, data: { proofState: "conteste" } });
+
+    const r = await coller(v, MTN_RECEPTION.replace("17600000002", ids.txMtn()));
+    expect(r.status).toBe(200);
+    const corps = (await r.json()) as {
+      verdict: string;
+      transitionOk?: boolean;
+      blocage?: string | null;
+    };
+    expect(corps.verdict).toBe("accepte");
+    expect(corps.transitionOk).toBe(false);
+    expect(corps.blocage).toBe("litige_ouvert");
+
+    /* La commande n'a pas bouge : toujours contestee, argent intact. */
+    const commande = await prisma.order.findUniqueOrThrow({
+      where: { id: v.orderId },
+      select: { proofState: true, amountPaidXaf: true },
+    });
+    expect(commande.proofState).toBe("conteste");
+    expect(commande.amountPaidXaf).toBe(0);
+  });
+});

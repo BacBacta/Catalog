@@ -122,8 +122,8 @@ acheteuse/avis_mot × sticker → répond (texte nu)
 acheteuse/avis_mot × localisation → répond (interactif) · état→accueil
 acheteuse/avis_mot × réponse de Flow valide → répond (interactif) · état→accueil
 acheteuse/avis_mot × Flow tronqué → répond (interactif) · état→accueil
-acheteuse/avis_mot × mot-clé menu → répond (texte nu) · effet completer_avis · état→accueil
-acheteuse/avis_mot × mot-clé annuler → répond (texte nu) · effet completer_avis · état→accueil
+acheteuse/avis_mot × mot-clé menu → répond (interactif) · état→accueil
+acheteuse/avis_mot × mot-clé annuler → répond (interactif) · état→accueil
 inscription/inscription_nom × texte hors-sujet → répond · état→inscription_ville
 inscription/inscription_nom × texte sans accents → répond · état→inscription_ville
 inscription/inscription_nom × anglais → répond · état→inscription_ville

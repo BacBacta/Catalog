@@ -806,6 +806,21 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
       const article = boutique.articles.find((a) => a.id === etat.articleId);
       if (!article) return accueilBoutique(vers, boutique, t);
       const max = maxCommandable(article, etat.panier);
+      /**
+       * Le stock est tombe a zero APRES l'entree dans l'etat — la garde de
+       * `cmd:` ne couvre que l'entree. Sans cette sortie, tout nombre tape
+       * recevait « La vendeuse en annonce 0. Écrivez un nombre jusqu'à 0. »
+       * en boucle (constat C-05 de l'audit 2026-08, reproduit au harnais).
+       * On explique, et on rend le catalogue — la regle ADR 0053 : jamais un
+       * cul-de-sac.
+       */
+      if (max === 0) {
+        const r = accueilBoutique(vers, boutique, t);
+        return {
+          ...r,
+          messages: [texte(vers, t.plusDeStock(article.nom)), ...r.messages],
+        };
+      }
 
       let quantite: number | null = null;
       const choisi = id?.startsWith("qte:") ? Number(id.slice(4)) : Number.NaN;
@@ -1186,11 +1201,18 @@ function reagirApresAchat(
       : "";
   const commande = ctx.derniereCommande ?? null;
 
-  /* Le mot d'avis attendu : tout texte devient le commentaire. Les mots-cles
-     globaux, eux, ont deja repris la main plus haut. */
+  /* Le mot d'avis attendu : tout texte devient le commentaire — SAUF le
+     vocabulaire global. Ce commentaire affirmait que les mots-cles avaient
+     « deja repris la main plus haut » : c'etait FAUX (cette fonction court
+     AVANT le bloc motCleGlobal), et « menu » ou « annuler » partaient en
+     commentaire d'avis, irreversiblement. Constat D7 de l'audit 2026-08,
+     reproduit au harnais (C-02) : on rend la main, le bloc global decide. */
   if (etat.nom === "avis_mot") {
     if (id === "avis:sans_mot") {
       return { etat: ETAT_INITIAL, messages: [texte(vers, t.avisMotMerci)] };
+    }
+    if (entree.genre === "texte" && motCleGlobal(entree.texte)) {
+      return null;
     }
     if (entree.genre === "texte" && entree.texte.trim().length > 1) {
       return {
@@ -1942,6 +1964,32 @@ export function reagirVendeuse(
     };
   }
 
+  /**
+   * Un texte qui RESSEMBLE a un SMS d'operateur mais n'est pas reconnu — la
+   * capture tronquee, le message ampute au collage. Avant, il retombait sur
+   * la carte generique du fil, qui invitait… a coller un SMS : aucun verdict,
+   * aucune explication (constat C-06 de l'audit 2026-08, reproduit au
+   * harnais). La route HTTP expliquait deja (422 + controle 1) ; le fil dit
+   * desormais la meme chose. Le texte n'est JAMAIS recopie dans la reponse.
+   */
+  if (
+    entree.genre === "texte" &&
+    entree.texte.trim().length >= 25 &&
+    /\b(XAF|FCFA|received|re[cç]u de|transaction|trans\.?\s*id|mobile money|momo|orange money)\b/i.test(
+      entree.texte,
+    )
+  ) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [
+        texte(
+          vers,
+          "Ce message ressemble à un SMS d'opérateur, mais il n'a pas été reconnu. Collez le message ENTIER, tel qu'il est arrivé — sans rien enlever : l'identifiant de transaction en fait partie.",
+        ),
+      ],
+    };
+  }
+
   /* « livree CT-522801 » — la remise se marque depuis le fil (ADR 0035). */
   if (entree.genre === "texte") {
     const livree = demandeRemise(entree.texte);
@@ -2104,12 +2152,29 @@ export function reagirVendeuse(
 /** Le verdict des sept controles, dit en langue simple dans le fil. */
 export function messageVerdict(
   vers: string,
-  v: { verdict: "accepte" | "accepte_sous_reserve" | "refuse"; reference: string | null },
+  v: {
+    verdict: "accepte" | "accepte_sous_reserve" | "refuse";
+    reference: string | null;
+    /**
+     * La commande a-t-elle AVANCE ? `false` avec un verdict « accepte » veut
+     * dire : les controles passent mais la machine a refuse la transition —
+     * un litige en cours, typiquement. Dire « le reçu est émis » serait FAUX
+     * (constat A5 de l'audit 2026-08) : l'émission est refusée sur une
+     * commande contestée. Absent : comportement d'avant, inchangé.
+     */
+    avancee?: boolean;
+  },
 ): MessageSortant {
   if (v.verdict === "refuse") {
     return texte(
       vers,
       "Ce SMS n'a pas passé les contrôles. Ouvrez l'écran de preuve de la commande pour le détail, contrôle par contrôle.",
+    );
+  }
+  if (v.verdict === "accepte" && v.avancee === false) {
+    return texte(
+      vers,
+      `Les contrôles passent, mais ${v.reference ?? "cette commande"} est en litige : rien n'a avancé et le reçu n'est pas émis. Le litige se règle depuis votre espace vendeuse.`,
     );
   }
   const tete =

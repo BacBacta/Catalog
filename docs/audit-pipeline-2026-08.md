@@ -86,7 +86,67 @@ détectabilité inversée, §6 du protocole). Les reproductions C-01 à C-07 son
 **exécutées** et versionnées dans `harnais-matrice.test.ts` — corriger l'un
 d'eux fait échouer sa reproduction, qui devient alors le test de non-retour.
 
-<!-- SECTION-CONSTATS : assemblée après la phase adverse -->
+Sévérité = impact × fréquence × détectabilité inversée (1-5 chacun).
+**Corrigé dans ce lot** = le remède est dans le même commit que ce rapport,
+avec son test de non-retour exécuté contre une vraie base.
+
+### 4.1 Corrigés dans ce lot
+
+| Id | Couche | Famille | Constat (reformulé après l'épreuve adverse) | Sév. | Non-retour |
+|---|---|---|---|---|---|
+| **A1** | 6-argent | corruption | Les trois écritures d'argent lisaient hors transaction puis écrivaient des valeurs absolues : deux versements différents concurrents se remplaçaient en dernier-écrit-gagne, CHECK satisfait, seul le grand livre gardait les deux lignes. | 5×2×5=**50** | `preuve-route.test.ts` « l'argent s'écrit sous garde » — ADR 0089 |
+| **A5** | 7-preuve | faux | Sur une commande contestée, un SMS valide écrivait la preuve, la machine refusait (`litige_ouvert`) — et l'écran disait « le reçu peut être émis », le fil « le reçu est émis », alors que l'émission est refusée sur `conteste`. | 4×2×4=**32** | `preuve-route.test.ts` « litige » ; `transitionOk`+`blocage` exposés — ADR 0089 |
+| **B3** | 2-transport | corruption | Le fail-open d'idempotence (`.catch(() => true)`) faisait TRAITER les relivraisons pendant une panne de base, sans trace — en contradiction frontale avec le compromis écrit de l'ADR 0040. | 4×2×5=**40** | fail-closed journalisé (`bot.ts`) |
+| **D2** | 9-médias | muet | Un JPEG tronqué à signature valide (téléchargement CDN interrompu) faisait échouer TOUTE la publication dans le fil — pas d'article, « panne passagère », nom et prix reperdus — contra l'invariant écrit et sans la parité du chemin HTTP. | 4×2×4=**32** | `bot-flux-article.test.ts` « JPEG tronqué » |
+| **B2** | 13/14-ops | silence | Aucun arrêt propre : `jobs.arreter()` et `arreterObservabilite()` écrits, commentés « à appeler avant un arrêt propre », appelés par personne — spans en lot perdus à chaque redéploiement. (Les trois autres sous-points de B2 : réfutés — journal existant, décision commentée, retry pg-boss par défaut.) | 2×5×3=**30** | gestionnaire SIGTERM/SIGINT (`server.ts`) |
+| **D7** (C-02) | 4-machines | impasse | `avis_mot` mangeait les mots-clés globaux : « menu » ou « annuler » partaient en COMMENTAIRE d'avis, irréversiblement — le commentaire du code affirmait l'inverse, et les états frères honorent « menu ». | 3×3×3=**27** | C-02 (harnais) |
+| **C-05** | 4-machines | impasse | Stock tombé à zéro après l'entrée en quantité : « Écrivez un nombre jusqu'à 0 » en boucle — la garde n'existait qu'à l'entrée. | 3×2×3=**18** | C-05 (harnais) |
+| **C-06** | 4/7 | devinette | Un SMS tronqué collé dans le fil recevait la carte générique — qui invitait… à coller un SMS — sans dire que celui-ci n'était pas reconnu ; la route HTTP expliquait déjà. | 3×3×2=**18** | C-06 (harnais) |
+| **D1** (résidu) | 1-acquisition | mensonge | La consigne du pack Statut promettait « les commandes venues de votre Statut se compteront à part » — le canal est marqué mais compté nulle part (report acté ADR 0066), et l'écran des chiffres dit l'inverse. Copie corrigée. | 3×3×2=**18** | copie sans promesse (`pack-statut.ts`) |
+| **D5** | 8-rampe | muet | L'îlot `/payer` mourait au rendu sur un numéro non normalisable (URL éditée, ou reversement étranger du banc d'essai ADR 0080) — aucun état d'erreur, contra les quatre états exigés. | 3×1×4=**12** | `lireParametres` refuse → écran « lien incomplet » |
+
+Et une correction sur l'auditeur lui-même : **D6 est un faux constat produit par
+le harnais** — sa couche de service ne rejouait pas la garde `bot.ts:614-637`
+(« ajouter » à froid reçoit la question, il n'entre jamais dans la machine).
+La vérification adverse l'a attrapé ; le harnais est réaligné et C-01 réécrit
+sur le résidu réel : *dans* `article_nom`, les mots du mode d'emploi
+(« vendu », « ajouter ») deviennent le nom — famille ADR 0048, non corrigé
+(voir le plan).
+
+### 4.2 Confirmés, à corriger par lots (§6)
+
+| Id | Couche | Famille | Constat | Sév. |
+|---|---|---|---|---|
+| **A2** | 13-jobs | mensonge | L'expiration de commande n'existe pas : `expiresAt` écrit jamais relu, `etatExpiration` sans appelant, aucun état cible dans le schéma, aucun job — pendant que la relance d'acompte DIT aux acheteuses « Sans acompte, la commande expirera d'elle-même » (FR et EN). | 4×4×4=**64** |
+| **B4** | 2-transport | silence | `value.statuses` (dont `failed` asynchrone et ses codes d'erreur) n'est cueilli nulle part, sans ADR — un numéro bloqué ou un message refusé après le 200 est invisible. Atténué par le calcul de fenêtre côté Catalog (ADR 0060). | 3×3×5=**45** |
+| **D4** | 9-médias | silence | Zéro compteur/span sur toute la couche média : une panne du CDN Meta produit des articles sans photo en série, indistinguable en agrégat de vendeuses qui n'envoient pas de photos. | 3×2×5=**30** |
+| **B5** | 10-sortie | silence | Un 5xx Meta transitoire perd définitivement une réponse de conversation : pas de retry, pas de file (réservée aux notifications), et `termineLe` posé même après échec interdit le rattrapage par relivraison. Journalisé, mais aucun ADR n'acte le choix. | 3×2×4=**24** |
+| **A4** | 6-argent | corruption latente | Le montant d'acompte dû n'est persisté nulle part : recalculé à chaque lecture depuis `POURCENT_ACOMPTE_DEFAUT` (constante de code). Un commit qui la change modifie rétroactivement l'attendu des commandes acompte impayées — un SMS de 50 % en route serait refusé par le contrôle n° 2. | 4×1×5=**20** |
+| **D3** | 9-médias | devinette | Quand un refus de validation survient dans le fil (photo de Flow, fichier vide/trop gros), la vendeuse lit « Sans photo pour l'instant » sans la cause — les messages exacts existent (`MESSAGE_REFUS_IMAGE`) et sont servis côté HTTP. Portée étroite : WhatsApp transcode. | 3×2×3=**18** |
+| **C-01** (résidu D6) | 4-machines | devinette | Dans `article_nom`, les mots que le mode d'emploi enseigne (« vendu », « ajouter ») deviennent le nom de l'article. | 3×2×3=**18** |
+| **C-04** | 4-machines | impasse | Au comptoir, « corriger » au récap perd les quatre faits (article, prix, cliente, remise) — le défaut que l'ADR 0053 a corrigé côté acheteuse, subsistant ici. | 2×2×3=**12** |
+| **C-07** | 4-machines | silence | Une réponse de Flow livraison arrivée hors de l'état `ville` est perdue sans un mot (default → accueil). | 2×2×3=**12** |
+
+### 4.3 Requalifiés en décisions actées (résidus dicibles)
+
+- **B1** (sauvegarde non planifiée) → **décision** : ADR 0023 §hors-session +
+  runbook avec la ligne cron prête. *Résidus* : `checklist-lancement.md` n'a
+  pas d'item « cron de sauvegarde posé », et « durée réellement constatée »
+  du runbook est vide.
+- **B6** (vérification post-déploiement sautée) → **décision documentée**
+  (workflow + runbook). *Résidu* : rien n'exige `SHOP_BASE_URL` en
+  production — le pas resterait vert à perpétuité.
+- **A3** (contraintes hors migrations) → **réfuté** : tous les chemins réels
+  enchaînent `apply-constraints` (ADR 0014, fly release_command, CI,
+  restauration qui re-vérifie). *Résidu* : aucune sonde runtime ne vérifie en
+  production que les triggers existent.
+- **D8** (« menu » sous arbitrage) → **décidé mot pour mot par l'ADR 0052**
+  (postérieur et plus spécifique que 0051). *Résidus* : la copie de
+  l'arbitrage n'annonce pas « annuler » ; le spread `...enPause` manquant à
+  la reconstruction du comptoir est une fragilité de code mort.
+- **B7** (budget de poids) → **réfuté** : le « dépassement » lu dans la
+  sortie de test était la *fixture* du test qui prouve que la porte casse ;
+  le budget réel est à 23/120 Ko et fait exit 1 deux fois en CI.
 
 ## 5. Ce qui a été éprouvé et qui TIENT
 
@@ -117,7 +177,39 @@ Vérifié par exécution ou par les gardes de la CI :
 
 ## 6. Le plan de lots
 
-<!-- SECTION-PLAN : assemblée après la phase adverse -->
+Un lot par session, dans l'ordre décroissant de sévérité, chacun avec son
+test de non-retour. Les correctifs de la section 4.1 sont livrés avec ce
+rapport (ADR 0089 pour l'argent). Restent :
+
+1. **Lot « la commande expire pour de vrai » (A2, sév. 64).** Il exige une
+   décision de modèle AVANT le code — aucun état « expiree » n'existe :
+   annulation datée avec cause ? état propre ? C'est un ADR (§7.7 : l'état
+   cible ne s'invente pas), puis le job pg-boss qui applique
+   `domain/order/expiration.ts` déjà écrit et testé. En attendant, la copie
+   de la relance ne doit PAS être affaiblie : c'est le lot qui doit rattraper
+   la promesse, pas la promesse qu'on abaisse.
+2. **Lot « les statuts Meta entrants » (B4, 45).** Cueillir `value.statuses`,
+   journaliser les `failed` avec leur code, un compteur — et l'ADR qui dit ce
+   qu'on en fait (rien de plus en v1 : voir, pas réagir).
+3. **Lot « la couche média se voit » (D4, 30 + D3, 18).** Compteurs
+   `catalog.bot.media.*` sur lire/lireCdn/déchiffrement/ré-encodage, et la
+   cause du refus dite dans le fil avec les messages qui existent déjà.
+4. **Lot « la réponse ne se perd plus » (B5, 24).** Décision d'abord (ADR) :
+   retry borné sur 5xx transitoire, ou ne pas `termineLe` sur échec d'envoi
+   pur — en respectant le compromis de l'ADR 0040.
+5. **Lot « l'acompte dû se fige » (A4, 20).** Migration expand : persister le
+   montant demandé à la création ; le contrôle n° 2 compare à ce qui a été
+   demandé, pas à ce qu'une constante vaut aujourd'hui.
+6. **Lot « les mots du mode d'emploi ne sont pas des noms » (C-01, 18 +
+   C-04, C-07, 12).** Filtrer `demandeComptoir`/`demandeAjoutArticle` dans
+   `article_nom` (re-poser la question), « corriger » du comptoir qui garde
+   les faits, la réponse de Flow tardive qui se dit.
+7. **Résidus des décisions (4.3)** — trois lignes de checklist et une sonde :
+   item « cron de sauvegarde posé », `SHOP_BASE_URL` exigée en production,
+   sonde runtime des triggers sur `/api/statut`, copie de l'arbitrage.
+
+Après quoi la séquence `PROMPTS-premium.md` (P1-P7) reprend, comme son P0
+l'ordonne : les constats confirmés d'abord, les nouveautés ensuite.
 
 ## 7. Annexes
 

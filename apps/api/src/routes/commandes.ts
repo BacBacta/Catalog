@@ -295,9 +295,15 @@ export function commandeRoutes(deps: CommandeDeps) {
       return c.json({ erreur: "montant_invalide" }, 400);
     }
 
-    await deps.prisma.$transaction(async (tx) => {
-      await tx.order.update({
-        where: { id: commande.id },
+    /* L'ecriture est GARDEE par la valeur lue — constat A1 de l'audit
+       2026-08. La commande a ete lue hors transaction : si un versement est
+       passe entre-temps (un SMS colle sur l'autre surface), une ecriture en
+       valeur absolue l'ecraserait en silence, CHECK comptable satisfait. Le
+       garde fait echouer proprement : rien n'est ecrit, on le dit, et la
+       vendeuse redéclare sur un etat frais. */
+    const ecrit = await deps.prisma.$transaction(async (tx) => {
+      const maj = await tx.order.updateMany({
+        where: { id: commande.id, amountPaidXaf: commande.amountPaidXaf },
         data: {
           amountPaidXaf: versement.etat.amountPaidXaf,
           balanceXaf: versement.etat.balanceXaf,
@@ -306,6 +312,7 @@ export function commandeRoutes(deps: CommandeDeps) {
           ...(preuve.ok ? { proofState: preuve.etat } : {}),
         },
       });
+      if (maj.count === 0) return false;
       await tx.orderEvent.create({
         data: {
           orderId: commande.id,
@@ -335,7 +342,20 @@ export function commandeRoutes(deps: CommandeDeps) {
           },
         },
       });
+      return true;
     });
+    if (!ecrit) {
+      /* Rien n'est ecrit — ni journal, ni grand livre : la vendeuse redeclare
+         sur un etat frais, au lieu d'ecraser un versement en silence. */
+      return c.json(
+        {
+          erreur: "commande_modifiee",
+          message:
+            "La commande a changé pendant l'enregistrement — un autre versement est passé. Vérifiez le solde affiché, puis redéclarez si besoin : rien n'a été perdu.",
+        },
+        409,
+      );
+    }
 
     /**
      * **La mesure du contournement, cote exploitant.**

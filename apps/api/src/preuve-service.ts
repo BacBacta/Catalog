@@ -64,6 +64,15 @@ export type ResultatPreuve =
   | { issue: "non_reconnue"; raison: string; checks: CheckResult[] }
   | { issue: "refusee"; checks: CheckResult[] }
   | { issue: "identifiant_rejoue"; verdict: string; checks: CheckResult[] }
+  /**
+   * La commande a change ENTRE la lecture et l'ecriture — un autre versement,
+   * une contestation, une autre surface. Rien n'est ecrit (la transaction est
+   * defaite, l'identifiant reste libre) : recoller le meme SMS repart d'un
+   * etat frais. C'est le correctif du constat A1 de l'audit 2026-08 : avant,
+   * l'ecriture etait un dernier-ecrit-gagne silencieux — le CHECK comptable
+   * restait satisfait, mais un versement pouvait en ecraser un autre.
+   */
+  | { issue: "commande_modifiee"; checks: CheckResult[] }
   | {
       issue: "acceptee" | "acceptee_sous_reserve";
       preuveId: string;
@@ -78,7 +87,21 @@ export type ResultatPreuve =
       };
       /** La commande a-t-elle AVANCE ? (faux pour « sous reserve ».) */
       transitionOk: boolean;
+      /**
+       * Pourquoi elle n'a PAS avance, quand `transitionOk` est faux avec un
+       * verdict « accepte » — `litige_ouvert` sur une commande contestee,
+       * notamment. Sans ce champ, les deux surfaces disaient « le reçu est
+       * émis » alors que la machine venait de refuser (constat A5).
+       */
+      transitionRaison?: string;
     };
+
+/** Levee DANS la transaction quand l'etat lu ne correspond plus — tout est defait. */
+class CommandeModifieeEnCours extends Error {
+  constructor() {
+    super("commande modifiee pendant la verification");
+  }
+}
 
 export async function soumettrePreuve(
   deps: PreuveServiceDeps,
@@ -187,6 +210,28 @@ export async function soumettrePreuve(
     );
 
     const preuve = await deps.prisma.$transaction(async (tx) => {
+      /**
+       * L'etat est RELU dans la transaction — constat A1 de l'audit 2026-08.
+       *
+       * La commande passee en argument a ete lue HORS transaction : entre
+       * cette lecture et ici, un autre versement (l'autre surface, une
+       * declaration manuelle) ou une contestation a pu passer. Les controles
+       * et la transition ci-dessus ont ete calcules sur cet instantane : s'il
+       * est perime, on ne « corrige » pas en silence — on defait tout et on
+       * le DIT. L'identifiant reste libre, recoller le SMS repart d'un etat
+       * frais. Meme philosophie que l'ADR 0040 : plutot perdre une soumission
+       * que d'ecraser un versement.
+       */
+      const fraiche = await tx.order.findUniqueOrThrow({
+        where: { id: commande.id },
+        select: { amountPaidXaf: true, proofState: true },
+      });
+      if (
+        fraiche.amountPaidXaf !== commande.amountPaidXaf ||
+        fraiche.proofState !== commande.proofState
+      ) {
+        throw new CommandeModifieeEnCours();
+      }
       const creee = await tx.paymentProof.create({
         data: {
           orderId: commande.id,
@@ -242,14 +287,22 @@ export async function soumettrePreuve(
             sms.amountXaf,
             attenduXaf,
           );
-          await tx.order.update({
-            where: { id: commande.id },
+          /* Ceinture sur la relecture : l'ecriture est GARDEE par la valeur
+             lue. Sous concurrence, la seconde transaction attend le verrou de
+             ligne, revoit la valeur commise, ne correspond plus → count 0. */
+          const maj = await tx.order.updateMany({
+            where: {
+              id: commande.id,
+              amountPaidXaf: fraiche.amountPaidXaf,
+              proofState: "attendu",
+            },
             data: {
               proofState: transition.etat as never,
               amountPaidXaf: versement.etat.amountPaidXaf,
               balanceXaf: versement.etat.balanceXaf,
             },
           });
+          if (maj.count === 0) throw new CommandeModifieeEnCours();
           await tx.ledgerEntry.create({
             data: {
               orderId: commande.id,
@@ -291,8 +344,13 @@ export async function soumettrePreuve(
         aConfirmer: pattern.aConfirmer === true,
       },
       transitionOk: transition.ok,
+      ...(transition.ok ? {} : { transitionRaison: transition.raison }),
     };
   } catch (e) {
+    if (e instanceof CommandeModifieeEnCours) {
+      if (span) poserIssue(span, "refus_transition");
+      return { issue: "commande_modifiee", checks: brut.checks };
+    }
     if (!estViolationUnicite(e)) throw e;
     /**
      * L'identifiant est deja reclame — chez cette vendeuse ou chez une autre.

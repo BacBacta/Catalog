@@ -88,8 +88,13 @@ export function packStatut(e: {
  * vendeuse une consigne qui lui etait destinee.
  */
 export function consigneDuPack(): string {
+  /* Pas de promesse de comptage : le canal est marqué à l'entrée mais n'est
+     encore compté nulle part (ADR 0066), et l'écran des chiffres dit ce
+     manque en toutes lettres. Promettre ici « se compteront à part » était le
+     mensonge que `stats-instrumentation.test.ts` interdit côté drapeau —
+     constat D1 de l'audit 2026-08. La phrase reviendra avec le compteur. */
   return (
     "📲 Votre carte pour le Statut. Transférez l'image, puis collez la légende " +
-    "du message suivant.\nLes commandes venues de votre Statut se compteront à part."
+    "du message suivant."
   );
 }

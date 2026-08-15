@@ -287,28 +287,44 @@ describe("la matrice étape × geste, exercée cellule par cellule", () => {
 });
 
 describe("les pièges, reproduits en exécution (constats de l'audit)", () => {
-  it("C-01 · « ajouter » devient un NOM D'ARTICLE — le mot du mode d'emploi est avalé", () => {
+  it("C-01 · « ajouter » à froid reçoit la QUESTION (bot.ts:614) — mais retapé DANS le formulaire, il devient le nom", () => {
     const p = new Pilote({
       estVendeuse: true,
       vendeuse: { commandesOuvertes: [], soldesXaf: 0, boutique: null },
     });
-    const pas = p.jouer({ genre: "texte", texte: "ajouter" });
-    /* COMPORTEMENT OBSERVÉ (défaut, famille ADR 0048 « Hi ») : le mot
-       déclencheur entre dans la machine comme réponse à « quel est le nom ? »
-       et l'état saute à article_prix avec nomArticle="ajouter". */
-    expect(p.etatVendeuse()).toMatchObject({ nom: "article_prix", nomArticle: "ajouter" });
-    expect(JSON.stringify(pas.messages)).toContain("son prix");
+    /* À froid : la garde du service protège — la question part, rien n'est lu
+       comme un nom. (La première version de ce test affirmait l'inverse : le
+       harnais était infidèle à bot.ts:614-637 — faux constat D6, réfuté par
+       la vérification adverse.) */
+    const froid = p.jouer({ genre: "texte", texte: "ajouter" });
+    expect(p.etatVendeuse()?.nom).toBe("article_nom");
+    expect(JSON.stringify(froid.messages)).toContain("nom de l'article");
+    /* DANS le formulaire, en revanche, les mots du mode d'emploi ne sont pas
+       filtrés : « vendu » (annoncé par le mode d'emploi) devient le nom.
+       C'est le résidu CONFIRMÉ de D6 — famille ADR 0048 « Hi ». */
+    const dedans = p.jouer({ genre: "texte", texte: "vendu" });
+    expect(p.etatVendeuse()).toMatchObject({ nom: "article_prix", nomArticle: "vendu" });
+    expect(JSON.stringify(dedans.messages)).toContain("son prix");
   });
 
-  it("C-02 · dans avis_mot, « menu » et « annuler » deviennent le COMMENTAIRE de l'avis", () => {
+  it("C-02 · dans avis_mot, « menu » et « annuler » ne deviennent PAS le commentaire (non-retour D7)", () => {
+    /* Avant le correctif D7, reagirApresAchat courait avant motCleGlobal et
+       « menu » partait en commentaire d'avis, irréversiblement — alors que le
+       commentaire du code affirmait l'inverse. Ce test est le non-retour. */
+    for (const mot of ["menu", "annuler", "aide"]) {
+      const p = amenerAcheteuse("avis_mot");
+      const pas = p.jouer({ genre: "texte", texte: mot });
+      expect(pas.effet, `« ${mot} » ne doit pas compléter l'avis`).toBeUndefined();
+      expect(pas.messages.length).toBeGreaterThan(0);
+    }
+    /* Un vrai mot d'avis, lui, complète toujours. */
     const p = amenerAcheteuse("avis_mot");
-    const pas = p.jouer({ genre: "texte", texte: "menu" });
-    /* COMPORTEMENT OBSERVÉ : reagirApresAchat court avant motCleGlobal — le
-       commentaire du code (conversation.ts:1189) affirme l'inverse. */
-    expect(pas.effet).toMatchObject({ type: "completer_avis", texte: "menu" });
+    expect(p.jouer({ genre: "texte", texte: "Sac solide, livraison rapide" }).effet).toMatchObject({
+      type: "completer_avis",
+    });
   });
 
-  it("C-03 · sous arbitrage (enPause), « menu » ne libère PAS la pause", () => {
+  it("C-03 · sous arbitrage (enPause), « menu » re-pose la question — DÉCIDÉ (ADR 0052)", () => {
     const p = amenerInscription("article_prix");
     p.jouer({ genre: "texte", texte: "boutique chez-amina" });
     expect(p.etatVendeuse()).toMatchObject({
@@ -316,8 +332,12 @@ describe("les pièges, reproduits en exécution (constats de l'audit)", () => {
       enPause: { slug: "chez-amina" },
     });
     const pas = p.jouer({ genre: "texte", texte: "menu" });
-    /* COMPORTEMENT OBSERVÉ : la question d'arbitrage est re-posée, la pause
-       reste — contrairement à la promesse du vocabulaire commun (ADR 0051). */
+    /* Requalifié par la vérification adverse : « En pause, tout autre message
+       re-pose la question. annuler sort, comme partout » est acté MOT POUR
+       MOT par l'ADR 0052 — postérieur et plus spécifique que la promesse
+       générale de l'ADR 0051. Ce test épingle la tension sans la trancher ;
+       le seul manque dicible est la copie de l'arbitrage, qui n'annonce pas
+       « annuler ». */
     expect(p.etatVendeuse()).toMatchObject({ enPause: { slug: "chez-amina" } });
     expect(pas.messages.length).toBeGreaterThan(0);
   });
@@ -335,30 +355,32 @@ describe("les pièges, reproduits en exécution (constats de l'audit)", () => {
     expect(p.etatVendeuse()).toMatchObject({ nom: "comptoir", comptoir: { pas: "article" } });
   });
 
-  it("C-05 · stock tombé à zéro APRÈS l'entrée en quantité : « un nombre jusqu'à 0 »", () => {
+  it("C-05 · stock tombé à zéro APRÈS l'entrée en quantité : dit et rendu au catalogue (non-retour)", () => {
+    /* Avant le correctif, la garde n'existait qu'à l'entrée de l'état : tout
+       nombre tapé recevait « Écrivez un nombre jusqu'à 0 » en boucle. */
     const f = fixtures();
     const p = amenerAcheteuse("quantite", f);
     const article = f.boutiques?.["chez-bintou"]?.articles.find((a) => a.id === "a-sac-000001");
     if (article) article.stock = 0;
     const pas = p.jouer({ genre: "texte", texte: "1" });
-    /* COMPORTEMENT OBSERVÉ : la garde n'existe qu'à l'entrée de l'état. */
-    expect(JSON.stringify(pas.messages)).toContain("jusqu");
-    expect(p.etatConv().nom).toBe("quantite");
+    expect(JSON.stringify(pas.messages)).not.toContain("jusqu");
+    expect(p.etatConv().nom).toBe("catalogue");
   });
 
-  it("C-06 · un SMS TRONQUÉ dans le fil vendeuse ne reçoit AUCUN verdict de preuve", () => {
+  it("C-06 · un SMS TRONQUÉ dans le fil vendeuse reçoit une explication (non-retour)", () => {
+    /* Avant le correctif : smsReconnu faux → carte générique qui invitait… à
+       coller un SMS, sans dire que celui-ci n'a pas été reconnu. La route
+       HTTP expliquait déjà (422 + contrôle 1) ; le fil dit la même chose. */
     const p = new Pilote({
       estVendeuse: true,
       vendeuse: { commandesOuvertes: [], soldesXaf: 0, boutique: null },
     });
     const pas = p.jouer({ genre: "texte", texte: "You have received 650 FCFA of" });
-    /* COMPORTEMENT OBSERVÉ : smsReconnu est faux, le texte retombe dans les
-       mots-clés ordinaires — la réponse est la carte générique du fil
-       vendeuse, qui invite… à coller un SMS. Rien ne dit que ce qu'elle
-       VIENT de coller n'a pas été reconnu, ni qu'il faut le message entier.
-       La route HTTP, elle, explique (422 + contrôle 1 en échec). */
     expect(pas.effet).toBeUndefined();
-    expect(JSON.stringify(pas.messages)).not.toMatch(/entier|reconnu|contr[ôo]le/);
+    expect(JSON.stringify(pas.messages)).toMatch(/n'a pas été reconnu/);
+    expect(JSON.stringify(pas.messages)).toContain("ENTIER");
+    /* Et le texte collé n'est jamais recopié dans la réponse. */
+    expect(JSON.stringify(pas.messages)).not.toContain("650 FCFA");
   });
 
   it("C-07 · une réponse de Flow livraison HORS de l'état ville est perdue sans un mot", () => {

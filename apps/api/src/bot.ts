@@ -287,7 +287,19 @@ export async function traiterLivraisonBot(deps: BotDeps, corps: unknown): Promis
      * justement a rejouer un scenario a l'identique.
      */
     if (entree.messageId) {
-      const aTraiter = await reclamer(deps, entree.messageId, maintenant).catch(() => true);
+      /**
+       * Une panne de base pendant la reclamation vaut « ne pas traiter »,
+       * et se DIT — constat B3 de l'audit 2026-08. L'ancien
+       * `.catch(() => true)` etait un fail-open muet qui contredisait le
+       * compromis ecrit de l'ADR 0040 : « on prefere perdre un message
+       * plutot que d'en traiter un deux fois. Un double traitement, lui,
+       * corrompt un etat que personne ne repare. » Meta relivrera ; si la
+       * base va mieux, la relivraison sera reclamee normalement.
+       */
+      const aTraiter = await reclamer(deps, entree.messageId, maintenant).catch((e) => {
+        console.warn(`bot : reclamation impossible, message non traite (${resumerErreur(e)})`);
+        return false;
+      });
       if (!aTraiter) continue;
     }
 
@@ -1257,7 +1269,17 @@ async function creerArticleDepuisFil(
         ? await deps.media.lireCdn(demande.photoCdn)
         : null;
     if (media) {
-      const resultat = await reencoderImage(media.octets);
+      /**
+       * Un corps corrompu a signature valide (JPEG tronque par un
+       * telechargement CDN interrompu) fait LEVER sharp — et cette levee
+       * interrompait toute la publication : pas d'article, « panne
+       * passagere », le nom et le prix reperdus. C'etait contraire a
+       * l'invariant ecrit plus haut (« une photo illisible ne fait pas
+       * echouer l'article ») et sans la parite du chemin HTTP
+       * (products.ts), qui a ce .catch depuis le lot 5. Constat D2 de
+       * l'audit 2026-08.
+       */
+      const resultat = await reencoderImage(media.octets).catch(() => ({ ok: false }) as const);
       if (resultat.ok) {
         const base = cleOpaque(alea);
         const d = declinaisons(base);
@@ -2639,11 +2661,24 @@ async function verdictDansLeFil(
      contredire l'accuse ✅ deja pose. */
   if (resultat.issue === "non_reconnue") return;
 
+  /* La commande a change entre la lecture et l'ecriture (constat A1) : rien
+     n'est ecrit, l'identifiant reste libre — on le dit, recoller suffit. */
+  if (resultat.issue === "commande_modifiee") {
+    await envoyerSequence(deps, [
+      texte(
+        vers,
+        "La commande a changé pendant la vérification — un autre versement ou une contestation est passé. Recollez le SMS : rien n'a été perdu.",
+      ),
+    ]);
+    return;
+  }
+
   if (resultat.issue === "acceptee" || resultat.issue === "acceptee_sous_reserve") {
     await envoyerSequence(deps, [
       messageVerdict(vers, {
         verdict: resultat.issue === "acceptee" ? "accepte" : "accepte_sous_reserve",
         reference: cible.reference,
+        avancee: resultat.transitionOk,
       }),
     ]);
     /* La notification de l'acheteuse — apres l'envoi du verdict, jamais avant

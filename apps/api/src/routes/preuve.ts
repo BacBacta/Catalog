@@ -155,6 +155,18 @@ export function preuveRoutes(deps: PreuveDeps) {
           return c.json({ verdict: "refuse", checks: resultat.checks }, 422);
         case "identifiant_rejoue":
           return c.json({ verdict: resultat.verdict, checks: resultat.checks }, 409);
+        case "commande_modifiee":
+          /* Rien n'est ecrit, l'identifiant reste libre : recoller repart
+             d'un etat frais (constat A1 de l'audit 2026-08). */
+          return c.json(
+            {
+              erreur: "commande_modifiee",
+              message:
+                "La commande a changé pendant la vérification — un autre versement ou une contestation est passé. Recollez le SMS : rien n'a été perdu.",
+              checks: resultat.checks,
+            },
+            409,
+          );
         default: {
           /* La notification de l'acheteuse — apres commit, jamais dedans. */
           if (resultat.transitionOk && deps.apresPreuve) {
@@ -166,6 +178,13 @@ export function preuveRoutes(deps: PreuveDeps) {
             checks: resultat.checks,
             /** Ce qui est affichable : jamais le texte, jamais le solde. */
             resume: resultat.resume,
+            /**
+             * La commande a-t-elle AVANCE ? Sans ce champ, l'ecran disait
+             * « le reçu peut être émis » sur une commande en litige dont la
+             * machine venait de refuser la transition (constat A5).
+             */
+            transitionOk: resultat.transitionOk,
+            ...(resultat.transitionOk ? {} : { blocage: resultat.transitionRaison ?? null }),
           });
         }
       }
