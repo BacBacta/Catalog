@@ -21,6 +21,33 @@ tel quel dans une session neuve, précédé du préambule.
 
 ---
 
+## État de la séquence — au 15/08/2026
+
+| Lot | État | Ce qui a été livré |
+|---|---|---|
+| Audit | ✅ | Les 7 lots du plan `docs/audit-pipeline-2026-08.md` §6 — ADR 0089 à 0094, plus C-01/C-04/C-07 et les résidus §4.3 |
+| **P0** | ✅ | ADR 0095 — la maquette actée, l'ordre audit-d'abord, les quatre décisions posées |
+| **P1** | ✅ | ADR 0096 — `domain/bot/rafale.ts`, états `rafale` / `rafale_correction`, file pg-boss `bot-rafale-recap` |
+| **P2** | ✅ | `carteVitrine(deps, sellerId, "poussee")` — décision P0-c |
+| **P3** | ⏳ | **Le prochain.** Voir les acquis de cadrage ci-dessous, ils sont déjà payés |
+| P4 → P7 | ⏳ | Inchangés |
+
+Ce que P1 et P2 ont ajouté et qui sert aux lots suivants :
+
+- `EtatVendeuse` accueille des états à charge utile (`rafale` porte un tableau
+  de brouillons) et `normaliserEtatVendeuse` les relit défensivement — le
+  patron à copier pour tout nouvel état ;
+- un **travail pg-boss débordé par conception** (`executerRecapRafale`) :
+  chaque événement replanifie, celui qui se réveille vérifie sur l'état RÉEL
+  que la fenêtre est échue et qu'on n'a pas déjà parlé. Patron réutilisable
+  pour toute temporisation ;
+- la matrice du harnais couvre `inscription` en 63/63 : **tout état neuf s'y
+  ajoute dans son lot** (`ETATS_MACHINE` + un cas dans `amenerInscription`) ;
+- un mode « poussé » vs « demandé » sur un message : le premier échoue en
+  SILENCE, le second s'explique. À reprendre pour tout service rendu d'office.
+
+---
+
 ## Ce que Meta permet, et ce qu'on s'impose
 
 À connaître avant tout lot qui touche au fil. Tout est déjà acté par ADR :
@@ -242,22 +269,53 @@ test qui compte les messages sortants d'une salve (2, pas 4).
 
 # LOT P3 — Le reversement dans le fil, en Flow
 
+> **Acquis de cadrage, déjà payés — ne pas les re-découvrir.** Une première
+> exploration a été menée puis retirée du tronc (elle n'avait ni ADR ni tests,
+> et un lot ne se fusionne pas à moitié). Ce qu'elle a établi :
+>
+> 1. **Le Flow tient en UN écran, pas deux.** Un Flow statique n'a aucun
+>    aller-retour serveur : au moment où l'écran s'affiche, le code OTP
+>    n'existe pas encore — il ne peut donc pas y avoir d'écran « saisissez le
+>    code ». L'écran recueille numéro + opérateur ; le code part par SMS et se
+>    **colle dans le fil**, où le collage n'est jamais bloqué (critère 3.3.8).
+>    C'est un écart au texte ci-dessous, et il doit produire son ADR.
+> 2. **`changerNumeroDeReversement` de `routes/payout.ts` est déjà un service
+>    exporté**, utilisable hors HTTP : gel, journal d'audit dans la même
+>    transaction, alerte SMS à l'ancien numéro. Le fil doit l'appeler tel quel
+>    — pas de second chemin. Les deux tables de messages de refus y sont
+>    privées (`MESSAGE`, `MESSAGE_OTP`) : les exporter est le seul changement
+>    à faire dans ce fichier.
+> 3. **Les gardes de la route se rejouent dans le fil, dans le même ordre** :
+>    gel (`reversementGeleDepuis`), numéro inchangé, limitation de débit
+>    (`checkOtpRateLimit` avec une « adresse » stable du genre `fil:<phone>`),
+>    puis `otp.emettre` → SMS vers le NOUVEAU numéro → état d'attente du code.
+>    Un envoi SMS qui échoue ne doit poser AUCUN état : sinon le fil attend un
+>    code qui n'est jamais parti.
+> 4. **Un code incorrect se recolle** sans rejouer le Flow (l'état reste) ;
+>    expiré / épuisé / déjà servi exigent un nouveau code (l'état se ferme).
+> 5. `GenreFlux` et `jetonFlux` acceptent un genre de plus sans rien casser —
+>    c'est le point d'entrée (`genreDuJeton(reponse) === "reversement"`), à
+>    traiter dans `filInscription` **avant** la question directe, comme le
+>    formulaire d'article.
+
 ```
 Contexte. Le numéro de reversement — là où l'argent arrive — se règle
 aujourd'hui dans l'espace web, avec OTP (lot 4). La cible le ramène dans le
-fil : un Flow Meta de deux écrans (numéro + opérateur, puis code reçu par
-SMS), au moment où il coûte le moins. Lis : la maquette (pas « Être payée
-d'avance »), ADR 0025 (IMPORTANT), 0055, 0087 ; apps/api/src/routes/payout.ts,
-apps/api/src/domain/bot/flux.ts (le modèle : contrat de champs + lecteur).
+fil : un Flow Meta (numéro + opérateur), puis le code reçu par SMS et collé
+dans la conversation, au moment où il coûte le moins. Lis : la maquette (pas
+« Être payée d'avance »), ADR 0025 (IMPORTANT), 0055, 0087 ; les acquis de
+cadrage ci-dessus ; apps/api/src/routes/payout.ts, apps/api/src/domain/bot/
+flux.ts (le modèle : contrat de champs + lecteur).
 
 À faire :
 
 1. Le JSON du Flow « reversement », versionné dans le dépôt à côté des Flows
-   existants, sur le modèle de l'ADR 0055 : deux écrans — (numéro, opérateur)
-   puis (code à 6 chiffres) — champs obligatoires, noms de champs = CONTRAT
-   tenu par un test miroir de celui du Flow de livraison. Le dépôt dans le
-   Hub 360dialog reste un geste MANUEL : documente-le dans le même runbook
-   que le Flow d'ouverture, ne prétends pas l'automatiser.
+   existants, sur le modèle de l'ADR 0055 : UN écran — numéro et opérateur,
+   champs obligatoires —, noms de champs = CONTRAT tenu par un test miroir de
+   celui du Flow de livraison. Le second écran n'existe pas, et l'ADR du lot
+   doit dire pourquoi (acquis n° 1). Le dépôt dans le Hub 360dialog reste un
+   geste MANUEL : documente-le dans le même runbook que le Flow d'ouverture,
+   ne prétends pas l'automatiser.
 
 2. Dans le domaine : le lecteur de la réponse (modèle lireReponseFlux), et
    l'accroche dans la conversation vendeuse — le bouton « 💳 Être payée
