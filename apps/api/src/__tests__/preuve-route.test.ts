@@ -2,7 +2,7 @@ import { createPrismaClient, type PrismaClient } from "@catalog/db";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ChiffreurAesGcm, ChiffreurInerte } from "../adapters/sms-chiffre.ts";
 import { preuveRoutes } from "../routes/preuve.ts";
-import { identifiants, selExecution } from "./_identifiants.ts";
+import { identifiants } from "./_identifiants.ts";
 import { MTN_RECEPTION, ORANGE_RECEPTION_RECONSTITUE, TEXTE_LIBRE } from "./fixtures-sms.ts";
 
 /**
@@ -23,17 +23,22 @@ const URL = process.env.DATABASE_URL;
 const describeDb = URL ? describe : describe.skip;
 
 let prisma: PrismaClient;
-/* Un bloc de 1 000 identifiants PAR FICHIER, plus la minute courante.
-   `selExecution()` seul donnait des blocs qui se recouvraient : deux
-   fichiers demarres a quelques millisecondes d'ecart visaient le meme
-   identifiant, et Vitest les lance en parallele contre UNE base. Le
-   defaut a fait echouer deux verifications le 11/08/2026, dont un test
-   de fuite — le genre de faux rouge qui masque un vrai. */
-const RUN = 146 * 1000 + selExecution();
-/* Le schema recent sert ICI aux codes de verification (tache #68) et aux
-   identifiants d'operateur : l'ancien generateur hachait sa graine, et le bloc
-   ne separe pas ce qu'un hachage fait des nombres — vu en CI le 12/08. Les
-   identifiants MTN l'ont rejoint le meme jour, pour la raison dite sur `TX`. */
+/**
+ * TOUS les identifiants de ce fichier sortent du schema — y compris les
+ * SUFFIXES de vendeuse, qui n'y etaient pas encore.
+ *
+ * L'ancienne forme etait `RUN + <decalage>` : un bloc a trois chiffres plus le
+ * sel, decale a la main par test (`+ 60001`, `+ 60002`…). Or la CI pose des
+ * sels CONSECUTIFS — `run_id` suffixe par l'etape, donc `n` pour `pnpm test`
+ * et `n + 1` pour `pnpm test:coverage`. Deux decalages voisins se croisent
+ * alors exactement : `RUN(n) + 60002` et `RUN(n+1) + 60001` sont le MEME
+ * nombre, donc le meme email, donc un 409 sur la seconde etape. Mesure le
+ * 15/08/2026, run 31890269226 : `preuve-206262` cree deux fois.
+ *
+ * C'est la meme cause que le defaut corrige sur `TX` (voir plus bas) ; le
+ * correctif n'avait simplement pas ete porte jusqu'ici. Le compteur du schema
+ * ne se decale pas a la main : il ne peut pas se croiser.
+ */
 const ids = identifiants("preuve-route");
 
 /** L'horloge est figee : les fixtures portent des dates de juin 2026. */
@@ -148,8 +153,8 @@ let autre: Vendeuse;
 beforeAll(async () => {
   if (!URL) return;
   prisma = createPrismaClient(URL);
-  une = await creerVendeuse(RUN, 26800);
-  autre = await creerVendeuse((RUN + 4321) % 900000, 26800);
+  une = await creerVendeuse(ids.suivant(), 26800);
+  autre = await creerVendeuse(ids.suivant(), 26800);
 });
 
 afterAll(async () => {
@@ -299,7 +304,7 @@ describeDb("le SMS brut ne fuit nulle part", () => {
     );
 
     try {
-      const troisieme = await creerVendeuse((RUN + 8765) % 900000, 26800);
+      const troisieme = await creerVendeuse(ids.suivant(), 26800);
       // Un cas accepte, un refuse, un non reconnu : les trois chemins.
       await coller(troisieme, MTN_UNIQUE.replace(TX, ids.txMtn()));
       await coller(troisieme, TEXTE_LIBRE);
@@ -316,7 +321,7 @@ describeDb("le SMS brut ne fuit nulle part", () => {
   });
 
   it("la reponse HTTP ne renvoie jamais le texte ni le solde", async () => {
-    const quatrieme = await creerVendeuse((RUN + 13579) % 900000, 26800);
+    const quatrieme = await creerVendeuse(ids.suivant(), 26800);
     for (const sms of [MTN_UNIQUE.replace(TX, ids.txMtn()), TEXTE_LIBRE]) {
       const corps = await (await coller(quatrieme, sms)).text();
       expect(corps).not.toContain("Vous avez recu");
@@ -385,7 +390,7 @@ describeDb("l'argent s'écrit sous garde — non-retour du constat A1 (audit 202
    */
   it("une soumission sur un instantane perime rend commande_modifiee et n'ecrit RIEN", async () => {
     const { soumettrePreuve } = await import("../preuve-service.ts");
-    const v = await creerVendeuse((RUN + 24680) % 900000, 26800);
+    const v = await creerVendeuse(ids.suivant(), 26800);
     const instantane = await prisma.order.findUniqueOrThrow({
       where: { id: v.orderId },
       select: {
@@ -436,7 +441,7 @@ describeDb("l'argent s'écrit sous garde — non-retour du constat A1 (audit 202
 
 describeDb("litige — les surfaces cessent de dire « le reçu est émis » (non-retour A5)", () => {
   it("un SMS valide sur une commande contestee rend transitionOk:false et le blocage", async () => {
-    const v = await creerVendeuse((RUN + 97531) % 900000, 26800);
+    const v = await creerVendeuse(ids.suivant(), 26800);
     await prisma.order.update({ where: { id: v.orderId }, data: { proofState: "conteste" } });
 
     const r = await coller(v, MTN_RECEPTION.replace("17600000002", ids.txMtn()));
@@ -467,7 +472,7 @@ describeDb("l'acompte du est FIGE a la creation (non-retour A4, ADR 0094)", () =
        (50 %) attendrait 40 200 F et REFUSERAIT ce SMS — c'est exactement le
        defaut du constat A4 : un commit qui change le pourcentage modifiait
        retroactivement l'attendu des commandes impayees. */
-    const v = await creerVendeuse((RUN + 60001) % 900000, 80400, {
+    const v = await creerVendeuse(ids.suivant(), 80400, {
       payMode: "acompte",
       dueBeforeXaf: 26800,
     });
@@ -487,7 +492,7 @@ describeDb("l'acompte du est FIGE a la creation (non-retour A4, ADR 0094)", () =
     /* `due_before_xaf` nul : la migration est en expand, les commandes
        anterieures n'en ont pas. Pour elles, le recalcul a 50 % reste la
        seule verite disponible : 26 800 F sur 53 600. */
-    const v = await creerVendeuse((RUN + 60002) % 900000, 53600, { payMode: "acompte" });
+    const v = await creerVendeuse(ids.suivant(), 53600, { payMode: "acompte" });
     const r = await coller(v, MTN_RECEPTION.replace("17600000002", ids.txMtn()));
     expect(r.status).toBe(200);
     expect(((await r.json()) as { verdict: string }).verdict).toBe("accepte");
