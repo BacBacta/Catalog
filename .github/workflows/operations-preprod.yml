@@ -12,7 +12,7 @@ on:
         description: "Quelle operation"
         required: true
         type: choice
-        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai, sonde-connexion, sonde-photos]
+        options: [reinitialiser-boutiques-bot, poser-flux-ids, poser-banc-essai, sonde-connexion, sonde-photos, sonde-stockage]
       mode:
         description: "Reinitialisation seulement : --voir (lecture seule) ou --vraiment"
         required: true
@@ -104,5 +104,20 @@ jobs:
           flyctl logs --no-tail --app catalog-api-preprod 2>/dev/null \
             | grep -E "photo non enregistree|photo du formulaire non reconnue" | tail -20 \
             || echo "(aucune ligne : soit aucun refus recent, soit la fenetre est passee)"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # Lecture seule (plus une sonde jetable, effacee) : OU l'application
+      # ecrit ses images, et ce que ce bucket contient reellement.
+      #
+      # Elle existe parce que trois faits se contredisaient le 15/08/2026 :
+      # l'article entrait en base avec sa cle (donc `put()` n'avait pas leve),
+      # le bucket etait rapporte vide, et le bot ne retrouvait pas son propre
+      # objet. `taille()` confond « absent » et « droits insuffisants » — cette
+      # sonde les separe, etape par etape.
+      #
+      # Elle n'imprime ni cle d'acces, ni secret, ni contenu d'objet.
+      - name: Sonde du stockage d'objets
+        if: inputs.quoi == 'sonde-stockage'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/diagnostic-stockage.mjs"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
