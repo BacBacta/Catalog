@@ -211,6 +211,15 @@ rapport (ADR 0089 pour l'argent). Restent :
 Après quoi la séquence `PROMPTS-premium.md` (P1-P7) reprend, comme son P0
 l'ordonne : les constats confirmés d'abord, les nouveautés ensuite.
 
+> **État au 15/08/2026 — les sept lots sont livrés**, chacun avec ses tests
+> de non-retour : lot 1 → ADR 0090 (expiration), lot 2 → ADR 0091 (statuts
+> Meta), lot 3 → ADR 0092 (chaîne média), lot 4 → ADR 0093 (réessai borné),
+> lot 5 → ADR 0094 (acompte figé), lot 6 → C-01/C-04/C-07 corrigés dans les
+> machines (les tests-pièges du harnais sont devenus des non-retours), lot 7
+> → résidus §4.3 (items 4.15-4.16 de la checklist, `SHOP_BASE_URL` exigée en
+> production, sonde `garantiesSql` sur `/api/statut`, copie d'arbitrage qui
+> annonce « annuler »). La voie est libre pour P1-P7.
+
 ## 7. Annexes
 
 - Harnais : `apps/api/src/domain/bot/__tests__/harnais.ts` (+ `-parcours`,

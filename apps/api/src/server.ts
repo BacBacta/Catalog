@@ -1,6 +1,7 @@
 import { IMAGE_TAILLE_MAX_OCTETS } from "@catalog/contracts";
 import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
+import { garantiesSqlPosees } from "./adapters/garanties-sql.ts";
 import { construireInstantane } from "./adapters/instantane-catalogue.ts";
 import { verificateurDepuisEnv } from "./adapters/jeton-actions-github.ts";
 import { PrismaOtpAttemptStore } from "./adapters/otp-attempt-store.ts";
@@ -278,6 +279,9 @@ app.route(
       await prisma.$queryRaw`SELECT 1`;
       return true;
     },
+    /* Les garanties SQL du lot 3, constatees dans la base REELLE — residu A3
+       de l'audit 2026-08. Voir `adapters/garanties-sql.ts`. */
+    garantiesSql: () => garantiesSqlPosees(prisma),
     position: () => positionCourante(),
     message: () => process.env.STATUT_MESSAGE?.trim() || null,
     ...(process.env.CATALOG_VERSION ? { version: process.env.CATALOG_VERSION } : {}),

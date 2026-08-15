@@ -625,9 +625,12 @@ function travailEnCours(etat: EtatVendeuse): string {
  * comme de l'autre.
  */
 export function questionArbitrage(etat: EtatVendeuse, slug: string, vers: string): MessageSortant {
+  /* « annuler » est ANNONCE — residu D8 de l'audit 2026-08 : c'est la seule
+     issue hors des deux boutons (ADR 0052), et une sortie de secours que la
+     copie ne nomme pas n'existe pas pour qui en a besoin. */
   return boutons(
     vers,
-    `Vous étiez en train ${travailEnCours(etat)}.\n\nOn finit ça, ou on va voir la boutique *${slug}* ?`,
+    `Vous étiez en train ${travailEnCours(etat)}.\n\nOn finit ça, ou on va voir la boutique *${slug}* ?\n(« annuler » abandonne ce qui était en cours.)`,
     [
       { id: "pause:finir", titre: "Finir" },
       { id: "pause:aller", titre: "Voir la boutique" },
