@@ -1,0 +1,241 @@
+acheteuse/accueil × texte hors-sujet → répond (interactif)
+acheteuse/accueil × texte sans accents → répond (interactif)
+acheteuse/accueil × anglais → répond (interactif)
+acheteuse/accueil × bouton périmé → répond (interactif)
+acheteuse/accueil × ligne de liste périmée → répond (interactif)
+acheteuse/accueil × photo sans légende → répond (interactif)
+acheteuse/accueil × photo légendée → répond (interactif)
+acheteuse/accueil × vocal → répond (texte nu)
+acheteuse/accueil × sticker → répond (texte nu)
+acheteuse/accueil × localisation → répond (interactif)
+acheteuse/accueil × réponse de Flow valide → répond (interactif)
+acheteuse/accueil × Flow tronqué → répond (interactif)
+acheteuse/accueil × mot-clé menu → répond (interactif)
+acheteuse/accueil × mot-clé annuler → répond (interactif)
+acheteuse/catalogue × texte hors-sujet → répond (interactif)
+acheteuse/catalogue × texte sans accents → répond (interactif)
+acheteuse/catalogue × anglais → répond (interactif)
+acheteuse/catalogue × bouton périmé → répond (interactif)
+acheteuse/catalogue × ligne de liste périmée → répond (interactif)
+acheteuse/catalogue × photo sans légende → répond (interactif)
+acheteuse/catalogue × photo légendée → répond (interactif)
+acheteuse/catalogue × vocal → répond (texte nu)
+acheteuse/catalogue × sticker → répond (texte nu)
+acheteuse/catalogue × localisation → répond (interactif)
+acheteuse/catalogue × réponse de Flow valide → répond (interactif)
+acheteuse/catalogue × Flow tronqué → répond (interactif)
+acheteuse/catalogue × mot-clé menu → répond (interactif)
+acheteuse/catalogue × mot-clé annuler → répond (interactif)
+acheteuse/quantite × texte hors-sujet → répond (interactif)
+acheteuse/quantite × texte sans accents → répond (interactif)
+acheteuse/quantite × anglais → répond (interactif)
+acheteuse/quantite × bouton périmé → répond (interactif)
+acheteuse/quantite × ligne de liste périmée → répond (interactif) · état→ajout
+acheteuse/quantite × photo sans légende → répond (interactif)
+acheteuse/quantite × photo légendée → répond (interactif)
+acheteuse/quantite × vocal → répond (texte nu)
+acheteuse/quantite × sticker → répond (texte nu)
+acheteuse/quantite × localisation → répond (interactif)
+acheteuse/quantite × réponse de Flow valide → répond (interactif)
+acheteuse/quantite × Flow tronqué → répond (interactif)
+acheteuse/quantite × mot-clé menu → répond (interactif) · état→catalogue
+acheteuse/quantite × mot-clé annuler → répond (interactif) · état→catalogue
+acheteuse/ajout × texte hors-sujet → répond (interactif)
+acheteuse/ajout × texte sans accents → répond (interactif)
+acheteuse/ajout × anglais → répond (interactif)
+acheteuse/ajout × bouton périmé → répond (interactif)
+acheteuse/ajout × ligne de liste périmée → répond (interactif)
+acheteuse/ajout × photo sans légende → répond (interactif)
+acheteuse/ajout × photo légendée → répond (interactif)
+acheteuse/ajout × vocal → répond (texte nu)
+acheteuse/ajout × sticker → répond (texte nu)
+acheteuse/ajout × localisation → répond (interactif)
+acheteuse/ajout × réponse de Flow valide → répond (interactif)
+acheteuse/ajout × Flow tronqué → répond (interactif)
+acheteuse/ajout × mot-clé menu → répond (interactif) · état→catalogue
+acheteuse/ajout × mot-clé annuler → répond (interactif) · état→catalogue
+acheteuse/mode × texte hors-sujet → répond (interactif)
+acheteuse/mode × texte sans accents → répond (interactif)
+acheteuse/mode × anglais → répond (interactif)
+acheteuse/mode × bouton périmé → répond (interactif)
+acheteuse/mode × ligne de liste périmée → répond (interactif)
+acheteuse/mode × photo sans légende → répond (interactif)
+acheteuse/mode × photo légendée → répond (interactif)
+acheteuse/mode × vocal → répond (texte nu)
+acheteuse/mode × sticker → répond (texte nu)
+acheteuse/mode × localisation → répond (interactif)
+acheteuse/mode × réponse de Flow valide → répond (interactif)
+acheteuse/mode × Flow tronqué → répond (interactif)
+acheteuse/mode × mot-clé menu → répond (interactif) · état→catalogue
+acheteuse/mode × mot-clé annuler → répond (interactif) · état→catalogue
+acheteuse/ville × texte hors-sujet → répond (interactif) · état→details
+acheteuse/ville × texte sans accents → répond (interactif) · état→details
+acheteuse/ville × anglais → répond (interactif) · état→details
+acheteuse/ville × bouton périmé → répond (interactif)
+acheteuse/ville × ligne de liste périmée → répond (interactif)
+acheteuse/ville × photo sans légende → répond (interactif)
+acheteuse/ville × photo légendée → répond (interactif)
+acheteuse/ville × vocal → répond (texte nu)
+acheteuse/ville × sticker → répond (texte nu)
+acheteuse/ville × localisation → répond (interactif)
+acheteuse/ville × réponse de Flow valide → répond (interactif) · état→recap
+acheteuse/ville × Flow tronqué → répond (interactif)
+acheteuse/ville × mot-clé menu → répond (interactif) · état→catalogue
+acheteuse/ville × mot-clé annuler → répond (interactif) · état→catalogue
+acheteuse/details × texte hors-sujet → répond (interactif)
+acheteuse/details × texte sans accents → répond (interactif)
+acheteuse/details × anglais → répond (interactif)
+acheteuse/details × bouton périmé → répond (interactif)
+acheteuse/details × ligne de liste périmée → répond (interactif)
+acheteuse/details × photo sans légende → répond (interactif)
+acheteuse/details × photo légendée → répond (interactif)
+acheteuse/details × vocal → répond (texte nu)
+acheteuse/details × sticker → répond (texte nu)
+acheteuse/details × localisation → répond (interactif)
+acheteuse/details × réponse de Flow valide → répond (interactif)
+acheteuse/details × Flow tronqué → répond (interactif)
+acheteuse/details × mot-clé menu → répond (interactif) · état→catalogue
+acheteuse/details × mot-clé annuler → répond (interactif) · état→catalogue
+acheteuse/recap × texte hors-sujet → répond (interactif)
+acheteuse/recap × texte sans accents → répond (interactif)
+acheteuse/recap × anglais → répond (interactif)
+acheteuse/recap × bouton périmé → répond (interactif)
+acheteuse/recap × ligne de liste périmée → répond (interactif)
+acheteuse/recap × photo sans légende → répond (interactif)
+acheteuse/recap × photo légendée → répond (interactif)
+acheteuse/recap × vocal → répond (texte nu)
+acheteuse/recap × sticker → répond (texte nu)
+acheteuse/recap × localisation → répond (interactif)
+acheteuse/recap × réponse de Flow valide → répond (interactif)
+acheteuse/recap × Flow tronqué → répond (interactif)
+acheteuse/recap × mot-clé menu → répond (interactif) · état→catalogue
+acheteuse/recap × mot-clé annuler → répond (interactif) · état→catalogue
+acheteuse/avis_mot × texte hors-sujet → répond (texte nu) · effet completer_avis · état→accueil
+acheteuse/avis_mot × texte sans accents → répond (texte nu) · effet completer_avis · état→accueil
+acheteuse/avis_mot × anglais → répond (texte nu) · effet completer_avis · état→accueil
+acheteuse/avis_mot × bouton périmé → répond (interactif) · état→accueil
+acheteuse/avis_mot × ligne de liste périmée → répond (interactif) · état→accueil
+acheteuse/avis_mot × photo sans légende → répond (interactif) · état→accueil
+acheteuse/avis_mot × photo légendée → répond (interactif) · état→accueil
+acheteuse/avis_mot × vocal → répond (texte nu)
+acheteuse/avis_mot × sticker → répond (texte nu)
+acheteuse/avis_mot × localisation → répond (interactif) · état→accueil
+acheteuse/avis_mot × réponse de Flow valide → répond (interactif) · état→accueil
+acheteuse/avis_mot × Flow tronqué → répond (interactif) · état→accueil
+acheteuse/avis_mot × mot-clé menu → répond (texte nu) · effet completer_avis · état→accueil
+acheteuse/avis_mot × mot-clé annuler → répond (texte nu) · effet completer_avis · état→accueil
+inscription/inscription_nom × texte hors-sujet → répond · état→inscription_ville
+inscription/inscription_nom × texte sans accents → répond · état→inscription_ville
+inscription/inscription_nom × anglais → répond · état→inscription_ville
+inscription/inscription_nom × bouton périmé → répond
+inscription/inscription_nom × ligne de liste périmée → répond
+inscription/inscription_nom × photo sans légende → répond
+inscription/inscription_nom × photo légendée → répond
+inscription/inscription_nom × vocal → répond
+inscription/inscription_nom × sticker → répond
+inscription/inscription_nom × localisation → répond
+inscription/inscription_nom × réponse de Flow valide → répond
+inscription/inscription_nom × Flow tronqué → répond
+inscription/inscription_nom × mot-clé menu → répond · état→(repos)
+inscription/inscription_nom × mot-clé annuler → répond · état→(repos)
+inscription/inscription_ville × texte hors-sujet → effet seul · effet creer_boutique · état→(repos)
+inscription/inscription_ville × texte sans accents → effet seul · effet creer_boutique · état→(repos)
+inscription/inscription_ville × anglais → effet seul · effet creer_boutique · état→(repos)
+inscription/inscription_ville × bouton périmé → répond
+inscription/inscription_ville × ligne de liste périmée → répond
+inscription/inscription_ville × photo sans légende → répond
+inscription/inscription_ville × photo légendée → répond
+inscription/inscription_ville × vocal → répond
+inscription/inscription_ville × sticker → répond
+inscription/inscription_ville × localisation → répond
+inscription/inscription_ville × réponse de Flow valide → répond
+inscription/inscription_ville × Flow tronqué → répond
+inscription/inscription_ville × mot-clé menu → répond · état→(repos)
+inscription/inscription_ville × mot-clé annuler → répond · état→(repos)
+inscription/article_nom × texte hors-sujet → répond · état→article_prix
+inscription/article_nom × texte sans accents → répond · état→article_prix
+inscription/article_nom × anglais → répond · état→article_prix
+inscription/article_nom × bouton périmé → répond
+inscription/article_nom × ligne de liste périmée → répond
+inscription/article_nom × photo sans légende → répond
+inscription/article_nom × photo légendée → répond · état→article_confirme
+inscription/article_nom × vocal → répond
+inscription/article_nom × sticker → répond
+inscription/article_nom × localisation → répond
+inscription/article_nom × réponse de Flow valide → répond
+inscription/article_nom × Flow tronqué → répond
+inscription/article_nom × mot-clé menu → répond · état→(repos)
+inscription/article_nom × mot-clé annuler → répond · état→(repos)
+inscription/article_prix × texte hors-sujet → répond
+inscription/article_prix × texte sans accents → répond
+inscription/article_prix × anglais → répond
+inscription/article_prix × bouton périmé → répond
+inscription/article_prix × ligne de liste périmée → répond
+inscription/article_prix × photo sans légende → répond
+inscription/article_prix × photo légendée → répond
+inscription/article_prix × vocal → répond
+inscription/article_prix × sticker → répond
+inscription/article_prix × localisation → répond
+inscription/article_prix × réponse de Flow valide → répond
+inscription/article_prix × Flow tronqué → répond
+inscription/article_prix × mot-clé menu → répond · état→(repos)
+inscription/article_prix × mot-clé annuler → répond · état→(repos)
+inscription/article_photo × texte hors-sujet → répond
+inscription/article_photo × texte sans accents → répond
+inscription/article_photo × anglais → répond
+inscription/article_photo × bouton périmé → répond
+inscription/article_photo × ligne de liste périmée → répond
+inscription/article_photo × photo sans légende → effet seul · effet creer_article · état→(repos)
+inscription/article_photo × photo légendée → effet seul · effet creer_article · état→(repos)
+inscription/article_photo × vocal → répond
+inscription/article_photo × sticker → répond
+inscription/article_photo × localisation → répond
+inscription/article_photo × réponse de Flow valide → répond
+inscription/article_photo × Flow tronqué → répond
+inscription/article_photo × mot-clé menu → répond · état→(repos)
+inscription/article_photo × mot-clé annuler → répond · état→(repos)
+inscription/article_confirme × texte hors-sujet → répond
+inscription/article_confirme × texte sans accents → répond
+inscription/article_confirme × anglais → répond
+inscription/article_confirme × bouton périmé → effet seul · effet creer_article · état→(repos)
+inscription/article_confirme × ligne de liste périmée → répond
+inscription/article_confirme × photo sans légende → répond
+inscription/article_confirme × photo légendée → répond
+inscription/article_confirme × vocal → répond
+inscription/article_confirme × sticker → répond
+inscription/article_confirme × localisation → répond
+inscription/article_confirme × réponse de Flow valide → répond
+inscription/article_confirme × Flow tronqué → répond
+inscription/article_confirme × mot-clé menu → répond · état→(repos)
+inscription/article_confirme × mot-clé annuler → répond · état→(repos)
+inscription/comptoir × texte hors-sujet → répond
+inscription/comptoir × texte sans accents → répond
+inscription/comptoir × anglais → répond
+inscription/comptoir × bouton périmé → répond
+inscription/comptoir × ligne de liste périmée → répond
+inscription/comptoir × photo sans légende → répond
+inscription/comptoir × photo légendée → répond
+inscription/comptoir × vocal → répond
+inscription/comptoir × sticker → répond
+inscription/comptoir × localisation → répond
+inscription/comptoir × réponse de Flow valide → répond
+inscription/comptoir × Flow tronqué → répond
+inscription/comptoir × mot-clé menu → répond · état→(repos)
+inscription/comptoir × mot-clé annuler → répond · état→(repos)
+vendeuse/(repos) × texte hors-sujet → répond/agit
+vendeuse/(repos) × texte sans accents → répond/agit
+vendeuse/(repos) × anglais → répond/agit
+vendeuse/(repos) × bouton périmé → répond/agit
+vendeuse/(repos) × ligne de liste périmée → répond/agit
+vendeuse/(repos) × vocal → répond/agit
+vendeuse/(repos) × sticker → répond/agit
+vendeuse/(repos) × localisation → répond/agit
+vendeuse/(repos) × réponse de Flow valide → répond/agit
+vendeuse/(repos) × Flow tronqué → répond/agit
+vendeuse/(repos) × mot-clé menu → répond/agit
+vendeuse/(repos) × mot-clé annuler → répond/agit
+vendeuse/(repos) × solde → répond/agit
+vendeuse/(repos) × congés → répond/agit · effet basculer_conges
+vendeuse/(repos) × livrée CT → répond/agit · effet marquer_livree
+vendeuse/(repos) × SMS opérateur → répond/agit · effet verifier_sms
+vendeuse/(repos) × SMS TRONQUÉ → répond/agit

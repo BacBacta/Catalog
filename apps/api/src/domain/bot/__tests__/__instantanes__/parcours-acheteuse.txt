@@ -1,0 +1,50 @@
+── pas 1 · acheteuse/accueil ── « boutique chez-bintou »
+   ← boutons[catalogue | vendeuse]: *Chez Bintou* — Douala
+★ 4,8 · 8 ventes prouvées (avis vérifiés)
+Commandez ici — chaque paiement prouvé donne un reçu vérifiable. La vendeuse vous répond sur son WhatsApp.
+   → état: catalogue
+── pas 2 · acheteuse/catalogue ── [bouton catalogue]
+   ← liste[art:a-sac-000001 | art:a-pagne-0002 | art:a-huile-0003]: *Chez Bintou* — 3 articles
+── pas 3 · acheteuse/catalogue ── [liste art:a-sac-000001]
+   ← boutons[cmd:a-sac-000001 | cat:0]: *Sac tressé*
+8 500 FCFA
+Plus que 2 disponibles
+── pas 4 · acheteuse/catalogue ── [bouton cmd:a-sac-000001]
+   ← liste[qte:1 | qte:2 | vendeuse]: Combien de « Sac tressé » voulez-vous ? (2 en stock)
+   → état: quantite
+── pas 5 · acheteuse/quantite ── [liste qte:2]
+   ← boutons[commander | catalogue | vendeuse]: ✅ Ajouté : Sac tressé × 2.
+
+🧺 *Votre panier*
+Sac tressé × 2 : 8 500 FCFA l'unité
+*Total : 17 000 FCFA* (hors livraison)
+
+Et ensuite ?
+   → état: ajout
+── pas 6 · acheteuse/ajout ── [bouton commander]
+   ← boutons[mode:livraison | mode:retrait | vendeuse]: Comment recevoir votre commande (17 000 FCFA) ?
+   → état: mode
+── pas 7 · acheteuse/mode ── [bouton mode:livraison]
+   ← boutons[ville:boutique | vendeuse]: *Livraison dans quelle ville ?*
+Appuyez sur *Douala*, ou écrivez la vôtre.
+   → état: ville
+── pas 8 · acheteuse/ville ── « Douala »
+   ← boutons[vendeuse | annuler]: Votre quartier, un repère, puis le numéro à appeler — en un seul message.
+Exemple : Bonapriso, en face de la pharmacie du Rond-Point, 690 11 22 33
+   ← demande de position: Facultatif : envoyez aussi votre position, le livreur vous trouvera plus vite. Le quartier, le repère et le numéro restent nécessaires.
+   → état: details
+── pas 9 · acheteuse/details ── « Bonapriso, en face de la pharmacie du Rail, 6 52 00 00 01 »
+   ← boutons[confirmer | corriger | annuler]: *Récapitulatif — Chez Bintou*
+Sac tressé × 2 : 8 500 FCFA l'unité
+Total : *17 000 FCFA*
+(hors livraison — le prix de la course se convient avec la vendeuse)
+Acompte pour confirmer : *8 500 FCFA*
+Livraison à Douala : Bonapriso, en face de la pharmacie du Rail
+Numéro à appeler : 652 00 00 01
+
+Rien n'est encore commandé. Vérifiez, puis confirmez.
+   → état: recap
+── pas 10 · acheteuse/recap ── [bouton confirmer]
+   (aucun message — effet seul)
+   ⚙ effet: {"type":"creer_commande","brouillon":{"slug":"chez-bintou","lignes":[{"articleId":"a-sac-000001","quantite":2}],"livraison":{"mode":"livraison","city":"Douala","quartier":"Bonapriso","landmark":"en face de la pharmacie du Rail","phone":"+237652000001"}}}
+   → état: catalogue

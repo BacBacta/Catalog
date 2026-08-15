@@ -1,0 +1,37 @@
+── pas 1 · inscription/(repos) ── « vendre avec amina »
+   ← texte: Bienvenue ! Ouvrons votre boutique — ça prend deux minutes, ici même.
+
+*Comment s'appelle votre boutique ?*
+Exemple : Chez Amina
+   → état: inscription_nom
+── pas 2 · inscription/inscription_nom ── « Chez Bintou »
+   ← texte: *Chez Bintou* — c'est noté.
+
+*Dans quelle ville vendez-vous ?*
+Exemple : Douala
+   → état: inscription_ville
+── pas 3 · inscription/inscription_ville ── « Douala »
+   (aucun message — effet seul)
+   ⚙ effet: {"type":"creer_boutique","nomBoutique":"Chez Bintou","ville":"Douala","parrain":"amina"}
+   → état: (repos)
+
+═══ vendeuse installée ═══
+── pas 1 · inscription/(repos) ── [photo « Pagne wax 6 yards 15 000 »]
+   ← boutons[publier | corriger]: J'ai lu : *Pagne wax 6 yards* — *15 000 FCFA*. C'est bon ?
+   → état: article_confirme
+── pas 2 · inscription/article_confirme ── [bouton publier]
+   (aucun message — effet seul)
+   ⚙ effet: {"type":"creer_article","nom":"Pagne wax 6 yards","prixXaf":15000,"mediaId":"m-1"}
+   → état: (repos)
+── pas 3 · vendeuse/(repos) ── « Vous avez recu 26800 XAF de ALPHA TRADING SARL (237652000001 … »
+   (aucun message — effet seul)
+   ⚙ effet: {"type":"verifier_sms","texte":"Vous avez recu 26800 XAF de ALPHA TRADING SARL (237652000001 ) sur votre compte Mobile Money 2026-06-23 09:50:32. Message de l'expediteur:. Votre nouveau solde est de 29398 FCFA. Frais: 0 XAF. Transaction ID: 17600000002.Prix Cassés chez MoMo pour tout le monde !"}
+── pas 4 · vendeuse/(repos) ── « livrée CT-104312 »
+   (aucun message — effet seul)
+   ⚙ effet: {"type":"marquer_livree","reference":"CT-104312"}
+── pas 5 · vendeuse/(repos) ── « solde »
+   ← texte: Soldes à encaisser : *10 750 FCFA* sur 1 commande.
+CT-104312 : 10 750 FCFA
+── pas 6 · vendeuse/(repos) ── « congés »
+   (aucun message — effet seul)
+   ⚙ effet: {"type":"basculer_conges","fermer":true}

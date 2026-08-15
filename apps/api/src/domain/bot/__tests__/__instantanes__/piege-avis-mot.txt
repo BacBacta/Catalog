@@ -1,0 +1,10 @@
+── pas 1 · acheteuse/accueil ── [liste note:5]
+   ← boutons[avis:sans_mot]: Merci ! Votre avis est en ligne, marqué *achat vérifié* — parce que votre paiement a laissé une trace.
+
+Un mot à ajouter ? Écrivez-le maintenant.
+   ⚙ effet: {"type":"deposer_avis","note":5}
+   → état: avis_mot
+── pas 2 · acheteuse/avis_mot ── C-02 · « menu » dans avis_mot
+   ← texte: C'est ajouté. Merci d'avoir pris le temps.
+   ⚙ effet: {"type":"completer_avis","texte":"menu"}
+   → état: accueil
