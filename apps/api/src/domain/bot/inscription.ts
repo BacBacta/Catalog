@@ -14,6 +14,15 @@ import {
 import { extraireSlugBoutique, INACTIVITE_MAX_MS, motCleGlobal } from "./conversation.ts";
 import type { FormeNonLue } from "./entrees.ts";
 import { boutons, liste, type MessageSortant, reaction, texte } from "./messages.ts";
+import {
+  ajouterBrouillon,
+  type BrouillonRafale,
+  brouillonsIncomplets,
+  carteRafale,
+  demandeToutPublier,
+  lireCorrectionRafale,
+  questionCorrectionRafale,
+} from "./rafale.ts";
 import { TEXTES } from "./textes.ts";
 
 /**
@@ -87,7 +96,21 @@ export type EtatVendeuse =
    * une seule notion d'abandon se contrediraient un jour » ; deux persistances
    * aussi.
    */
-  | { nom: "comptoir"; comptoir: EtatComptoir; enPause?: GesteEnPause };
+  | { nom: "comptoir"; comptoir: EtatComptoir; enPause?: GesteEnPause }
+  /**
+   * La RAFALE — ADR 0096. Des la deuxieme photo legendee, les propositions
+   * s'accumulent en brouillons ; une seule carte recapitulative confirme
+   * tout. `annonce` : la carte est-elle deja partie ? (le travail pg-boss ne
+   * l'envoie qu'une fois, une photo de plus la re-arme).
+   */
+  | { nom: "rafale"; brouillons: BrouillonRafale[]; annonce?: boolean; enPause?: GesteEnPause }
+  /** « corriger le N » : UN brouillon rouvert, les autres intacts. */
+  | {
+      nom: "rafale_correction";
+      n: number;
+      brouillons: BrouillonRafale[];
+      enPause?: GesteEnPause;
+    };
 
 /**
  * Un flux vendeuse abandonne PERIME — ADR 0048.
@@ -118,7 +141,12 @@ export type EffetVendeuse =
   | { type: "creer_boutique"; nomBoutique: string; ville: string; parrain?: string }
   | { type: "creer_article"; nom: string; prixXaf: number; mediaId?: string }
   /** La vente negociee, remise au moteur — l'UNIQUE moteur (ADR 0061). */
-  | { type: "creer_vente"; vente: VenteDeclaree };
+  | { type: "creer_vente"; vente: VenteDeclaree }
+  /** La salve confirmee d'un geste — ADR 0096. Complets seulement. */
+  | {
+      type: "publier_rafale";
+      brouillons: Array<{ nom: string; prixXaf: number; mediaId: string }>;
+    };
 
 export interface ReactionVendeuse {
   etat: EtatVendeuse | null;
@@ -186,9 +214,46 @@ export function normaliserEtatVendeuse(brut: unknown): EtatVendeuse | null {
       const comptoir = normaliserEtatComptoir(e.comptoir);
       return comptoir ? { nom: "comptoir", comptoir, ...enPause } : null;
     }
+    case "rafale": {
+      const brouillons = normaliserBrouillons(e.brouillons);
+      return brouillons
+        ? { nom: "rafale", brouillons, annonce: e.annonce === true, ...enPause }
+        : null;
+    }
+    case "rafale_correction": {
+      const brouillons = normaliserBrouillons(e.brouillons);
+      return brouillons &&
+        typeof e.n === "number" &&
+        Number.isInteger(e.n) &&
+        e.n >= 1 &&
+        e.n <= brouillons.length
+        ? { nom: "rafale_correction", n: e.n, brouillons, ...enPause }
+        : null;
+    }
     default:
       return null;
   }
+}
+
+/** Les brouillons d'une rafale persistee. Tout ce qui ne se relit pas vaut `null`. */
+function normaliserBrouillons(brut: unknown): BrouillonRafale[] | null {
+  if (!Array.isArray(brut) || brut.length === 0) return null;
+  const brouillons: BrouillonRafale[] = [];
+  for (const b of brut as Array<Record<string, unknown> | null>) {
+    if (!b || typeof b.mediaId !== "string" || !b.mediaId) return null;
+    const nom = typeof b.nom === "string" && b.nom ? b.nom : null;
+    const prixXaf =
+      typeof b.prixXaf === "number" && Number.isInteger(b.prixXaf) && b.prixXaf > 0
+        ? b.prixXaf
+        : null;
+    brouillons.push({
+      nom,
+      prixXaf,
+      mediaId: b.mediaId,
+      ...(typeof b.wamid === "string" && b.wamid ? { wamid: b.wamid } : {}),
+    });
+  }
+  return brouillons;
 }
 
 /* ────────────────────────── lectures pures ──────────────────────────────── */
@@ -480,15 +545,17 @@ export function messageOnboarding(
  * connue, elle se DIT — avec les memes messages que le chemin HTTP
  * (`MESSAGE_REFUS_IMAGE`), qui disent quoi faire.
  */
+function causePhotoIndisponible(refus: PhotoIndisponible): string {
+  return refus === "illisible"
+    ? "elle est arrivée abîmée et n'a pas pu être lue. Renvoyez-la, ou choisissez-en une autre."
+    : refus === "introuvable"
+      ? "WhatsApp ne l'a pas fournie. Réessayez dans un moment."
+      : MESSAGE_REFUS_IMAGE[refus];
+}
+
 function phrasePhotoAbsente(refus?: PhotoIndisponible | null): string {
   if (!refus) return "Sans photo pour l'instant — envoyez-la quand vous voulez.";
-  const cause =
-    refus === "illisible"
-      ? "elle est arrivée abîmée et n'a pas pu être lue. Renvoyez-la, ou choisissez-en une autre."
-      : refus === "introuvable"
-        ? "WhatsApp ne l'a pas fournie. Réessayez dans un moment."
-        : MESSAGE_REFUS_IMAGE[refus];
-  return `La photo n'a pas pu être utilisée : ${cause}`;
+  return `La photo n'a pas pu être utilisée : ${causePhotoIndisponible(refus)}`;
 }
 
 export function messageArticlePublie(
@@ -537,6 +604,50 @@ export function messageArticlePublie(
       ...(enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
       { id: "article", titre: "Autre article" },
       ...(enConges ? [] : [{ id: "carte", titre: "Ma carte" }]),
+    ],
+  );
+}
+
+/**
+ * La carte de retour d'une SALVE publiée — ADR 0096. UNE carte, pas n :
+ * « Publiés. Votre boutique passe à N articles. » (copie de la maquette).
+ * Les photos refusées se DISENT, par numéro, avec les mêmes causes que
+ * l'article unitaire (ADR 0092) ; les congés et le délai de la page web
+ * suivent les mêmes règles que `messageArticlePublie`.
+ */
+export function messageRafalePubliee(
+  vers: string,
+  r: {
+    publies: number;
+    totalArticles: number;
+    photosRefusees: Array<{ n: number; refus: PhotoIndisponible }>;
+    /** Des brouillons que la base a refusés — rare, mais jamais silencieux. */
+    rates: number;
+    enConges: boolean;
+    pageWebDansMinutes: number | null;
+  },
+): MessageSortant {
+  const photos = r.photosRefusees.map(
+    (p) => `\nLa photo du ${p.n} n'a pas pu être utilisée : ${causePhotoIndisponible(p.refus)}`,
+  );
+  const rates =
+    r.rates > 0
+      ? `\n${r.rates} article${r.rates > 1 ? "s" : ""} n'a pas pu être enregistré — renvoyez-le, rien d'autre n'est perdu.`
+      : "";
+  const pageWeb =
+    r.pageWebDansMinutes === null
+      ? ""
+      : `\nVotre page web se met à jour — elle portera ces articles d'ici ${r.pageWebDansMinutes} minutes.`;
+  const conges = r.enConges
+    ? "\n\n🌴 Rappel : votre boutique est en congés — elle ne prend aucune commande. Écrivez « je reprends » quand vous êtes prête."
+    : "";
+  return boutons(
+    vers,
+    `✅ *Publiés.* Votre boutique passe à ${r.totalArticles} articles.${photos.join("")}${rates}${pageWeb}${conges}`,
+    [
+      ...(r.enConges ? [{ id: "rouvrir", titre: "Je reprends" }] : []),
+      { id: "article", titre: "Autre article" },
+      ...(r.enConges ? [] : [{ id: "carte", titre: "Ma carte" }]),
     ],
   );
 }
@@ -617,6 +728,9 @@ function travailEnCours(etat: EtatVendeuse): string {
     case "article_photo":
     case "article_confirme":
       return `d'ajouter *${etat.nomArticle}*`;
+    case "rafale":
+    case "rafale_correction":
+      return `de publier ${etat.brouillons.length} articles`;
   }
 }
 
@@ -667,6 +781,13 @@ export function questionDeLEtat(etat: EtatVendeuse, vers: string): MessageSortan
       );
     case "article_confirme":
       return messageConfirmationLegende(vers, { nom: etat.nomArticle, prixXaf: etat.prixXaf });
+    case "rafale":
+      return carteRafale(vers, etat.brouillons);
+    case "rafale_correction":
+      return texte(
+        vers,
+        questionCorrectionRafale(etat.n, etat.brouillons[etat.n - 1] as BrouillonRafale),
+      );
     case "comptoir":
       if (etat.comptoir.pas === "recap") return boutonsRecapComptoir(etat.comptoir, vers);
       if (etat.comptoir.pas === "choix") return listeChoixCorrection(etat.comptoir, vers);
@@ -1026,23 +1147,41 @@ export function reagirInscription(
           ],
         };
       }
-      /* Une NOUVELLE photo legendee remplace la proposition en attente. */
-      if (entree.genre === "image" && entree.mediaId && entree.legende) {
-        const lu = lireLegendeArticle(entree.legende);
-        if (lu) {
-          return {
-            etat: {
-              nom: "article_confirme",
-              nomArticle: lu.nom,
-              prixXaf: lu.prixXaf,
-              mediaId: entree.mediaId,
-            },
-            messages: [
-              ...(entree.messageId ? [reaction(vers, entree.messageId, "👍")] : []),
-              messageConfirmationLegende(vers, lu, entree.messageId),
-            ],
-          };
+      /**
+       * Une DEUXIEME photo : la salve commence — ADR 0096. La proposition en
+       * attente devient le brouillon 1, la photo le brouillon 2, et plus
+       * rien ne part qu'un 👍 par photo : la carte recapitulative arrivera a
+       * la fermeture de la fenetre de regroupement, UNE fois. (Avant ce lot,
+       * la nouvelle photo REMPLACAIT la proposition — la premiere etait
+       * perdue en silence.)
+       */
+      if (entree.genre === "image" && entree.mediaId) {
+        const lu = entree.legende ? lireLegendeArticle(entree.legende) : null;
+        const premier: BrouillonRafale = {
+          nom: etat.nomArticle,
+          prixXaf: etat.prixXaf,
+          mediaId: etat.mediaId,
+        };
+        const ajout = ajouterBrouillon([premier], {
+          mediaId: entree.mediaId,
+          lu,
+          ...(entree.messageId ? { wamid: entree.messageId } : {}),
+        });
+        if (ajout.resultat !== "ajoute") {
+          return { etat, messages: [] };
         }
+        /* Avec un wamid, l'accuse est un 👍 — une reaction, pas une bulle :
+           la carte attend la fenetre. Sans wamid (rare), on ne peut pas
+           reagir : la carte part tout de suite, plutot qu'un silence. */
+        return entree.messageId
+          ? {
+              etat: { nom: "rafale", brouillons: ajout.brouillons },
+              messages: [reaction(vers, entree.messageId, "👍")],
+            }
+          : {
+              etat: { nom: "rafale", brouillons: ajout.brouillons, annonce: true },
+              messages: [carteRafale(vers, ajout.brouillons)],
+            };
       }
       return {
         etat,
@@ -1050,6 +1189,120 @@ export function reagirInscription(
           messageConfirmationLegende(vers, { nom: etat.nomArticle, prixXaf: etat.prixXaf }),
         ],
       };
+    }
+
+    case "rafale": {
+      /* Une photo de plus : elle s'accumule, un 👍 et rien d'autre — la
+         carte arrivera a la fermeture de la fenetre. */
+      if (entree.genre === "image" && entree.mediaId) {
+        const lu = entree.legende ? lireLegendeArticle(entree.legende) : null;
+        const ajout = ajouterBrouillon(etat.brouillons, {
+          mediaId: entree.mediaId,
+          lu,
+          ...(entree.messageId ? { wamid: entree.messageId } : {}),
+        });
+        if (ajout.resultat === "deja_vu") {
+          /* La relivraison Meta : deja la, silence (ADR 0040). */
+          return { etat, messages: [] };
+        }
+        if (ajout.resultat === "plein") {
+          return {
+            etat: { ...etat, annonce: true },
+            messages: [
+              texte(
+                vers,
+                "10 articles attendent déjà — publiez-les d'abord, puis renvoyez cette photo.",
+              ),
+              carteRafale(vers, etat.brouillons),
+            ],
+          };
+        }
+        /* Meme regle qu'a l'ouverture de la rafale : 👍 avec wamid, carte sans. */
+        return entree.messageId
+          ? {
+              etat: { nom: "rafale", brouillons: ajout.brouillons },
+              messages: [reaction(vers, entree.messageId, "👍")],
+            }
+          : {
+              etat: { nom: "rafale", brouillons: ajout.brouillons, annonce: true },
+              messages: [carteRafale(vers, ajout.brouillons)],
+            };
+      }
+
+      const idBouton = entree.genre === "bouton" ? (entree.id ?? "") : "";
+      const texteTape = entree.genre === "texte" ? (entree.texte ?? "") : "";
+
+      /* « corriger le 2 » — bouton ou texte : UN brouillon rouvert. */
+      const nCorrige = idBouton.startsWith("corriger:")
+        ? Number(idBouton.slice("corriger:".length))
+        : lireCorrectionRafale(texteTape);
+      if (nCorrige && nCorrige >= 1 && nCorrige <= etat.brouillons.length) {
+        return {
+          etat: { nom: "rafale_correction", n: nCorrige, brouillons: etat.brouillons },
+          messages: [
+            texte(
+              vers,
+              questionCorrectionRafale(nCorrige, etat.brouillons[nCorrige - 1] as BrouillonRafale),
+            ),
+          ],
+        };
+      }
+
+      if (idBouton === "tout_publier" || demandeToutPublier(texteTape)) {
+        const incomplets = brouillonsIncomplets(etat.brouillons);
+        if (incomplets.length > 0) {
+          /* On n'invente pas un nom (§7.7) : rien ne part tant qu'un
+             brouillon n'en a pas. Le numero a corriger est NOMME. */
+          return {
+            etat: { ...etat, annonce: true },
+            messages: [carteRafale(vers, etat.brouillons)],
+          };
+        }
+        return {
+          etat: null,
+          messages: [],
+          effet: {
+            type: "publier_rafale",
+            brouillons: etat.brouillons.map((b) => ({
+              nom: b.nom as string,
+              prixXaf: b.prixXaf as number,
+              mediaId: b.mediaId,
+            })),
+          },
+        };
+      }
+
+      /* Tout le reste — le « Publier » perime de la carte unitaire compris :
+         la carte recapitulative se (re)montre, rien ne se decide a sa place. */
+      return { etat: { ...etat, annonce: true }, messages: [carteRafale(vers, etat.brouillons)] };
+    }
+
+    case "rafale_correction": {
+      const courant = etat.brouillons[etat.n - 1] as BrouillonRafale;
+      const corrige = (b: BrouillonRafale): ReactionVendeuse => {
+        const brouillons = etat.brouillons.map((x, i) => (i === etat.n - 1 ? b : x));
+        return {
+          etat: { nom: "rafale", brouillons, annonce: true },
+          messages: [carteRafale(vers, brouillons)],
+        };
+      };
+      /* Une photo legendee remplace AUSSI l'image du brouillon. */
+      if (entree.genre === "image" && entree.mediaId) {
+        const lu = entree.legende ? lireLegendeArticle(entree.legende) : null;
+        return corrige({
+          nom: lu?.nom ?? courant.nom,
+          prixXaf: lu?.prixXaf ?? courant.prixXaf,
+          mediaId: entree.mediaId,
+          ...(entree.messageId ? { wamid: entree.messageId } : {}),
+        });
+      }
+      if (entree.genre === "texte" && entree.texte) {
+        /* Le MEME motif que la legende (ADR 0035) : le prix est le dernier
+           groupe de chiffres, le nom est le reste. On ne le reecrit pas. */
+        const lu = lireLegendeArticle(entree.texte);
+        if (lu) return corrige({ ...courant, nom: lu.nom, prixXaf: lu.prixXaf });
+      }
+      return { etat, messages: [texte(vers, questionCorrectionRafale(etat.n, courant))] };
     }
   }
 }

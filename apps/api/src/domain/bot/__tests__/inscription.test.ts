@@ -372,7 +372,10 @@ describe("la photo legendee (ADR 0035)", () => {
     expect(corrige.effet).toBeUndefined();
   });
 
-  it("une nouvelle photo legendee REMPLACE la proposition en attente", () => {
+  it("une nouvelle photo legendee OUVRE la rafale — plus rien ne se remplace en silence (ADR 0096)", () => {
+    /* Avant le lot P1, la seconde photo ECRASAIT la proposition en attente :
+       la premiere etait perdue sans un mot. Les deux vivent desormais en
+       brouillons, et une seule carte confirmera tout. */
     const attente: EtatVendeuse = {
       nom: "article_confirme",
       nomArticle: "Pagne wax",
@@ -384,11 +387,12 @@ describe("la photo legendee (ADR 0035)", () => {
       { genre: "image", mediaId: "m-2", legende: "Sac raphia 8000" },
       VERS,
     );
-    expect(r.etat).toEqual({
-      nom: "article_confirme",
-      nomArticle: "Sac raphia",
-      prixXaf: 8000,
-      mediaId: "m-2",
+    expect(r.etat).toMatchObject({
+      nom: "rafale",
+      brouillons: [
+        { nom: "Pagne wax", prixXaf: 15000, mediaId: "m-1" },
+        { nom: "Sac raphia", prixXaf: 8000, mediaId: "m-2" },
+      ],
     });
   });
 

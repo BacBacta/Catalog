@@ -3,7 +3,9 @@ import type { PrismaClient } from "@catalog/db";
 import { type Job, PgBoss } from "pg-boss";
 import { notifier } from "../bot-notifications.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
+import { normaliserEtatVendeuse } from "../domain/bot/inscription.ts";
 import { texte } from "../domain/bot/messages.ts";
+import { carteRafale, FENETRE_RAFALE_MS } from "../domain/bot/rafale.ts";
 import {
   decisionRelance,
   decisionRelanceReversement,
@@ -32,6 +34,8 @@ export const FILE_RELANCE = "bot-relance-acompte";
 export const FILE_RELANCE_REVERSEMENT = "bot-relance-reversement";
 /** L'expiration d'une commande a acompte impaye — ADR 0090. */
 export const FILE_EXPIRATION = "bot-expiration-commande";
+/** La carte recapitulative de la rafale, a la fermeture de la fenetre — ADR 0096. */
+export const FILE_RAFALE = "bot-rafale-recap";
 
 export interface ChargeRelance {
   commandeId: string;
@@ -68,12 +72,22 @@ export interface JobsBot {
   planifierRelance: (charge: ChargeRelance) => Promise<void>;
   planifierRelanceReversement: (charge: ChargeRelanceReversement) => Promise<void>;
   planifierExpiration: (charge: ChargeExpiration) => Promise<void>;
+  planifierRafale: (charge: ChargeRafale) => Promise<void>;
   arreter: () => Promise<void>;
 }
 
 /** L'expiration ne porte que l'identifiant : tout le reste se relit frais. */
 export interface ChargeExpiration {
   commandeId: string;
+}
+
+/**
+ * La rafale — ADR 0096. `phone` est la cle de conversation (normalisee),
+ * `vers` l'adresse WhatsApp d'envoi telle que Meta l'a donnee.
+ */
+export interface ChargeRafale {
+  phone: string;
+  vers: string;
 }
 
 export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
@@ -107,6 +121,12 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
     }
   });
 
+  await boss.work<ChargeRafale>(FILE_RAFALE, async (jobs: Job<ChargeRafale>[]) => {
+    for (const job of jobs) {
+      await executerRecapRafale(deps, job.data);
+    }
+  });
+
   return {
     planifierRelance: async (charge) => {
       await boss.sendAfter(FILE_RELANCE, charge, null, RELANCE_APRES_S);
@@ -119,8 +139,43 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
          reel : un acompte arrive entre-temps vaut silence (ADR 0090). */
       await boss.sendAfter(FILE_EXPIRATION, charge, null, FENETRE_EXPIRATION_MS / 1000);
     },
+    planifierRafale: async (charge) => {
+      /* Chaque photo REPLANIFIE : le travail qui se reveille trop tot voit
+         un etat plus frais que la fenetre et se tait — le suivant parlera. */
+      await boss.sendAfter(FILE_RAFALE, charge, null, FENETRE_RAFALE_MS / 1000);
+    },
     arreter: () => boss.stop(),
   };
+}
+
+/**
+ * La carte recapitulative de la rafale — ADR 0096. Le travail est DEBORDE
+ * par conception : chaque photo en planifie un, et seul celui qui trouve la
+ * fenetre echue ET la carte non envoyee parle. Tout se decide sur l'etat
+ * RELU, jamais sur la charge.
+ */
+export async function executerRecapRafale(deps: RelanceDeps, charge: ChargeRafale): Promise<void> {
+  const enregistrement = await deps.prisma.botConversation.findUnique({
+    where: { phone: charge.phone },
+    select: { etat: true, updatedAt: true },
+  });
+  if (!enregistrement) return;
+  const etat = normaliserEtatVendeuse(enregistrement.etat);
+  if (etat?.nom !== "rafale" || etat.annonce) return;
+  const maintenant = deps.maintenant?.() ?? new Date();
+  /* Une photo plus recente a replanifie : ce reveil-ci est perime. La marge
+     de 2 s absorbe la latence de la file, pas plus. */
+  if (maintenant.getTime() - enregistrement.updatedAt.getTime() < FENETRE_RAFALE_MS - 2000) {
+    return;
+  }
+  /* `annonce` se pose AVANT l'envoi : deux travaux qui se reveilleraient
+     ensemble prefereront une carte perdue a une carte en double — le meme
+     compromis que l'ADR 0040. */
+  await deps.prisma.botConversation.update({
+    where: { phone: charge.phone },
+    data: { etat: { ...etat, annonce: true } as unknown as object },
+  });
+  await deps.envoyeur.envoyer(carteRafale(charge.vers, etat.brouillons));
 }
 
 /**

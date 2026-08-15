@@ -1,4 +1,4 @@
 acheteuse : 63/63 (100 %)
-inscription : 49/49 (100 %)
+inscription : 63/63 (100 %)
 vendeuse : 6/7 (86 %)
   non exercées : (repos)×image

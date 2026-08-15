@@ -384,6 +384,10 @@ export const ETATS_MACHINE: Record<PasJoue["machine"], readonly string[]> = {
     "article_photo",
     "article_confirme",
     "comptoir",
+    /* La rafale — ADR 0096 : un service neuf entre dans la matrice des son
+       lot (regle de l'ADR 0095). */
+    "rafale",
+    "rafale_correction",
   ],
   /* Le fil vendeuse est sans état : une seule ligne, le repos. */
   vendeuse: ["(repos)"],

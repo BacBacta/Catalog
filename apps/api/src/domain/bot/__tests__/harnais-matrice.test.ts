@@ -164,6 +164,20 @@ function amenerInscription(etat: string): Pilote {
       p.jouer({ genre: "texte", texte: "vendu" });
       return p;
     }
+    case "rafale": {
+      /* Deux photos legendees : la salve est ouverte (ADR 0096). */
+      const p = new Pilote(installee);
+      p.jouer({ genre: "image", mediaId: "m-1", legende: "Pagne wax 6 yards 15 000" });
+      p.jouer({ genre: "image", mediaId: "m-2", legende: "Huile de palme 5 L 4 500" });
+      return p;
+    }
+    case "rafale_correction": {
+      const p = new Pilote(installee);
+      p.jouer({ genre: "image", mediaId: "m-1", legende: "Pagne wax 6 yards 15 000" });
+      p.jouer({ genre: "image", mediaId: "m-2", legende: "Huile de palme 5 L 4 500" });
+      p.jouer({ genre: "texte", texte: "corriger le 2" });
+      return p;
+    }
     default:
       return new Pilote(installee);
   }

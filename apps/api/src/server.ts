@@ -25,6 +25,7 @@ import { limitesDepuisEnv } from "./domain/rate-limit.ts";
 import { reglesDepuisEnv } from "./domain/securite/debit.ts";
 import {
   type ChargeExpiration,
+  type ChargeRafale,
   type ChargeRelance,
   type ChargeRelanceReversement,
   demarrerJobsBot,
@@ -326,10 +327,12 @@ if (secretEntrant && secretAppMeta) {
           planifierRelance?: (c: ChargeRelance) => Promise<void>;
           planifierRelanceReversement?: (c: ChargeRelanceReversement) => Promise<void>;
           planifierExpiration?: (c: ChargeExpiration) => Promise<void>;
+          planifierRafale?: (c: ChargeRafale) => Promise<void>;
         };
         cible.planifierRelance = jobs.planifierRelance;
         cible.planifierRelanceReversement = jobs.planifierRelanceReversement;
         cible.planifierExpiration = jobs.planifierExpiration;
+        cible.planifierRafale = jobs.planifierRafale;
         arreterProprement.push(() => jobs.arreter());
       })
       .catch(() => console.warn("jobs bot : demarrage refuse — le bot continue sans relance"));

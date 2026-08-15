@@ -89,6 +89,7 @@ export const BLOCS = {
   "traces-sans-sms": 22,
   "bot-preuve-fil": 23,
   "expiration-commande": 24,
+  "bot-rafale": 25,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

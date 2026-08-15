@@ -199,8 +199,8 @@ inscription/article_confirme × texte sans accents → répond
 inscription/article_confirme × anglais → répond
 inscription/article_confirme × bouton périmé → effet seul · effet creer_article · état→(repos)
 inscription/article_confirme × ligne de liste périmée → répond
-inscription/article_confirme × photo sans légende → répond
-inscription/article_confirme × photo légendée → répond
+inscription/article_confirme × photo sans légende → répond · état→rafale
+inscription/article_confirme × photo légendée → répond · état→rafale
 inscription/article_confirme × vocal → répond
 inscription/article_confirme × sticker → répond
 inscription/article_confirme × localisation → répond
@@ -222,6 +222,34 @@ inscription/comptoir × réponse de Flow valide → répond
 inscription/comptoir × Flow tronqué → répond
 inscription/comptoir × mot-clé menu → répond · état→(repos)
 inscription/comptoir × mot-clé annuler → répond · état→(repos)
+inscription/rafale × texte hors-sujet → répond
+inscription/rafale × texte sans accents → répond
+inscription/rafale × anglais → répond
+inscription/rafale × bouton périmé → répond
+inscription/rafale × ligne de liste périmée → répond
+inscription/rafale × photo sans légende → répond
+inscription/rafale × photo légendée → répond
+inscription/rafale × vocal → répond
+inscription/rafale × sticker → répond
+inscription/rafale × localisation → répond
+inscription/rafale × réponse de Flow valide → répond
+inscription/rafale × Flow tronqué → répond
+inscription/rafale × mot-clé menu → répond · état→(repos)
+inscription/rafale × mot-clé annuler → répond · état→(repos)
+inscription/rafale_correction × texte hors-sujet → répond
+inscription/rafale_correction × texte sans accents → répond
+inscription/rafale_correction × anglais → répond
+inscription/rafale_correction × bouton périmé → répond
+inscription/rafale_correction × ligne de liste périmée → répond
+inscription/rafale_correction × photo sans légende → répond · état→rafale
+inscription/rafale_correction × photo légendée → répond · état→rafale
+inscription/rafale_correction × vocal → répond
+inscription/rafale_correction × sticker → répond
+inscription/rafale_correction × localisation → répond
+inscription/rafale_correction × réponse de Flow valide → répond
+inscription/rafale_correction × Flow tronqué → répond
+inscription/rafale_correction × mot-clé menu → répond · état→(repos)
+inscription/rafale_correction × mot-clé annuler → répond · état→(repos)
 vendeuse/(repos) × texte hors-sujet → répond/agit
 vendeuse/(repos) × texte sans accents → répond/agit
 vendeuse/(repos) × anglais → répond/agit

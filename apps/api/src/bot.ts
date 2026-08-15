@@ -72,6 +72,7 @@ import {
   messageArticlePublie,
   messageBoutiqueCreee,
   messageOnboarding,
+  messageRafalePubliee,
   normaliserEtatVendeuse,
   PREMIERE_QUESTION,
   questionDeLEtat,
@@ -180,6 +181,13 @@ export interface BotDeps {
    * l'expiration... elle la promet ; c'est ce que ce branchement repare.
    */
   planifierExpiration?: (charge: ChargeExpiration) => Promise<void>;
+  /**
+   * La carte recapitulative de la RAFALE, a la fermeture de la fenetre de
+   * regroupement (ADR 0096). Absente : la carte ne part pas d'elle-meme —
+   * le premier geste de la vendeuse (bouton perime, texte) la fait surgir,
+   * le parcours reste entier.
+   */
+  planifierRafale?: (charge: { phone: string; vers: string }) => Promise<void>;
   /**
    * La configuration de la rampe (lot 9) : le bloc paiement du fil en lit le
    * nom d'operateur et le code d'entree — jamais une constante (AGENTS.md).
@@ -854,6 +862,13 @@ async function filInscription(
     etatSuivant = ETAT_INITIAL;
   }
 
+  if (reaction.effet?.type === "publier_rafale" && sellerId) {
+    /* La salve confirmee — ADR 0096 : chaque brouillon passe par le MEME
+       chemin que l'article unitaire, la carte de retour est UNE. */
+    messages.push(...(await publierRafale(deps, sellerId, entree.de, reaction.effet.brouillons)));
+    etatSuivant = ETAT_INITIAL;
+  }
+
   /* L'ENTREE dans « nom de l'article » — d'ou qu'elle vienne : bouton
      « Premier article », « ajouter », « corriger » au recapitulatif. Le
      formulaire s'insere AVANT les messages de la machine : la question de la
@@ -878,7 +893,89 @@ async function filInscription(
     );
   }
   await poserEtat(deps, phone, etatSuivant);
+  /**
+   * La rafale vient de grossir : la carte recapitulative se (re)planifie a
+   * la fermeture de la fenetre — chaque photo REPLANIFIE, et le travail qui
+   * se reveille verifie sur l'etat reel que la fenetre est bien echue
+   * (ADR 0096, meme patron de reprise que la relance).
+   */
+  if (
+    typeof etatSuivant === "object" &&
+    etatSuivant.nom === "rafale" &&
+    !etatSuivant.annonce &&
+    deps.planifierRafale
+  ) {
+    await deps
+      .planifierRafale({ phone, vers: entree.de })
+      .catch(() => console.warn("bot : recap de rafale non planifie (details retenus)"));
+  }
   await envoyerSequence(deps, messages);
+}
+
+/**
+ * La publication d'une SALVE — ADR 0096. Chaque brouillon entre par
+ * `creerArticleDepuisFil` (re-encodage, compteurs media, cause de photo —
+ * ADR 0092) ; la reconstruction de la boutique est demandee UNE fois, la
+ * carte de retour est UNE. Le mode d'emploi du premier article part comme
+ * pour l'article unitaire : c'est l'instant ou la boutique devient reelle.
+ */
+async function publierRafale(
+  deps: BotDeps,
+  sellerId: string,
+  vers: string,
+  brouillons: ReadonlyArray<{ nom: string; prixXaf: number; mediaId: string }>,
+): Promise<MessageSortant[]> {
+  const avant = await deps.prisma.product.count({ where: { sellerId, archivedAt: null } });
+  let publies = 0;
+  let rates = 0;
+  const photosRefusees: Array<{ n: number; refus: PhotoIndisponible }> = [];
+  for (const [i, b] of brouillons.entries()) {
+    const article = await creerArticleDepuisFil(deps, sellerId, b);
+    if (!article) {
+      rates += 1;
+      continue;
+    }
+    publies += 1;
+    if (article.photoRefus) photosRefusees.push({ n: i + 1, refus: article.photoRefus });
+  }
+
+  const enConges =
+    (
+      await deps.prisma.seller.findUnique({
+        where: { id: sellerId },
+        select: { congesDepuis: true },
+      })
+    )?.congesDepuis != null;
+  const pageWebDansMinutes =
+    publies > 0 && (await deps.reconstruction?.demander("article_publie"))
+      ? ATTENTE_ANNONCEE_MIN
+      : null;
+
+  const messages: MessageSortant[] = [
+    messageRafalePubliee(vers, {
+      publies,
+      totalArticles: avant + publies,
+      photosRefusees,
+      rates,
+      enConges,
+      pageWebDansMinutes,
+    }),
+  ];
+  /* Le mode d'emploi au PREMIER article (tache #62) — la salve qui fait
+     naitre le catalogue le merite autant que l'article unitaire. */
+  if (avant === 0 && publies > 0) {
+    const profil = await deps.prisma.seller.findUnique({
+      where: { id: sellerId },
+      select: { slug: true },
+    });
+    messages.push(
+      messageOnboarding(vers, {
+        lienBoutique: profil && deps.baseBoutique ? `${deps.baseBoutique}/${profil.slug}` : null,
+        lienEspace: deps.baseApp ?? null,
+      }),
+    );
+  }
+  return messages;
 }
 
 /**
