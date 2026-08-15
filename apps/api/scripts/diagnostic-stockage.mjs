@@ -94,22 +94,69 @@ const bref = (e) => {
   return [e?.name, e?.Code, http ? `HTTP ${http}` : null].filter(Boolean).join(" · ") || "inconnu";
 };
 
-console.log("── Ce que le bucket contient, vu par l'application ──────");
+/**
+ * Le listage se fait PAR PREFIXE, et c'est une lecon du 15/08/2026 au soir.
+ *
+ * Un premier listage sans prefixe, borne a vingt cles, n'a montre que des
+ * `carte/` : S3 rend les cles en ordre alphabetique, et `carte/` precede
+ * `img/`. On pouvait en conclure « le bucket ne contient que des cartes »,
+ * ce qui aurait ete faux. Les deux familles se comptent donc separement :
+ *
+ *   img/    les photos d'articles — celles de la boutique publique ;
+ *   carte/  les cartes-vitrines — engendrees par nous, jamais recues.
+ *
+ * La distinction porte le diagnostic : des cartes SANS photos veut dire que
+ * le pipeline d'images fonctionne (meme `reencoderImage`, meme `put`) et que
+ * seule la RECEPTION de la photo echoue.
+ */
+console.log("── Ce que le bucket contient, par famille de cles ───────");
 let listageOk = false;
-try {
-  const r = await client.send(new ListObjectsV2Command({ Bucket: bucket, MaxKeys: 20 }));
-  listageOk = true;
-  const n = r.KeyCount ?? 0;
-  console.log(`  objets listes : ${n}${r.IsTruncated ? " (tronque a 20)" : ""}`);
-  for (const o of r.Contents ?? []) {
-    console.log(`    ${o.Key}  ${o.Size} octets  ${o.LastModified?.toISOString() ?? ""}`);
+for (const prefixe of ["img/", "carte/", "diagnostic/"]) {
+  try {
+    const r = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket, Prefix: prefixe, MaxKeys: 1000 }),
+    );
+    listageOk = true;
+    const objets = r.Contents ?? [];
+    /* Les trois declinaisons d'une image partagent leur cle de base. */
+    const bases = new Set(objets.map((o) => (o.Key ?? "").replace(/\.(avif|webp|jpg)$/, "")));
+    console.log(
+      `  ${prefixe.padEnd(12)} ${objets.length} objet(s), ${bases.size} image(s) distincte(s)` +
+        (r.IsTruncated ? " (tronque)" : ""),
+    );
+    /* Les cinq plus recents : c'est la fraicheur qui renseigne, pas le rang
+       alphabetique — une ecriture de ce soir ne se voit pas autrement. */
+    const recents = objets
+      .filter((o) => o.LastModified)
+      .sort((a, b) => b.LastModified.getTime() - a.LastModified.getTime())
+      .slice(0, 5);
+    for (const o of recents) {
+      console.log(`      ${o.Key}  ${o.Size} o  ${o.LastModified.toISOString()}`);
+    }
+  } catch (e) {
+    console.log(`  ${prefixe.padEnd(12)} ECHEC du listage : ${bref(e)}`);
   }
-  if (n === 0) {
-    console.log("    (aucun objet — le bucket que l'application vise est VIDE)");
+}
+
+/**
+ * Une cle precise, passee en argument : celle qu'une page de boutique ou une
+ * ligne de base designe. C'est le seul moyen de repondre a « cet article-la
+ * a-t-il vraiment son objet ? » — `taille()` du service, lui, confond
+ * l'absence et le refus de droits.
+ */
+const cleVisee = process.argv[2];
+if (cleVisee) {
+  console.log("");
+  console.log(`── La cle demandee : ${cleVisee} ────────`);
+  for (const ext of ["avif", "webp", "jpg"]) {
+    const k = `${cleVisee}.${ext}`;
+    try {
+      const r = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: k }));
+      console.log(`  ${ext.padEnd(5)} PRESENT — ${r.ContentLength} octets`);
+    } catch (e) {
+      console.log(`  ${ext.padEnd(5)} ABSENT ou refuse — ${bref(e)}`);
+    }
   }
-} catch (e) {
-  console.log(`  ECHEC du listage : ${bref(e)}`);
-  console.log("  Note : un listage refuse n'est pas une preuve de bucket vide.");
 }
 
 console.log("");

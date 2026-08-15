@@ -19,6 +19,18 @@ on:
         type: choice
         options: ["--voir", "--vraiment"]
         default: "--voir"
+      # `sonde-stockage` SEULEMENT : une cle de base d'image a verifier, telle
+      # qu'une page de boutique ou une ligne de base la designe — sans son
+      # extension, la sonde essaie les trois declinaisons. Facultative : sans
+      # elle, la sonde se contente de compter par famille de cles.
+      #
+      # Le filtre du pas ne laisse passer que la forme d'une cle opaque : elle
+      # finit dans une ligne de commande distante, et c'est le seul champ libre
+      # de ce workflow.
+      cle:
+        description: "sonde-stockage seulement : cle de base, ex. img/99/996ba599964739ab463a34baa5cafc54"
+        required: false
+        type: string
 
 concurrency:
   group: operations-preprod
@@ -118,6 +130,18 @@ jobs:
       # Elle n'imprime ni cle d'acces, ni secret, ni contenu d'objet.
       - name: Sonde du stockage d'objets
         if: inputs.quoi == 'sonde-stockage'
-        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/diagnostic-stockage.mjs"
+        # CLE passe par l'environnement et non par interpolation : c'est le
+        # seul champ libre de ce workflow, et il finit dans une ligne de
+        # commande distante. Le filtre ne garde que la forme d'une cle opaque
+        # — meme regle que le numero de `mesurer-cta` dans depots-meta.yml.
+        run: |
+          if [ -n "$CLE" ] && printf '%s' "$CLE" | grep -qv '^\(img\|carte\)/[0-9a-f]\{2\}/[0-9a-f]\{32\}$'; then
+            echo "La cle doit avoir la forme « img/ab/<32 chiffres hexadecimaux> »."
+            echo "Recue : une valeur qui n'en a pas la forme — rien n'est execute."
+            exit 1
+          fi
+          flyctl ssh console --app catalog-api-preprod \
+            -C "node apps/api/scripts/diagnostic-stockage.mjs $CLE"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          CLE: ${{ inputs.cle }}
