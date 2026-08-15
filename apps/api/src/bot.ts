@@ -1852,6 +1852,27 @@ async function creerArticleDepuisFil(
          comptee dans l'adaptateur ; ici on retient la cause pour le fil. */
       photoRefus = "introuvable";
     }
+    /**
+     * La cause se LIT aussi dans `fly logs` — ADR 0103.
+     *
+     * `mesurerMediaBot` ne part que vers OpenTelemetry, et sans
+     * `OTEL_EXPORTER_OTLP_ENDPOINT` le compteur est un appel sans effet : la
+     * preproduction n'a donc AUCUNE trace de la cause. Le 15/08/2026, une
+     * photo perdue n'etait observable nulle part — ni pour la vendeuse (le
+     * defaut de l'ADR 0102), ni pour nous.
+     *
+     * Ce qui sort ici est la CAUSE et le transport, rien d'autre : jamais
+     * d'octets, jamais d'URL de CDN (elle porte les cles de dechiffrement),
+     * jamais un identifiant de media. Meme regime que les traces — une liste
+     * fermee de ce qui sort (ADR 0023).
+     */
+    if (photoRefus) {
+      console.warn(
+        `bot : photo non enregistree (cause ${photoRefus}, transport ${
+          demande.mediaId ? "media_id" : "cdn_chiffre"
+        })`,
+      );
+    }
   }
 
   const dernier = await deps.prisma.product.aggregate({

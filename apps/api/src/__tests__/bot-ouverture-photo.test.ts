@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { createPrismaClient, type PrismaClient } from "@catalog/db";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { type BotDeps, traiterLivraisonBot } from "../bot.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
 import { jetonFlux } from "../domain/bot/flux.ts";
@@ -133,6 +133,14 @@ describeDb("la photo du formulaire d'ouverture (ADR 0102)", () => {
     const s = scene();
     await jusquAuFormulaire(s);
 
+    /* La cause doit AUSSI se lire dans `fly logs` — ADR 0103. Sans
+       collecteur OpenTelemetry, `mesurerMediaBot` est un appel sans effet :
+       le journal est la seule trace qui existe en preproduction. */
+    const lignes: string[] = [];
+    const espion = vi.spyOn(console, "warn").mockImplementation((...a: unknown[]) => {
+      lignes.push(a.map(String).join(" "));
+    });
+
     await traiterLivraisonBot(
       s.deps,
       reponseFlux(s.waId, {
@@ -147,6 +155,13 @@ describeDb("la photo du formulaire d'ouverture (ADR 0102)", () => {
         photo: [{ id: "media-inexistant-0102" }],
       }),
     );
+    espion.mockRestore();
+
+    /* La cause et le transport, et RIEN d'autre : ni octets, ni identifiant
+       de media, ni URL de CDN — celle-ci porte les cles de dechiffrement. */
+    expect(lignes.some((l) => l.includes("photo non enregistree"))).toBe(true);
+    expect(lignes.some((l) => l.includes("cause introuvable"))).toBe(true);
+    expect(lignes.every((l) => !l.includes("media-inexistant-0102"))).toBe(true);
 
     const tout = s.envoyeur.envoyes.map(corps).join("\n");
     /* La cause, avec les MEMES mots que le chemin normal. */
