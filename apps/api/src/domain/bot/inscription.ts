@@ -3,6 +3,7 @@ import { villeAcceptable } from "@catalog/contracts/villes";
 import { MESSAGE_REFUS_IMAGE, type PhotoIndisponible } from "../image.ts";
 import {
   avancerComptoir,
+  demandeComptoir,
   type EtatComptoir,
   normaliserEtatComptoir,
   phraseRefusComptoir,
@@ -254,6 +255,28 @@ export function demandeConges(texteBrut: string): boolean | null {
 export function demandeCarteVitrine(texteBrut: string): boolean {
   const net = sansAccents(texteBrut.trim().toLowerCase());
   return /^(?:ma carte|carte|ma vitrine|vitrine|affiche)$/.test(net);
+}
+
+/**
+ * Un mot que le MODE D'EMPLOI enseigne — constat C-01 de l'audit 2026-08.
+ *
+ * « vendu », « ajouter », « ma boutique », « ma carte »… sont annonces par
+ * l'aide comme des commandes. Tape DANS le formulaire d'article, « vendu »
+ * devenait le nom de l'article — la famille du « Hi » de l'ADR 0048 : le
+ * texte capture par un etat qui n'aurait pas du le lire. On ne devine pas
+ * l'intention (§7.7) : on DIT que ce mot est une commande, et on repose la
+ * question.
+ */
+export function motDuModeDemploi(texteBrut: string): boolean {
+  return (
+    demandeAjoutArticle(texteBrut) ||
+    demandeComptoir(texteBrut) ||
+    demandeEspaceVendeuse(texteBrut) ||
+    demandeInscription(texteBrut) !== null ||
+    demandeSoldes(texteBrut) ||
+    demandeCarteVitrine(texteBrut) ||
+    demandeConges(texteBrut) !== null
+  );
 }
 
 /**
@@ -642,10 +665,28 @@ export function questionDeLEtat(etat: EtatVendeuse, vers: string): MessageSortan
     case "article_confirme":
       return messageConfirmationLegende(vers, { nom: etat.nomArticle, prixXaf: etat.prixXaf });
     case "comptoir":
-      return etat.comptoir.pas === "recap"
-        ? boutonsRecapComptoir(etat.comptoir, vers)
-        : texte(vers, `${questionComptoir(etat.comptoir)}${SORTIE_DE_SECOURS}`);
+      if (etat.comptoir.pas === "recap") return boutonsRecapComptoir(etat.comptoir, vers);
+      if (etat.comptoir.pas === "choix") return listeChoixCorrection(etat.comptoir, vers);
+      return texte(vers, `${questionComptoir(etat.comptoir)}${SORTIE_DE_SECOURS}`);
   }
+}
+
+/**
+ * Le choix du fait a corriger — constat C-04. Une LISTE, pas des boutons :
+ * quatre faits ne tiennent pas en trois boutons, et chaque ligne montre la
+ * valeur actuelle pour que la vendeuse reconnaisse ce qui est faux.
+ */
+function listeChoixCorrection(
+  etat: Extract<EtatComptoir, { pas: "choix" }>,
+  vers: string,
+): MessageSortant {
+  return liste(vers, "Que faut-il corriger ? Le reste ne se retape pas.", "Choisir", [
+    { id: "corr:article", titre: "L'article", description: etat.article },
+    { id: "corr:prix", titre: "Le prix", description: formatXaf(etat.prixXaf) },
+    { id: "corr:cliente", titre: "Le numéro", description: etat.cliente },
+    { id: "corr:remise", titre: "La remise", description: etat.remise },
+    { id: "retour", titre: "Rien — retour", description: "Revoir le récapitulatif" },
+  ]);
 }
 
 /** Le recapitulatif du comptoir, avec ses trois boutons — jamais de creation muette. */
@@ -863,6 +904,25 @@ export function reagirInscription(
         }
       }
       const nom = entree.genre === "texte" ? (entree.texte ?? "").trim() : "";
+      /**
+       * Un mot du MODE D'EMPLOI ne devient jamais un nom d'article — constat
+       * C-01. « vendu » tape ici ouvrait un article nomme « vendu » : la
+       * vendeuse suivait l'aide a la lettre, et le formulaire la trahissait.
+       * On le DIT (§7.7) et on repose la question — « annuler » reste la
+       * sortie pour utiliser le mot pour de bon.
+       */
+      if (nom && motDuModeDemploi(nom)) {
+        return {
+          etat,
+          messages: [
+            texte(
+              vers,
+              `« ${nom} » est un mot du menu, pas un nom d'article. Pour l'utiliser, écrivez d'abord « annuler ».`,
+            ),
+            questionDeLEtat(etat, vers),
+          ],
+        };
+      }
       if (nom.length < NOM_MIN || nom.length > NOM_MAX) {
         return {
           etat,

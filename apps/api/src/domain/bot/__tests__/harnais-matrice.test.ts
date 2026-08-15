@@ -287,7 +287,7 @@ describe("la matrice étape × geste, exercée cellule par cellule", () => {
 });
 
 describe("les pièges, reproduits en exécution (constats de l'audit)", () => {
-  it("C-01 · « ajouter » à froid reçoit la QUESTION (bot.ts:614) — mais retapé DANS le formulaire, il devient le nom", () => {
+  it("C-01 · les mots du mode d'emploi ne deviennent JAMAIS un nom d'article (non-retour)", () => {
     const p = new Pilote({
       estVendeuse: true,
       vendeuse: { commandesOuvertes: [], soldesXaf: 0, boutique: null },
@@ -299,12 +299,16 @@ describe("les pièges, reproduits en exécution (constats de l'audit)", () => {
     const froid = p.jouer({ genre: "texte", texte: "ajouter" });
     expect(p.etatVendeuse()?.nom).toBe("article_nom");
     expect(JSON.stringify(froid.messages)).toContain("nom de l'article");
-    /* DANS le formulaire, en revanche, les mots du mode d'emploi ne sont pas
-       filtrés : « vendu » (annoncé par le mode d'emploi) devient le nom.
-       C'est le résidu CONFIRMÉ de D6 — famille ADR 0048 « Hi ». */
+    /* DANS le formulaire : avant le correctif, « vendu » (annoncé par le mode
+       d'emploi) devenait le nom de l'article — famille ADR 0048 « Hi ».
+       Désormais le mot est NOMMÉ comme commande et la question se repose. */
     const dedans = p.jouer({ genre: "texte", texte: "vendu" });
-    expect(p.etatVendeuse()).toMatchObject({ nom: "article_prix", nomArticle: "vendu" });
-    expect(JSON.stringify(dedans.messages)).toContain("son prix");
+    expect(p.etatVendeuse()?.nom).toBe("article_nom");
+    expect(JSON.stringify(dedans.messages)).toContain("mot du menu");
+    expect(JSON.stringify(dedans.messages)).toContain("nom de l'article");
+    /* Un vrai nom, lui, passe toujours. */
+    p.jouer({ genre: "texte", texte: "Pagne wax" });
+    expect(p.etatVendeuse()).toMatchObject({ nom: "article_prix", nomArticle: "Pagne wax" });
   });
 
   it("C-02 · dans avis_mot, « menu » et « annuler » ne deviennent PAS le commentaire (non-retour D7)", () => {
@@ -342,17 +346,33 @@ describe("les pièges, reproduits en exécution (constats de l'audit)", () => {
     expect(pas.messages.length).toBeGreaterThan(0);
   });
 
-  it("C-04 · au comptoir, « corriger » au récap PERD les quatre faits", () => {
+  it("C-04 · au comptoir, « corriger » au récap GARDE les quatre faits (non-retour)", () => {
     const p = amenerInscription("comptoir");
     p.jouer({ genre: "texte", texte: "Robe wax négociée" });
     p.jouer({ genre: "texte", texte: "12000" });
     p.jouer({ genre: "texte", texte: "690112233" });
     p.jouer({ genre: "texte", texte: "Marché Sandaga, entrée B" });
     p.jouer({ genre: "texte", texte: "corriger" });
-    /* COMPORTEMENT OBSERVÉ : retour à COMPTOIR_DEPART — article, prix,
-       cliente, remise, tout est à retaper (défaut corrigé côté acheteuse par
-       l'ADR 0053, subsistant ici). */
-    expect(p.etatVendeuse()).toMatchObject({ nom: "comptoir", comptoir: { pas: "article" } });
+    /* Avant le correctif : retour à COMPTOIR_DEPART — article, prix, cliente,
+       remise, tout était à retaper (défaut corrigé côté acheteuse par
+       l'ADR 0053, subsistant ici). Les quatre faits VOYAGENT désormais. */
+    expect(p.etatVendeuse()).toMatchObject({
+      nom: "comptoir",
+      comptoir: { pas: "choix", article: "Robe wax négociée", prixXaf: 12000 },
+    });
+    /* On corrige LE prix, le reste ne se retape pas, et le récap se re-montre. */
+    p.jouer({ genre: "texte", texte: "prix" });
+    const recap = p.jouer({ genre: "texte", texte: "11000" });
+    expect(p.etatVendeuse()).toMatchObject({
+      nom: "comptoir",
+      comptoir: {
+        pas: "recap",
+        article: "Robe wax négociée",
+        prixXaf: 11000,
+        remise: "Marché Sandaga, entrée B",
+      },
+    });
+    expect(JSON.stringify(recap.messages)).toContain("Récapitulatif");
   });
 
   it("C-05 · stock tombé à zéro APRÈS l'entrée en quantité : dit et rendu au catalogue (non-retour)", () => {
@@ -383,13 +403,21 @@ describe("les pièges, reproduits en exécution (constats de l'audit)", () => {
     expect(JSON.stringify(pas.messages)).not.toContain("650 FCFA");
   });
 
-  it("C-07 · une réponse de Flow livraison HORS de l'état ville est perdue sans un mot", () => {
+  it("C-07 · une réponse de Flow livraison HORS de l'état ville se DIT, ou se LIT (non-retour)", () => {
+    /* Hors des états qui la lisent : elle se DIT au lieu de tomber sur
+       l'accueil sans un mot — et l'état ne bouge pas. */
     const p = amenerAcheteuse("catalogue");
     const pas = p.jouer({ genre: "flux", reponse: FLUX_LIVRAISON_OK });
-    /* COMPORTEMENT OBSERVÉ : le switch tombe sur default → accueil de la
-       boutique ; la livraison remplie n'est ni utilisée ni mentionnée. */
     expect(pas.effet).toBeUndefined();
-    expect(JSON.stringify(pas.messages)).not.toMatch(/livraison|formulaire/i);
+    expect(JSON.stringify(pas.messages)).toMatch(/formulaire/i);
+    expect(p.etatConv().nom).toBe("catalogue");
+    /* Dans `details` — elle a tapé la ville PENDANT que le formulaire était
+       ouvert — la réponse porte les quatre champs : elle se LIT et va droit
+       au récapitulatif, comme depuis `ville` (ADR 0055). */
+    const q = amenerAcheteuse("details");
+    const recap = q.jouer({ genre: "flux", reponse: FLUX_LIVRAISON_OK });
+    expect(q.etatConv().nom).toBe("recap");
+    expect(JSON.stringify(recap.messages)).toContain("Bonapriso");
   });
 
   it("C-08 · l'instantané des pièges reste lisible en diff", async () => {

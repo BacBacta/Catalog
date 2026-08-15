@@ -801,6 +801,48 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
     }
   }
 
+  /**
+   * Une reponse de Flow LIVRAISON hors des etats qui la lisent — constat
+   * C-07 de l'audit 2026-08. Le formulaire reste ouvert sur le telephone
+   * aussi longtemps qu'elle veut : sa reponse peut arriver apres que la
+   * conversation a bouge. `ville` la lit depuis l'ADR 0055 ; `details` la
+   * lit desormais aussi (elle a tape la ville PENDANT que le formulaire
+   * etait ouvert — la reponse porte les quatre champs, elle vaut mieux que
+   * la question en cours). Partout ailleurs, elle se DIT au lieu de tomber
+   * sur l'accueil sans un mot — l'etat ne bouge pas, rien n'est perdu.
+   */
+  if (entree.genre === "flux" && genreDuJeton(entree.reponse) === "livraison") {
+    if (etat.nom === "details") {
+      const lu = lireReponseFlux(entree.reponse);
+      if (lu) {
+        const livraison = etat.geo && lu.mode === "livraison" ? { ...lu, geo: etat.geo } : lu;
+        return {
+          etat: {
+            nom: "recap",
+            slug: etat.slug,
+            panier: etat.panier,
+            mode: "livraison",
+            livraison,
+          },
+          messages: [
+            messageRecap(vers, boutique, etat.panier, livraison, t),
+            ...(veutPositionFlux(entree.reponse)
+              ? [demandeLocalisation(vers, t.positionApresFormulaire)]
+              : []),
+          ],
+        };
+      }
+      /* Illisible : la saisie en cours continue, la question se re-pose. */
+      return {
+        etat,
+        messages: [questionDetails(vers, t.detailsParTexte, t, Boolean(boutique.whatsappVendeuse))],
+      };
+    }
+    if (etat.nom !== "ville") {
+      return { etat, messages: [texte(vers, t.formulaireTardif)] };
+    }
+  }
+
   switch (etat.nom) {
     case "quantite": {
       const article = boutique.articles.find((a) => a.id === etat.articleId);

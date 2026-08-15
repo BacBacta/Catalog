@@ -49,12 +49,31 @@ export interface VenteDeclaree {
   pointRemise: string;
 }
 
+/** Le fait vise par une correction ciblee — constat C-04 de l'audit 2026-08. */
+export type FaitComptoir = "article" | "prix" | "cliente" | "remise";
+
 export type EtatComptoir =
   | { pas: "article" }
   | { pas: "prix"; article: string }
   | { pas: "cliente"; article: string; prixXaf: number }
   | { pas: "remise"; article: string; prixXaf: number; cliente: string }
-  | { pas: "recap"; article: string; prixXaf: number; cliente: string; remise: string };
+  | { pas: "recap"; article: string; prixXaf: number; cliente: string; remise: string }
+  /**
+   * « Corriger » au recapitulatif — constat C-04. L'ancien comportement
+   * repartait de `COMPTOIR_DEPART` : article, prix, cliente, remise, tout
+   * etait a retaper — le defaut que l'ADR 0053 avait corrige cote acheteuse.
+   * Les QUATRE faits voyagent desormais avec le choix : on ne corrige que ce
+   * qui est faux, le reste ne se retape pas.
+   */
+  | { pas: "choix"; article: string; prixXaf: number; cliente: string; remise: string }
+  | {
+      pas: "correction";
+      cible: FaitComptoir;
+      article: string;
+      prixXaf: number;
+      cliente: string;
+      remise: string;
+    };
 
 export const COMPTOIR_DEPART: EtatComptoir = { pas: "article" };
 
@@ -177,7 +196,15 @@ export function avancerComptoir(
 
     case "recap": {
       if (id === "corriger" || mot === "corriger") {
-        return question(COMPTOIR_DEPART);
+        /* Les quatre faits VOYAGENT — constat C-04 : on choisit quoi
+           corriger, on ne retape pas tout. */
+        return question({
+          pas: "choix",
+          article: etat.article,
+          prixXaf: etat.prixXaf,
+          cliente: etat.cliente,
+          remise: etat.remise,
+        });
       }
       if (id === "confirmer" || mot === "confirmer" || mot === "confirm") {
         return {
@@ -195,6 +222,71 @@ export function avancerComptoir(
       /* Ni l'un ni l'autre : on redit le recapitulatif plutot que de creer sur
          un mot ambigu. Rien ne se cree sans un oui explicite. */
       return { type: "recap", etat, ouvert: true };
+    }
+
+    case "choix": {
+      const faits = {
+        article: etat.article,
+        prixXaf: etat.prixXaf,
+        cliente: etat.cliente,
+        remise: etat.remise,
+      };
+      /* « retour » ou un appui hors liste : le recapitulatif se re-montre,
+         rien n'est perdu. */
+      if (id === "retour" || mot === "retour" || mot === "rien") {
+        return { type: "recap", etat: { pas: "recap", ...faits }, ouvert: true };
+      }
+      const parId = id.startsWith("corr:") ? id.slice(5) : "";
+      const parMot =
+        mot === "numero" || mot === "cliente"
+          ? "cliente"
+          : mot === "lieu" || mot === "remise"
+            ? "remise"
+            : mot === "article" || mot === "prix"
+              ? mot
+              : "";
+      const cible = (parId || parMot) as FaitComptoir | "";
+      if (cible !== "article" && cible !== "prix" && cible !== "cliente" && cible !== "remise") {
+        return question(etat);
+      }
+      return question({ pas: "correction", cible, ...faits });
+    }
+
+    case "correction": {
+      const faits = {
+        article: etat.article,
+        prixXaf: etat.prixXaf,
+        cliente: etat.cliente,
+        remise: etat.remise,
+      };
+      /* Chaque fait se relit avec la MEME regle qu'a la premiere saisie —
+         deux validations divergeraient un jour. Corrige, on REVIENT au
+         recapitulatif : rien ne se cree sans le relire (ADR 0032). */
+      switch (etat.cible) {
+        case "article": {
+          const article = entree.texte.trim().replace(/\s+/g, " ");
+          if (article.length < ARTICLE_MIN || article.length > ARTICLE_MAX) {
+            return refus(etat, "article_vide");
+          }
+          return { type: "recap", etat: { pas: "recap", ...faits, article }, ouvert: true };
+        }
+        case "prix": {
+          if (NEGATIF.test(entree.texte)) return refus(etat, "prix_negatif");
+          const prixXaf = lirePrix(entree.texte);
+          if (prixXaf === null) return refus(etat, "prix_illisible");
+          return { type: "recap", etat: { pas: "recap", ...faits, prixXaf }, ouvert: true };
+        }
+        case "cliente": {
+          const cliente = normalizePhone(entree.texte);
+          if (!cliente) return refus(etat, "numero_illisible");
+          return { type: "recap", etat: { pas: "recap", ...faits, cliente }, ouvert: true };
+        }
+        case "remise": {
+          const remise = entree.texte.trim().replace(/\s+/g, " ");
+          if (remise.length < REMISE_MIN) return refus(etat, "remise_trop_courte");
+          return { type: "recap", etat: { pas: "recap", ...faits, remise }, ouvert: true };
+        }
+      }
     }
   }
 }
@@ -284,18 +376,41 @@ export function normaliserEtatComptoir(brut: unknown): EtatComptoir | null {
         ? { pas: "remise", article: e.article, prixXaf: e.prixXaf, cliente: e.cliente }
         : null;
     case "recap":
-      return texteNonVide(e.article) &&
+    case "choix": {
+      const complet =
+        texteNonVide(e.article) &&
+        prixValide(e.prixXaf) &&
+        texteNonVide(e.cliente) &&
+        texteNonVide(e.remise);
+      return complet
+        ? {
+            pas: e.pas,
+            article: e.article as string,
+            prixXaf: e.prixXaf as number,
+            cliente: e.cliente as string,
+            remise: e.remise as string,
+          }
+        : null;
+    }
+    case "correction": {
+      const cible = e.cible;
+      const cibleValide =
+        cible === "article" || cible === "prix" || cible === "cliente" || cible === "remise";
+      return cibleValide &&
+        texteNonVide(e.article) &&
         prixValide(e.prixXaf) &&
         texteNonVide(e.cliente) &&
         texteNonVide(e.remise)
         ? {
-            pas: "recap",
-            article: e.article,
-            prixXaf: e.prixXaf,
-            cliente: e.cliente,
-            remise: e.remise,
+            pas: "correction",
+            cible,
+            article: e.article as string,
+            prixXaf: e.prixXaf as number,
+            cliente: e.cliente as string,
+            remise: e.remise as string,
           }
         : null;
+    }
     default:
       return null;
   }
@@ -316,6 +431,19 @@ export function questionComptoir(etat: EtatComptoir): string {
       return "*Où se fait la remise ?* Le lieu convenu, en quelques mots.\nExemple : Carrefour Warda, devant la pharmacie";
     case "recap":
       return recapComptoir(etat);
+    case "choix":
+      return "*Que faut-il corriger ?* Répondez : article, prix, numéro ou remise.\n« retour » pour revenir au récapitulatif — rien n'est perdu.";
+    case "correction":
+      switch (etat.cible) {
+        case "article":
+          return `L'article était « ${etat.article} ». *Le bon libellé ?*`;
+        case "prix":
+          return `Le prix était ${formatXaf(etat.prixXaf)}. *Le bon prix, en francs ?*`;
+        case "cliente":
+          return `Le numéro était ${etat.cliente}. *Le bon numéro de votre cliente ?*`;
+        case "remise":
+          return `La remise était « ${etat.remise} ». *Le bon lieu ?*`;
+      }
   }
 }
 

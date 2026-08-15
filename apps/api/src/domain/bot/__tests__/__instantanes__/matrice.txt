@@ -22,7 +22,7 @@ acheteuse/catalogue × photo légendée → répond (interactif)
 acheteuse/catalogue × vocal → répond (texte nu)
 acheteuse/catalogue × sticker → répond (texte nu)
 acheteuse/catalogue × localisation → répond (interactif)
-acheteuse/catalogue × réponse de Flow valide → répond (interactif)
+acheteuse/catalogue × réponse de Flow valide → répond (texte nu)
 acheteuse/catalogue × Flow tronqué → répond (interactif)
 acheteuse/catalogue × mot-clé menu → répond (interactif)
 acheteuse/catalogue × mot-clé annuler → répond (interactif)
@@ -36,7 +36,7 @@ acheteuse/quantite × photo légendée → répond (interactif)
 acheteuse/quantite × vocal → répond (texte nu)
 acheteuse/quantite × sticker → répond (texte nu)
 acheteuse/quantite × localisation → répond (interactif)
-acheteuse/quantite × réponse de Flow valide → répond (interactif)
+acheteuse/quantite × réponse de Flow valide → répond (texte nu)
 acheteuse/quantite × Flow tronqué → répond (interactif)
 acheteuse/quantite × mot-clé menu → répond (interactif) · état→catalogue
 acheteuse/quantite × mot-clé annuler → répond (interactif) · état→catalogue
@@ -50,7 +50,7 @@ acheteuse/ajout × photo légendée → répond (interactif)
 acheteuse/ajout × vocal → répond (texte nu)
 acheteuse/ajout × sticker → répond (texte nu)
 acheteuse/ajout × localisation → répond (interactif)
-acheteuse/ajout × réponse de Flow valide → répond (interactif)
+acheteuse/ajout × réponse de Flow valide → répond (texte nu)
 acheteuse/ajout × Flow tronqué → répond (interactif)
 acheteuse/ajout × mot-clé menu → répond (interactif) · état→catalogue
 acheteuse/ajout × mot-clé annuler → répond (interactif) · état→catalogue
@@ -64,7 +64,7 @@ acheteuse/mode × photo légendée → répond (interactif)
 acheteuse/mode × vocal → répond (texte nu)
 acheteuse/mode × sticker → répond (texte nu)
 acheteuse/mode × localisation → répond (interactif)
-acheteuse/mode × réponse de Flow valide → répond (interactif)
+acheteuse/mode × réponse de Flow valide → répond (texte nu)
 acheteuse/mode × Flow tronqué → répond (interactif)
 acheteuse/mode × mot-clé menu → répond (interactif) · état→catalogue
 acheteuse/mode × mot-clé annuler → répond (interactif) · état→catalogue
@@ -92,7 +92,7 @@ acheteuse/details × photo légendée → répond (interactif)
 acheteuse/details × vocal → répond (texte nu)
 acheteuse/details × sticker → répond (texte nu)
 acheteuse/details × localisation → répond (interactif)
-acheteuse/details × réponse de Flow valide → répond (interactif)
+acheteuse/details × réponse de Flow valide → répond (interactif) · état→recap
 acheteuse/details × Flow tronqué → répond (interactif)
 acheteuse/details × mot-clé menu → répond (interactif) · état→catalogue
 acheteuse/details × mot-clé annuler → répond (interactif) · état→catalogue
@@ -106,7 +106,7 @@ acheteuse/recap × photo légendée → répond (interactif)
 acheteuse/recap × vocal → répond (texte nu)
 acheteuse/recap × sticker → répond (texte nu)
 acheteuse/recap × localisation → répond (interactif)
-acheteuse/recap × réponse de Flow valide → répond (interactif)
+acheteuse/recap × réponse de Flow valide → répond (texte nu)
 acheteuse/recap × Flow tronqué → répond (interactif)
 acheteuse/recap × mot-clé menu → répond (interactif) · état→catalogue
 acheteuse/recap × mot-clé annuler → répond (interactif) · état→catalogue
