@@ -90,6 +90,7 @@ export const BLOCS = {
   "bot-preuve-fil": 23,
   "expiration-commande": 24,
   "bot-rafale": 25,
+  "bot-carte-entretenue": 26,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

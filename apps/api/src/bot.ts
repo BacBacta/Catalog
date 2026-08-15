@@ -961,6 +961,11 @@ async function publierRafale(
       pageWebDansMinutes,
     }),
   ];
+  /* La carte entretenue — lot P2, decision P0-c : au plus UNE par salve,
+     apres la carte de retour, echec silencieux, jamais de gabarit. */
+  if (publies > 0) {
+    messages.push(...(await carteVitrine(deps, sellerId, "poussee").catch(() => [])));
+  }
   /* Le mode d'emploi au PREMIER article (tache #62) — la salve qui fait
      naitre le catalogue le merite autant que l'article unitaire. */
   if (avant === 0 && publies > 0) {
@@ -1300,22 +1305,29 @@ async function publierArticleDepuisFil(
     ]);
   }
   /**
-   * La carte-vitrine part au moment ou la boutique devient MONTRABLE : a la
-   * publication du PREMIER article (ADR 0037). Pas a la creation — une carte
-   * sans article ne donne envie a personne — et pas aux suivants, ce serait
-   * du bruit ; « ma carte » la redonne quand on veut.
+   * La carte-vitrine accompagne CHAQUE publication depuis le lot P2
+   * (ADR 0095, decision c) — regeneree, une seule image, jamais avant la
+   * confirmation. Pas a la creation de la boutique : une carte sans article
+   * ne donne envie a personne (ADR 0037) ; « ma carte » la redonne quand on
+   * veut, inchangee.
    */
   if (article) {
     const nb = await deps.prisma.product.count({
       where: { sellerId, archivedAt: null },
     });
     /**
-     * La carte-vitrine ne part plus toute seule non plus — meme banc, meme
-     * raison. Avec UN article, elle disait presque la meme chose que le pack
-     * statut ; les deux ensemble faisaient quatre images au moment ou la
-     * vendeuse cherche simplement a savoir si son article est en ligne.
-     * Le mode d'emploi lui apprend « ma carte », et le bouton la donne.
+     * La carte-vitrine ENTRETENUE — lot P2, decision P0-c (ADR 0095).
+     *
+     * Elle est REGENEREE et poussee apres chaque publication : le service
+     * rendu avant d'etre demande. Le banc du 13/08 avait retire la poussee
+     * parce qu'elle etait TROIS messages parmi sept ; elle revient en UNE
+     * image, apres la confirmation (l'essentiel est deja parti), et son
+     * echec vaut silence — jamais une excuse non sollicitee. Une salve
+     * (ADR 0096) n'en pousse qu'UNE, par construction : `publierRafale` a
+     * son propre appel. Jamais de gabarit : on ne pousse qu'en reponse a un
+     * entrant, la fenetre est ouverte par construction.
      */
+    messages.push(...(await carteVitrine(deps, sellerId, "poussee").catch(() => [])));
     /**
      * Le pack statut ne part plus TOUT SEUL — banc du 13/08/2026.
      *
@@ -1823,7 +1835,23 @@ async function packStatutArticle(
   return [...carte, texte(a, pack.legende)];
 }
 
-async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSortant[]> {
+/**
+ * La carte-vitrine, DEMANDEE (« ma carte ») ou POUSSEE apres une publication
+ * (lot P2, decision P0-c de l'ADR 0095). Les deux modes rendent la MEME
+ * carte ; ils different sur l'echec et la copie :
+ *
+ * - `demandee` : un echec s'explique — la vendeuse attend une reponse ;
+ * - `poussee` : un echec vaut SILENCE — la carte est un service rendu avant
+ *   d'etre demande, et une excuse non sollicitee serait du bruit. La carte
+ *   ne passe JAMAIS par un gabarit : elle n'est poussee qu'en reponse a un
+ *   entrant, donc dans la fenetre ouverte par construction ; le cas limite
+ *   qui la trouverait fermee attend le prochain entrant (« ma carte »).
+ */
+async function carteVitrine(
+  deps: BotDeps,
+  sellerId: string,
+  mode: "demandee" | "poussee" = "demandee",
+): Promise<MessageSortant[]> {
   const vers = (phone: string) => phone.replace(/^\+/, "");
   const seller = await deps.prisma.seller.findUnique({
     where: { id: sellerId },
@@ -1845,6 +1873,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
   const a = vers(seller.phone ?? "");
 
   if (seller.products.length === 0) {
+    if (mode === "poussee") return [];
     return [
       boutonsMessage(a, "Votre carte a besoin d'au moins un article à montrer.", [
         { id: "article", titre: "Ajouter un article" },
@@ -1853,6 +1882,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
   }
   const chiffres = (deps.numeroCatalog ?? "").replace(/\D/g, "");
   if (!chiffres || !deps.storage) {
+    if (mode === "poussee") return [];
     return [
       texte(
         a,
@@ -1875,7 +1905,7 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
 
   const rep = reputation(seller.reviews.map((r) => ({ note: r.rating, verifie: r.verified })));
   const motCle = `boutique ${seller.slug}`;
-  return carteEnMessage(
+  const messages = await carteEnMessage(
     deps,
     {
       nomBoutique: seller.businessName,
@@ -1893,8 +1923,16 @@ async function carteVitrine(deps: BotDeps, sellerId: string): Promise<MessageSor
     },
     photos,
     a,
-    `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
+    mode === "poussee"
+      ? "Votre affiche est prête — je la referai à chaque changement, sans que vous la demandiez. Postez-la en Statut : vos clientes touchent, votre boutique s'ouvre."
+      : `Votre carte — postez-la en Statut WhatsApp, imprimez-la pour l'étal.\nQui la scanne arrive directement dans votre boutique.`,
   );
+  /* Une carte poussee qui a echoue a se fabriquer vaut SILENCE : les textes
+     d'excuse de `carteEnMessage` ne valent que pour une carte demandee. */
+  if (mode === "poussee" && !messages.some((m) => (m as { type?: string }).type === "image")) {
+    return [];
+  }
+  return messages;
 }
 
 /**
