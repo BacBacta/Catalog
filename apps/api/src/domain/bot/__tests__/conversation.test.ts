@@ -10,10 +10,12 @@ import {
   lireDetailsLivraison,
   messageVerdict,
   normaliserEtat,
+  RAFALE_MAX,
   reagirAcheteuse,
   reagirVendeuse,
 } from "../conversation.ts";
 import type { MessageBoutons, MessageListe, MessageTexte } from "../messages.ts";
+import { TEXTES } from "../textes.ts";
 
 /**
  * La machine de conversation — ADR 0031, revisee ADR 0032 et 0033. Chaque test
@@ -1008,6 +1010,77 @@ describe("ADR 0035 — la cible premium, fenetre libre", () => {
     expect(premiere.image.caption).toBe(`Pagne wax 6 yards — ${formatXaf(15000)}`);
     /* La liste reprend la main derriere la rafale — jamais de cul-de-sac. */
     expect((r.messages.at(-1) as { type?: string }).type).toBe("interactive");
+  });
+
+  /**
+   * Le defaut mesure en preproduction le 15/08/2026 au soir — ADR 0105.
+   *
+   * Une boutique de HUIT articles dont seuls les DERNIERS sont illustres
+   * (un article neuf prend `position = max + 1`, donc il arrive en fin de
+   * liste) : l'acheteuse touchait « Voir les photos » et lisait « cette
+   * boutique n'a pas encore de photos », alors que le stockage les avait.
+   *
+   * Deux tranches qui ne parlaient pas de la meme chose. Le service enrichit
+   * les articles ILLUSTRES (`illustres.slice(0, RAFALE_MAX)`), le rendu
+   * prenait les PREMIERS (`articles.slice(0, RAFALE_MAX)`). Au-dela de six
+   * articles, les deux ensembles cessent de se recouvrir, et la rafale se
+   * vide alors meme que le service a fait son travail.
+   *
+   * Trois articles ne pouvaient pas l'attraper : la tranche ne mord qu'a
+   * partir du septieme.
+   */
+  it("la rafale suit les articles ILLUSTRES, meme places apres la tranche", () => {
+    const NEUF_DONT_DEUX_ILLUSTRES = {
+      ...AVEC_PHOTOS,
+      articles: [
+        ...Array.from({ length: 7 }, (_, i) => ({
+          id: `vieux${i}`,
+          nom: `Ancien ${i}`,
+          prixXaf: 1000,
+          stock: null,
+        })),
+        { id: "neuf1", nom: "Sac neuf", prixXaf: 2000, stock: 1, imageUrl: "https://o/neuf1.jpg" },
+        {
+          id: "neuf2",
+          nom: "Pagne neuf",
+          prixXaf: 3000,
+          stock: 1,
+          imageUrl: "https://o/neuf2.jpg",
+        },
+      ],
+    };
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "photos" },
+      ctx({ boutique: NEUF_DONT_DEUX_ILLUSTRES }),
+    );
+    const images = r.messages.filter((m) => (m as { type?: string }).type === "image");
+    expect(images).toHaveLength(2);
+    expect((images[0] as { image: { link: string } }).image.link).toBe("https://o/neuf1.jpg");
+    /* Image d'ABORD, et surtout PAS le repli « aucune photo » : il mentait a
+       l'acheteuse pendant que le stockage tenait ses deux objets. */
+    expect((r.messages[0] as { type?: string }).type).toBe("image");
+    expect(JSON.stringify(r.messages)).not.toMatch(TEXTES.fr.rafaleAucunePhoto);
+  });
+
+  it("la rafale reste bornee a RAFALE_MAX, meme si tout est illustre", () => {
+    const TOUT_ILLUSTRE = {
+      ...AVEC_PHOTOS,
+      articles: Array.from({ length: 10 }, (_, i) => ({
+        id: `a${i}`,
+        nom: `Article ${i}`,
+        prixXaf: 1000,
+        stock: null,
+        imageUrl: `https://o/${i}.jpg`,
+      })),
+    };
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "photos" },
+      ctx({ boutique: TOUT_ILLUSTRE }),
+    );
+    const images = r.messages.filter((m) => (m as { type?: string }).type === "image");
+    expect(images).toHaveLength(RAFALE_MAX);
   });
 
   it("sans aucune photo enrichie, la rafale le dit au lieu de se taire", () => {

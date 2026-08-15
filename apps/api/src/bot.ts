@@ -1974,7 +1974,13 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
       );
     } else {
       const articleVise = idGeste?.startsWith("art:") ? idGeste.slice(4) : null;
-      const cibleId = articleVise ?? (slugDuTexte ? boutique.articles[0]?.id : null) ?? null;
+      /* A l'entree par lien, l'accueil prend en en-tete le premier article
+         ILLUSTRE (`find((a) => a.imageUrl)`) — donc c'est celui-la qu'il
+         faut enrichir, pas le premier tout court. Meme desaccord de tranche
+         que la rafale, meme ADR 0105 : une boutique dont seuls les derniers
+         articles portent une photo s'ouvrait sans en-tete. */
+      const premierIllustre = boutique.articles.find((a) => charge.clesImage.has(a.id))?.id ?? null;
+      const cibleId = articleVise ?? (slugDuTexte ? premierIllustre : null) ?? null;
       if (cibleId) {
         const cle = charge.clesImage.get(cibleId);
         const url = cle ? await urlJpegVerifiee(deps, cle) : null;

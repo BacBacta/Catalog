@@ -756,7 +756,17 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
        enrichi que les URL VERIFIEES — une rafale ne promet jamais un lien
        mort (regle de l'ADR 0032). */
     const suite = pageCatalogue(vers, boutique, 0, panierDe(etat), t);
+    /* On FILTRE avant de trancher, et l'ordre des deux gestes est tout le
+       sujet de l'ADR 0105. Trancher d'abord ramassait les six PREMIERS
+       articles ; or un article nouveau prend `position = max + 1`, donc les
+       articles illustres sont les DERNIERS. Une boutique de huit articles
+       dont les deux plus recents portaient une photo n'envoyait rien du
+       tout : la tranche ne contenait que des articles sans image, et le
+       repli « aucune photo » partait alors que deux existaient. Le service
+       enrichit deja les illustres (`bot.ts`) — les deux tranches doivent
+       parler de la meme chose. */
     const photos = boutique.articles
+      .filter((a) => a.imageUrl)
       .slice(0, RAFALE_MAX)
       .flatMap((a) =>
         a.imageUrl ? [image(vers, a.imageUrl, `${a.nom} — ${formatXaf(a.prixXaf)}`)] : [],
