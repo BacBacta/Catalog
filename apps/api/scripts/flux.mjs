@@ -1,5 +1,5 @@
 /**
- * Les cinq formulaires (Flows) a deposer chez Meta.
+ * Les six formulaires (Flows) a deposer chez Meta.
  *
  *   node apps/api/scripts/flux.mjs             → les affiche et les valide
  *   node apps/api/scripts/flux.mjs --etat      → dit lesquels existent deja
@@ -30,7 +30,7 @@ const BASE = (process.env.WABOT_GRAPH_URL ?? "https://graph.facebook.com/v26.0")
 const mode = process.argv[2] ?? "--voir";
 
 /**
- * Les cinq formulaires. `variable` est le nom a poser dans l'environnement
+ * Les six formulaires. `variable` est le nom a poser dans l'environnement
  * avec l'identifiant rendu : sans elle, le code reste dormant — c'est voulu.
  */
 const FLUX = [
@@ -83,6 +83,21 @@ const FLUX = [
         Facultative — la photo legendee dans le fil reste le geste le plus
         rapide, le formulaire ne l'exige pas. */
     champs: ["nom", "prix", "stock", "photo"],
+  },
+  {
+    /**
+     * Le reversement dans le fil — ADR 0097. UN SEUL ecran, et c'est
+     * structurel : un Flow statique n'a aucun aller-retour serveur, donc le
+     * code OTP n'existe pas encore quand l'ecran s'affiche — il n'y a pas
+     * d'ecran « saisissez le code ». Le code part par SMS au NOUVEAU numero
+     * et se COLLE dans le fil, ou le collage n'est jamais bloque.
+     */
+    cle: "reversement",
+    nom: "catalog_reversement",
+    fichier: "docs/flux-reversement.json",
+    variable: "WABOT_FLUX_REVERSEMENT_ID",
+    categories: ["OTHER"],
+    champs: ["numero", "operateur"],
   },
   {
     cle: "avis",
@@ -212,7 +227,7 @@ async function exigerConfiguration() {
 }
 
 if (mode === "--voir") {
-  console.log("\nLes cinq formulaires :\n");
+  console.log("\nLes six formulaires :\n");
   for (const f of FLUX) {
     const manquants = verifier(f);
     const ecrans = definition(f)

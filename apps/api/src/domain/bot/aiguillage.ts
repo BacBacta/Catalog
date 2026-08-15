@@ -6,8 +6,10 @@ import {
   demandeConges,
   demandeEspaceVendeuse,
   demandeInscription,
+  demandeListeCommandes,
   demandeSoldes,
 } from "./inscription.ts";
+import { demandeResume } from "./resume-matin.ts";
 
 /**
  * Vers quel fil part un message — ADR 0034.
@@ -55,6 +57,13 @@ export interface ContexteAiguillage {
    * et son article se perdre.
    */
   formulaireArticle?: boolean;
+  /**
+   * La reponse du formulaire de REVERSEMENT (jeton `reversement`) — ADR 0097.
+   * Meme regle et meme raison que le formulaire d'article : le formulaire
+   * reste ouvert sur le telephone aussi longtemps qu'on veut, et sa reponse
+   * ne doit jamais partir au fil acheteuse parce qu'un panier est ouvert.
+   */
+  formulaireReversement?: boolean;
 }
 
 export interface EntreeAiguillee {
@@ -108,6 +117,9 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
     /* La reponse du formulaire d'article — un geste vendeuse s'il en est :
        elle ne peut venir QUE d'un message que le fil inscription a envoye. */
     if (entree.genre === "flux" && ctx.formulaireArticle) return "inscription";
+    /* Celle du formulaire de reversement aussi — ADR 0097 : le fil
+       inscription porte les gardes et l'etat d'attente du code. */
+    if (entree.genre === "flux" && ctx.formulaireReversement) return "inscription";
     /**
      * Le menu d'ouverture est une LISTE — ADR 0088. Une reponse de liste
      * arrive en `genre === "liste"`, pas `"bouton"` : ne router que les
@@ -136,6 +148,21 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
        etait ouvert — vu au banc du 10/08/2026, juste apres une commande. */
     if (entree.genre === "texte" && demandeSoldes(t)) return "vendeuse";
     if (entree.genre === "texte" && demandeCarteVitrine(t)) return "vendeuse";
+    /* « commandes » et les boutons d'etape — ADR 0098. Les boutons vivent
+       sur une NOTIFICATION, qui peut etre pressee pendant qu'un achat est en
+       cours (une vendeuse achete a une consoeur) : sans cette regle, le
+       geste partirait au fil acheteuse et la commande n'avancerait pas. */
+    if (entree.genre === "texte" && demandeListeCommandes(t)) return "vendeuse";
+    /* « stop résumé » / « résumé » — ADR 0100 : le mot est annonce par la
+       premiere carte, il doit marcher meme pendant un achat. */
+    if (entree.genre === "texte" && demandeResume(t) !== null) return "vendeuse";
+    if (
+      (entree.genre === "bouton" || entree.genre === "liste") &&
+      entree.id &&
+      (entree.id === "commandes" || /^(?:etape|ecrire):/.test(entree.id))
+    ) {
+      return "vendeuse";
+    }
     /* Fermer ou rouvrir sa boutique — ADR 0039. Ce geste doit passer AVANT la
        regle 4 : une vendeuse qui teste sa propre boutique, ou qui achete a une
        consoeur, a un achat en cours, et son « congés » partirait au fil

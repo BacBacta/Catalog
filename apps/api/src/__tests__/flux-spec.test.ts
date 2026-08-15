@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHAMPS_FLUX } from "../domain/bot/flux.ts";
+import { CHAMPS_FLUX, CHAMPS_FLUX_REVERSEMENT } from "../domain/bot/flux.ts";
 
 /**
  * La definition deposee chez Meta et le code ne peuvent pas diverger —
@@ -57,6 +57,97 @@ describe("la spec du Flow suit le code", () => {
        l'adresse »), et c'est meme la bonne formulation : l'interdit porte sur
        un CHAMP, pas sur le vocabulaire. */
     for (const c of champs) expect(c).not.toMatch(/adresse|address/i);
+  });
+});
+
+describe("la spec du formulaire de REVERSEMENT suit le code — ADR 0097", () => {
+  const spec = JSON.parse(
+    readFileSync(new URL("../../../../docs/flux-reversement.json", import.meta.url), "utf8"),
+  ) as {
+    screens: Array<{
+      terminal?: boolean;
+      layout: { children: Array<{ type?: string; children?: Array<Record<string, unknown>> }> };
+    }>;
+  };
+
+  it("tient en UN ecran — un Flow statique ne peut pas verifier un code (ADR 0097)", () => {
+    /* Le second ecran « saisissez le code » ne PEUT pas exister : sans
+       point de terminaison, aucun aller-retour serveur n'a lieu entre deux
+       ecrans, donc le code n'est pas encore emis quand l'ecran s'affiche.
+       Il se colle dans le fil. Un ecran de plus ici est une regression. */
+    expect(spec.screens).toHaveLength(1);
+    expect(spec.screens[0]?.terminal).toBe(true);
+  });
+
+  const ecran = spec.screens[0];
+  if (!ecran) throw new Error("la spec du formulaire de reversement n'a aucun ecran");
+  const formulaire = ecran.layout.children.find((c) => c.type === "Form");
+  if (!formulaire?.children)
+    throw new Error("l'ecran du formulaire de reversement n'a aucun formulaire");
+  const champs = formulaire.children.filter((c) => c.name).map((c) => c.name as string);
+
+  it("declare EXACTEMENT les champs que `lireReversementFlux` lit", () => {
+    expect(champs.sort()).toEqual(Object.values(CHAMPS_FLUX_REVERSEMENT).sort());
+  });
+
+  it("numero et operateur sont OBLIGATOIRES — c'est le champ qu'un attaquant vise", () => {
+    for (const nom of Object.values(CHAMPS_FLUX_REVERSEMENT)) {
+      const c = formulaire.children?.find((x) => x.name === nom);
+      expect(c?.required, nom).toBe(true);
+    }
+  });
+
+  it("les operateurs sont ceux du produit — les identifiants de `OperatorKey`", () => {
+    /* `mtn` et `orange`, tels que la base et la rampe les connaissent. Un
+       identifiant libre ici arriverait illisible dans le lecteur, qui
+       refuserait le formulaire entier EN SILENCE. */
+    const operateur = formulaire.children?.find((c) => c.name === "operateur");
+    const source = (operateur?.["data-source"] ?? []) as Array<{ id: string }>;
+    expect(source.map((o) => o.id).sort()).toEqual(["mtn", "orange"]);
+  });
+
+  it("aucun champ de code — le code se colle dans le fil, jamais dans le formulaire", () => {
+    /* Corollaire du mono-ecran : aucun champ ne doit pretendre recueillir
+       le code. Le collage vit dans la conversation (critere 3.3.8). */
+    for (const c of champs) expect(c).not.toMatch(/code|otp/i);
+  });
+});
+
+describe("la spec du formulaire d'AVIS suit le code — ADR 0101", () => {
+  const spec = JSON.parse(
+    readFileSync(new URL("../../../../docs/flux-avis.json", import.meta.url), "utf8"),
+  ) as {
+    screens: Array<{
+      terminal?: boolean;
+      layout: { children: Array<{ type?: string; children?: Array<Record<string, unknown>> }> };
+    }>;
+  };
+
+  it("tient en UN ecran — la note et le mot, rien d'autre", () => {
+    expect(spec.screens).toHaveLength(1);
+    expect(spec.screens[0]?.terminal).toBe(true);
+  });
+
+  const ecran = spec.screens[0];
+  if (!ecran) throw new Error("la spec du formulaire d'avis n'a aucun ecran");
+  const formulaire = ecran.layout.children.find((c) => c.type === "Form");
+  if (!formulaire?.children) throw new Error("l'ecran du formulaire d'avis n'a aucun formulaire");
+  const champs = formulaire.children.filter((c) => c.name).map((c) => c.name as string);
+
+  it("declare EXACTEMENT les champs que `lireAvisFlux` lit", () => {
+    expect(champs.sort()).toEqual(["mot", "note"]);
+  });
+
+  it("la note est OBLIGATOIRE et ENTIERE (1..5) — une note fabriquee n'entre pas", () => {
+    const note = formulaire.children?.find((c) => c.name === "note");
+    expect(note?.required).toBe(true);
+    const source = (note?.["data-source"] ?? []) as Array<{ id: string }>;
+    expect(source.map((o) => o.id).sort()).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("le mot reste FACULTATIF — il l'est partout", () => {
+    const mot = formulaire.children?.find((c) => c.name === "mot");
+    expect(mot?.required).not.toBe(true);
   });
 });
 

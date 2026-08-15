@@ -250,6 +250,20 @@ inscription/rafale_correction × réponse de Flow valide → répond
 inscription/rafale_correction × Flow tronqué → répond
 inscription/rafale_correction × mot-clé menu → répond · état→(repos)
 inscription/rafale_correction × mot-clé annuler → répond · état→(repos)
+inscription/reversement_code × texte hors-sujet → répond
+inscription/reversement_code × texte sans accents → répond
+inscription/reversement_code × anglais → répond
+inscription/reversement_code × bouton périmé → répond
+inscription/reversement_code × ligne de liste périmée → répond
+inscription/reversement_code × photo sans légende → répond
+inscription/reversement_code × photo légendée → répond
+inscription/reversement_code × vocal → répond
+inscription/reversement_code × sticker → répond
+inscription/reversement_code × localisation → répond
+inscription/reversement_code × réponse de Flow valide → répond
+inscription/reversement_code × Flow tronqué → répond
+inscription/reversement_code × mot-clé menu → répond · état→(repos)
+inscription/reversement_code × mot-clé annuler → répond · état→(repos)
 vendeuse/(repos) × texte hors-sujet → répond/agit
 vendeuse/(repos) × texte sans accents → répond/agit
 vendeuse/(repos) × anglais → répond/agit
@@ -265,5 +279,10 @@ vendeuse/(repos) × mot-clé annuler → répond/agit
 vendeuse/(repos) × solde → répond/agit
 vendeuse/(repos) × congés → répond/agit · effet basculer_conges
 vendeuse/(repos) × livrée CT → répond/agit · effet marquer_livree
+vendeuse/(repos) × commandes → répond/agit
+vendeuse/(repos) × bouton étape → répond/agit · effet avancer_etape
+vendeuse/(repos) × bouton écrire → répond/agit · effet ecrire_cliente
+vendeuse/(repos) × stop résumé → répond/agit · effet basculer_resume
+vendeuse/(repos) × résumé (reprise) → répond/agit · effet basculer_resume
 vendeuse/(repos) × SMS opérateur → répond/agit · effet verifier_sms
 vendeuse/(repos) × SMS TRONQUÉ → répond/agit

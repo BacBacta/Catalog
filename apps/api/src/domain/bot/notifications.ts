@@ -1,4 +1,6 @@
+import type { OrderStep } from "@catalog/contracts";
 import { formatXaf } from "@catalog/contracts/money";
+import { type CommandePourCycle, etapesPour } from "../order/cycle.ts";
 import { gabaritPour, type SujetNotification } from "./gabarits.ts";
 
 /**
@@ -110,6 +112,168 @@ export function corpsNouvelleCommande(c: {
      */
     `\nQuand c'est remis, écrivez ici : *livrée ${c.reference}*`,
     ...(c.lienEspace ? [`Préparée, chez le livreur, historique : ${c.lienEspace}`] : []),
+  ].join("\n");
+}
+
+/* ─────────────── les etapes en boutons — ADR 0098 (lot P4) ─────────────── */
+
+/**
+ * Les boutons de la notification de commande — decision P0-d : le bouton
+ * appelle LA MEME transition que l'app (`avancerEtape`), avec les memes
+ * refus. L'identifiant porte la reference : c'est aussi lui qui permet a la
+ * carte d'absence de retrouver la commande SANS colonne nouvelle.
+ *
+ * « Écrire à la cliente » : le nom de l'acheteuse ne se re-projette jamais
+ * (regle de `corpsNouvelleCommande`), et un titre de bouton est borne a 20
+ * caracteres — d'ou l'ecart avec la maquette (« Écrire à Marie »).
+ */
+export function boutonsNouvelleCommande(
+  reference: string,
+): ReadonlyArray<{ id: string; titre: string }> {
+  return [
+    { id: `etape:preparee:${reference}`, titre: "🧺 Marquer préparée" },
+    { id: `ecrire:${reference}`, titre: "Écrire à la cliente" },
+  ];
+}
+
+/** Les etapes qu'un bouton du fil peut viser. Jamais « recue » : on y est deja. */
+const ETAPES_BOUTON = ["preparee", "chez_le_livreur", "livree"] as const;
+export type EtapeBouton = (typeof ETAPES_BOUTON)[number];
+
+/**
+ * Lit un identifiant de bouton d'etape (`etape:<vers>:<ref>`). `null` pour
+ * tout le reste — un identifiant fabrique ne fait jamais viser une etape
+ * inconnue, c'est le moteur qui tranchera la reference.
+ */
+export function lireBoutonEtape(id: string): { vers: EtapeBouton; reference: string } | null {
+  const m = /^etape:([a-z_]+):(.+)$/.exec(id);
+  if (!m?.[1] || !m[2]) return null;
+  const vers = ETAPES_BOUTON.find((e) => e === m[1]);
+  return vers ? { vers, reference: m[2] } : null;
+}
+
+/** Lit un identifiant « ecrire:<ref> » — le wa.me de la cliente se repond. */
+export function lireBoutonEcrire(id: string): string | null {
+  const m = /^ecrire:(.+)$/.exec(id);
+  return m?.[1] ?? null;
+}
+
+const EMOJI_ETAPE: Record<OrderStep, string> = {
+  recue: "🛍️",
+  preparee: "🧺",
+  chez_le_livreur: "🛵",
+  livree: "📦",
+};
+
+const NOM_ETAPE: Record<OrderStep, string> = {
+  recue: "reçue",
+  preparee: "préparée",
+  chez_le_livreur: "chez le livreur",
+  livree: "livrée",
+};
+
+/**
+ * La carte d'une etape INTERMEDIAIRE franchie — copie de la maquette.
+ * « livree » garde sa carte en place (`corpsLivraisonMarquee`), qui dit
+ * aussi ce qui part chez l'acheteuse.
+ */
+export function corpsEtapeFranchie(reference: string, etape: OrderStep): string {
+  return `${EMOJI_ETAPE[etape]} *${reference} → ${NOM_ETAPE[etape]}*`;
+}
+
+export type SuiteEtape =
+  /** Le bouton de l'etape suivante, a poser sur la carte de retour. */
+  | { bouton: { id: string; titre: string } }
+  /**
+   * La suivante serait la remise, et le solde est OUVERT : pas de bouton —
+   * la carte rappelle ce qui manque. C'est la garde `solde_ouvert` de
+   * `cycle.ts`, dite au moment ou elle sert, pas au moment ou elle refuse.
+   */
+  | { rappelSoldeXaf: number }
+  /** Rien apres — la commande est livree. */
+  | null;
+
+const TITRE_BOUTON_ETAPE: Record<EtapeBouton, string> = {
+  preparee: "🧺 Marquer préparée",
+  chez_le_livreur: "🛵 Chez le livreur",
+  livree: "📦 Remise faite",
+};
+
+/**
+ * Ce que la carte de retour propose APRES une transition — ADR 0098,
+ * decision 2. La sequence vient de `etapesPour(mode)` : un retrait ne voit
+ * jamais une etape de livreur (ADR 0005).
+ */
+export function suiteEtape(
+  commande: Pick<CommandePourCycle, "etape" | "modeLivraison" | "balanceXaf">,
+  reference: string,
+): SuiteEtape {
+  const sequence = etapesPour(commande.modeLivraison);
+  const suivante = sequence[sequence.indexOf(commande.etape) + 1];
+  if (!suivante) return null;
+  if (suivante === "livree" && commande.balanceXaf > 0) {
+    return { rappelSoldeXaf: commande.balanceXaf };
+  }
+  const vers = ETAPES_BOUTON.find((e) => e === suivante);
+  return vers
+    ? { bouton: { id: `etape:${vers}:${reference}`, titre: TITRE_BOUTON_ETAPE[vers] } }
+    : null;
+}
+
+/** Le rappel quand la remise attend l'argent — le produit, dit en une phrase. */
+export function corpsRappelSolde(reference: string, resteXaf: number): string {
+  return `Il reste *${formatXaf(resteXaf)}* à encaisser sur ${reference}. Collez ici le SMS de votre opérateur — il devient le reçu — ou déclarez le paiement depuis votre espace. La remise se clôt ensuite.`;
+}
+
+/**
+ * Le refus `solde_ouvert` d'un bouton perime, en langue simple — les autres
+ * refus gardent `corpsLivraisonRefusee`, qui les dit deja.
+ */
+export function corpsRefusSoldeOuvert(reference: string, resteXaf: number): string {
+  return `${reference} : rien n'a bougé — on ne clôt pas une remise sur un solde ouvert.\n${corpsRappelSolde(reference, resteXaf)}`;
+}
+
+/**
+ * La carte « Pendant votre absence » — ADR 0098, decision 3. Copie de la
+ * maquette (`parcours-vendeur-v2.html`). Sans bouton : trois commandes ne
+ * tiennent pas dans trois boutons, et « commandes » rend le detail.
+ */
+export function carteAbsence(
+  commandes: ReadonlyArray<{ reference: string; totalXaf: number }>,
+): string {
+  const n = commandes.length;
+  const lignes = commandes.map((c) => `${c.reference} (${formatXaf(c.totalXaf)})`).join(" · ");
+  return `*Pendant votre absence*\n${n} commandes : ${lignes}.\nÉcrivez « commandes » pour le détail.`;
+}
+
+/**
+ * Le detail des commandes ouvertes — le mot-cle « commandes », promis par la
+ * carte d'absence (decision 4). Il lit ce que le fil vendeuse charge deja.
+ */
+export function corpsListeCommandes(
+  commandes: ReadonlyArray<{
+    reference: string;
+    resteXaf: number;
+    totalXaf?: number;
+    etape?: OrderStep;
+  }>,
+): string {
+  if (commandes.length === 0) {
+    return "Aucune commande en cours. Les nouvelles arrivent ici, dans ce fil.";
+  }
+  const lignes = commandes
+    .slice(0, 10)
+    .map(
+      (c) =>
+        `${c.reference}${c.totalXaf ? ` · ${formatXaf(c.totalXaf)}` : ""}${
+          c.etape ? ` · ${NOM_ETAPE[c.etape]}` : ""
+        }${c.resteXaf > 0 ? ` · reste ${formatXaf(c.resteXaf)}` : " · soldée"}`,
+    );
+  return [
+    `📋 *Vos commandes en cours* (${commandes.length})`,
+    ...lignes,
+    "",
+    "Remise faite ? Écrivez « livrée » et la référence. Un paiement reçu ? Collez le SMS ici.",
   ].join("\n");
 }
 

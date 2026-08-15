@@ -160,6 +160,51 @@ describeDb("les relances passent par la porte (ADR 0060)", () => {
     expect(envoyeur.envoyes).toHaveLength(0);
   });
 
+  it("reversement, fenetre OUVERTE et formulaire pose : la relance EST la carte d'invitation (ADR 0097)", async () => {
+    const s = await vendeuseSansReversement(suivant());
+    /* Elle vient d'ecrire : la fenetre de service est sure. */
+    await prisma.botConversation.update({
+      where: { phone: `+${s.waId}` },
+      data: { updatedAt: new Date(NOW.getTime() - 60_000) },
+    });
+    const envoyeur = new EnvoyeurMemoire();
+    await executerRelanceReversement(
+      {
+        prisma,
+        envoyeur,
+        maintenant: () => NOW,
+        baseApp: "https://app.test",
+        fluxReversementId: "1122334455667788",
+      },
+      { sellerId: s.sellerId, phone: `+${s.waId}` },
+    );
+    const m = envoyeur.envoyes[0] as {
+      interactive?: { type?: string; action?: { parameters?: { flow_id?: string } } };
+    };
+    expect(envoyeur.envoyes).toHaveLength(1);
+    expect(m.interactive?.type).toBe("flow");
+    expect(m.interactive?.action?.parameters?.flow_id).toBe("1122334455667788");
+  });
+
+  it("reversement, HORS fenetre : le formulaire pose ne change RIEN — le gabarit garde la porte", async () => {
+    const s = await vendeuseSansReversement(suivant());
+    const envoyeur = new EnvoyeurMemoire();
+    envoyeur.refuseHorsGabarit = true;
+    await executerRelanceReversement(
+      {
+        prisma,
+        envoyeur,
+        maintenant: () => NOW,
+        baseApp: "https://app.test",
+        fluxReversementId: "1122334455667788",
+      },
+      { sellerId: s.sellerId, phone: `+${s.waId}` },
+    );
+    /* Un message a formulaire ne peut pas etre un gabarit : hors fenetre,
+       le texte et son lien reprennent, par la porte de l'ADR 0060. */
+    expect(nomsGabarits(envoyeur)).toEqual(["catalog_reversement_absent_v2"]);
+  });
+
   it("acompte, HORS fenetre : le gabarit approuve part aussi", async () => {
     const s = await vendeuseSansReversement(suivant());
     /* Un numero d'acheteuse propre a CETTE execution : la conversation est

@@ -196,8 +196,11 @@ const STATUT: Record<string, number> = {
 /**
  * Messages destines a la vendeuse, en francais simple. Ils disent quoi faire,
  * pas ce qui a echoue techniquement.
+ *
+ * Exportes depuis l'ADR 0097 : le fil WhatsApp rejoue les memes gardes, et
+ * les memes refus se disent avec les memes phrases sur les deux surfaces.
  */
-const MESSAGE: Record<string, string> = {
+export const MESSAGE: Record<string, string> = {
   verification_absente:
     "Confirmez d'abord le nouveau numero avec le code que nous venons d'envoyer.",
   verification_dun_autre_numero:
@@ -220,7 +223,7 @@ const STATUT_OTP: Record<string, number> = {
   code_incorrect: 401,
 };
 
-const MESSAGE_OTP: Record<string, string> = {
+export const MESSAGE_OTP: Record<string, string> = {
   aucun_code_en_cours: "Demandez d'abord un code pour ce numero.",
   code_expire: "Le code a expire. Demandez-en un nouveau.",
   code_deja_utilise: "Ce code a deja servi. Demandez-en un nouveau.",

@@ -3,8 +3,10 @@ import type { PrismaClient } from "@catalog/db";
 import { type Job, PgBoss } from "pg-boss";
 import { notifier } from "../bot-notifications.ts";
 import type { EnvoyeurBot } from "../domain/bot/envoyeur.ts";
+import { invitationReversement } from "../domain/bot/flux.ts";
 import { normaliserEtatVendeuse } from "../domain/bot/inscription.ts";
 import { texte } from "../domain/bot/messages.ts";
+import { decisionRemise } from "../domain/bot/notifications.ts";
 import { carteRafale, FENETRE_RAFALE_MS } from "../domain/bot/rafale.ts";
 import {
   decisionRelance,
@@ -12,8 +14,10 @@ import {
   RELANCE_APRES_S,
   RELANCE_REVERSEMENT_APRES_S,
 } from "../domain/bot/relance.ts";
+import { jourLocal, resumeDuMatin } from "../domain/bot/resume-matin.ts";
 import { type Langue, normaliserLangue, TEXTES } from "../domain/bot/textes.ts";
 import { etatExpiration, FENETRE_EXPIRATION_MS } from "../domain/order/expiration.ts";
+import { VUES_INSTRUMENTEES } from "../routes/stats.ts";
 
 /**
  * La relance d'acompte, portee par pg-boss — ADR 0033.
@@ -36,6 +40,14 @@ export const FILE_RELANCE_REVERSEMENT = "bot-relance-reversement";
 export const FILE_EXPIRATION = "bot-expiration-commande";
 /** La carte recapitulative de la rafale, a la fermeture de la fenetre — ADR 0096. */
 export const FILE_RAFALE = "bot-rafale-recap";
+/**
+ * Le resume du matin — ADR 0100. `30 7 * * *` en `Africa/Douala` : UTC+1
+ * SANS heure d'ete, l'heure est fixe toute l'annee. C'est LE seul endroit ou
+ * cet horaire s'ecrit.
+ */
+export const FILE_RESUME = "bot-resume-matin";
+export const CRON_RESUME = "30 7 * * *";
+export const FUSEAU_RESUME = "Africa/Douala";
 
 export interface ChargeRelance {
   commandeId: string;
@@ -61,6 +73,12 @@ export interface RelanceDeps {
   envoyeur: EnvoyeurBot;
   /** L'URL de l'espace vendeuse — la relance y pointe. Vide : pas de lien. */
   baseApp?: string;
+  /**
+   * Le formulaire de reversement — ADR 0097. Pose, la relance de ~20 h
+   * devient la carte d'invitation quand la fenetre de service est ouverte ;
+   * absent, elle garde son texte et son lien vers l'espace, comme avant.
+   */
+  fluxReversementId?: string;
   maintenant?: () => Date;
 }
 
@@ -125,6 +143,15 @@ export async function demarrerJobsBot(deps: JobsBotDeps): Promise<JobsBot> {
     for (const job of jobs) {
       await executerRecapRafale(deps, job.data);
     }
+  });
+
+  /* Le resume du matin — ADR 0100 : planifie une fois, pg-boss tient le
+     rendez-vous. La deduplication (table `resume_matin`) rend la relance du
+     meme jour muette : rejouer ne re-decide pas. */
+  await boss.createQueue(FILE_RESUME);
+  await boss.schedule(FILE_RESUME, CRON_RESUME, {}, { tz: FUSEAU_RESUME });
+  await boss.work(FILE_RESUME, async () => {
+    await executerResumeMatin(deps);
   });
 
   return {
@@ -266,6 +293,35 @@ export async function executerRelanceReversement(
   );
   if (!decision.relancer) return;
 
+  /**
+   * Le Flow quand le canal le permet — ADR 0097, decision 5. Un message a
+   * formulaire ne peut etre ni un gabarit ni une notification en attente :
+   * il n'a de sens que dans la fenetre de service ouverte. Fenetre sure ET
+   * formulaire pose : la relance EST la carte d'invitation. Sinon — fenetre
+   * incertaine, formulaire absent, envoi refuse — le texte et son lien vers
+   * l'espace reprennent, par la porte de l'ADR 0060, comme avant.
+   */
+  if (deps.fluxReversementId) {
+    const conversation = await deps.prisma.botConversation.findUnique({
+      where: { phone: charge.phone },
+      select: { updatedAt: true },
+    });
+    const remise = decisionRemise(
+      conversation?.updatedAt ?? null,
+      deps.maintenant?.() ?? new Date(),
+    );
+    if (remise === "envoyer") {
+      try {
+        await deps.envoyeur.envoyer(
+          invitationReversement(charge.phone.replace(/^\+/, ""), deps.fluxReversementId),
+        );
+        return;
+      } catch {
+        /* L'envoi a echoue : le texte par la porte, rien n'est perdu. */
+      }
+    }
+  }
+
   const lien = deps.baseApp ? `\nVotre espace vendeuse : ${deps.baseApp}/reversement` : "";
   /**
    * Par la PORTE — ADR 0060, et c'est ici que ça comptait le plus.
@@ -283,6 +339,119 @@ export async function executerRelanceReversement(
     undefined,
     { sujet: "reversement_absent", parametres: [seller.businessName], langue: "fr" },
   );
+}
+
+/**
+ * Le resume du matin — ADR 0100. Le composeur DECIDE (domaine pur, la date
+ * en parametre) ; ce travail rassemble les faits et remet.
+ *
+ * - **le silence est une sortie** : sans fait d'hier ni reste a faire, rien
+ *   ne part — et la deduplication s'ecrit QUAND MEME (rejouer ne re-decide
+ *   pas) ;
+ * - **jamais de gabarit** : hors fenetre, la carte attend le prochain
+ *   entrant par `notifier` — la liste des gabarits est fermee (ADR 0054) et
+ *   l'ADR 0095 n'en a pas accorde au resume ;
+ * - l'opt-out (`resumeMatinStopA`) exclut la vendeuse AVANT tout calcul.
+ */
+export async function executerResumeMatin(
+  deps: RelanceDeps,
+  quand?: Date,
+  /**
+   * Restreint le passage a UNE vendeuse — pour rejouer un matin manque en
+   * exploitation, et pour que les tests ne balaient pas la base entiere.
+   * Le filtre s'applique DANS la requete : l'opt-out reste teste tel quel.
+   */
+  cible?: { sellerId: string },
+): Promise<void> {
+  const maintenant = quand ?? deps.maintenant?.() ?? new Date();
+  const jour = jourLocal(maintenant);
+  /* La fenetre d'HIER, en heure locale : le serveur tourne en
+     Africa/Douala (AGENTS.md) — UTC+1 fixe, sans heure d'ete. */
+  const debutAujourdhui = new Date(
+    maintenant.getFullYear(),
+    maintenant.getMonth(),
+    maintenant.getDate(),
+  );
+  const debutHier = new Date(debutAujourdhui.getTime() - 24 * 3600_000);
+  const hier = { gte: debutHier, lt: debutAujourdhui };
+
+  /* Seules les vendeuses JOIGNABLES : une conversation bot existe pour leur
+     numero. Sans elle, il n'y a aucun fil ou poser la carte. */
+  const conversations = new Set(
+    (await deps.prisma.botConversation.findMany({ select: { phone: true } })).map((c) => c.phone),
+  );
+  const vendeuses = await deps.prisma.seller.findMany({
+    where: { resumeMatinStopA: null, ...(cible ? { id: cible.sellerId } : {}) },
+    select: { id: true, phone: true, businessName: true },
+  });
+
+  for (const v of vendeuses) {
+    if (!conversations.has(v.phone)) continue;
+    /* La deduplication tranche AVANT tout envoi : la ligne (vendeuse, jour)
+       est UNIQUE, le travail relance le meme jour la trouve et se tait. */
+    try {
+      await deps.prisma.resumeMatin.create({ data: { sellerId: v.id, jour } });
+    } catch {
+      continue;
+    }
+    try {
+      const [commandes, paiementsProuves, avis, aPreparer, smsAttendus, ouvertes] =
+        await Promise.all([
+          deps.prisma.order.count({ where: { sellerId: v.id, createdAt: hier } }),
+          deps.prisma.paymentProof.count({
+            where: { createdAt: hier, order: { sellerId: v.id } },
+          }),
+          deps.prisma.review.findMany({
+            where: { sellerId: v.id, createdAt: hier },
+            select: { rating: true, body: true },
+          }),
+          deps.prisma.order.findMany({
+            where: { sellerId: v.id, step: "recue", cancelledAt: null, balanceXaf: { gt: 0 } },
+            orderBy: { createdAt: "asc" },
+            select: { ref: true },
+          }),
+          deps.prisma.order.count({
+            where: {
+              sellerId: v.id,
+              payMode: "acompte",
+              amountPaidXaf: 0,
+              cancelledAt: null,
+              expiresAt: { gt: maintenant },
+            },
+          }),
+          deps.prisma.order.aggregate({
+            where: { sellerId: v.id, cancelledAt: null, balanceXaf: { gt: 0 } },
+            _sum: { balanceXaf: true },
+          }),
+        ]);
+      const premierResume =
+        (await deps.prisma.resumeMatin.count({ where: { sellerId: v.id } })) === 1;
+      const carte = resumeDuMatin({
+        nomVendeuse: v.businessName,
+        dateDuJour: maintenant,
+        faits: {
+          commandes,
+          paiementsProuves,
+          /* FAUX tant qu'aucun chemin de code ne compte les vues — ADR 0022 :
+             le resume n'invente pas un chiffre. `VUES_INSTRUMENTEES` est la
+             seule source de ce drapeau. */
+          visites: { instrumentees: VUES_INSTRUMENTEES, n: 0 },
+          avis: avis.map((a) => ({ note: a.rating, ...(a.body ? { mot: a.body } : {}) })),
+        },
+        aFaire: {
+          aPreparer: aPreparer.map((o) => o.ref),
+          smsAttendus,
+          resteAEncaisserXaf: ouvertes._sum.balanceXaf ?? 0,
+        },
+        premierResume,
+      });
+      if (!carte) continue;
+      await notifier(deps, v.phone, carte);
+    } catch {
+      /* Une vendeuse en echec ne prive pas les suivantes de leur matin. */
+      console.warn("bot : resume du matin non remis pour une vendeuse (details retenus)");
+    }
+  }
 }
 
 /**

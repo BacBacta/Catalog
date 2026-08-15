@@ -29,8 +29,11 @@ tel quel dans une session neuve, précédé du préambule.
 | **P0** | ✅ | ADR 0095 — la maquette actée, l'ordre audit-d'abord, les quatre décisions posées |
 | **P1** | ✅ | ADR 0096 — `domain/bot/rafale.ts`, états `rafale` / `rafale_correction`, file pg-boss `bot-rafale-recap` |
 | **P2** | ✅ | `carteVitrine(deps, sellerId, "poussee")` — décision P0-c |
-| **P3** | ⏳ | **Le prochain.** Voir les acquis de cadrage ci-dessous, ils sont déjà payés |
-| P4 → P7 | ⏳ | Inchangés |
+| **P3** | ✅ | ADR 0097 — `flux-reversement.json` (UN écran), état `reversement_code`, le code collé dans le fil, vérifié par `changerNumeroDeReversement` tel quel |
+| **P4** | ✅ | ADR 0098 — la notification à boutons, `avancerDepuisFil` (même moteur que l'app), la garde `solde_ouvert` au bouton près, la carte « Pendant votre absence », le mot-clé « commandes » |
+| **P5** | ✅ | ADR 0099 — `lignesSuivi` (un seul vocabulaire), `notifierSuivi` poussé à chaque transition, politique de fenêtre actée (intermédiaire : jamais de gabarit), bouton `cta_url` « Voir le suivi » |
+| **P6** | ✅ | ADR 0100 — `resume-matin.ts` (le silence est une sortie), pg-boss 07:30 Africa/Douala, déduplication `resume_matin`, « stop résumé » réversible, jamais de gabarit |
+| **P7** | ✅ | ADR 0101 — constat : le Flow d'avis était livré (0063/0076) ; fermé par le contrat de champs testé et les gardes du chemin Flow. **La séquence premium est close.** |
 
 Ce que P1 et P2 ont ajouté et qui sert aux lots suivants :
 

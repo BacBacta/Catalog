@@ -1,0 +1,59 @@
+{
+  "version": "7.0",
+  "screens": [
+    {
+      "id": "REVERSEMENT",
+      "title": "Où l'argent arrive",
+      "terminal": true,
+      "data": {},
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "TextSubheading",
+            "text": "Votre numéro Mobile Money — pas forcément celui-ci : la double SIM est la norme."
+          },
+          {
+            "type": "Form",
+            "name": "formulaire",
+            "children": [
+              {
+                "type": "TextInput",
+                "name": "numero",
+                "label": "Numéro de reversement",
+                "required": true,
+                "input-type": "phone",
+                "helper-text": "Exemple : 6 99 88 77 12"
+              },
+              {
+                "type": "RadioButtonsGroup",
+                "name": "operateur",
+                "label": "Opérateur",
+                "required": true,
+                "data-source": [
+                  { "id": "orange", "title": "Orange Money" },
+                  { "id": "mtn", "title": "MTN MoMo" }
+                ]
+              },
+              {
+                "type": "TextBody",
+                "text": "Le code de vérification arrive par SMS sur ce numéro — collez-le ensuite dans la conversation."
+              },
+              {
+                "type": "Footer",
+                "label": "Recevoir le code",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "numero": "${form.numero}",
+                    "operateur": "${form.operateur}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -23,13 +23,18 @@ import { describe, expect, it } from "vitest";
  * d'autrui, et le controle n° 7 ne vaudrait plus rien : sa valeur entiere tient
  * a ce qu'il soit la voix de l'AUTRE partie.
  *
- * ── Les deux usages LEGITIMES, enumeres ────────────────────────────────────
+ * ── Les usages LEGITIMES, enumeres ─────────────────────────────────────────
  *
- * `buyerToken` a le droit d'apparaitre a deux endroits, et seulement deux :
+ * `buyerToken` a le droit d'apparaitre a trois endroits, et seulement trois :
  *
  * 1. dans une clause `where` — c'est ainsi qu'on retrouve une commande depuis le
  *    lien de suivi ;
- * 2. dans une ecriture, a la creation de la commande.
+ * 2. dans une ecriture, a la creation de la commande ;
+ * 3. dans UNE projection, celle de `suivi-pousse.ts` — ADR 0099 : la carte de
+ *    suivi poussee porte le lien du jeton, envoye UNIQUEMENT dans le fil
+ *    acheteuse qui l'a deja recu a la confirmation. Meme canal, meme
+ *    destinataire, aucune exposition nouvelle — et la projection vit dans ce
+ *    fichier dedie, jamais ailleurs.
  *
  * Toute autre occurrence dans une projection est un defaut. Le test cherche donc
  * `buyerToken: true`, la forme exacte d'un `select` Prisma.
@@ -60,11 +65,18 @@ describe("le jeton de suivi ne se projette jamais", () => {
     expect(FICHIERS.map((f) => relative(SRC, f))).toContain(join("routes", "recu.ts"));
   });
 
-  it("aucun `select` ne demande buyerToken", () => {
-    const fautifs = FICHIERS.filter((f) =>
-      /buyerToken\s*:\s*true/.test(readFileSync(f, "utf8")),
-    ).map((f) => relative(SRC, f));
+  it("aucun `select` ne demande buyerToken — hors la cellule nommee (ADR 0099)", () => {
+    const fautifs = FICHIERS.filter((f) => /buyerToken\s*:\s*true/.test(readFileSync(f, "utf8")))
+      .map((f) => relative(SRC, f))
+      .filter((f) => f !== "suivi-pousse.ts");
     expect(fautifs).toEqual([]);
+  });
+
+  it("la cellule nommee existe et projette bien le jeton — sinon l'exception ment", () => {
+    const cellule = readFileSync(join(SRC, "suivi-pousse.ts"), "utf8");
+    expect(cellule).toMatch(/buyerToken\s*:\s*true/);
+    /* Et elle dit pourquoi elle a le droit : l'ADR qui l'autorise. */
+    expect(cellule).toContain("ADR 0099");
   });
 
   /**

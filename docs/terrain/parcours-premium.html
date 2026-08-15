@@ -553,9 +553,10 @@
       <div class="fiche">
         <span class="em" aria-hidden="true">🧾</span>
         <h3>La preuve reste le cœur</h3>
-        <p>Le seul message que la vendeuse tape est le SMS collé — parce que c'est la preuve, et
-        qu'elle ne peut venir que de son téléphone. Tout le reste s'automatise autour : l'annonce
-        du SMS attendu, le verdict aux deux, le reçu, la demande d'avis.</p>
+        <p>Les seuls messages que la vendeuse tape sont deux collages : le code qui vérifie son
+        numéro de reversement, et le SMS de preuve — parce qu'ils arrivent par SMS sur son
+        téléphone et ne peuvent venir que d'elle (ADR 0097). Tout le reste s'automatise autour :
+        l'annonce du SMS attendu, le verdict aux deux, le reçu, la demande d'avis.</p>
       </div>
       <div class="fiche">
         <span class="em" aria-hidden="true">🪜</span>
@@ -624,6 +625,9 @@
   const FLOW_REVERSEMENT = {
     titre: "Être payée d'avance",
     sous: "Catalog · vérifié par code, une seule fois",
+    /* UN SEUL écran — ADR 0097 : un formulaire statique n'a aucun aller-retour
+       serveur, donc le code n'existe pas encore quand l'écran s'affiche. Il
+       part par SMS et se COLLE dans le fil, où le collage n'est jamais bloqué. */
     ecrans: [
       {
         titre: "Où l'argent arrive",
@@ -633,12 +637,6 @@
           { label: "Opérateur", seg: ["Orange Money", "MTN MoMo"], choisi: 0 },
         ],
         cta: "Recevoir le code",
-      },
-      {
-        titre: "Le code reçu par SMS",
-        note: "Le collage n'est jamais bloqué — collez-le tel quel.",
-        champs: [{ label: "Code à 6 chiffres", valeur: "4 8 2 9 1 0" }],
-        cta: "Vérifier",
       },
     ],
   };
@@ -681,12 +679,12 @@
     emoji: "🛍️",
     nom: 'Catalog <span class="verifie">✓</span>',
     sous: "Service automatisé — répond en quelques secondes",
-    titre: "Bintou ouvre boutique — et ne tape qu'un seul message",
+    titre: "Bintou ouvre boutique — et ne tape que deux collages",
     intro:
-      "L'onboarding tient en un formulaire ; le catalogue se remplit par photos ; la carte, le " +
-      "reversement, la commande, le verdict et l'avis arrivent tout seuls. Le SEUL message " +
-      "tapé du parcours est le SMS collé — parce que c'est la preuve, et qu'elle ne peut venir " +
-      "que d'elle.",
+      "L'onboarding tient en un formulaire ; le catalogue se remplit par photos ; la carte, la " +
+      "commande, le verdict et l'avis arrivent tout seuls. Les SEULS messages tapés du parcours " +
+      "sont deux collages — le code qui vérifie le reversement, puis le SMS de preuve — parce " +
+      "qu'ils arrivent par SMS et ne peuvent venir que d'elle (ADR 0097).",
     pas: [
       {
         de: "systeme", compte: "touche",
@@ -778,14 +776,29 @@
         texte: "💡 Un dernier réglage et vos clientes paient *d'avance* : posez le numéro où l'argent arrive. Une fois, vérifié par code — c'est le champ qu'un fraudeur viserait, alors on le protège.",
         actions: [{ l: "💳 Être payée d'avance", flow: FLOW_REVERSEMENT }],
         quoi: "Le reversement, au moment où il coûte le moins",
-        etat: "cible", src: "l'OTP existe (lot 4, app) · le Flow dans le fil est à construire",
-        note: "Aujourd'hui ce réglage vit dans l'espace web. La cible le ramène dans le fil, en deux écrans — numéro, puis code — sans jamais bloquer le collage.",
+        etat: "place", src: "bot.ts · inviterReversement + flux-reversement.json (ADR 0097)",
+        note: "Le formulaire tient en UN écran — un Flow statique ne peut pas vérifier un code (ADR 0097). Le code part par SMS au nouveau numéro et se colle dans le fil. La carte accompagne chaque publication tant que le numéro manque, et la relance de ~20 h la reprend.",
       },
       {
-        de: "systeme", compte: "touche",
+        de: "bot", compte: "auto",
+        texte: "📲 Le code vient de partir par SMS au 6 99 88 77 12.\n*Collez-le ici tel quel* — le collage marche toujours.",
+        quoi: "Les gardes ont accepté : gel, numéro, débit — puis le SMS part",
+        etat: "place", src: "bot.ts · emettreCodeReversement — mêmes gardes que payout.ts (ADR 0097)",
+        note: "Un envoi SMS qui échoue ne pose AUCUN état : le fil n'attend jamais un code qui n'est pas parti. Le code arrive sur la puce du reversement — pas forcément celle de WhatsApp.",
+      },
+      {
+        de: "moi", compte: "tape", mono: true,
+        attend: "chip", chip: "📋 Coller le code reçu par SMS",
+        texte: "4 8 2 9 1 0",
+        quoi: "Le 2e collage du parcours — inautomatisable, comme la preuve",
+        etat: "place", src: "inscription.ts · lireCodeOtpColle → payout.ts (ADR 0097)",
+        note: "Un code incorrect se recolle sans rejouer le formulaire ; expiré ou brûlé, le formulaire se re-propose. Chaque saisie, bonne ou mauvaise, laisse sa trace au journal d'audit — même transaction que le changement.",
+      },
+      {
+        de: "systeme", compte: "auto",
         texte: "💳 6 99 88 77 12 vérifié — Orange Money · vos clientes paient d'avance",
         quoi: "L'onboarding est fini : profil, articles, carte, reversement",
-        etat: "place", src: "payout.ts · l'OTP prouve la main sur la puce",
+        etat: "place", src: "payout.ts · l'OTP prouve la main sur la puce — appelé tel quel par le fil",
       },
       {
         de: "systeme", compte: "auto",
@@ -800,17 +813,18 @@
           { l: "Acompte payé d'avance ⏳", v: "10 750 F" },
         ],
         texte: "📍 Bonapriso, près de la pharmacie du Rail\n📞 6 52 00 00 01 (Marie)\n\n📲 Un SMS de *10 750 FCFA* devrait arriver de votre opérateur — collez-le ici : il devient le reçu.",
-        actions: [{ l: "🧺 Marquer préparée", suite: true }, { l: "💬 Écrire à Marie" }],
+        actions: [{ l: "🧺 Marquer préparée", suite: true }, { l: "Écrire à la cliente" }],
         attend: "tap",
         quoi: "La commande arrive seule — et le SMS est ANNONCÉ",
-        etat: "place", src: "notifications.ts · corpsNouvelleCommande — le bouton « préparée » est cible",
-        note: "Le rapprochement est préparé : quand le SMS sonnera, le réflexe sera « je le colle dans Catalog ». Le fil ne connaît aujourd'hui que « livrée » — l'étape « préparée » au bouton est la cible.",
+        etat: "place", src: "notifications.ts · corpsNouvelleCommande + boutonsNouvelleCommande (ADR 0098)",
+        note: "Le rapprochement est préparé : quand le SMS sonnera, le réflexe sera « je le colle dans Catalog ». Le bouton appelle LA MÊME transition que l'app — avancer(), mêmes refus, même journal. « Écrire à la cliente », pas un prénom : le nom de l'acheteuse ne se re-projette jamais.",
       },
       {
         de: "systeme", compte: "touche",
-        texte: "🧺 CT-104312 → préparée · Marie est prévenue automatiquement",
+        texte: "🧺 CT-104312 → préparée · la carte de suivi de Marie vient de bouger",
         quoi: "Chaque étape franchie prévient l'autre côté",
-        etat: "cible", src: "le suivi acheteuse pas-à-pas est à construire",
+        etat: "place", src: "bot.ts · avancerDepuisFil (ADR 0098) + notifierSuivi (ADR 0099)",
+        note: "La garde du produit tient au bouton près : tant que le solde est ouvert, « Remise faite » ne se montre pas — la carte rappelle le montant attendu et le collage du SMS. Côté Marie, la carte de suivi se met à jour (fenêtre ouverte) ou attend son prochain message.",
       },
       {
         de: "moi", compte: "tape", mono: true,
@@ -831,11 +845,11 @@
       {
         de: "bot", compte: "auto",
         texte: "🛵 Remise prévue aujourd'hui. Quand c'est fait, un geste suffit :",
-        actions: [{ l: "📦 Remise faite — commande livrée", suite: true }],
+        actions: [{ l: "📦 Remise faite", suite: true }],
         attend: "tap",
         quoi: "La remise en un bouton, plus un mot-clé à retenir",
-        etat: "cible", src: "« livrée CT-… » tapé est en place · le bouton contextuel est la cible",
-        note: "Le mot-clé reste — il marche depuis n'importe où. Mais au moment probable de la remise, le bouton est là : personne ne devine une syntaxe.",
+        etat: "place", src: "bot.ts · avancerDepuisFil (ADR 0098) · « livrée CT-… » tapé reste",
+        note: "Le mot-clé reste — il marche depuis n'importe où. Le bouton n'apparaît que solde réglé : pas de remise close sans preuve ou déclaration (cycle.ts, refus solde_ouvert).",
       },
       {
         de: "bot", compte: "touche",
@@ -849,17 +863,16 @@
       },
       {
         de: "bot", compte: "auto",
-        tete: { small: "Votre matin · samedi 16 août ☀️", b: "Bonjour Bintou — hier chez vous :" },
+        tete: { small: "Votre matin · dimanche 16 août ☀️", b: "Bonjour Bintou — hier chez vous :" },
         prix: [
           { l: "🛒 Commandes", v: "2" },
-          { l: "✅ Paiement prouvé", v: "1" },
-          { l: "👀 Visites de la boutique", v: "340" },
+          { l: "✅ Paiements prouvés", v: "1" },
           { l: "⭐ Avis reçu", v: "« Sac solide, livraison rapide »" },
         ],
         texte: "À faire aujourd'hui : préparer CT-104305. Bonne journée 🌞",
         quoi: "Le résumé du matin — le service qu'on ne demande jamais",
-        etat: "cible", src: "ADR à écrire · gabarit utilitaire (ADR 0054) · TZ Africa/Douala",
-        note: "Zéro message de la vendeuse : la journée démarre par les faits et l'action suivante. Un matin sans rien à dire n'envoie rien — le silence fait partie du service.",
+        etat: "place", src: "resume-matin.ts + pg-boss 07:30 Africa/Douala (ADR 0100) · en français (ADR 0033)",
+        note: "Zéro message de la vendeuse : la journée démarre par les faits et l'action suivante. Un matin sans rien à dire n'envoie rien — le silence fait partie du service. Les visites n'apparaîtront que le jour où elles seront comptées (ADR 0022), jamais de gabarit (la carte attend la fenêtre), et « stop résumé » coupe le service — réversible d'un mot.",
       },
     ],
   };
@@ -992,16 +1005,29 @@
       },
       {
         de: "bot", compte: "touche",
-        texte: "🤝 Merci ! Votre paiement est *prouvé à deux voix*. Voici votre suivi — il se mettra à jour tout seul :",
+        texte: "🖋️ *Merci — votre confirmation est enregistrée.* CT-104312 porte désormais deux voix : celle de la vendeuse et la vôtre.\n\nVoici votre suivi — il se mettra à jour tout seul :",
         timeline: [
-          { l: "Acompte prouvé — 10 750 F", fait: true },
-          { l: "En préparation chez Bintou", encours: true },
-          { l: "Remise & solde — 10 750 F" },
-          { l: "Avis vérifié" },
+          { l: "Commande reçue par la vendeuse", encours: true },
+          { l: "Préparée, prête à partir" },
+          { l: "Confiée au livreur — il vous appellera en arrivant" },
+          { l: "Livrée" },
         ],
         quoi: "Le suivi vivant — plus jamais « et maintenant ? »",
-        etat: "cible", src: "les jalons existent en base · la timeline poussée pas-à-pas est à construire",
-        note: "Chaque étape franchie par Bintou met la timeline à jour chez Marie. Aujourd'hui la page de suivi existe ; la pousser dans le fil est la cible.",
+        etat: "place", src: "conversation.ts · lignesSuivi (ADR 0099) — le même rendu que « suivi » (ADR 0082)",
+        note: "UN seul vocabulaire de suivi : la carte poussée réutilise le rendu du mot « suivi » — chemin par mode, reste à payer, sort de la preuve. Le paiement et l'avis ne sont pas des jalons de plus : la ligne de preuve et l'invitation à noter les disent déjà.",
+      },
+      {
+        de: "bot", compte: "auto",
+        texte: "📦 *Votre commande avance :*",
+        timeline: [
+          { l: "Commande reçue par la vendeuse", fait: true },
+          { l: "Préparée, prête à partir", encours: true },
+          { l: "Confiée au livreur — il vous appellera en arrivant" },
+          { l: "Livrée" },
+        ],
+        quoi: "Chaque étape franchie par Bintou met la carte à jour",
+        etat: "place", src: "bot.ts · notifierSuivi (ADR 0099) · bouton cta_url « Voir le suivi »",
+        note: "Fenêtre ouverte : la carte part tout de suite, avec « Voir le suivi » vers la page du jeton — jamais la référence ni le code (ADR 0021). Fenêtre fermée : les jalons intermédiaires ATTENDENT le prochain message ; seule la remise réveille par gabarit. Informer n'est pas réveiller.",
       },
       {
         de: "systeme", compte: "auto",
@@ -1018,7 +1044,8 @@
         de: "moi", compte: "touche",
         texte: "⭐⭐⭐⭐⭐ « Sac solide, livraison rapide »",
         quoi: "L'avis en un formulaire — pas un dialogue",
-        etat: "cible", src: "la note dans le fil est en place · le Flow d'avis est la cible",
+        etat: "place", src: "flux-avis.json + lireAvisFlux (ADR 0063, clos par l'ADR 0101) · la liste d'étoiles reste le repli",
+        note: "Le formulaire passe par la MÊME porte que les étoiles : commande livrée, un seul avis par commande. « Vérifié » est un label, réservé aux paiements prouvés — un dépôt déclaré à la main donne un avis publié non vérifié.",
       },
       {
         de: "bot", compte: "auto",

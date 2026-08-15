@@ -47,7 +47,9 @@ export function adresseDe(c: Context): string {
   return c.req.header("x-real-ip")?.trim() || "inconnue";
 }
 
-const MESSAGE: Record<string, string> = {
+/* Exportee depuis l'ADR 0097 : le fil WhatsApp applique les memes plafonds
+   (meme domaine, meme table) et refuse avec les memes phrases. */
+export const MESSAGE_LIMITE: Record<string, string> = {
   trop_de_demandes_pour_ce_numero:
     "Trop de demandes pour ce numero. Attendez quelques minutes avant de redemander un code.",
   trop_de_demandes_depuis_cette_adresse:
@@ -82,7 +84,7 @@ export function otpRateLimit(deps: OtpRateLimitDeps): MiddlewareHandler {
       return c.json(
         {
           erreur: decision.reason,
-          message: MESSAGE[decision.reason],
+          message: MESSAGE_LIMITE[decision.reason],
           reessayerDansSecondes: secondes,
         },
         429,

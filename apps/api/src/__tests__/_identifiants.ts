@@ -91,6 +91,10 @@ export const BLOCS = {
   "expiration-commande": 24,
   "bot-rafale": 25,
   "bot-carte-entretenue": 26,
+  "bot-reversement": 27,
+  "bot-etapes": 28,
+  "bot-suivi": 29,
+  "bot-resume": 30,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

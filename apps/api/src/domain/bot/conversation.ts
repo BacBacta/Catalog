@@ -1,3 +1,4 @@
+import type { OrderStep } from "@catalog/contracts";
 import { formatXaf } from "@catalog/contracts/money";
 import { formatPhone } from "@catalog/contracts/phone";
 import { villeAcceptable } from "@catalog/contracts/villes";
@@ -14,7 +15,7 @@ import {
   messageFlux,
   veutPositionFlux,
 } from "./flux.ts";
-import { demandeCarteVitrine, demandeConges } from "./inscription.ts";
+import { demandeCarteVitrine, demandeConges, demandeListeCommandes } from "./inscription.ts";
 import {
   boutons,
   demandeLocalisation,
@@ -24,6 +25,8 @@ import {
   reaction,
   texte,
 } from "./messages.ts";
+import { corpsListeCommandes, lireBoutonEcrire, lireBoutonEtape } from "./notifications.ts";
+import { demandeResume } from "./resume-matin.ts";
 import {
   type Langue,
   langueDemandee,
@@ -335,6 +338,15 @@ export type EffetBot =
   | { type: "verifier_sms"; texte: string }
   /** « livrée CT-XXXXXX » — la vendeuse marque la remise depuis le fil (ADR 0035). */
   | { type: "marquer_livree"; reference: string }
+  /**
+   * Un bouton d'etape — ADR 0098. LE MEME moteur que l'app (`avancerEtape`),
+   * memes refus, meme journal : le bouton n'est qu'un raccourci contextuel.
+   */
+  | { type: "avancer_etape"; reference: string; vers: "preparee" | "chez_le_livreur" | "livree" }
+  /** « Écrire à la cliente » : le service repond avec le wa.me de livraison. */
+  | { type: "ecrire_cliente"; reference: string }
+  /** « stop résumé » / « résumé » — l'opt-out du matin, reversible (ADR 0100). */
+  | { type: "basculer_resume"; stop: boolean }
   /** « ma carte » — la carte-vitrine à poster en Statut (ADR 0037). */
   | { type: "envoyer_carte" }
   /** « congés » / « je reprends » — la boutique se ferme et se rouvre (ADR 0039). */
@@ -1294,9 +1306,16 @@ function reagirApresAchat(
     if (!commande.contresignable) {
       return { etat, messages: [texte(vers, t.contresigneImpossible)] };
     }
+    /**
+     * La contre-signature OUVRE le suivi — ADR 0099, decision 4 : le moment
+     * exact ou l'attente commence est le moment d'installer la carte qui
+     * bougera. UNE bulle (ADR 0086) : le merci existant, puis le chemin —
+     * le meme rendu que « suivi », jamais un second vocabulaire.
+     */
+    const suivi = commande.etapes?.length ? ["", t.suiviIntro, ...lignesSuivi(commande, t)] : [];
     return {
       etat,
-      messages: [texte(vers, t.contresigneMerci(commande.reference))],
+      messages: [texte(vers, [t.contresigneMerci(commande.reference), ...suivi].join("\n"))],
       effet: { type: "contresigner" },
     };
   }
@@ -1806,6 +1825,39 @@ function messageRecap(
   ]);
 }
 
+/**
+ * Le rendu du CHEMIN d'une commande — ✓ fait, ➔ en cours, ○ a venir — plus
+ * le reste a payer et le sort de la preuve. UNE seule fonction pour les deux
+ * porteurs (ADR 0099, decision 1) : la reponse a « suivi » et la carte
+ * POUSSEE a chaque transition. Deux vocabulaires divergeraient au premier
+ * lot venu.
+ */
+export function lignesSuivi(
+  s: Pick<
+    StatutDerniereCommande,
+    "reference" | "boutique" | "libelle" | "resteXaf" | "etapes" | "preuve"
+  >,
+  t: TextesAcheteuse,
+): string[] {
+  const chemin = s.etapes?.length
+    ? s.etapes.map((e) =>
+        e.courante ? `➔ ${e.libelle}` : e.faite ? `✓ ${e.libelle}` : `○ ${e.libelle}`,
+      )
+    : [s.libelle];
+  return [
+    `*${s.reference} — ${s.boutique}*`,
+    ...chemin,
+    s.resteXaf > 0 ? t.statutResteAPayer(s.resteXaf) : t.statutRegle,
+    ...(s.preuve === "prouve"
+      ? [t.statutPreuveProuvee]
+      : s.preuve === "conteste"
+        ? [t.statutPreuveContestee]
+        : s.preuve === "non_trace"
+          ? [t.statutPreuveNonTracee]
+          : []),
+  ];
+}
+
 /** La reponse a « ou est ma commande ? ». Sans commande : on le dit, sans inventer. */
 function messageStatut(
   vers: string,
@@ -1817,30 +1869,13 @@ function messageStatut(
    * « Suivi » REDIT L'ETAT — banc du 12/08/2026. La reponse se limitait a
    * l'etape courante et a « votre lien est plus haut dans ce fil » : une
    * fouille archeologique dans une conversation qui s'allonge. Le jeton,
-   * lui, ne se re-projette toujours pas (garde du lot 10) — mais l'ETAT
-   * n'est pas un secret : le chemin complet, le reste a payer et le sort de
-   * la preuve se disent ici, et le renvoi au lien devient une ligne de
-   * confort au lieu d'etre toute la reponse.
+   * lui, ne se re-projette toujours pas ICI (garde du lot 10 ; la carte
+   * POUSSEE, elle, porte le bouton — ADR 0099, decision 3, et c'est le meme
+   * fil) — mais l'ETAT n'est pas un secret : le chemin complet, le reste a
+   * payer et le sort de la preuve se disent ici, et le renvoi au lien
+   * devient une ligne de confort au lieu d'etre toute la reponse.
    */
-  const chemin = s.etapes?.length
-    ? s.etapes.map((e) =>
-        e.courante ? `➔ ${e.libelle}` : e.faite ? `✓ ${e.libelle}` : `○ ${e.libelle}`,
-      )
-    : [s.libelle];
-  const lignes = [
-    `*${s.reference} — ${s.boutique}*`,
-    ...chemin,
-    s.resteXaf > 0 ? t.statutResteAPayer(s.resteXaf) : t.statutRegle,
-    ...(s.preuve === "prouve"
-      ? [t.statutPreuveProuvee]
-      : s.preuve === "conteste"
-        ? [t.statutPreuveContestee]
-        : s.preuve === "non_trace"
-          ? [t.statutPreuveNonTracee]
-          : []),
-    t.statutOuEstLeLien,
-  ];
-  return texte(vers, lignes.join("\n"));
+  return texte(vers, [...lignesSuivi(s, t), t.statutOuEstLeLien].join("\n"));
 }
 
 /**
@@ -1958,6 +1993,13 @@ export interface CommandeOuverte {
   id: string;
   reference: string;
   resteXaf: number;
+  /**
+   * Le total et l'etape — ADR 0098, pour le detail de « commandes ».
+   * FACULTATIFS : un appelant qui ne les charge pas garde les cartes
+   * d'avant, ligne par ligne, sans rien casser.
+   */
+  totalXaf?: number;
+  etape?: OrderStep;
 }
 
 /** Ce que le menu vendeuse montre d'elle-meme — charge par le service. */
@@ -2046,6 +2088,64 @@ export function reagirVendeuse(
 
   const mot = entree.genre === "texte" ? entree.texte.trim().toLowerCase() : "";
   const id = entree.genre === "bouton" || entree.genre === "liste" ? entree.id : null;
+
+  /**
+   * Les boutons d'etape — ADR 0098. La machine LIT l'identifiant ; le
+   * service applique par LE MEME moteur que l'app (`avancerEtape`), memes
+   * refus, meme journal. Un identifiant fabrique qui ne se lit pas retombe
+   * sur le menu, comme tout bouton perime.
+   */
+  if (id) {
+    const etape = lireBoutonEtape(id);
+    if (etape) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [],
+        effet: { type: "avancer_etape", reference: etape.reference, vers: etape.vers },
+      };
+    }
+    const ecrire = lireBoutonEcrire(id);
+    if (ecrire) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [],
+        effet: { type: "ecrire_cliente", reference: ecrire },
+      };
+    }
+  }
+
+  /**
+   * « stop résumé » / « résumé » — ADR 0100. La confirmation ANNONCE le mot
+   * inverse : une porte de sortie sans poignee de retour n'en est pas une.
+   */
+  if (entree.genre === "texte") {
+    const bascule = demandeResume(entree.texte);
+    if (bascule !== null) {
+      return {
+        etat: ETAT_INITIAL,
+        messages: [
+          texte(
+            vers,
+            bascule
+              ? "C'est noté — plus de résumé du matin. Pour le reprendre un jour : écrivez « résumé »."
+              : "☀️ C'est noté — le résumé du matin reviendra dès qu'il y aura du neuf à raconter.",
+          ),
+        ],
+        effet: { type: "basculer_resume", stop: bascule },
+      };
+    }
+  }
+
+  /**
+   * « commandes » — le detail promis par la carte d'absence (ADR 0098,
+   * decision 4). Il lit ce que le service a deja charge ; rien de plus.
+   */
+  if (id === "commandes" || (entree.genre === "texte" && demandeListeCommandes(entree.texte))) {
+    return {
+      etat: ETAT_INITIAL,
+      messages: [texte(vers, corpsListeCommandes(contexte.commandesOuvertes))],
+    };
+  }
 
   /* La carte-vitrine (ADR 0037) : le service la fabrique et l'envoie — la
      machine ne sait pas dessiner, elle sait demander. */

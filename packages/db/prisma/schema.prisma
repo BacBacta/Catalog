@@ -101,6 +101,11 @@ model Seller {
   /// API ne le permet. Seule la forme du lien est validee, et c'est dit.
   chaineUrl String? @map("chaine_url")
 
+  /// Opt-out du resume du matin — ADR 0100. Horodate : on sait dire depuis
+  /// quand. Nul = le resume part (des qu'il y a un fait). « stop résumé » le
+  /// pose, « résumé » le retire — reversible en un mot, dans le fil.
+  resumeMatinStopA DateTime? @map("resume_matin_stop_a")
+
   user        AuthUser?          @relation(fields: [userId], references: [id])
   products    Product[]
   orders      Order[]
@@ -108,8 +113,13 @@ model Seller {
   orderEvents OrderEvent[]
   auditEvents SellerAuditEvent[]
   payoutOtps  PayoutOtp[]
+  resumesMatin ResumeMatin[]
 
   @@index([status])
+  /// Declare APRES coup — la migration `parrainage_et_canal_ouverture` avait
+  /// cree cet index a la main sans le poser ici, et Prisma le comptait comme
+  /// une derive a supprimer. Le schema redevient la verite.
+  @@index([parrainId])
   @@index([payoutPhone])
   @@map("seller")
 }
@@ -684,6 +694,26 @@ model BotMessageVu {
 
   @@index([reclameLe])
   @@map("bot_message_vu")
+}
+
+/// La deduplication du resume du matin — ADR 0100, en AJOUT SEUL. Une ligne
+/// par vendeuse et par jour LOCAL (Africa/Douala, `AAAA-MM-JJ`) : le travail
+/// relance le meme jour la trouve et se tait. Elle s'ecrit MEME pour un
+/// silence (aucun fait ce jour-la) — rejouer ne re-decide pas. Son premier
+/// enregistrement dit aussi « premiere carte » : c'est elle qui annonce
+/// « stop résumé ».
+model ResumeMatin {
+  id       String   @id @default(uuid(7))
+  sellerId String   @map("seller_id")
+  /// Le jour LOCAL, en texte fige — jamais un DateTime dont le fuseau se
+  /// rejouerait mal : la cle d'unicite doit etre exactement le jour vecu.
+  jour     String
+  creeLe   DateTime @default(now()) @map("cree_le")
+
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@unique([sellerId, jour])
+  @@map("resume_matin")
 }
 
 model BotNotification {
