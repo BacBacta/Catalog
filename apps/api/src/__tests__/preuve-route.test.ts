@@ -82,7 +82,11 @@ interface Vendeuse {
   app: ReturnType<typeof preuveRoutes>;
 }
 
-async function creerVendeuse(suffixe: number, totalXaf: number): Promise<Vendeuse> {
+async function creerVendeuse(
+  suffixe: number,
+  totalXaf: number,
+  options: { payMode?: "integral" | "acompte"; dueBeforeXaf?: number } = {},
+): Promise<Vendeuse> {
   const n = (base: string) => `+237${base}${suffixe.toString().padStart(7, "0").slice(-7)}`;
   const u = await prisma.authUser.create({
     data: {
@@ -113,7 +117,8 @@ async function creerVendeuse(suffixe: number, totalXaf: number): Promise<Vendeus
       totalXaf,
       amountPaidXaf: 0,
       balanceXaf: totalXaf,
-      payMode: "integral",
+      payMode: options.payMode ?? "integral",
+      ...(options.dueBeforeXaf !== undefined ? { dueBeforeXaf: options.dueBeforeXaf } : {}),
       delivery: { mode: "retrait", pickupPoint: "Carrefour Elf", phone: "+237652000001" },
       /* L'alphabet non ambigu et la forme XXXX-XXXX (contrainte
          `order_verification_code_shape`) viennent du schema d'identifiants :
@@ -392,6 +397,7 @@ describeDb("l'argent s'écrit sous garde — non-retour du constat A1 (audit 202
         createdAt: true,
         buyerPhone: true,
         proofState: true,
+        dueBeforeXaf: true,
       },
     });
     const deps = { prisma, chiffreur, maintenant: () => NOW };
@@ -451,5 +457,39 @@ describeDb("litige — les surfaces cessent de dire « le reçu est émis » (no
     });
     expect(commande.proofState).toBe("conteste");
     expect(commande.amountPaidXaf).toBe(0);
+  });
+});
+
+describeDb("l'acompte du est FIGE a la creation (non-retour A4, ADR 0094)", () => {
+  it("le controle n° 2 compare au montant DEMANDE, pas a la constante du jour", async () => {
+    /* Une commande nee sous un acompte d'un TIERS : `due_before_xaf` porte
+       26 800 F sur un total de 80 400. Le recalcul depuis la constante
+       (50 %) attendrait 40 200 F et REFUSERAIT ce SMS — c'est exactement le
+       defaut du constat A4 : un commit qui change le pourcentage modifiait
+       retroactivement l'attendu des commandes impayees. */
+    const v = await creerVendeuse((RUN + 60001) % 900000, 80400, {
+      payMode: "acompte",
+      dueBeforeXaf: 26800,
+    });
+    const r = await coller(v, MTN_RECEPTION.replace("17600000002", ids.txMtn()));
+    expect(r.status).toBe(200);
+    const corps = (await r.json()) as { verdict: string };
+    expect(corps.verdict).toBe("accepte");
+    const commande = await prisma.order.findUniqueOrThrow({
+      where: { id: v.orderId },
+      select: { amountPaidXaf: true, balanceXaf: true },
+    });
+    expect(commande.amountPaidXaf).toBe(26800);
+    expect(commande.balanceXaf).toBe(80400 - 26800);
+  });
+
+  it("une commande d'AVANT la colonne recalcule — pour elle seule, l'ancien chemin", async () => {
+    /* `due_before_xaf` nul : la migration est en expand, les commandes
+       anterieures n'en ont pas. Pour elles, le recalcul a 50 % reste la
+       seule verite disponible : 26 800 F sur 53 600. */
+    const v = await creerVendeuse((RUN + 60002) % 900000, 53600, { payMode: "acompte" });
+    const r = await coller(v, MTN_RECEPTION.replace("17600000002", ids.txMtn()));
+    expect(r.status).toBe(200);
+    expect(((await r.json()) as { verdict: string }).verdict).toBe("accepte");
   });
 });

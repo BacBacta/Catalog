@@ -113,6 +113,7 @@ export function preuveRoutes(deps: PreuveDeps) {
           createdAt: true,
           buyerPhone: true,
           proofState: true,
+          dueBeforeXaf: true,
         },
       });
       if (!commande) return c.json({ erreur: "commande_introuvable" }, 404);

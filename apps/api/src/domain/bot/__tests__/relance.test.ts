@@ -28,6 +28,19 @@ describe("decisionRelance", () => {
     expect(d).toEqual({ relancer: true, acompteXaf: 7500 }); // floor de 50 % de 15 001
   });
 
+  it("redit le montant FIGE a la creation quand la commande le porte — ADR 0094", () => {
+    /* Non-retour du constat A4 : la relance recalculait depuis la constante,
+       et redisait donc un montant que la commande n'avait jamais demande si
+       le pourcentage avait change entre-temps. */
+    const d = decisionRelance({ ...BASE, duAvantXaf: 5000 }, uneHeureApres);
+    expect(d).toEqual({ relancer: true, acompteXaf: 5000 });
+    /* `null` — commande d'avant la colonne : l'ancien recalcul, pour elle seule. */
+    expect(decisionRelance({ ...BASE, duAvantXaf: null }, uneHeureApres)).toEqual({
+      relancer: true,
+      acompteXaf: 7500,
+    });
+  });
+
   it("se tait des qu'un franc est arrive — meme un acompte partiel", () => {
     expect(decisionRelance({ ...BASE, amountPaidXaf: 100 }, uneHeureApres)).toEqual({
       relancer: false,

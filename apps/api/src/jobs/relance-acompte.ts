@@ -141,6 +141,7 @@ export async function executerRelanceAcompte(
       amountPaidXaf: true,
       cancelledAt: true,
       createdAt: true,
+      dueBeforeXaf: true,
     },
   });
   if (!commande) return;
@@ -152,6 +153,9 @@ export async function executerRelanceAcompte(
       amountPaidXaf: commande.amountPaidXaf,
       annuleeA: commande.cancelledAt,
       creeeA: commande.createdAt,
+      /* Le montant FIGE a la creation — ADR 0094 : la relance redit ce que
+         la commande a demande, pas ce que la constante vaut aujourd'hui. */
+      duAvantXaf: commande.dueBeforeXaf,
     },
     deps.maintenant?.() ?? new Date(),
   );

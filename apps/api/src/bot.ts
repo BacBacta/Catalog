@@ -2338,6 +2338,9 @@ async function creerCommande(
             totalXaf,
             amountPaidXaf: 0,
             balanceXaf: totalXaf,
+            /* L'acompte du se FIGE ici — ADR 0094. Recalcule a la lecture, il
+               changerait retroactivement avec la constante (constat A4). */
+            dueBeforeXaf: plan.duAvantXaf,
             payMode: mode,
             delivery: livraisonJson,
             verificationCode: generateVerificationCode(alea),
@@ -2682,6 +2685,7 @@ async function verdictDansLeFil(
         createdAt: true,
         buyerPhone: true,
         proofState: true,
+        dueBeforeXaf: true,
       },
     }),
     deps.prisma.seller.findUnique({

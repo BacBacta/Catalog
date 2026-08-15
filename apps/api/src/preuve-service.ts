@@ -58,6 +58,11 @@ export interface CommandePourPreuve {
   createdAt: Date;
   buyerPhone: string | null;
   proofState: string;
+  /**
+   * L'acompte du, FIGE a la creation — ADR 0094 (constat A4). `null` sur les
+   * commandes anterieures a la colonne : pour elles seules, on recalcule.
+   */
+  dueBeforeXaf: number | null;
 }
 
 export type ResultatPreuve =
@@ -120,10 +125,18 @@ export async function soumettrePreuve(
    * n'est arrive, c'est ce que le produit lui a demande — l'ACOMPTE en mode
    * acompte, pas le total. Des qu'un versement est passe, l'attendu redevient
    * le solde.
+   *
+   * L'acompte se lit dans la COMMANDE, plus dans la constante — ADR 0094,
+   * constat A4 : recalcule depuis `POURCENT_ACOMPTE_DEFAUT`, un commit qui
+   * change le pourcentage modifiait retroactivement l'attendu des commandes
+   * impayees, et un SMS de 50 % en route se faisait refuser par le controle
+   * n° 2. Le recalcul ne subsiste que pour les commandes d'avant la colonne.
    */
-  const plan = planDePaiement(commande.totalXaf, commande.payMode as PayMode);
+  const duAvantXaf =
+    commande.dueBeforeXaf ??
+    planDePaiement(commande.totalXaf, commande.payMode as PayMode).duAvantXaf;
   const attenduXaf =
-    commande.amountPaidXaf === 0 && plan.duAvantXaf > 0 ? plan.duAvantXaf : commande.balanceXaf;
+    commande.amountPaidXaf === 0 && duAvantXaf > 0 ? duAvantXaf : commande.balanceXaf;
 
   const analyse = analyserSms(texteSms);
   if (!analyse.reconnu) {
