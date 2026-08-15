@@ -198,6 +198,43 @@ describe("le formulaire d'avis s'ajoute, il ne remplace pas", () => {
     });
   });
 
+  it("le formulaire NE CONTOURNE PAS la garde : commande non livree → refus — ADR 0101", async () => {
+    /* La meme porte que la liste d'etoiles (`avisPossible`, calcule par
+       `droitAuDepot`) : un Flow rempli d'avance ne depose rien tant que la
+       commande n'y donne pas droit. */
+    const { reagirAcheteuse } = await import("../conversation.ts");
+    const r = reagirAcheteuse(
+      { nom: "accueil" } as never,
+      {
+        genre: "flux",
+        reponse: JSON.stringify({ flow_token: "avis:", note: "5", mot: "Rapide" }),
+      },
+      {
+        vers: VERS,
+        boutique: null,
+        derniereCommande: { ...(APRES_ACHAT as object), avisPossible: false } as never,
+      } as never,
+    );
+    expect(r.effet).toBeUndefined();
+  });
+
+  it("un avis DEJA depose ne se re-depose pas par le formulaire — l'unicite tient", async () => {
+    const { reagirAcheteuse } = await import("../conversation.ts");
+    const r = reagirAcheteuse(
+      { nom: "accueil" } as never,
+      {
+        genre: "flux",
+        reponse: JSON.stringify({ flow_token: "avis:", note: "1", mot: "encore" }),
+      },
+      {
+        vers: VERS,
+        boutique: null,
+        derniereCommande: { ...(APRES_ACHAT as object), avisDejaDepose: true } as never,
+      } as never,
+    );
+    expect(r.effet).toBeUndefined();
+  });
+
   it("une reponse de LIVRAISON ne devient JAMAIS un avis", async () => {
     /* Les deux empruntent le meme chemin technique (`nfm_reply`) : sans le
        jeton, une livraison remplie deposerait un avis fantome. */

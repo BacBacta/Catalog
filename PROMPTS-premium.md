@@ -33,7 +33,7 @@ tel quel dans une session neuve, précédé du préambule.
 | **P4** | ✅ | ADR 0098 — la notification à boutons, `avancerDepuisFil` (même moteur que l'app), la garde `solde_ouvert` au bouton près, la carte « Pendant votre absence », le mot-clé « commandes » |
 | **P5** | ✅ | ADR 0099 — `lignesSuivi` (un seul vocabulaire), `notifierSuivi` poussé à chaque transition, politique de fenêtre actée (intermédiaire : jamais de gabarit), bouton `cta_url` « Voir le suivi » |
 | **P6** | ✅ | ADR 0100 — `resume-matin.ts` (le silence est une sortie), pg-boss 07:30 Africa/Douala, déduplication `resume_matin`, « stop résumé » réversible, jamais de gabarit |
-| **P7** | ⏳ | **Le prochain.** |
+| **P7** | ✅ | ADR 0101 — constat : le Flow d'avis était livré (0063/0076) ; fermé par le contrat de champs testé et les gardes du chemin Flow. **La séquence premium est close.** |
 
 Ce que P1 et P2 ont ajouté et qui sert aux lots suivants :
 

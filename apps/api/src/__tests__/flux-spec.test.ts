@@ -113,6 +113,44 @@ describe("la spec du formulaire de REVERSEMENT suit le code — ADR 0097", () =>
   });
 });
 
+describe("la spec du formulaire d'AVIS suit le code — ADR 0101", () => {
+  const spec = JSON.parse(
+    readFileSync(new URL("../../../../docs/flux-avis.json", import.meta.url), "utf8"),
+  ) as {
+    screens: Array<{
+      terminal?: boolean;
+      layout: { children: Array<{ type?: string; children?: Array<Record<string, unknown>> }> };
+    }>;
+  };
+
+  it("tient en UN ecran — la note et le mot, rien d'autre", () => {
+    expect(spec.screens).toHaveLength(1);
+    expect(spec.screens[0]?.terminal).toBe(true);
+  });
+
+  const ecran = spec.screens[0];
+  if (!ecran) throw new Error("la spec du formulaire d'avis n'a aucun ecran");
+  const formulaire = ecran.layout.children.find((c) => c.type === "Form");
+  if (!formulaire?.children) throw new Error("l'ecran du formulaire d'avis n'a aucun formulaire");
+  const champs = formulaire.children.filter((c) => c.name).map((c) => c.name as string);
+
+  it("declare EXACTEMENT les champs que `lireAvisFlux` lit", () => {
+    expect(champs.sort()).toEqual(["mot", "note"]);
+  });
+
+  it("la note est OBLIGATOIRE et ENTIERE (1..5) — une note fabriquee n'entre pas", () => {
+    const note = formulaire.children?.find((c) => c.name === "note");
+    expect(note?.required).toBe(true);
+    const source = (note?.["data-source"] ?? []) as Array<{ id: string }>;
+    expect(source.map((o) => o.id).sort()).toEqual(["1", "2", "3", "4", "5"]);
+  });
+
+  it("le mot reste FACULTATIF — il l'est partout", () => {
+    const mot = formulaire.children?.find((c) => c.name === "mot");
+    expect(mot?.required).not.toBe(true);
+  });
+});
+
 describe("la spec du formulaire d'ARTICLE suit le code — tache #62", () => {
   const spec = JSON.parse(
     readFileSync(new URL("../../../../docs/flux-article.json", import.meta.url), "utf8"),

@@ -31,7 +31,16 @@ let prisma: PrismaClient;
    defaut a fait echouer deux verifications le 11/08/2026, dont un test
    de fuite — le genre de faux rouge qui masque un vrai. */
 const RUN = 875 * 1000 + selExecution();
-const NOW = new Date("2026-08-05T09:00:00+01:00");
+/**
+ * L'horloge de CE fichier doit rester dans la fenetre de retention des
+ * AUTRES : la purge des reclamations (`RETENTION_VUS_MS`, 3 jours) s'execute
+ * avec l'horloge de chaque appelant, et les tests tournent en parallele
+ * contre UNE base. Datee du 05/08 (le jour de l'incident), la reclamation de
+ * ce fichier se faisait purger EN PLEIN VOL par n'importe quel test date du
+ * 15/08 — et la relivraison repondait quatre fois. Le defaut commemore reste
+ * celui du 05/08 ; l'horloge, elle, suit les fichiers les plus recents.
+ */
+const NOW = new Date("2026-08-14T09:00:00+01:00");
 
 class EnvoyeurMemoire implements EnvoyeurBot {
   readonly nom = "memoire";
