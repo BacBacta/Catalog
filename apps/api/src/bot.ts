@@ -68,6 +68,7 @@ import {
   jetonFlux,
   lireArticleFlux,
   lireInscriptionFlux,
+  formePhotoFlux,
   lireOuvertureFlux,
   lireReversementFlux,
   messageFlux,
@@ -701,6 +702,17 @@ async function filInscription(
       );
       return;
     }
+    /**
+     * Une photo PRESENTE dans la reponse mais NON RECONNUE se mesure —
+     * ADR 0104. Le squelette (types, cles, longueurs — jamais une valeur)
+     * part au journal : c'est lui qui dira quelle forme ce telephone livre,
+     * et la tolerance s'ecrira contre la forme mesuree, pas contre une
+     * hypothese (§7.7, et le precedent de l'ADR 0079).
+     */
+    if (!lu.mediaId && !lu.photoCdn) {
+      const forme = formePhotoFlux(entree.reponse);
+      if (forme) console.warn(`bot : photo du formulaire non reconnue (forme ${forme})`);
+    }
     await poserEtat(deps, phone, ETAT_INITIAL);
     await envoyerSequence(deps, await publierArticleDepuisFil(deps, sellerId, entree.de, lu));
     return;
@@ -805,6 +817,12 @@ async function filInscription(
      * mode d'emploi) reste apres la confirmation, et c'est elle qui avait
      * suspendu le fil, pas la creation.
      */
+    /* La photo presente mais non reconnue se MESURE ici aussi — ADR 0104,
+       meme squelette, meme regle : jamais une valeur. */
+    if (ouverture?.article && !ouverture.article.mediaId && !ouverture.article.photoCdn) {
+      const forme = formePhotoFlux(entree.reponse);
+      if (forme) console.warn(`bot : photo du formulaire non reconnue (forme ${forme})`);
+    }
     const articleCree =
       cree.ok && ouverture?.article
         ? await creerArticleDepuisFil(deps, cree.id, ouverture.article)

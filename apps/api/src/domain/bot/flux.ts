@@ -308,6 +308,49 @@ function photoDe(
   return cdn ? { photoCdn: cdn } : undefined;
 }
 
+/**
+ * Le SQUELETTE du champ `photo` d'une reponse de formulaire — ADR 0104.
+ *
+ * Le 15/08/2026 au soir, un formulaire d'article rempli AVEC photo a produit
+ * « Sans photo pour l'instant » : `photoDe` n'a pas reconnu la forme livree
+ * par ce telephone. C'est le scenario de l'ADR 0079 — une forme que la
+ * documentation ne decrit pas — et on ne la devine pas (AGENTS.md §7.7) :
+ * on la MESURE, puis on ecrit la tolerance contre la forme reelle.
+ *
+ * Cette description rend types, cles et longueurs, et JAMAIS une valeur :
+ * ni identifiant de media, ni URL de CDN (elle porte les cles de
+ * dechiffrement), ni octets. C'est ce qui l'autorise a atterrir dans un
+ * journal (meme regime que les traces, ADR 0023). Profondeur bornee : un
+ * squelette n'a pas besoin d'etre exhaustif pour dire la forme.
+ */
+export function formePhotoFlux(brut: string): string | null {
+  const d = objetDe(brut);
+  if (!d || !("photo" in d)) return null;
+  return decrire(d.photo, 0);
+}
+
+const PROFONDEUR_MAX = 3;
+
+function decrire(v: unknown, profondeur: number): string {
+  if (v === null) return "null";
+  if (typeof v === "string") return `chaine(${v.length})`;
+  if (typeof v === "number") return "nombre";
+  if (typeof v === "boolean") return "booleen";
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "tableau[0]";
+    if (profondeur >= PROFONDEUR_MAX) return `tableau[${v.length}]`;
+    return `tableau[${v.length}]:${decrire(v[0], profondeur + 1)}`;
+  }
+  if (typeof v === "object") {
+    if (profondeur >= PROFONDEUR_MAX) return "objet";
+    const champs = Object.entries(v as Record<string, unknown>)
+      .slice(0, 8)
+      .map(([k, val]) => `${k}: ${decrire(val, profondeur + 1)}`);
+    return `{ ${champs.join(", ")} }`;
+  }
+  return typeof v;
+}
+
 export function lireArticleFlux(brut: string): ArticleLu | null {
   const d = objetDe(brut);
   if (!d) return null;

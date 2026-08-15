@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formePhotoFlux,
   genreDuJeton,
   jetonFlux,
   lireArticleFlux,
@@ -451,5 +452,52 @@ describe("la lecture d'un article — tache #62", () => {
   it("son jeton se reconnait, et ne se confond avec aucun autre", () => {
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("article") }))).toBe("article");
     expect(genreDuJeton(reponse({ flow_token: jetonFlux("avis") }))).not.toBe("article");
+  });
+});
+
+describe("la forme du champ photo, decrite sans son contenu (ADR 0104)", () => {
+  /**
+   * Le 15/08/2026 au soir, un formulaire d'article rempli AVEC photo a
+   * produit « Sans photo pour l'instant » : `photoDe` n'a pas reconnu la
+   * forme livree par ce telephone. C'est le scenario de l'ADR 0079 — une
+   * forme de plus que la documentation ne decrit pas — et on ne la DEVINE
+   * pas (AGENTS.md §7.7) : on la mesure. Cette fonction rend le SQUELETTE
+   * du champ — types, cles, longueurs — et jamais une valeur : ni
+   * identifiant de media, ni URL de CDN (elle porte les cles de
+   * dechiffrement), ni octets.
+   */
+  it("decrit types, cles et longueurs — jamais les valeurs", () => {
+    expect(formePhotoFlux(reponse({ photo: [{ id: "SECRET-1234567890" }] }))).toBe(
+      "tableau[1]:{ id: chaine(17) }",
+    );
+    const forme = formePhotoFlux(
+      reponse({
+        photo: [
+          {
+            cdn_url: "https://cdn.exemple/tres-secret",
+            encryption_metadata: { encryption_key: "AAAA", hmac_key: "BBBB" },
+          },
+        ],
+      }),
+    );
+    expect(forme).toBe(
+      "tableau[1]:{ cdn_url: chaine(31), encryption_metadata: { encryption_key: chaine(4), hmac_key: chaine(4) } }",
+    );
+    expect(forme).not.toContain("SECRET");
+    expect(forme).not.toContain("cdn.exemple");
+  });
+
+  it("les formes non reconnues se decrivent aussi — c'est leur raison d'etre", () => {
+    /* Un tableau encode en CHAINE : l'hypothese du 15/08, a confirmer par
+       la mesure avant toute tolerance nouvelle. */
+    expect(formePhotoFlux(reponse({ photo: '[{"id":"x"}]' }))).toBe("chaine(12)");
+    expect(formePhotoFlux(reponse({ photo: [] }))).toBe("tableau[0]");
+    expect(formePhotoFlux(reponse({ photo: 42 }))).toBe("nombre");
+    expect(formePhotoFlux(reponse({ photo: { id: "x" } }))).toBe("{ id: chaine(1) }");
+  });
+
+  it("sans champ photo, rien a decrire", () => {
+    expect(formePhotoFlux(reponse({ nom: "Sac", prix: "1000" }))).toBeNull();
+    expect(formePhotoFlux("pas du json")).toBeNull();
   });
 });

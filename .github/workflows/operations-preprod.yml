@@ -102,7 +102,7 @@ jobs:
         run: |
           echo "── photos refusees dans la fenetre de journaux ──"
           flyctl logs --no-tail --app catalog-api-preprod 2>/dev/null \
-            | grep -E "photo non enregistree|media bot" | tail -20 \
+            | grep -E "photo non enregistree|photo du formulaire non reconnue" | tail -20 \
             || echo "(aucune ligne : soit aucun refus recent, soit la fenetre est passee)"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
