@@ -51,6 +51,7 @@ import {
   etatApresInactivite,
   extraireSlugBoutique,
   type LignePanier,
+  lignesSuivi,
   messageVerdict,
   normaliserEtat,
   RAFALE_MAX,
@@ -90,6 +91,7 @@ import {
   accuseLecture,
   boutons as boutonsMessage,
   image as imageMessage,
+  lien as lienMessage,
   type MessageSortant,
   sansCitation,
   texte,
@@ -102,6 +104,7 @@ import {
   corpsNouvelleCommande,
   corpsRappelSolde,
   corpsRefusSoldeOuvert,
+  decisionRemise,
   type EtapeBouton,
   suiteEtape,
 } from "./domain/bot/notifications.ts";
@@ -149,6 +152,7 @@ import {
   MESSAGE as MESSAGE_REVERSEMENT,
 } from "./routes/payout.ts";
 import { basculerConges, slugifier, slugLibre } from "./routes/seller.ts";
+import { lienSuiviPourLeFil } from "./suivi-pousse.ts";
 
 /**
  * Le service du bot — ADR 0031, revise par les ADR 0032 et 0033. Il charge
@@ -2685,6 +2689,60 @@ async function urlJpegVerifiee(deps: BotDeps, cleDeBase: string): Promise<string
  * vie (lot 11). AUCUN jeton n'est relu ici : le lien de suivi ne se re-projette
  * jamais (garde du lot 10) — la reponse renvoie au message de confirmation.
  */
+/**
+ * La carte de suivi POUSSEE — ADR 0099. Une transition = UNE carte, le meme
+ * rendu que la reponse a « suivi » (`lignesSuivi` — un seul vocabulaire).
+ *
+ * Politique de fenetre (decision 2) : OUVERTE, la carte part tout de suite,
+ * avec le bouton « Voir le suivi » (`cta_url`, l'usage mesure de
+ * l'ADR 0087) vers la page du jeton acheteuse — jamais la reference ni le
+ * code (ADR 0021), et le lien part dans le fil qui le detient deja.
+ * FERMEE : AUCUN gabarit pour un jalon intermediaire — informer n'est pas
+ * reveiller — la carte attend en base et part au prochain entrant.
+ *
+ * Ne leve jamais : une carte de suivi n'est pas le chemin critique.
+ */
+export async function notifierSuivi(deps: BotDeps, orderId: string): Promise<void> {
+  try {
+    const [conversation, commande] = await Promise.all([
+      deps.prisma.botConversation.findFirst({
+        where: { derniereCommandeId: orderId },
+        select: { phone: true, langue: true, updatedAt: true },
+      }),
+      deps.prisma.order.findUnique({
+        where: { id: orderId },
+        select: { cancelledAt: true },
+      }),
+    ]);
+    if (!conversation || !commande || commande.cancelledAt) return;
+    const s = await statutDerniereCommande(deps, orderId);
+    if (!s) return;
+    /* Le pidgin reste non servi (ADR 0034) : `wes` retombe sur le francais. */
+    const t = TEXTES[conversation.langue === "en" ? "en" : "fr"];
+    const corps = [t.suiviMisAJour, ...lignesSuivi(s, t)].join("\n");
+    const maintenant = deps.maintenant?.() ?? new Date();
+    /* Le lien du jeton passe par LA cellule nommee (`suivi-pousse.ts`) — la
+       seule projection permise par `jeton-jamais-expose.test.ts`. */
+    const url = await lienSuiviPourLeFil(deps.prisma, orderId, deps.baseBoutique);
+    if (decisionRemise(conversation.updatedAt, maintenant) === "envoyer") {
+      try {
+        const vers = conversation.phone.replace(/^\+/, "");
+        await deps.envoyeur.envoyer(
+          url ? lienMessage(vers, corps, t.btnVoirSuivi, url) : texte(vers, corps),
+        );
+        return;
+      } catch {
+        /* L'envoi a echoue : la carte attend, elle ne se perd pas. */
+      }
+    }
+    /* Le corps mis en attente reste autosuffisant en texte — le bouton
+       etait un confort, la carte n'en depend pas. */
+    await notifier(deps, conversation.phone, corps);
+  } catch {
+    console.warn("bot : carte de suivi non envoyee (details retenus)");
+  }
+}
+
 async function statutDerniereCommande(
   deps: BotDeps,
   commandeId: string,
@@ -3377,6 +3435,10 @@ async function avancerDepuisFil(
     await notifierLivree(deps, commande.id);
     return [texte(versWa, corpsLivraisonMarquee(reference))];
   }
+  /* Le suivi pousse — ADR 0099 : la meme transition met a jour la carte de
+     l'acheteuse. Jalon INTERMEDIAIRE : fenetre ouverte seulement, sinon la
+     carte attend — informer n'est pas reveiller. */
+  await notifierSuivi(deps, commande.id);
   const suite = suiteEtape({ ...cycle, etape: decision.etape }, reference);
   const carte = corpsEtapeFranchie(reference, decision.etape);
   if (suite && "bouton" in suite) {

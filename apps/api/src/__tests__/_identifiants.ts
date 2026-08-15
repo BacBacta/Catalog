@@ -93,6 +93,7 @@ export const BLOCS = {
   "bot-carte-entretenue": 26,
   "bot-reversement": 27,
   "bot-etapes": 28,
+  "bot-suivi": 29,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

@@ -235,6 +235,13 @@ export interface TextesAcheteuse {
   btnDonnerAvis: string;
   /** Le « oui » de l'acheteuse : la preuve passe a deux voix. */
   contresigneMerci: (reference: string) => string;
+  /* ─── le suivi pousse — ADR 0099 ─── */
+  /** L'installation du suivi, apres la contre-signature (copie maquette). */
+  suiviIntro: string;
+  /** L'en-tete d'une mise a jour poussee — une transition, une carte. */
+  suiviMisAJour: string;
+  /** Le bouton `cta_url` vers la page de suivi (« va voir cette page »). */
+  btnVoirSuivi: string;
   /** La contre-signature n'a pas d'objet (preuve absente, deja contresignee…). */
   contresigneImpossible: string;
   /** La contestation se CONFIRME : un appui malheureux gelerait la commande. */
@@ -464,6 +471,9 @@ const fr: TextesAcheteuse = {
   btnDonnerAvis: "Donner mon avis",
   contresigneMerci: (ref) =>
     `🖋️ *Merci — votre confirmation est enregistrée.*\n${ref} porte désormais deux voix : celle de la vendeuse et la vôtre. C'est la preuve la plus solide que Catalog sache produire.`,
+  suiviIntro: "Voici votre suivi — il se mettra à jour tout seul :",
+  suiviMisAJour: "📦 *Votre commande avance :*",
+  btnVoirSuivi: "Voir le suivi",
   contresigneImpossible:
     "Cette confirmation n'a plus d'objet : ou le paiement n'est pas encore prouvé, ou vous l'avez déjà confirmé. Rien n'a changé.",
   contesterConfirmation: (ref) =>
@@ -670,6 +680,9 @@ const en: TextesAcheteuse = {
   btnDonnerAvis: "Leave a review",
   contresigneMerci: (ref) =>
     `🖋️ *Thank you — your confirmation is recorded.*\n${ref} now carries two voices: the seller's and yours. It is the strongest proof Catalog can produce.`,
+  suiviIntro: "Here is your tracking — it will update on its own:",
+  suiviMisAJour: "📦 *Your order is moving:*",
+  btnVoirSuivi: "See tracking",
   contresigneImpossible:
     "This confirmation no longer applies: either the payment is not proven yet, or you already confirmed it. Nothing changed.",
   contesterConfirmation: (ref) =>

@@ -16,7 +16,7 @@ import { resoudreTransport } from "./adapters/whatsapp-transport.ts";
 import app from "./app.ts";
 import { createAuth, origines, smsSenderDepuisEnv } from "./auth.ts";
 import { appliquerMessageEntrant, type MagasinDefis } from "./auth-connexion-whatsapp.ts";
-import { resumerErreur, traiterLivraisonBot } from "./bot.ts";
+import { notifierSuivi, resumerErreur, traiterLivraisonBot } from "./bot.ts";
 import { notifierConteste, notifierLivree, notifierPaiementProuve } from "./bot-notifications.ts";
 import { accuserConnexionDansLeFil } from "./connexion-fil.ts";
 import { cohorteDepuisEnv, hstsActif, positionCourante } from "./deploiement.ts";
@@ -232,6 +232,11 @@ app.route(
           apresEtape: async ({ orderId, etape }: { orderId: string; etape: string }) => {
             if (etape === "livree") {
               await notifierLivree({ prisma, envoyeur: bot.envoyeur }, orderId);
+            } else {
+              /* Les jalons intermediaires mettent la carte de suivi a jour
+                 dans le fil acheteuse — ADR 0099, depuis l'app comme depuis
+                 le fil. Hors fenetre : la carte attend, aucun gabarit. */
+              await notifierSuivi({ prisma, ...bot }, orderId);
             }
           },
         }

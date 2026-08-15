@@ -31,8 +31,9 @@ tel quel dans une session neuve, précédé du préambule.
 | **P2** | ✅ | `carteVitrine(deps, sellerId, "poussee")` — décision P0-c |
 | **P3** | ✅ | ADR 0097 — `flux-reversement.json` (UN écran), état `reversement_code`, le code collé dans le fil, vérifié par `changerNumeroDeReversement` tel quel |
 | **P4** | ✅ | ADR 0098 — la notification à boutons, `avancerDepuisFil` (même moteur que l'app), la garde `solde_ouvert` au bouton près, la carte « Pendant votre absence », le mot-clé « commandes » |
-| **P5** | ⏳ | **Le prochain.** |
-| P6 → P7 | ⏳ | Inchangés |
+| **P5** | ✅ | ADR 0099 — `lignesSuivi` (un seul vocabulaire), `notifierSuivi` poussé à chaque transition, politique de fenêtre actée (intermédiaire : jamais de gabarit), bouton `cta_url` « Voir le suivi » |
+| **P6** | ⏳ | **Le prochain.** |
+| P7 | ⏳ | Inchangé |
 
 Ce que P1 et P2 ont ajouté et qui sert aux lots suivants :
 

@@ -1303,9 +1303,16 @@ function reagirApresAchat(
     if (!commande.contresignable) {
       return { etat, messages: [texte(vers, t.contresigneImpossible)] };
     }
+    /**
+     * La contre-signature OUVRE le suivi — ADR 0099, decision 4 : le moment
+     * exact ou l'attente commence est le moment d'installer la carte qui
+     * bougera. UNE bulle (ADR 0086) : le merci existant, puis le chemin —
+     * le meme rendu que « suivi », jamais un second vocabulaire.
+     */
+    const suivi = commande.etapes?.length ? ["", t.suiviIntro, ...lignesSuivi(commande, t)] : [];
     return {
       etat,
-      messages: [texte(vers, t.contresigneMerci(commande.reference))],
+      messages: [texte(vers, [t.contresigneMerci(commande.reference), ...suivi].join("\n"))],
       effet: { type: "contresigner" },
     };
   }
@@ -1815,6 +1822,39 @@ function messageRecap(
   ]);
 }
 
+/**
+ * Le rendu du CHEMIN d'une commande — ✓ fait, ➔ en cours, ○ a venir — plus
+ * le reste a payer et le sort de la preuve. UNE seule fonction pour les deux
+ * porteurs (ADR 0099, decision 1) : la reponse a « suivi » et la carte
+ * POUSSEE a chaque transition. Deux vocabulaires divergeraient au premier
+ * lot venu.
+ */
+export function lignesSuivi(
+  s: Pick<
+    StatutDerniereCommande,
+    "reference" | "boutique" | "libelle" | "resteXaf" | "etapes" | "preuve"
+  >,
+  t: TextesAcheteuse,
+): string[] {
+  const chemin = s.etapes?.length
+    ? s.etapes.map((e) =>
+        e.courante ? `➔ ${e.libelle}` : e.faite ? `✓ ${e.libelle}` : `○ ${e.libelle}`,
+      )
+    : [s.libelle];
+  return [
+    `*${s.reference} — ${s.boutique}*`,
+    ...chemin,
+    s.resteXaf > 0 ? t.statutResteAPayer(s.resteXaf) : t.statutRegle,
+    ...(s.preuve === "prouve"
+      ? [t.statutPreuveProuvee]
+      : s.preuve === "conteste"
+        ? [t.statutPreuveContestee]
+        : s.preuve === "non_trace"
+          ? [t.statutPreuveNonTracee]
+          : []),
+  ];
+}
+
 /** La reponse a « ou est ma commande ? ». Sans commande : on le dit, sans inventer. */
 function messageStatut(
   vers: string,
@@ -1826,30 +1866,13 @@ function messageStatut(
    * « Suivi » REDIT L'ETAT — banc du 12/08/2026. La reponse se limitait a
    * l'etape courante et a « votre lien est plus haut dans ce fil » : une
    * fouille archeologique dans une conversation qui s'allonge. Le jeton,
-   * lui, ne se re-projette toujours pas (garde du lot 10) — mais l'ETAT
-   * n'est pas un secret : le chemin complet, le reste a payer et le sort de
-   * la preuve se disent ici, et le renvoi au lien devient une ligne de
-   * confort au lieu d'etre toute la reponse.
+   * lui, ne se re-projette toujours pas ICI (garde du lot 10 ; la carte
+   * POUSSEE, elle, porte le bouton — ADR 0099, decision 3, et c'est le meme
+   * fil) — mais l'ETAT n'est pas un secret : le chemin complet, le reste a
+   * payer et le sort de la preuve se disent ici, et le renvoi au lien
+   * devient une ligne de confort au lieu d'etre toute la reponse.
    */
-  const chemin = s.etapes?.length
-    ? s.etapes.map((e) =>
-        e.courante ? `➔ ${e.libelle}` : e.faite ? `✓ ${e.libelle}` : `○ ${e.libelle}`,
-      )
-    : [s.libelle];
-  const lignes = [
-    `*${s.reference} — ${s.boutique}*`,
-    ...chemin,
-    s.resteXaf > 0 ? t.statutResteAPayer(s.resteXaf) : t.statutRegle,
-    ...(s.preuve === "prouve"
-      ? [t.statutPreuveProuvee]
-      : s.preuve === "conteste"
-        ? [t.statutPreuveContestee]
-        : s.preuve === "non_trace"
-          ? [t.statutPreuveNonTracee]
-          : []),
-    t.statutOuEstLeLien,
-  ];
-  return texte(vers, lignes.join("\n"));
+  return texte(vers, [...lignesSuivi(s, t), t.statutOuEstLeLien].join("\n"));
 }
 
 /**

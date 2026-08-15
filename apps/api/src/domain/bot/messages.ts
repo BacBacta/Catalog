@@ -188,6 +188,24 @@ export interface MessageDemandeLocalisation {
   };
 }
 
+/**
+ * Le bouton-lien `cta_url` — mesure ACCEPTE sur notre WABA le 13/08/2026
+ * (ADR 0087). Son usage est borne : « va voir cette page » (suivi, recu,
+ * espace) — JAMAIS un lien a copier, qui reste du texte (ADR 0088). Le corps
+ * reste autosuffisant : le bouton est un confort, pas le porteur.
+ */
+export interface MessageLien {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "interactive";
+  interactive: {
+    type: "cta_url";
+    body: { text: string };
+    action: { name: "cta_url"; parameters: { display_text: string; url: string } };
+  };
+}
+
 export type MessageSortant =
   | MessageTexte
   | MessageBoutons
@@ -196,7 +214,8 @@ export type MessageSortant =
   | MessageReaction
   | MessageGabarit
   | MessageFlux
-  | MessageDemandeLocalisation;
+  | MessageDemandeLocalisation
+  | MessageLien;
 
 /**
  * L'accuse de lecture, et l'indicateur de frappe qui voyage avec — ADR 0049.
@@ -326,6 +345,22 @@ export function image(vers: string, lien: string, legende?: string): MessageImag
  * « envoyer ma position » sans phrase au-dessus ne dit ni pourquoi, ni que
  * c'est facultatif.
  */
+/** Le bouton-lien — voir `MessageLien`. `libelle` est borne comme un titre de bouton. */
+export function lien(vers: string, corps: string, libelle: string, url: string): MessageLien {
+  if (!url.startsWith("https://")) throw new Error("un bouton-lien exige une URL https");
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: vers,
+    type: "interactive",
+    interactive: {
+      type: "cta_url",
+      body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
+      action: { name: "cta_url", parameters: { display_text: tronquer(libelle, 20), url } },
+    },
+  };
+}
+
 export function demandeLocalisation(vers: string, corps: string): MessageDemandeLocalisation {
   return {
     messaging_product: "whatsapp",
