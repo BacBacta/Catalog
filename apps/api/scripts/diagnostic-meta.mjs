@@ -83,10 +83,15 @@ if (waba.ok) {
   const w = waba.corps;
   dire("nom", w.name);
   dire("pays / devise", `${w.country ?? "?"} / ${w.currency ?? "?"}`);
+  /* `ACTIVE` est la valeur NORMALE d'un WABA. La premiere version de cette
+     sonde attendait `CONNECTED` — qui est le statut d'un NUMERO, pas d'un
+     compte — et criait donc « ANORMAL » sur un compte parfaitement sain, le
+     16/08/2026. Une sonde qui alarme a tort est pire qu'une sonde absente :
+     elle envoie chercher une panne qui n'existe pas. */
   dire(
     "statut du compte",
     w.status,
-    w.status && w.status !== "CONNECTED" ? "← ANORMAL : normalement « CONNECTED »" : "",
+    w.status && w.status !== "ACTIVE" ? "← ANORMAL : normalement « ACTIVE »" : "",
   );
   dire(
     "revision du compte",
@@ -185,18 +190,28 @@ const proprio = await graph(`${WABA}?fields=owner_business_info`);
 const business = proprio.corps?.owner_business_info?.id ?? null;
 dire("entreprise", `${proprio.corps?.owner_business_info?.name ?? "?"} (${business ?? "?"})`);
 if (business) {
-  const b = await graph(`${business}?fields=name,verification_status,is_disabled_by_user`);
+  /* `is_disabled_by_user` N'EXISTE PAS sur ce noeud : demande le 16/08/2026,
+     Graph a rendu « (#100) Tried accessing nonexisting field ». La sonde
+     imputait alors l'echec a une portee manquante — un diagnostic FAUX sur
+     un compte sain. Un champ invente coute plus cher qu'un champ absent :
+     il fait accuser la configuration a la place de la requete. */
+  const b = await graph(`${business}?fields=name,verification_status`);
   if (b.ok) {
     dire(
       "  verification",
       b.corps?.verification_status,
       b.corps?.verification_status === "verified" ? "" : "← a faire pour lever les brides",
     );
-    dire("  desactivee par l'utilisateur", String(b.corps?.is_disabled_by_user ?? "?"));
   } else {
-    console.log(`  lecture de l'entreprise refusee : ${erreurDe(b)}`);
-    console.log("  (attendu si le jeton n'a pas `business_management` — ce n'est PAS");
-    console.log("   une restriction du compte, c'est une portee manquante.)");
+    const m = erreurDe(b);
+    console.log(`  lecture de l'entreprise refusee : ${m}`);
+    /* Deux causes a distinguer, et la sonde ne doit pas choisir a l'aveugle :
+       un refus de DROITS (#200/#10) contre une requete MALFORMEE (#100). */
+    console.log(
+      /permission|#200|#10\b/i.test(m)
+        ? "  → portee `business_management` manquante. Ce n'est PAS une restriction du compte."
+        : "  → la requete elle-meme est en cause, pas le compte ni les droits.",
+    );
   }
 }
 
