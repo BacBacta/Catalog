@@ -112,6 +112,33 @@ Le catalogue vendeuse (0107) est une **liste interactive, pas un Flow** : un
 Flow sert à saisir, pas à consulter. Rien ne s'y corrige — prix, stock et nom
 renvoient à l'espace vendeuse, et c'est un report explicite.
 
+### Le compte Meta est ORPHELIN — à lire avant tout dépôt
+
+L'**ADR 0109** acte la panne du 16/08/2026 : le compte Facebook qui
+administrait le Business Manager a été désactivé **définitivement**, et c'était
+le seul administrateur. Trois choses à savoir avant de toucher à quoi que ce
+soit chez Meta :
+
+- **Le service tourne, sans échéance.** Mesuré : le jeton est un jeton
+  d'utilisateur système **permanent** (`expires_at = JAMAIS`), le WABA est
+  `ACTIVE`, le numéro `CONNECTED` et `GREEN`. Il n'y a aucune urgence, donc
+  aucune décision à prendre dans la panique.
+- **Toute ADMINISTRATION est gelée** : plus de dépôt de Flow ni de gabarit,
+  plus de changement de portées, pas de catalogue — **l'ADR 0108 est reporté**,
+  son code reste dormant sans `WABOT_CATALOGUE_ID`.
+- **On ne touche à RIEN sur le WABA actuel.** Supprimer le numéro coupe le
+  service à la seconde et ne se défait pas. La reconstruction se fait À CÔTÉ,
+  dans l'ordre du runbook `reconstruire-le-compte-meta.md` — et la
+  récupération de l'ancien numéro vient en DERNIER, quand un échec ne coûte
+  plus rien.
+
+Le contenu, lui, n'est pas perdu : Flows (`docs/flux-*.json`), gabarits
+(`domain/bot/gabarits.ts`) et amorces se redéposent par script. Ce qui coûte
+est administratif — la vérification d'entreprise et le nom affiché.
+
+`Depots Meta` → `sante-compte` re-mesure l'état à tout moment, sans rien
+envoyer.
+
 ### Le bot WhatsApp — trois points ouverts, et ils le restent
 
 Le cap du bot est posé par l'ADR 0031, révisé par le 0032 (sprint A —

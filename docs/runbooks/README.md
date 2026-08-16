@@ -31,7 +31,14 @@ diagnostic, et c'est délibéré : **on arrête d'abord, on comprend ensuite.** 
 interrupteur se remet en position ouverte en dix secondes ; une demi-heure de
 diagnostic pendant que des preuves se perdent ne se rattrape pas.
 
-## Et deux fichiers qui ne sont pas des runbooks
+## Et trois fichiers qui ne sont pas des runbooks
+
+[reconstruire-le-compte-meta.md](reconstruire-le-compte-meta.md) se lit une
+fois, le jour où l'on décide de reconstruire le compte Meta — l'ADR 0109. Il
+n'est **pas** urgent : le jeton en place est permanent, mesuré, et le service
+tourne sans échéance. Il porte un interdit avant tout le reste (on ne touche à
+rien sur le WABA actuel), les identifiants qui ne se relisent plus dans aucune
+interface, et l'ordre qui fait qu'un échec de récupération ne coûte rien.
 
 [bascule-waba-production.md](bascule-waba-production.md) se lit une fois, le
 jour où 360dialog livre le canal de production : les quatre variables à poser,
