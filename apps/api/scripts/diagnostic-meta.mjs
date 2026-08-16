@@ -64,8 +64,48 @@ const erreurDe = (r) => r.corps?.error?.message ?? `HTTP ${r.statut}`;
 const dire = (clef, valeur, note = "") =>
   console.log(`  ${String(clef).padEnd(30)} ${valeur ?? "(non rendu)"}${note ? `   ${note}` : ""}`);
 
+/* ── 0. LE JETON : combien de temps le service tient-il ? ────────────────── */
+
+/**
+ * La question du 16/08/2026, et elle prime sur toutes les autres.
+ *
+ * Le compte personnel qui administrait l'entreprise a ete DEFINITIVEMENT
+ * desactive. Le bot, lui, continue : son jeton est celui d'un utilisateur
+ * SYSTEME, qui ne depend d'aucune connexion personnelle. Reste a savoir
+ * jusqu'a QUAND — un jeton systeme peut etre permanent (`expires_at` a zero)
+ * ou porter une echeance.
+ *
+ * Permanent, le service tient sans date de fin et la reconstruction se
+ * prepare sans urgence. Avec echeance, cette date EST le compte a rebours du
+ * produit, et plus personne ne peut renouveler le jeton — l'interface qui le
+ * ferait exige l'administrateur qui n'existe plus.
+ *
+ * Une date qu'on ignore est une date qu'on decouvre le jour ou elle tombe.
+ */
+console.log("── 0. Le jeton : jusqu'a quand ? ────────────────────────");
+const debug = await graph(`debug_token?input_token=${encodeURIComponent(JETON)}`);
+if (debug.ok) {
+  const d = debug.corps?.data ?? {};
+  const lireDate = (v) =>
+    v === 0 || v === undefined || v === null
+      ? "JAMAIS (jeton permanent)"
+      : new Date(v * 1000).toISOString();
+  dire("type", d.type);
+  dire("valide", d.is_valid === true ? "oui" : "NON");
+  dire(
+    "expiration",
+    lireDate(d.expires_at),
+    d.expires_at ? "← ECHEANCE : c'est le compte a rebours du service" : "",
+  );
+  dire("acces aux donnees jusqu'au", lireDate(d.data_access_expires_at));
+  dire("portees", (d.scopes ?? []).join(", ") || "(aucune)");
+} else {
+  console.log(`  debug_token refuse : ${erreurDe(debug)}`);
+}
+
 /* ── 1. Le compte WhatsApp Business lui-meme ─────────────────────────────── */
 
+console.log("");
 console.log("── 1. Le compte WhatsApp Business (WABA) ────────────────");
 const champs = [
   "id",
