@@ -27,6 +27,8 @@ import {
   image,
   liste,
   type MessageSortant,
+  PRODUITS_MAX,
+  produits,
   reaction,
   texte,
 } from "./messages.ts";
@@ -80,6 +82,13 @@ export interface ArticleBot {
    * jamais avec un lien mort, l'API refuserait tout le message.
    */
   imageUrl?: string;
+  /**
+   * L'article A une photo enregistree — sans porter l'URL, que le service ne
+   * verifie que la ou elle s'envoie. C'est le drapeau du catalogue natif
+   * (ADR 0108) : seuls les illustres y entrent, puisque seuls eux sont
+   * synchronises. Absent vaut faux.
+   */
+  avecPhoto?: boolean;
 }
 
 export interface BoutiqueBot {
@@ -330,7 +339,17 @@ export type Entree =
    * La reponse d'un Flow — ADR 0055. Le contenu voyage BRUT : c'est le
    * domaine qui le relit (`lireReponseFlux`), pas le parseur d'entrees.
    */
-  | { genre: "flux"; reponse: string; messageId?: string };
+  | { genre: "flux"; reponse: string; messageId?: string }
+  /**
+   * Le panier du catalogue NATIF — ADR 0108. Les references sont des
+   * identifiants d'articles en base ; les quantites viennent du panier Meta.
+   * AUCUN prix n'entre par ici : la machine re-tarife depuis la boutique.
+   */
+  | {
+      genre: "commande";
+      lignes: Array<{ articleId: string; quantite: number }>;
+      messageId?: string;
+    };
 
 export interface BrouillonCommande {
   slug: string;
@@ -525,6 +544,14 @@ export interface ContexteAcheteuse {
    * parce qu'un Flow ne s'affiche pas sur un WhatsApp ancien.
    */
   fluxAvisId?: string;
+  /**
+   * L'identifiant du catalogue Commerce Manager — ADR 0108. **Absent par
+   * defaut**, et le fil est alors exactement celui d'avant : la liste
+   * interactive. Present, « Voir les articles » rend le catalogue NATIF —
+   * photos et prix rendus par WhatsApp — et la liste reste le repli des
+   * boutiques sans article synchronisable.
+   */
+  catalogueId?: string;
 }
 
 /**
@@ -761,8 +788,67 @@ function reagirEnLangue(etat: EtatConv, entree: Entree, ctx: ContexteAcheteuse):
     };
   }
   if (id === "catalogue" || id?.startsWith("cat:")) {
+    /* Le catalogue NATIF quand il existe (ADR 0108) : photos et prix rendus
+       par WhatsApp. `cat:` (la pagination) reste sur la liste — le natif n'a
+       pas de pages, il choisit. */
+    if (ctx.catalogueId && id === "catalogue") {
+      const natif = catalogueNatif(vers, boutique, ctx.catalogueId, panierDe(etat), t);
+      if (natif) return natif;
+    }
     const page = id?.startsWith("cat:") ? Number(id.slice(4)) || 0 : 0;
     return pageCatalogue(vers, boutique, page, panierDe(etat), t);
+  }
+  /**
+   * Le panier du catalogue natif revient en COMMANDE — ADR 0108.
+   *
+   * Il REMPLACE le panier conversationnel : l'acheteuse vient de composer son
+   * panier entier dans l'ecran du catalogue, et le recapitulatif qui suit
+   * montre exactement ce qu'elle a envoye — rien ne se perd en silence.
+   * Chaque ligne est re-tarifee depuis la base et bornee par le stock, avec
+   * les memes regles que le parcours conversationnel (`maxCommandable`).
+   */
+  if (entree.genre === "commande") {
+    if (boutique.enConges) {
+      return {
+        etat,
+        messages: [
+          boutons(vers, t.boutiqueFermee(boutique.nom), [
+            ...(boutique.whatsappVendeuse ? [{ id: "vendeuse", titre: t.btnParlerVendeuse }] : []),
+            { id: "catalogue", titre: t.btnVoirArticles },
+          ]),
+        ],
+      };
+    }
+    const panier: LignePanier[] = [];
+    let ajuste = false;
+    for (const ligne of entree.lignes) {
+      const article = boutique.articles.find((a) => a.id === ligne.articleId);
+      if (!article) {
+        ajuste = true;
+        continue;
+      }
+      const possible = maxCommandable(article, panier);
+      if (possible === 0) {
+        ajuste = true;
+        continue;
+      }
+      if (ligne.quantite > possible) ajuste = true;
+      panier.push({ articleId: article.id, quantite: Math.min(ligne.quantite, possible) });
+    }
+    if (panier.length === 0) {
+      const suite = pageCatalogue(vers, boutique, 0, [], t);
+      return {
+        etat: suite.etat,
+        messages: [texte(vers, t.commandeIndisponible), ...suite.messages],
+      };
+    }
+    return {
+      etat: { nom: "ajout", slug: boutique.slug, panier },
+      messages: [
+        ...(ajuste ? [texte(vers, t.commandeAjustee)] : []),
+        ...messageAjout(vers, boutique, panier, t),
+      ],
+    };
   }
   if (id === "photos") {
     /* La rafale : chaque article illustre part en photo pleine largeur,
@@ -1664,6 +1750,45 @@ function accueilBoutique(
   return {
     etat: { nom: "catalogue", slug: b.slug, page: 0, ...(panier.length > 0 ? { panier } : {}) },
     messages: [boutons(vers, lignes.join("\n"), choix, enTete ? { image: enTete } : {})],
+  };
+}
+
+/**
+ * Le catalogue NATIF — ADR 0108. WhatsApp rend photos, prix et panier depuis
+ * les fiches Commerce Manager ; le message ne porte que des references.
+ *
+ * Seuls les articles ILLUSTRES y entrent : ce sont eux que la
+ * synchronisation pousse — une fiche sans image dans une vitrine d'images
+ * ferait moins bien que la liste, qui reste le repli. Aucun illustre :
+ * `null`, et l'appelant retombe sur la liste — jamais un message qui
+ * echouerait chez Meta pour une fiche absente.
+ *
+ * Au-dela de trente (la borne de l'API), les PLUS RECENTS : un article neuf
+ * prend `position = max + 1`, donc la fin de liste — la meme arithmetique
+ * que l'ADR 0105, employee cette fois dans le bon sens.
+ */
+function catalogueNatif(
+  vers: string,
+  b: BoutiqueBot,
+  catalogueId: string,
+  panier: LignePanier[],
+  t: TextesAcheteuse,
+): Reaction | null {
+  const illustres = b.articles.filter((a) => a.avecPhoto || a.imageUrl);
+  if (illustres.length === 0) return null;
+  const fiches = illustres.slice(-PRODUITS_MAX);
+  return {
+    etat: { nom: "catalogue", slug: b.slug, page: 0, ...(panier.length > 0 ? { panier } : {}) },
+    messages: [
+      produits(
+        vers,
+        catalogueId,
+        b.nom,
+        t.catalogueNatifCorps,
+        fiches.map((a) => a.id),
+        panier.length > 0 ? `${t.btnMonPanier} : ${formatXaf(totalPanier(b, panier))}` : undefined,
+      ),
+    ],
   };
 }
 

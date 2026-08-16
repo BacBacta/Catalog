@@ -108,6 +108,36 @@ export interface MessageListe {
 }
 
 /**
+ * Le catalogue NATIF, filtre par boutique — ADR 0108.
+ *
+ * Un message `product_list` reference des fiches du catalogue Commerce
+ * Manager attache au numero : WhatsApp rend lui-meme photos, prix et panier.
+ * C'est la seule forme de message qui porte des vignettes par article — les
+ * listes interactives n'en ont pas, c'est une borne de l'API.
+ *
+ * Les identifiants produits (`product_retailer_id`) sont les identifiants
+ * d'articles en base : aucune table de correspondance, aucune seconde
+ * verite. Le message ne porte AUCUN prix : c'est le catalogue Meta qui les
+ * affiche, et la commande qui en revient est re-tarifee depuis la base.
+ */
+export interface MessageProduits {
+  messaging_product: "whatsapp";
+  recipient_type: "individual";
+  to: string;
+  type: "interactive";
+  interactive: {
+    type: "product_list";
+    header: { type: "text"; text: string };
+    body: { text: string };
+    footer?: { text: string };
+    action: {
+      catalog_id: string;
+      sections: Array<{ title: string; product_items: Array<{ product_retailer_id: string }> }>;
+    };
+  };
+}
+
+/**
  * Une photo pleine largeur, avec sa legende — la fiche article « image
  * d'abord » et la rafale « voir en photos » (ADR 0035). Comme l'en-tete des
  * messages a boutons : le lien doit etre lisible par les serveurs de Meta AU
@@ -210,6 +240,7 @@ export type MessageSortant =
   | MessageTexte
   | MessageBoutons
   | MessageListe
+  | MessageProduits
   | MessageImage
   | MessageReaction
   | MessageGabarit
@@ -444,6 +475,64 @@ export function liste(
                 ? { description: tronquer(l.description, LIGNE_DESCRIPTION_MAX) }
                 : {}),
             })),
+          },
+        ],
+      },
+    },
+  };
+}
+
+/**
+ * Trente fiches par message `product_list` : la borne de l'API Meta. Au-dela,
+ * l'appelant CHOISIT trente — il ne pagine pas, le catalogue du profil porte
+ * le reste. Exportee pour que la selection cote service parle de la meme
+ * borne que la construction.
+ */
+export const PRODUITS_MAX = 30;
+
+/**
+ * Le catalogue natif, filtre par boutique — ADR 0108.
+ *
+ * WhatsApp rend photos et prix depuis le catalogue Commerce Manager : ce
+ * message ne porte que des REFERENCES (`product_retailer_id` = identifiant
+ * d'article en base). L'en-tete texte est obligatoire pour `product_list` ;
+ * on y met le nom de la boutique — c'est le seul endroit ou il s'affiche.
+ */
+export function produits(
+  vers: string,
+  catalogueId: string,
+  enTete: string,
+  corps: string,
+  articleIds: readonly string[],
+  pied?: string,
+): MessageProduits {
+  if (articleIds.length === 0) throw new Error("un message produits exige au moins une fiche");
+  if (articleIds.length > PRODUITS_MAX)
+    throw new Error(
+      `l'API n'accepte pas plus de ${PRODUITS_MAX} fiches par message (recu ${articleIds.length}) — choisir`,
+    );
+  const ids = new Set<string>();
+  for (const id of articleIds) {
+    if (!id.trim()) throw new Error("identifiant d'article vide : la fiche Meta en depend");
+    if (ids.has(id)) throw new Error(`identifiant d'article en double : ${id}`);
+    ids.add(id);
+  }
+  return {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: vers,
+    type: "interactive",
+    interactive: {
+      type: "product_list",
+      header: { type: "text", text: tronquer(enTete, LIGNE_TITRE_MAX * 2) },
+      body: { text: corpsOuLeve(corps, CORPS_INTERACTIF_MAX) },
+      ...(pied ? { footer: { text: tronquer(pied, PIED_MAX) } } : {}),
+      action: {
+        catalog_id: catalogueId,
+        sections: [
+          {
+            title: tronquer(enTete, LIGNE_TITRE_MAX),
+            product_items: articleIds.map((id) => ({ product_retailer_id: id })),
           },
         ],
       },

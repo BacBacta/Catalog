@@ -18,7 +18,7 @@ on:
         description: "Quel script executer"
         required: true
         type: choice
-        options: [flux, gabarits, les-deux, mesurer-photopicker, accueil-etat, accueil-poser, mesurer-cta]
+        options: [flux, gabarits, les-deux, mesurer-photopicker, accueil-etat, accueil-poser, mesurer-cta, catalogue-etat, catalogue-deposer, catalogue-synchroniser]
       mode:
         description: "Mode (--etat est en lecture seule)"
         required: true
@@ -106,3 +106,24 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           NUMERO: ${{ inputs.numero }}
+      # Le catalogue Commerce Manager — ADR 0108. `catalogue-etat` mesure les
+      # trois inconnues de l'ADR (portees du jeton, entreprise, catalogues et
+      # liaison) sans rien ecrire. `catalogue-deposer` cree et relie —
+      # idempotent, rien n'est jamais supprime. `catalogue-synchroniser`
+      # pousse toutes les fiches depuis la base et imprime le verdict de Meta
+      # fiche par fiche.
+      - name: Catalogue — etat (lecture seule)
+        if: inputs.quoi == 'catalogue-etat'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/catalogue.mjs --etat"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Catalogue — deposer (creer et relier)
+        if: inputs.quoi == 'catalogue-deposer'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/catalogue.mjs --deposer"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      - name: Catalogue — synchroniser les fiches
+        if: inputs.quoi == 'catalogue-synchroniser'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/catalogue.mjs --synchroniser"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

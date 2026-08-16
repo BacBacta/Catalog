@@ -136,9 +136,17 @@ d'`AGENTS.md` interdit :
    que c'est fermé, et l'aide FR/EN doit annoncer la langue dès que c'est
    ouvert. Ne jamais passer le drapeau à `true` sans la relecture.
 3. **Tout ce qui exige des gabarits utilitaires attend le WABA** : relances
-   suivantes (24 h, post-expiration), notification de la vendeuse, Flows,
-   catalogue natif, click-to-WhatsApp. L'adaptateur d'envoi est dormant —
-   sans `WABOT_API_KEY`, rien n'est monté.
+   suivantes (24 h, post-expiration), notification de la vendeuse,
+   click-to-WhatsApp. L'adaptateur d'envoi est dormant — sans
+   `WABOT_API_KEY`, rien n'est monté. Les Flows, eux, sont déposés depuis le
+   12/08 ; et **le catalogue natif est sorti de cette liste le 16/08** :
+   l'ADR 0108 le construit — un catalogue Commerce Manager unique pour le
+   numéro, des messages `product_list` filtrés par boutique (photos et prix
+   rendus par WhatsApp), le panier natif converti en commande par le
+   parcours existant, et les prix relus depuis la BASE, jamais depuis le
+   message. Dormant sans `WABOT_CATALOGUE_ID` ; dépôt et synchronisation par
+   `catalogue.mjs` via `depots-meta.yml` (`catalogue-etat` d'abord : les
+   portées du jeton ne sont pas supposées, elles se mesurent).
 
 Deux reports mineurs de la même famille : le retrait d'une ligne du panier
 (« annuler » vide tout, « corriger » revient au panier) et la description sur

@@ -45,8 +45,12 @@ const FORMES: Record<string, FormeNonLue> = {
  * Les types qui ne sont PAS des questions, et auxquels on ne repond donc
  * jamais. Repondre « je ne sais pas lire ca » a un 👍 est pire que le
  * silence : c'est un reproche adresse a quelqu'un qui vient d'approuver.
+ *
+ * `order` en est SORTI le 16/08/2026 (ADR 0108) : le panier du catalogue
+ * natif arrive sous ce type, et c'est desormais une commande a traiter, pas
+ * un bruit a taire.
  */
-const SANS_REPONSE = new Set(["reaction", "system", "ephemeral", "order"]);
+const SANS_REPONSE = new Set(["reaction", "system", "ephemeral"]);
 
 export type EntreeBot =
   | { de: string; genre: "texte"; texte: string; messageId?: string }
@@ -79,7 +83,24 @@ export type EntreeBot =
    * La reponse d'un Flow — ADR 0055. Le contenu voyage BRUT : c'est le
    * domaine qui le lit, pas le parseur, qui reste du texte vers des donnees.
    */
-  | { de: string; genre: "flux"; reponse: string; messageId?: string };
+  | { de: string; genre: "flux"; reponse: string; messageId?: string }
+  /**
+   * Le panier du catalogue NATIF — ADR 0108. L'acheteuse a touche « Ajouter
+   * au panier » sur des fiches Commerce Manager, puis envoye : Meta livre
+   * les references et les quantites.
+   *
+   * `articleId` est le `product_retailer_id`, c'est-a-dire l'identifiant de
+   * l'article en base — la decision de l'ADR 0108 qui evite toute table de
+   * correspondance. Le PRIX du message n'est PAS lu : un catalogue en retard
+   * d'une synchronisation ne fixe pas le prix d'une commande, seule la base
+   * fait foi.
+   */
+  | {
+      de: string;
+      genre: "commande";
+      lignes: Array<{ articleId: string; quantite: number }>;
+      messageId?: string;
+    };
 
 export function lireEntreesBot(corps: unknown): EntreeBot[] {
   const sortie: EntreeBot[] = [];
@@ -118,6 +139,7 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
           list_reply?: { id?: unknown };
           nfm_reply?: { response_json?: unknown };
         };
+        order?: { product_items?: unknown };
       } | null;
       if (typeof m?.from !== "string") continue;
       const messageId = typeof m.id === "string" && m.id ? { messageId: m.id } : {};
@@ -160,6 +182,38 @@ export function lireEntreesBot(corps: unknown): EntreeBot[] {
         }
         /* Coordonnees inexploitables : rien n'est retenu, et la suite traite
            le message comme une forme non lue. */
+      }
+
+      /**
+       * Le panier du catalogue natif — ADR 0108. Chaque ligne exige une
+       * reference textuelle non vide et une quantite ENTIERE et POSITIVE :
+       * une quantite absente ne devient jamais 1, une ligne illisible tombe,
+       * et un panier sans aucune ligne lisible retombe sur la forme non lue
+       * — le silence est la pire des reponses (ADR 0049).
+       */
+      if (m.type === "order") {
+        const brutes = Array.isArray(m.order?.product_items) ? m.order.product_items : [];
+        const lignes: Array<{ articleId: string; quantite: number }> = [];
+        for (const brute of brutes) {
+          const l = brute as { product_retailer_id?: unknown; quantity?: unknown } | null;
+          const id = l?.product_retailer_id;
+          const q = l?.quantity;
+          if (
+            typeof id === "string" &&
+            id.trim() !== "" &&
+            typeof q === "number" &&
+            Number.isInteger(q) &&
+            q > 0
+          ) {
+            lignes.push({ articleId: id, quantite: q });
+          }
+        }
+        if (lignes.length > 0) {
+          sortie.push({ de: m.from, genre: "commande", lignes, ...messageId });
+          continue;
+        }
+        sortie.push({ de: m.from, genre: "autre", forme: "inconnue", ...messageId });
+        continue;
       }
 
       if (m.type === "interactive") {

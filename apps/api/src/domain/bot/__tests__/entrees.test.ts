@@ -101,6 +101,64 @@ describe("lireEntreesBot", () => {
       expect(lireEntreesBot(corps)).toEqual([]);
     }
   });
+
+  /**
+   * Le panier du catalogue natif — ADR 0108. Il arrivait sous `order` et
+   * etait TU (liste SANS_REPONSE) : un panier envoye ne recevait rien du
+   * tout, la pire des reponses sur ce canal.
+   */
+  it("lit un panier de catalogue natif : references et quantites, JAMAIS les prix", () => {
+    const e = lireEntreesBot(
+      enveloppe([
+        {
+          from: "237690112233",
+          id: "wamid.cmd",
+          type: "order",
+          order: {
+            catalog_id: "cat-1",
+            product_items: [
+              { product_retailer_id: "a2", quantity: 2, item_price: 999999, currency: "XAF" },
+              { product_retailer_id: "a3", quantity: 1, item_price: 1, currency: "XAF" },
+            ],
+          },
+        },
+      ]),
+    );
+    /* `item_price` n'est pas relu : un catalogue en retard d'une
+       synchronisation ne fixe pas le prix d'une commande — la base fait foi. */
+    expect(e).toEqual([
+      {
+        de: "237690112233",
+        genre: "commande",
+        lignes: [
+          { articleId: "a2", quantite: 2 },
+          { articleId: "a3", quantite: 1 },
+        ],
+        messageId: "wamid.cmd",
+      },
+    ]);
+  });
+
+  it("un panier illisible ne se tait pas : il retombe en forme non lue", () => {
+    const e = lireEntreesBot(
+      enveloppe([
+        {
+          from: "237690112233",
+          type: "order",
+          /* Quantite absente, quantite nulle, reference vide : rien de lisible.
+             Une quantite absente ne devient JAMAIS 1. */
+          order: {
+            product_items: [
+              { product_retailer_id: "a2" },
+              { product_retailer_id: "a3", quantity: 0 },
+              { product_retailer_id: "", quantity: 2 },
+            ],
+          },
+        },
+      ]),
+    );
+    expect(e).toEqual([{ de: "237690112233", genre: "autre", forme: "inconnue" }]);
+  });
 });
 
 describe("le wamid entrant (ADR 0035)", () => {

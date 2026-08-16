@@ -114,6 +114,7 @@ import {
 } from "./domain/bot/notifications.ts";
 import { consigneDuPack, packStatut } from "./domain/bot/pack-statut.ts";
 import { type Langue, normaliserLangue, TEXTES } from "./domain/bot/textes.ts";
+import type { SynchroniseurCatalogue } from "./domain/catalogue.ts";
 import { extraireCodeDefi } from "./domain/connexion-whatsapp.ts";
 import { ATTENTE_ANNONCEE_MIN } from "./domain/deploiement/reconstruction-boutique.ts";
 import type { PhotoIndisponible } from "./domain/image.ts";
@@ -261,6 +262,24 @@ export interface BotDeps {
    * pointent vers l'espace web, exactement le comportement d'hier.
    */
   fluxReversementId?: string;
+  /**
+   * Le catalogue Commerce Manager — ADR 0108. Absent par defaut : la liste
+   * interactive sert, comme hier. Present, « Voir les articles » rend le
+   * catalogue NATIF (photos et prix par WhatsApp), et le panier natif
+   * revient en commande par le parcours existant.
+   */
+  catalogueId?: string;
+  /**
+   * La synchronisation des fiches vers ce catalogue — meme regime : absente,
+   * rien ne part nulle part. Elle s'appelle en DECORATION, apres la
+   * confirmation, et son echec vaut journal, jamais blocage.
+   */
+  catalogue?: SynchroniseurCatalogue;
+  /**
+   * L'origine publique des photos (ADR 0017) — celle des fiches Meta.
+   * Sans elle, aucune fiche ne peut porter d'image, donc rien ne part.
+   */
+  mediaPublicBase?: string;
   /**
    * La verification du reversement DANS le fil — ADR 0097. Le meme magasin
    * d'OTP, la meme table de tentatives et le meme envoyeur SMS que la route
@@ -1056,6 +1075,51 @@ async function filInscription(
  * carte de retour est UNE. Le mode d'emploi du premier article part comme
  * pour l'article unitaire : c'est l'instant ou la boutique devient reelle.
  */
+/**
+ * La synchronisation du catalogue Commerce Manager — ADR 0108.
+ *
+ * Une SYNCHRONISATION COMPLETE de la boutique, pas un envoi de la seule
+ * fiche publiee : elle rattrape au passage tout ce qu'un echec precedent
+ * aurait laisse derriere — `items_batch` en `UPDATE` est idempotent, donc
+ * rejouer ne coute rien. Seuls les articles ILLUSTRES partent : c'est la
+ * regle du catalogue natif, la liste 0107 porte les autres.
+ *
+ * DECORATION, toujours : elle s'appelle apres la confirmation, son echec se
+ * journalise (cause courte, jamais d'octets ni de jeton) et ne bloque rien.
+ */
+async function synchroniserCatalogue(deps: BotDeps, sellerId: string): Promise<void> {
+  if (!deps.catalogue || !deps.mediaPublicBase || !deps.baseBoutique) return;
+  const seller = await deps.prisma.seller.findUnique({
+    where: { id: sellerId },
+    select: {
+      slug: true,
+      congesDepuis: true,
+      products: {
+        where: { archivedAt: null },
+        orderBy: { position: "asc" },
+        select: { id: true, name: true, priceXaf: true, description: true, imageKey: true },
+      },
+    },
+  });
+  if (!seller) return;
+  const base = deps.mediaPublicBase.replace(/\/$/, "");
+  const lienBoutique = `${deps.baseBoutique.replace(/\/$/, "")}/${seller.slug}`;
+  const fiches = seller.products
+    .filter((p) => p.imageKey)
+    .map((p) => ({
+      id: p.id,
+      nom: p.name,
+      prixXaf: p.priceXaf,
+      ...(p.description ? { description: p.description } : {}),
+      imageUrl: `${base}/${p.imageKey}.jpg`,
+      lienBoutique,
+      /* Conges (ADR 0039) : les fiches restent visibles mais plus achetables
+         — le meme verrou que la creation de commande, dit dans le catalogue. */
+      disponible: seller.congesDepuis == null,
+    }));
+  await deps.catalogue.pousser(fiches);
+}
+
 async function publierRafale(
   deps: BotDeps,
   sellerId: string,
@@ -1102,6 +1166,11 @@ async function publierRafale(
      apres la carte de retour, echec silencieux, jamais de gabarit. */
   if (publies > 0) {
     messages.push(...(await carteVitrine(deps, sellerId, "poussee").catch(() => [])));
+    /* Le catalogue Meta suit la salve aussi (ADR 0108) — une synchronisation
+       pour toute la salve, pas une par article. */
+    await synchroniserCatalogue(deps, sellerId).catch((e) => {
+      console.warn(`bot : catalogue non synchronise (${e instanceof Error ? e.message : "?"})`);
+    });
   }
   /* Le mode d'emploi au PREMIER article (tache #62) — la salve qui fait
      naitre le catalogue le merite autant que l'article unitaire. */
@@ -1388,7 +1457,7 @@ async function verifierCodeReversement(
  */
 function entreePourMachine(
   entree: EntreeBot,
-): Exclude<EntreeMachine, { genre: "flux" } | { genre: "localisation" }> {
+): Exclude<EntreeMachine, { genre: "flux" } | { genre: "localisation" } | { genre: "commande" }> {
   const id = entree.messageId ? { messageId: entree.messageId } : {};
   switch (entree.genre) {
     case "texte":
@@ -1413,6 +1482,11 @@ function entreePourMachine(
        donc une phrase plutot qu'un silence (ADR 0049). */
     case "localisation":
       return { genre: "autre", forme: "localisation", ...id };
+    /* Un panier de catalogue natif (ADR 0108) n'a de sens que dans le fil
+       ACHETEUSE : ailleurs il devient une forme non lue, meme regle que le
+       Flow et la position. */
+    case "commande":
+      return { genre: "autre", forme: "inconnue", ...id };
     default:
       return { genre: entree.genre, id: entree.id, ...id };
   }
@@ -1426,6 +1500,9 @@ function entreePourMachine(
 function entreePourAcheteuse(entree: EntreeBot): EntreeMachine {
   const id = entree.messageId ? { messageId: entree.messageId } : {};
   if (entree.genre === "flux") return { genre: "flux", reponse: entree.reponse, ...id };
+  /* Le panier du catalogue natif — ADR 0108. Seule la machine acheteuse le
+     convertit en commande ; les lignes voyagent telles quelles, sans prix. */
+  if (entree.genre === "commande") return { genre: "commande", lignes: entree.lignes, ...id };
   /* La position entiere, avec ses deux coordonnees — seule la machine
      acheteuse sait quoi en faire, et seulement a l'etape livraison. */
   if (entree.genre === "localisation") {
@@ -1756,6 +1833,11 @@ async function publierArticleDepuisFil(
      * entrant, la fenetre est ouverte par construction.
      */
     messages.push(...(await carteVitrine(deps, sellerId, "poussee").catch(() => [])));
+    /* Le catalogue Meta suit la publication (ADR 0108) — decoration : un
+       refus se journalise en une ligne courte et ne retient aucune bulle. */
+    await synchroniserCatalogue(deps, sellerId).catch((e) => {
+      console.warn(`bot : catalogue non synchronise (${e instanceof Error ? e.message : "?"})`);
+    });
     /**
      * Le pack statut ne part plus TOUT SEUL — banc du 13/08/2026.
      *
@@ -1973,7 +2055,22 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
 
   /* Le slug vient du texte (lien d'entree) ou de l'etat courant. */
   const slugDuTexte = entree.genre === "texte" ? extraireSlugBoutique(entree.texte) : null;
-  const slug = slugDuTexte ?? ("slug" in etat ? etat.slug : null);
+  let slug = slugDuTexte ?? ("slug" in etat ? etat.slug : null);
+  /**
+   * Un panier de catalogue natif designe sa boutique par ses FICHES —
+   * ADR 0108. Le catalogue du profil melange toutes les vendeuses : une
+   * acheteuse peut composer un panier sans jamais etre entree dans une
+   * conversation de boutique, ou depuis la conversation d'une AUTRE. C'est
+   * donc l'article qui dit sa vendeuse, jamais l'etat — sinon les lignes
+   * seraient re-tarifees contre la mauvaise boutique et toutes rejetees.
+   */
+  if (entree.genre === "commande" && entree.lignes[0]) {
+    const porteur = await deps.prisma.product.findUnique({
+      where: { id: entree.lignes[0].articleId },
+      select: { seller: { select: { slug: true } } },
+    });
+    if (porteur) slug = porteur.seller.slug;
+  }
   const charge = slug ? await chargerBoutique(deps, slug) : null;
   const boutique = charge?.boutique ?? null;
 
@@ -2027,6 +2124,7 @@ async function filAcheteuse(deps: BotDeps, entree: EntreeBot, phone: string): Pr
     langue,
     ...(deps.fluxLivraisonId ? { fluxLivraisonId: deps.fluxLivraisonId } : {}),
     ...(deps.fluxAvisId ? { fluxAvisId: deps.fluxAvisId } : {}),
+    ...(deps.catalogueId ? { catalogueId: deps.catalogueId } : {}),
   });
   etat = reaction.etat;
   const messages = [...reaction.messages];
@@ -2764,6 +2862,9 @@ async function chargerBoutique(deps: BotDeps, slug: string): Promise<BoutiqueCha
         /* Zero veut dire « non suivi » — meme lecture que la boutique publique. */
         stock: p.stock > 0 ? p.stock : null,
         ...(p.description ? { description: p.description } : {}),
+        /* Le drapeau du catalogue natif (ADR 0108) : l'article a une photo,
+           sans porter l'URL — elle ne se verifie que la ou elle s'envoie. */
+        ...(clesImage.has(p.id) ? { avecPhoto: true } : {}),
       })),
     },
     clesImage,

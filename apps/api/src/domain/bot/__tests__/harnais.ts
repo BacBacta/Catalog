@@ -173,10 +173,13 @@ export class Pilote {
     let effet: EffetBot | EffetVendeuse | undefined;
 
     /* Comme bot.ts (entreePourMachine) : les fils vendeuse et inscription ne
-       reçoivent jamais un Flow ni une localisation entiers — dégradés en
-       « forme non lue ». Seul le fil acheteuse les lit tels quels. */
-    const pourMachine: Exclude<Entree, { genre: "flux" } | { genre: "localisation" }> =
-      entree.genre === "flux"
+       reçoivent jamais un Flow, une localisation ni un panier natif entiers —
+       dégradés en « forme non lue ». Seul le fil acheteuse les lit tels quels. */
+    const pourMachine: Exclude<
+      Entree,
+      { genre: "flux" } | { genre: "localisation" } | { genre: "commande" }
+    > =
+      entree.genre === "flux" || entree.genre === "commande"
         ? {
             genre: "autre",
             forme: "inconnue",
@@ -233,7 +236,7 @@ export class Pilote {
    * `bot.ts` (filInscription) : le démarrage quand aucun état n'existe.
    */
   private filInscription(
-    entree: Exclude<Entree, { genre: "flux" } | { genre: "localisation" }>,
+    entree: Exclude<Entree, { genre: "flux" } | { genre: "localisation" } | { genre: "commande" }>,
     texteBrut: string,
   ): { messages: MessageSortant[]; effet?: EffetVendeuse } {
     if (!this.vend) {
@@ -305,6 +308,8 @@ function etiquetteDe(entree: Entree): string {
       return `[${entree.forme}]`;
     case "flux":
       return "[réponse de formulaire]";
+    case "commande":
+      return `[panier natif : ${entree.lignes.map((l) => `${l.articleId}×${l.quantite}`).join(", ")}]`;
   }
 }
 

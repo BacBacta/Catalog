@@ -1660,3 +1660,138 @@ describe("le catalogue vendeuse (ADR 0107)", () => {
     expect(corpsBoutons(r.messages[0])).toMatch(/« mes articles »/);
   });
 });
+
+/* ────────────────────────── le catalogue natif (ADR 0108) ───────────────── */
+
+describe("le catalogue natif Meta (ADR 0108)", () => {
+  const ILLUSTREE: BoutiqueBot = {
+    ...BOUTIQUE,
+    articles: [
+      { id: "a1", nom: "Pagne wax 6 yards", prixXaf: 15000, stock: null },
+      { id: "a2", nom: "Sac en raphia", prixXaf: 8000, stock: 2, avecPhoto: true },
+      { id: "a3", nom: "Huile de coco", prixXaf: 3500, stock: null, avecPhoto: true },
+    ],
+  };
+  const AU_CATALOGUE = (etat: EtatConv = { nom: "catalogue", slug: "chez-amina", page: 0 }) =>
+    reagirAcheteuse(
+      etat,
+      { genre: "bouton", id: "catalogue" },
+      ctx({ boutique: ILLUSTREE, catalogueId: "cat-1" }),
+    );
+
+  it("« Voir les articles » rend le product_list des articles ILLUSTRES", () => {
+    const r = AU_CATALOGUE();
+    const m = r.messages[0] as {
+      interactive: {
+        type: string;
+        action: {
+          catalog_id: string;
+          sections: Array<{ product_items: Array<{ product_retailer_id: string }> }>;
+        };
+      };
+    };
+    expect(m.interactive.type).toBe("product_list");
+    expect(m.interactive.action.catalog_id).toBe("cat-1");
+    /* Les illustres seulement : a1 n'a pas de photo, donc pas de fiche. */
+    expect(
+      m.interactive.action.sections.flatMap((s) =>
+        s.product_items.map((p) => p.product_retailer_id),
+      ),
+    ).toEqual(["a2", "a3"]);
+  });
+
+  it("sans catalogueId, la liste d'hier — a l'identique", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "catalogue" },
+      ctx({ boutique: ILLUSTREE }),
+    );
+    expect((r.messages[0] as { interactive?: { type?: string } }).interactive?.type).toBe("list");
+  });
+
+  it("aucun article illustre : le natif se tait et la liste sert", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "catalogue" },
+      ctx({ catalogueId: "cat-1" }),
+    );
+    expect((r.messages[0] as { interactive?: { type?: string } }).interactive?.type).toBe("list");
+  });
+
+  it("plus de trente illustres : les PLUS RECENTS, bornes a trente", () => {
+    const GRANDE: BoutiqueBot = {
+      ...BOUTIQUE,
+      articles: Array.from({ length: 40 }, (_, i) => ({
+        id: `g${i}`,
+        nom: `Article ${i}`,
+        prixXaf: 1000,
+        stock: null,
+        avecPhoto: true,
+      })),
+    };
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "bouton", id: "catalogue" },
+      ctx({ boutique: GRANDE, catalogueId: "cat-1" }),
+    );
+    const fiches = (
+      r.messages[0] as {
+        interactive: {
+          action: { sections: Array<{ product_items: Array<{ product_retailer_id: string }> }> };
+        };
+      }
+    ).interactive.action.sections.flatMap((s) => s.product_items);
+    expect(fiches).toHaveLength(30);
+    /* Un article neuf prend position = max + 1 : les recents sont en FIN. */
+    expect(fiches[0]?.product_retailer_id).toBe("g10");
+    expect(fiches.at(-1)?.product_retailer_id).toBe("g39");
+  });
+
+  it("le panier natif devient le recapitulatif EXISTANT, re-tarife depuis la base", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "commande", lignes: [{ articleId: "a2", quantite: 2 }] },
+      ctx({ boutique: ILLUSTREE }),
+    );
+    expect(r.etat).toMatchObject({ nom: "ajout", panier: [{ articleId: "a2", quantite: 2 }] });
+    /* Le recapitulatif est celui du parcours conversationnel : 2 × 8 000. */
+    expect(JSON.stringify(r.messages)).toContain("16");
+  });
+
+  it("le stock borne le panier natif, et l'ajustement se DIT", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      /* a2 n'a que 2 en stock ; a-inconnu n'existe pas (catalogue en retard). */
+      {
+        genre: "commande",
+        lignes: [
+          { articleId: "a2", quantite: 5 },
+          { articleId: "a-inconnu", quantite: 1 },
+        ],
+      },
+      ctx({ boutique: ILLUSTREE }),
+    );
+    expect(r.etat).toMatchObject({ nom: "ajout", panier: [{ articleId: "a2", quantite: 2 }] });
+    expect(corpsTexte(r.messages[0])).toBe(TEXTES.fr.commandeAjustee);
+  });
+
+  it("un panier natif dont RIEN n'existe : la sortie honnete, puis le catalogue", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "commande", lignes: [{ articleId: "fantome", quantite: 1 }] },
+      ctx({ boutique: ILLUSTREE }),
+    );
+    expect(corpsTexte(r.messages[0])).toBe(TEXTES.fr.commandeIndisponible);
+    expect(r.etat.nom).toBe("catalogue");
+  });
+
+  it("boutique en conges : le panier natif est refuse comme « commander »", () => {
+    const r = reagirAcheteuse(
+      { nom: "catalogue", slug: "chez-amina", page: 0 },
+      { genre: "commande", lignes: [{ articleId: "a2", quantite: 1 }] },
+      ctx({ boutique: { ...ILLUSTREE, enConges: true } }),
+    );
+    expect(JSON.stringify(r.messages)).toContain("ne prend pas de nouvelle commande");
+    expect(r.etat.nom).toBe("catalogue");
+  });
+});

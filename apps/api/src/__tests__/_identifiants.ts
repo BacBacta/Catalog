@@ -98,6 +98,7 @@ export const BLOCS = {
   "bot-ouverture-photo": 31,
   "bot-photos-acheteuse": 32,
   "bot-photos-vendeuse": 33,
+  "bot-catalogue": 34,
 } as const;
 
 export type Fichier = keyof typeof BLOCS;

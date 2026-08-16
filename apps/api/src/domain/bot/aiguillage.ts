@@ -68,7 +68,7 @@ export interface ContexteAiguillage {
 }
 
 export interface EntreeAiguillee {
-  genre: "texte" | "bouton" | "liste" | "image" | "autre" | "flux" | "localisation";
+  genre: "texte" | "bouton" | "liste" | "image" | "autre" | "flux" | "localisation" | "commande";
   texte?: string | undefined;
   id?: string | undefined;
 }
@@ -88,6 +88,11 @@ export function aiguiller(entree: EntreeAiguillee, ctx: ContexteAiguillage): Fil
      base, et le service repose la question apres le verdict. */
   if (ctx.smsReconnu) return "vendeuse";
   if (ctx.estVendeuse && entree.genre === "texte" && demandeRemise(t)) return "vendeuse";
+
+  /* Un panier de catalogue natif est un geste d'ACHAT sans ambiguite —
+     ADR 0108. Il traverse tout, meme une inscription en cours : c'est la
+     machine acheteuse qui le convertit en commande, et elle seule. */
+  if (entree.genre === "commande") return "acheteuse";
 
   /* 1. Une inscription commencee se termine. Rien ne la detourne — sinon un
      nom de boutique qui ressemble a un slug renverrait la personne au

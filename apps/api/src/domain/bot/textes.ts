@@ -82,6 +82,12 @@ export interface TextesAcheteuse {
   btnAccueil: string;
   listeTitre: (nomBoutique: string, nb: number) => string;
   voirLaSuite: string;
+  /** Le corps du catalogue NATIF (ADR 0108) : il invite a toucher les fiches. */
+  catalogueNatifCorps: string;
+  /** Panier natif dont AUCUNE ligne n'est disponible — et la sortie honnete. */
+  commandeIndisponible: string;
+  /** Panier natif AJUSTE (stock, articles retires) : dire avant le recapitulatif. */
+  commandeAjustee: string;
 
   stockRestant: (n: number) => string;
   btnCommander: string;
@@ -314,6 +320,11 @@ const fr: TextesAcheteuse = {
   btnAccueil: "Accueil",
   listeTitre: (nom, nb) => `*${nom}* — ${nb} article${nb > 1 ? "s" : ""}`,
   voirLaSuite: "Voir la suite",
+  catalogueNatifCorps:
+    "Touchez un article pour voir sa photo et son prix, puis « Ajouter au panier ». Envoyez le panier quand vous êtes prête.",
+  commandeIndisponible:
+    "Ces articles ne sont plus disponibles chez cette vendeuse. Le catalogue à jour est ci-dessous.",
+  commandeAjustee: "Une partie de votre panier n'était plus disponible — voici ce qui reste :",
 
   stockRestant: (n) =>
     n <= 3 ? `Plus que ${n} disponible${n > 1 ? "s" : ""}` : `${n} disponibles`,
@@ -540,6 +551,11 @@ const en: TextesAcheteuse = {
   btnAccueil: "Home",
   listeTitre: (nom, nb) => `*${nom}* — ${nb} item${nb > 1 ? "s" : ""}`,
   voirLaSuite: "See more",
+  catalogueNatifCorps:
+    "Tap an item to see its photo and price, then “Add to cart”. Send the cart when you are ready.",
+  commandeIndisponible:
+    "These items are no longer available from this seller. The up-to-date catalogue is below.",
+  commandeAjustee: "Part of your cart was no longer available — here is what remains:",
 
   stockRestant: (n) => (n <= 3 ? `Only ${n} available` : `${n} available`),
   btnCommander: "Order",
@@ -767,6 +783,11 @@ const wes: TextesAcheteuse = {
   btnAccueil: "Home",
   listeTitre: (nom, nb) => `*${nom}* \u2014 ${nb} ting${nb > 1 ? " dem" : ""}`,
   voirLaSuite: "Si di oda dem",
+  catalogueNatifCorps:
+    "Touch one ting for si yi foto an yi price, den \u00ab Add for basket \u00bb. Send di basket wen you don ready.",
+  commandeIndisponible:
+    "Dis ting dem no dey again for dis seller. Di catalogue weh dey correct dey for down.",
+  commandeAjustee: "Some ting for yua basket no dey again \u2014 na dis wan dem remain:",
 
   stockRestant: (n) => (n <= 3 ? `Na only ${n} remain!` : `${n} dey for stock`),
   btnCommander: "Order-am",

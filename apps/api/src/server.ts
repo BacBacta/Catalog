@@ -1,6 +1,7 @@
 import { IMAGE_TAILLE_MAX_OCTETS } from "@catalog/contracts";
 import { createPrismaClient } from "@catalog/db";
 import { serve } from "@hono/node-server";
+import { CatalogueMeta } from "./adapters/catalogue-meta.ts";
 import { garantiesSqlPosees } from "./adapters/garanties-sql.ts";
 import { construireInstantane } from "./adapters/instantane-catalogue.ts";
 import { verificateurDepuisEnv } from "./adapters/jeton-actions-github.ts";
@@ -171,6 +172,26 @@ const bot =
            le comportement d'hier, entier. */
         ...(process.env.WABOT_FLUX_REVERSEMENT_ID?.trim()
           ? { fluxReversementId: process.env.WABOT_FLUX_REVERSEMENT_ID.trim() }
+          : {}),
+        /* Le catalogue Commerce Manager (ADR 0108). ABSENT PAR DEFAUT : le
+           fil sert alors la liste interactive, comme hier. Il se pose apres
+           le depot par `catalogue.mjs --deposer`. La synchronisation exige
+           aussi l'origine publique des photos (ADR 0017) : sans elle, aucune
+           fiche ne peut porter d'image, donc rien ne part. */
+        ...(process.env.WABOT_CATALOGUE_ID?.trim()
+          ? {
+              catalogueId: process.env.WABOT_CATALOGUE_ID.trim(),
+              catalogue: new CatalogueMeta({
+                apiKey: cleBot,
+                catalogueId: process.env.WABOT_CATALOGUE_ID.trim(),
+                ...(process.env.WABOT_GRAPH_URL?.trim()
+                  ? { graphUrl: process.env.WABOT_GRAPH_URL.trim() }
+                  : {}),
+              }),
+            }
+          : {}),
+        ...(process.env.MEDIA_PUBLIC_BASE?.trim()
+          ? { mediaPublicBase: process.env.MEDIA_PUBLIC_BASE.trim() }
           : {}),
         /* La verification du reversement DANS le fil (ADR 0097) : le MEME
            magasin d'OTP, la meme table de tentatives et le meme envoyeur SMS
