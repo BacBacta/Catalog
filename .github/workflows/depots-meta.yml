@@ -18,7 +18,7 @@ on:
         description: "Quel script executer"
         required: true
         type: choice
-        options: [flux, gabarits, les-deux, mesurer-photopicker, accueil-etat, accueil-poser, mesurer-cta, catalogue-etat, catalogue-deposer, catalogue-synchroniser]
+        options: [flux, gabarits, les-deux, mesurer-photopicker, accueil-etat, accueil-poser, mesurer-cta, catalogue-etat, catalogue-deposer, catalogue-synchroniser, sante-compte]
       mode:
         description: "Mode (--etat est en lecture seule)"
         required: true
@@ -125,5 +125,13 @@ jobs:
       - name: Catalogue — synchroniser les fiches
         if: inputs.quoi == 'catalogue-synchroniser'
         run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/catalogue.mjs --synchroniser"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      # « Mon compte est restreint » : le mot recouvre cinq etats differents,
+      # et `health_status` rend le motif REEL entite par entite, avec le code
+      # d'erreur de Meta et sa solution. Lecture seule, rien n'est envoye.
+      - name: Sante du compte Meta (lecture seule)
+        if: inputs.quoi == 'sante-compte'
+        run: flyctl ssh console --app catalog-api-preprod -C "node apps/api/scripts/diagnostic-meta.mjs"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
