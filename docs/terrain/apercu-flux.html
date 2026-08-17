@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aperçu des Flows — Catalog</title>
+<style>
+:root { --fond:#111b21; --carte:#ffffff; --encre:#111b21; --gris:#667781;
+  --trait:#e9edef; --vert:#008069; --rouge:#c4314b }
+* { box-sizing:border-box }
+body { margin:0; padding:24px; background:var(--fond); color:#e9edef;
+  font:400 15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif }
+h1 { font-size:20px; margin:0 0 4px }
+.avant-propos { max-width:70ch; color:#aebac1; font-size:14px }
+.avant-propos strong { color:#e9edef }
+.avant-propos table { border-collapse:collapse; margin:12px 0; font-size:13px }
+.avant-propos td { border:1px solid #2a3942; padding:6px 10px; vertical-align:top }
+.flux { display:grid; grid-template-columns:minmax(0,22ch) 1fr; gap:20px;
+  align-items:start; margin:28px 0; padding-top:20px; border-top:1px solid #2a3942 }
+.fiche h2 { font-size:16px; margin:0 0 6px; color:#e9edef }
+.legende { color:#8696a0; font-size:13px; margin:0 0 10px }
+.fiche dl { margin:0; font-size:13px }
+.fiche dl div { display:flex; justify-content:space-between; gap:8px; padding:2px 0 }
+.fiche dt { color:#8696a0 } .fiche dd { margin:0 }
+.source { font:12px/1.4 ui-monospace,monospace; color:#667781; margin:10px 0 0 }
+.ecrans { display:flex; flex-wrap:wrap; gap:16px }
+.ecran { width:320px; background:var(--carte); color:var(--encre);
+  border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.4) }
+.barre { display:flex; align-items:center; gap:12px; padding:12px 14px;
+  border-bottom:1px solid var(--trait) }
+.barre h3 { font-size:15px; font-weight:500; margin:0 }
+.fermer { color:var(--gris) }
+.feuille { padding:14px }
+.sous-titre { font-size:15px; font-weight:500; margin:0 0 12px }
+.corps { font-size:14px; color:var(--gris); margin:10px 0 }
+.champ { display:block; margin:0 0 16px; border:0; padding:0 }
+.etiquette { display:block; font-size:12px; color:var(--gris); margin-bottom:2px }
+.obligatoire { color:var(--vert); font-size:16px; line-height:0 }
+.saisie { display:block; height:22px; border-bottom:1.5px solid var(--vert) }
+.saisie.longue { height:52px; border:1.5px solid var(--vert); border-radius:6px }
+.saisie::after { content:attr(data-clavier); font-size:11px; color:#c9d1d3;
+  float:right; line-height:22px }
+.aide { display:block; font-size:11px; color:var(--gris); margin-top:4px }
+.groupe .option { display:flex; align-items:center; gap:8px; font-size:14px; padding:5px 0 }
+.rond { width:16px; height:16px; border:1.5px solid var(--gris); border-radius:50%; flex:none }
+.optin { display:flex; align-items:center; gap:8px; font-size:14px }
+.case { width:16px; height:16px; border:1.5px solid var(--gris); border-radius:3px; flex:none }
+.depot { display:flex; align-items:center; gap:10px; padding:12px;
+  border:1.5px dashed var(--trait); border-radius:8px; font-size:12px; color:var(--gris) }
+.appareil { font-size:20px }
+.pied { margin-top:18px }
+.bouton { display:flex; align-items:center; justify-content:center; min-height:44px;
+  border-radius:22px; background:var(--vert); color:#fff; font-weight:500 }
+.mention { text-align:center; font-size:11px; color:#c9d1d3; margin:8px 0 0 }
+.contrat { margin-top:10px; font-size:12px; color:var(--gris) }
+.contrat summary { cursor:pointer }
+.contrat ul { margin:6px 0 0; padding-left:18px }
+.contrat code { font-family:ui-monospace,monospace }
+.etiquette-ecran { margin:0; padding:8px 14px; border-top:1px solid var(--trait);
+  font:12px ui-monospace,monospace; color:var(--gris) }
+.inconnu { background:var(--rouge); color:#fff; padding:8px; border-radius:6px; font-size:13px }
+</style>
+</head>
+<body>
+<h1>Aperçu des Flows</h1>
+<div class="avant-propos">
+<p><strong>Cette page est générée</strong> par <code>apps/api/scripts/apercu-flux.ts</code>,
+qui ne lit rien d'autre que <code>docs/flux-*.json</code>. Elle ne s'édite pas à la main :
+un test la régénère et refuse toute différence.</p>
+<table>
+<tr><td><strong>Mesuré</strong> — vient du JSON</td>
+<td>titres, textes, libellés, textes d'aide, ordre, obligation, options,
+libellé du bouton, enchaînement des écrans, charge utile renvoyée</td></tr>
+<tr><td><strong>Dessiné</strong> — approximation</td>
+<td>barre de titre, couleurs, espacements, forme des champs, mention de bas de page.
+WhatsApp reste seul juge du pixel.</td></tr>
+</table>
+<p>L'aperçu <em>officiel</em> (<code>POST /{flow-id}/preview</code>) rend le vrai rendu,
+mais exige l'administration du WABA — gelée depuis le 16/08/2026, ADR 0109.</p>
+<p>Le point vert <span class="obligatoire">•</span> marque un champ obligatoire.
+« Gestes minimum » compte les champs obligatoires plus une pression sur le bouton :
+<strong>22 gestes</strong> pour les 6 Flows réunis.</p>
+</div>
+
+  <article class="flux" data-cle="ouverture">
+    <div class="fiche">
+      <h2>ouverture</h2>
+      <p class="legende">Le premier contact d&#39;une vendeuse : sa boutique et son premier article, en deux écrans.</p>
+      <dl>
+        <div><dt>version</dt><dd>7.0</dd></div>
+        <div><dt>écrans</dt><dd>2</dd></div>
+        <div><dt>obligatoires</dt><dd>3</dd></div>
+        <div><dt>facultatifs</dt><dd>4</dd></div>
+        <div><dt>gestes minimum</dt><dd><strong>5</strong></dd></div>
+      </dl>
+      <p class="source">docs/flux-ouverture.json</p>
+    </div>
+    <div class="ecrans">
+      <section class="ecran" id="ouverture-BOUTIQUE">
+        <header class="barre">
+          <span class="fermer" aria-hidden="true">✕</span>
+          <h3>Votre boutique</h3>
+        </header>
+        <div class="feuille">
+          <p class="sous-titre">Deux réponses, puis votre premier article.</p>
+      <label class="champ">
+        <span class="etiquette">Nom de votre boutique <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Exemple : Chez Amina</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Ville où vous vendez <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Exemple : Douala</span>
+      </label>
+      <fieldset class="champ groupe">
+        <legend class="etiquette">Langue de vos clientes <span class="obligatoire" title="obligatoire">•</span></legend>
+        <span class="option"><span class="rond"></span>Français</span><span class="option"><span class="rond"></span>English</span>
+        
+      </fieldset>
+      <div class="pied">
+        <span class="bouton">Continuer</span>
+        <p class="mention">Géré par l'entreprise — dessiné, pas mesuré</p>
+      </div>
+      
+    <details class="contrat">
+      <summary>va vers <code>ARTICLE</code> en portant 3 champs</summary>
+      <ul><li><code>boutique</code> ← ${form.boutique}</li><li><code>ville</code> ← ${form.ville}</li><li><code>langue</code> ← ${form.langue}</li></ul>
+    </details>
+        </div>
+        <p class="etiquette-ecran">
+          écran 1 / 2 · <code>BOUTIQUE</code>
+        </p>
+      </section>
+      <section class="ecran" id="ouverture-ARTICLE">
+        <header class="barre">
+          <span class="fermer" aria-hidden="true">✕</span>
+          <h3>Votre premier article</h3>
+        </header>
+        <div class="feuille">
+          <p class="sous-titre">Ce que vous vendez — vous pourrez en ajouter d&#39;autres après.</p>
+      <label class="champ">
+        <span class="etiquette">Nom de l&#39;article</span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Exemple : Pagne wax 6 yards</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Prix en francs</span>
+        <span class="saisie" data-clavier="chiffres"></span>
+        <span class="aide">Exemple : 15000</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Combien en avez-vous ? (facultatif)</span>
+        <span class="saisie" data-clavier="chiffres"></span>
+        <span class="aide">Laissez vide si vous ne comptez pas.</span>
+      </label>
+      <div class="champ photo">
+        <span class="etiquette">Photo de l&#39;article (facultatif)</span>
+        <div class="depot">
+          <span class="appareil" aria-hidden="true">▣</span>
+          <span>Appareil photo ou galerie — une seule suffit.</span>
+        </div>
+        <span class="aide">facultative, 1 au plus — appareil photo ou galerie</span>
+      </div>
+      <div class="pied">
+        <span class="bouton">Ouvrir ma boutique</span>
+        <p class="mention">Géré par l'entreprise — dessiné, pas mesuré</p>
+      </div>
+      
+    <details class="contrat">
+      <summary>termine et renvoie 7 champs</summary>
+      <ul><li><code>boutique</code> ← ${data.boutique}</li><li><code>ville</code> ← ${data.ville}</li><li><code>langue</code> ← ${data.langue}</li><li><code>nom</code> ← ${form.nom}</li><li><code>prix</code> ← ${form.prix}</li><li><code>stock</code> ← ${form.stock}</li><li><code>photo</code> ← ${form.photo}</li></ul>
+    </details>
+        </div>
+        <p class="etiquette-ecran">
+          écran 2 / 2 · <code>ARTICLE</code> · terminal
+        </p>
+      </section></div>
+  </article>
+  <article class="flux" data-cle="inscription">
+    <div class="fiche">
+      <h2>inscription</h2>
+      <p class="legende">L&#39;ouverture en un seul écran — le repli quand le Flow d&#39;ouverture n&#39;est pas posé.</p>
+      <dl>
+        <div><dt>version</dt><dd>7.0</dd></div>
+        <div><dt>écrans</dt><dd>1</dd></div>
+        <div><dt>obligatoires</dt><dd>3</dd></div>
+        <div><dt>facultatifs</dt><dd>0</dd></div>
+        <div><dt>gestes minimum</dt><dd><strong>4</strong></dd></div>
+      </dl>
+      <p class="source">docs/flux-inscription.json</p>
+    </div>
+    <div class="ecrans">
+      <section class="ecran" id="inscription-BOUTIQUE">
+        <header class="barre">
+          <span class="fermer" aria-hidden="true">✕</span>
+          <h3>Votre boutique</h3>
+        </header>
+        <div class="feuille">
+          <p class="sous-titre">Deux réponses et votre boutique existe.</p>
+      <label class="champ">
+        <span class="etiquette">Nom de votre boutique <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Exemple : Chez Amina</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Ville où vous vendez <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Exemple : Douala</span>
+      </label>
+      <fieldset class="champ groupe">
+        <legend class="etiquette">Langue de vos clientes <span class="obligatoire" title="obligatoire">•</span></legend>
+        <span class="option"><span class="rond"></span>Français</span><span class="option"><span class="rond"></span>English</span>
+        
+      </fieldset>
+      <div class="pied">
+        <span class="bouton">Ouvrir ma boutique</span>
+        <p class="mention">Géré par l'entreprise — dessiné, pas mesuré</p>
+      </div>
+      
+    <details class="contrat">
+      <summary>termine et renvoie 3 champs</summary>
+      <ul><li><code>boutique</code> ← ${form.boutique}</li><li><code>ville</code> ← ${form.ville}</li><li><code>langue</code> ← ${form.langue}</li></ul>
+    </details>
+        </div>
+        <p class="etiquette-ecran">
+          <code>BOUTIQUE</code> · terminal
+        </p>
+      </section></div>
+  </article>
+  <article class="flux" data-cle="article">
+    <div class="fiche">
+      <h2>article</h2>
+      <p class="legende">Un article de plus dans un catalogue déjà ouvert.</p>
+      <dl>
+        <div><dt>version</dt><dd>7.0</dd></div>
+        <div><dt>écrans</dt><dd>1</dd></div>
+        <div><dt>obligatoires</dt><dd>2</dd></div>
+        <div><dt>facultatifs</dt><dd>2</dd></div>
+        <div><dt>gestes minimum</dt><dd><strong>3</strong></dd></div>
+      </dl>
+      <p class="source">docs/flux-article.json</p>
+    </div>
+    <div class="ecrans">
+      <section class="ecran" id="article-ARTICLE">
+        <header class="barre">
+          <span class="fermer" aria-hidden="true">✕</span>
+          <h3>Nouvel article</h3>
+        </header>
+        <div class="feuille">
+          <p class="sous-titre">Nom, prix, stock — et l&#39;article est en ligne.</p>
+      <label class="champ">
+        <span class="etiquette">Nom de l&#39;article <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Exemple : Pagne wax 6 yards</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Prix, en francs <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="chiffres"></span>
+        <span class="aide">Exemple : 15000</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Quantité disponible (facultatif)</span>
+        <span class="saisie" data-clavier="chiffres"></span>
+        <span class="aide">Il ne se décompte pas tout seul — vous le corrigez à la main.</span>
+      </label>
+      <div class="champ photo">
+        <span class="etiquette">Photo de l&#39;article (facultatif)</span>
+        <div class="depot">
+          <span class="appareil" aria-hidden="true">▣</span>
+          <span>Appareil photo ou galerie — une seule suffit.</span>
+        </div>
+        <span class="aide">facultative, 1 au plus — appareil photo ou galerie</span>
+      </div>
+      <div class="pied">
+        <span class="bouton">Publier l&#39;article</span>
+        <p class="mention">Géré par l'entreprise — dessiné, pas mesuré</p>
+      </div>
+      
+    <details class="contrat">
+      <summary>termine et renvoie 4 champs</summary>
+      <ul><li><code>nom</code> ← ${form.nom}</li><li><code>prix</code> ← ${form.prix}</li><li><code>stock</code> ← ${form.stock}</li><li><code>photo</code> ← ${form.photo}</li></ul>
+    </details>
+        </div>
+        <p class="etiquette-ecran">
+          <code>ARTICLE</code> · terminal
+        </p>
+      </section></div>
+  </article>
+  <article class="flux" data-cle="reversement">
+    <div class="fiche">
+      <h2>reversement</h2>
+      <p class="legende">Le numéro Mobile Money où l&#39;argent arrive. Le champ qu&#39;un attaquant viserait.</p>
+      <dl>
+        <div><dt>version</dt><dd>7.0</dd></div>
+        <div><dt>écrans</dt><dd>1</dd></div>
+        <div><dt>obligatoires</dt><dd>2</dd></div>
+        <div><dt>facultatifs</dt><dd>0</dd></div>
+        <div><dt>gestes minimum</dt><dd><strong>3</strong></dd></div>
+      </dl>
+      <p class="source">docs/flux-reversement.json</p>
+    </div>
+    <div class="ecrans">
+      <section class="ecran" id="reversement-REVERSEMENT">
+        <header class="barre">
+          <span class="fermer" aria-hidden="true">✕</span>
+          <h3>Où l&#39;argent arrive</h3>
+        </header>
+        <div class="feuille">
+          <p class="sous-titre">Votre numéro Mobile Money — pas forcément celui-ci : la double SIM est la norme.</p>
+      <label class="champ">
+        <span class="etiquette">Numéro de reversement <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="téléphone"></span>
+        <span class="aide">Exemple : 6 99 88 77 12</span>
+      </label>
+      <fieldset class="champ groupe">
+        <legend class="etiquette">Opérateur <span class="obligatoire" title="obligatoire">•</span></legend>
+        <span class="option"><span class="rond"></span>Orange Money</span><span class="option"><span class="rond"></span>MTN MoMo</span>
+        
+      </fieldset><p class="corps">Le code de vérification arrive par SMS sur ce numéro — collez-le ensuite dans la conversation.</p>
+      <div class="pied">
+        <span class="bouton">Recevoir le code</span>
+        <p class="mention">Géré par l'entreprise — dessiné, pas mesuré</p>
+      </div>
+      
+    <details class="contrat">
+      <summary>termine et renvoie 2 champs</summary>
+      <ul><li><code>numero</code> ← ${form.numero}</li><li><code>operateur</code> ← ${form.operateur}</li></ul>
+    </details>
+        </div>
+        <p class="etiquette-ecran">
+          <code>REVERSEMENT</code> · terminal
+        </p>
+      </section></div>
+  </article>
+  <article class="flux" data-cle="livraison">
+    <div class="fiche">
+      <h2>livraison</h2>
+      <p class="legende">Ce qui remplace l&#39;adresse : ville, quartier, repère, téléphone.</p>
+      <dl>
+        <div><dt>version</dt><dd>7.0</dd></div>
+        <div><dt>écrans</dt><dd>1</dd></div>
+        <div><dt>obligatoires</dt><dd>4</dd></div>
+        <div><dt>facultatifs</dt><dd>1</dd></div>
+        <div><dt>gestes minimum</dt><dd><strong>5</strong></dd></div>
+      </dl>
+      <p class="source">docs/flux-livraison.json</p>
+    </div>
+    <div class="ecrans">
+      <section class="ecran" id="livraison-LIVRAISON">
+        <header class="barre">
+          <span class="fermer" aria-hidden="true">✕</span>
+          <h3>Où livrer ?</h3>
+        </header>
+        <div class="feuille">
+          
+      <label class="champ">
+        <span class="etiquette">Ville <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Là où vous voulez être livrée.</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Quartier <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">Exemple : Bonapriso</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Un repère <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="texte"></span>
+        <span class="aide">« en face de… », « à côté de… ». C’est ce qui remplace l’adresse.</span>
+      </label>
+      <label class="champ">
+        <span class="etiquette">Numéro à appeler <span class="obligatoire" title="obligatoire">•</span></span>
+        <span class="saisie" data-clavier="téléphone"></span>
+        <span class="aide">Exemple : 690 11 22 33</span>
+      </label>
+      <span class="champ optin"><span class="case"></span>Envoyer aussi ma position exacte (facultatif)</span>
+      <div class="pied">
+        <span class="bouton">Valider</span>
+        <p class="mention">Géré par l'entreprise — dessiné, pas mesuré</p>
+      </div>
+      
+    <details class="contrat">
+      <summary>termine et renvoie 5 champs</summary>
+      <ul><li><code>ville</code> ← ${form.ville}</li><li><code>quartier</code> ← ${form.quartier}</li><li><code>repere</code> ← ${form.repere}</li><li><code>telephone</code> ← ${form.telephone}</li><li><code>position</code> ← ${form.position}</li></ul>
+    </details>
+        </div>
+        <p class="etiquette-ecran">
+          <code>LIVRAISON</code> · terminal
+        </p>
+      </section></div>
+  </article>
+  <article class="flux" data-cle="avis">
+    <div class="fiche">
+      <h2>avis</h2>
+      <p class="legende">L&#39;avis vérifié, adossé à un paiement prouvé.</p>
+      <dl>
+        <div><dt>version</dt><dd>7.0</dd></div>
+        <div><dt>écrans</dt><dd>1</dd></div>
+        <div><dt>obligatoires</dt><dd>1</dd></div>
+        <div><dt>facultatifs</dt><dd>1</dd></div>
+        <div><dt>gestes minimum</dt><dd><strong>2</strong></dd></div>
+      </dl>
+      <p class="source">docs/flux-avis.json</p>
+    </div>
+    <div class="ecrans">
+      <section class="ecran" id="avis-AVIS">
+        <header class="barre">
+          <span class="fermer" aria-hidden="true">✕</span>
+          <h3>Votre avis</h3>
+        </header>
+        <div class="feuille">
+          <p class="sous-titre">Votre avis est vérifié : il est adossé à un paiement prouvé.</p>
+      <fieldset class="champ groupe">
+        <legend class="etiquette">Votre note <span class="obligatoire" title="obligatoire">•</span></legend>
+        <span class="option"><span class="rond"></span>★★★★★ Très bien</span><span class="option"><span class="rond"></span>★★★★ Bien</span><span class="option"><span class="rond"></span>★★★ Correct</span><span class="option"><span class="rond"></span>★★ Décevant</span><span class="option"><span class="rond"></span>★ Mauvais</span>
+        
+      </fieldset>
+      <label class="champ">
+        <span class="etiquette">Un mot (facultatif)</span>
+        <span class="saisie longue"></span>
+        <span class="aide">Ce que vous diriez à une amie.</span>
+      </label>
+      <div class="pied">
+        <span class="bouton">Envoyer mon avis</span>
+        <p class="mention">Géré par l'entreprise — dessiné, pas mesuré</p>
+      </div>
+      
+    <details class="contrat">
+      <summary>termine et renvoie 2 champs</summary>
+      <ul><li><code>note</code> ← ${form.note}</li><li><code>mot</code> ← ${form.mot}</li></ul>
+    </details>
+        </div>
+        <p class="etiquette-ecran">
+          <code>AVIS</code> · terminal
+        </p>
+      </section></div>
+  </article>
+</body>
+</html>

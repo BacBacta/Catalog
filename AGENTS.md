@@ -272,6 +272,11 @@ docs/terrain/                    instruments de test de terrain
                                  et le compteur d'automatisation qui prouve la
                                  promesse — 1 message tapé côté vendeuse (le
                                  SMS), 0 côté acheteuse
+  apercu-flux.html               GÉNÉRÉ — ne s'édite pas à la main. Les six
+                                 Flows dessinés depuis `docs/flux-*.json`, et
+                                 rien d'autre : un test régénère la page et
+                                 refuse toute différence. ADR 0110.
+                                 `node apps/api/scripts/apercu-flux.ts`
 ```
 
 **Règle de dépendance** : `domain` ne dépend de rien. `routes` et `jobs`
