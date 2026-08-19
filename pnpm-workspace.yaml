@@ -115,3 +115,19 @@ overrides:
   fast-uri: ^3.1.5
   js-yaml: ^4.3.1
   nanoid: ^3.3.17
+
+  # ── Avis ELEVE du 16/08/2026 (GHSA-ggr8-5vv4-36mx) ───────────────────────
+  #
+  # `deepmerge-ts` : epuisement de pile sur des graphes d'objets recursifs.
+  # Introduit par `@prisma/config`, une dependance de PRODUCTION (Prisma sert
+  # les paiements) — contrairement aux avis du dessus, celui-ci sortait de
+  # `pnpm audit --prod`, donc de la garde de CI.
+  #
+  # `deepmerge-ts` n'est appele nulle part dans ce depot : c'est un detail
+  # interne a `@prisma/config`, qui ne merge que des objets de configuration
+  # (schema.prisma, variables d'environnement) — jamais de donnee utilisateur
+  # ni de paiement. La montee 7 → 8 traverse un MAJEUR (renommages de types,
+  # `deepmergeInto` qui ne mute plus par alias) ; verifiee par la chaine
+  # complete (`db:validate`, `db:generate`, `db:migrate`, `db:seed`, build)
+  # plutot que par un appel direct, puisque le depot n'en fait aucun.
+  deepmerge-ts: ^8.0.1
