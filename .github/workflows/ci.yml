@@ -1,8 +1,14 @@
 name: CI
 
 on:
-  push: { branches: [main] }
+  push:
+    branches: [main]
+    paths-ignore: &docs-only
+      - "docs/**"
+      - "**/*.md"
+      - "!docs/formats-sms-operateurs.md"
   pull_request:
+    paths-ignore: *docs-only
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -234,7 +240,7 @@ jobs:
           name: rapports-lighthouse
           path: apps/shop/.lighthouseci/*.html
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
       # Bloquant depuis le lot 2. AGENTS.md exige zero violation axe-core
       # bloquante, et la page de demonstration du design system en est la
       # premiere cible reelle. Ce job verifie aussi les cibles tactiles de
@@ -250,4 +256,4 @@ jobs:
           name: captures-design-system
           path: apps/seller/test-results/**/*.png
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 3
