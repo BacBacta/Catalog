@@ -18,9 +18,9 @@
     "tailwindcss": "4.3.3"
   },
   "devDependencies": {
-    "@astrojs/check": "0.9.10",
-    "vitest": "4.1.10",
-    "@types/node": "26.2.0",
+    "@astrojs/check": "0.9.12",
+    "vitest": "5.0.5",
+    "@types/node": "26.6.5",
     "typescript": "6.0.3"
   }
 }
